@@ -45,13 +45,17 @@ ii) In Niflysharp - Niheader.cs - Addblockinfo
 
 
   public void AddBlockInfo(INiObject newBlock)
+  
   {
-      string blockTypeName = newBlock.GetType().Name;
+  
+      string blockTypeName = newBlock.GetType().Name;  
       if (blockTypeName == "BSSkin_Instance") blockTypeName = "BSSkin::Instance";  <<---ADDD
-      if (blockTypeName == "BSSkin_BoneData") blockTypeName = "BSSkin::BoneData";  <<---ADDD
+      if (blockTypeName == "BSSkin_BoneData") blockTypeName = "BSSkin::BoneData";  <<---ADD     
       if (blockTypeName == "BSConnectPoint_Parents") blockTypeName = "BSConnectPoint::Parents";  <<---ADDD
       if (blockTypeName == "BSConnectPoint_Children") blockTypeName = "BSConnectPoint::Children";  <<---ADDD
+      
       ushort blockTypeIndex = AddOrFindBlockTypeIndex(blockTypeName);
+      
       blockTypeIndices.Add(blockTypeIndex);
 
       if (Version.FileVersion >= NiFileVersion.V20_2_0_5)
