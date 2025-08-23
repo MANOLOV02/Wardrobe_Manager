@@ -11,6 +11,8 @@ Changes to be made until is fixed int Niflysharp
 
 i) in NiflySharp - Niffile.cs - Load:
 .......
+
+
     try
     {
         // Create a new default instance of the block type
@@ -40,6 +42,8 @@ i) in NiflySharp - Niffile.cs - Load:
         Blocks.Add(block);
 }
 ii) In Niflysharp - Niheader.cs - Addblockinfo
+
+
   public void AddBlockInfo(INiObject newBlock)
   {
       string blockTypeName = newBlock.GetType().Name;
@@ -58,7 +62,6 @@ ii) In Niflysharp - Niheader.cs - Addblockinfo
 
   iii) In NiflySharp - NifSourceGenerator
 
-    // Create protected class fields
   fieldsSection +=
       $"{fieldComment}\r\n" +
       $"        public {fieldTypeName} {fieldName}{defaultString};\r\n"; <<---CHANGED FROM PROTECTED TO PUBLIC
