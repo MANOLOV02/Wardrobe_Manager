@@ -66,12 +66,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\DirectXTextWrapper\DirectXTexWrapper.vcxproj" />
-    <ProjectReference Include="..\..\Material-Editor-master\Material Editor.csproj" />
-    <ProjectReference Include="..\..\NiflySharp\NiflySharp\NiflySharp.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
     <Compile Update="My Project\Application.Designer.vb">
       <DesignTime>True</DesignTime>
       <AutoGen>True</AutoGen>
@@ -111,6 +105,12 @@
 
   <ItemGroup>
     <Folder Include="Resources\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\DirectXTextWrapper\DirectXTexWrapper.vcxproj" />
+    <ProjectReference Include="..\..\Material-Editor-master\Material Editor.csproj" />
+    <ProjectReference Include="..\..\NiflySharp\NiflySharp\NiflySharp.csproj" />
   </ItemGroup>
 	<Target Name="PublishOnBuild" AfterTargets="Build" Condition="'$(Configuration)'=='Publish'">
 		<MSBuild Projects="$(MSBuildProjectFullPath)" Targets="Publish" Properties="Configuration=Publish;Platform=$(Platform)" />
