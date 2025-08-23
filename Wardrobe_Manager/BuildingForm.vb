@@ -69,6 +69,7 @@ Public Class BuildingForm
                             ProgressBar1.Value += 1
                             builder.NIFContent.UpdateSkinPartitions(shap.RelatedNifShape)
                             ProgressBar1.Value += 1
+
                             If builder.KeepZappedShapes = False AndAlso geom.Vertices.Length = 0 Then builder.RemoveShape(shap)
                             ProgressBar1.Value += 1
                         Else
