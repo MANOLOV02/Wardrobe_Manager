@@ -9,7 +9,7 @@
     <MyType>WindowsForms</MyType>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <Configurations>Debug;Release;Publish</Configurations>
-    <ApplicationIcon>tool-animator.ico</ApplicationIcon>
+    <ApplicationIcon>Tif-Image.ICO</ApplicationIcon>
   </PropertyGroup>
 	
 	<PropertyGroup Condition="'$(Platform)'=='x86'">
@@ -50,7 +50,7 @@
 	  <None Remove="Shaders\**" />
 	</ItemGroup>
 	<ItemGroup>
-	  <Content Include="tool-animator.ico" />
+	  <Content Include="Tif-Image.ICO" />
 	</ItemGroup>
 
   <ItemGroup>

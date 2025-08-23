@@ -1153,12 +1153,14 @@ Public Class SliderSet_Class
                 If HighHeelHeight = 0 Then
                     If IO.File.Exists(hhfile) Then IO.File.Delete(hhfile)
                 Else
-                    Dim writer = IO.File.CreateText(hhfile)
-                    writer.WriteLine("Height=" + HighHeelHeight.ToString.Replace(System.Globalization.CultureInfo.CurrentUICulture.NumberFormat.NumberDecimalSeparator, "."))
-                    writer.Flush()
-                    writer.Close()
+                    If Config_App.Current.Settings_Build.SaveHHS Then
+                        Dim writer = IO.File.CreateText(hhfile)
+                        writer.WriteLine("Height=" + HighHeelHeight.ToString.Replace(System.Globalization.CultureInfo.CurrentUICulture.NumberFormat.NumberDecimalSeparator, "."))
+                        writer.Flush()
+                        writer.Close()
+                    End If
                 End If
-            Case Config_App.Game_Enum.Skyrim
+                    Case Config_App.Game_Enum.Skyrim
                 For sizecount = 0 To IIf(Multisize, 1, 0)
                     Dim fil = IO.Path.Combine(IO.Path.Combine(Directorios.Fallout4data, OutputPathValue), OutputFileValue) + IIf(Multisize, "_" + sizecount.ToString, "") + ".nif"
                     Dim NIF As New Nifcontent_Class_Manolo
