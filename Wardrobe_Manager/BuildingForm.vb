@@ -28,6 +28,8 @@ Public Class BuildingForm
         ' Lee los sliders de looksmenu si se graba tri
         If Config_App.Current.Settings_Build.SaveTri Then TriFile.Read_Looksmenu_Sliders()
 
+        Dim has_pose = (Config_App.Current.Settings_Build.BuildInPose AndAlso _Pose.Source <> Poses_class.Pose_Source_Enum.None)
+        If has_pose Then Skeleton_Class.AppplyPoseToSkeleton(_Pose)
         For Each sliderset_target In _Lista
             Try
                 Dim NodoClone = DummyOSP.xml.ImportNode(sliderset_target.Nodo.Clone, True)
@@ -37,7 +39,7 @@ Public Class BuildingForm
                 Dim size As Config_App.SliderSize = Config_App.SliderSize.Default
                 For Sizecount = 0 To CInt(IIf(sliderset_target.Multisize, 1, 0))
                     ProgressBar1.Value = 0
-                    ProgressBar1.Maximum = (builder.Shapes.Count * 6 + 5)
+                    ProgressBar1.Maximum = (builder.Shapes.Count * 5 + 5)
                     OSP_Project_Class.Load_and_CHeck_Project(builder, False)
                     ProgressBar1.Value += 1
                     OSP_Project_Class.Load_and_Check_Shapedata(builder)
@@ -56,7 +58,7 @@ Public Class BuildingForm
                     For Each shap In builder.Shapes.ToList
                         If Not IsNothing(shap.RelatedNifShape) Then
                             ' 1- cargo geometria 
-                            Dim geom = SkinningHelper.ExtractSkinnedGeometry(shap, ApplyPose:=(Config_App.Current.Settings_Build.BuildInPose AndAlso _Pose.Source <> Poses_class.Pose_Source_Enum.None), singleboneskinning:=Config_App.Current.Setting_SingleBoneSkinning, RecalculateNormals:=False) ' Los normales los calculo despues
+                            Dim geom = SkinningHelper.ExtractSkinnedGeometry(shap, ApplyPose:=has_pose, singleboneskinning:=Config_App.Current.Setting_SingleBoneSkinning, RecalculateNormals:=False) ' Los normales los calculo despues
                             ProgressBar1.Value += 1
                             ' 2- cargo morph
                             builder.SetPreset(_Preset, size)
@@ -65,15 +67,19 @@ Public Class BuildingForm
                             MorphingHelper.ApplyMorph_CPU(shap, geom, Config_App.Current.Setting_RecalculateNormals, AllowMask:=False)
                             ProgressBar1.Value += 1
                             ' 4- Borro zaps y revierto bakeo
-                            SkinningHelper.BakeFromMemoryUsingOriginal(shap, geom, ApplyPose:=(Config_App.Current.Settings_Build.BuildInPose AndAlso _Pose.Source <> Poses_class.Pose_Source_Enum.None), inverse:=False, ApplyMorph:=True, RemoveZaps:=True, singleBoneSkinning:=Config_App.Current.Setting_SingleBoneSkinning)
-                            ProgressBar1.Value += 1
-                            builder.NIFContent.UpdateSkinPartitions(shap.RelatedNifShape)
+                            SkinningHelper.BakeFromMemoryUsingOriginal(shap, geom, ApplyPose:=has_pose, inverse:=False, ApplyMorph:=True, RemoveZaps:=True, singleBoneSkinning:=Config_App.Current.Setting_SingleBoneSkinning)
                             ProgressBar1.Value += 1
 
-                            If builder.KeepZappedShapes = False AndAlso geom.Vertices.Length = 0 Then builder.RemoveShape(shap)
-                            ProgressBar1.Value += 1
+                            If builder.KeepZappedShapes = False AndAlso geom.Vertices.Length = 0 Then
+                                builder.RemoveShape(shap)
+                                ProgressBar1.Value += 1
+                            Else
+                                builder.NIFContent.UpdateSkinPartitions(shap.RelatedNifShape)
+                                ProgressBar1.Value += 1
+                            End If
+
                         Else
-                            ProgressBar1.Value += 6
+                            ProgressBar1.Value += 5
                         End If
                     Next
 
@@ -106,10 +112,10 @@ Public Class BuildingForm
                     Nombre = "Unknown"
                     ProgressBar2.Value += IIf(sliderset_target.Multisize, 1, 2)
                 Next
-            'ComparadorTrip.CompararArchivos(tri, tri.Replace("_WM.tri", "_WM.tri2"))
+                'ComparadorTrip.CompararArchivos(tri, tri.Replace("_WM.tri", "_WM.tri2"))
             Catch ex As Exception
-            If Errores <> "" Then Errores += ","
-            Errores += Nombre + vbCrLf
+                If Errores <> "" Then Errores += ","
+                Errores += Nombre + vbCrLf
             End Try
 
 
