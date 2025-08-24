@@ -1,4 +1,5 @@
-﻿<Global.Microsoft.VisualBasic.CompilerServices.DesignerGenerated()>
+﻿' Version Uploaded of Wardrobe 2.1.3
+<Global.Microsoft.VisualBasic.CompilerServices.DesignerGenerated()>
 Partial Public Class DictionaryFilePicker_Form
     Inherits System.Windows.Forms.Form
 

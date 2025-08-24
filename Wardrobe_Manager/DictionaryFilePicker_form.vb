@@ -1,4 +1,5 @@
-﻿Partial Public Class DictionaryFilePicker_Form
+﻿' Version Uploaded of Wardrobe 2.1.3
+Partial Public Class DictionaryFilePicker_Form
 
     Sub New()
         ' Esta llamada es exigida por el diseñador.

@@ -1,4 +1,5 @@
-﻿Imports System.IO
+﻿' Version Uploaded of Wardrobe 2.1.3
+Imports System.IO
 
 ''' <summary>
 ''' Logger thread-safe que mantiene un único FileStream abierto con WriteThrough,
