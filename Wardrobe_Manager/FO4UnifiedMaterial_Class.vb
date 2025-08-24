@@ -1656,16 +1656,20 @@ Public Class FO4UnifiedMaterial_Class
             .ModelSpaceNormals = shad.ModelSpace,
             .BackLighting = shad.HasBacklight
                                                       }
+
+            ' REVISARRRRR!!!!!!!
             If Not IsNothing(shad.TextureSetRef) AndAlso shad.TextureSetRef.Index <> -1 Then
                 mat.DiffuseTexture = CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet).Textures(0).Content
                 mat.NormalTexture = CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet).Textures(1).Content
-                mat.LightingTexture = CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet).Textures(6).Content
                 mat.GlowTexture = CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet).Textures(2).Content
-                mat.EnvmapTexture = IIf(CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet).Textures(4).Content <> "", CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet).Textures(4).Content, CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet).Textures(5).Content)
+                mat.DisplacementTexture = CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet).Textures(3).Content
+                mat.EnvmapTexture = CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet).Textures(4).Content
+                mat.FlowTexture = CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet).Textures(5).Content
+                mat.LightingTexture = CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet).Textures(6).Content
                 mat.SmoothSpecTexture = CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet).Textures(7).Content
             End If
         Else
-                mat = New BGSM
+            mat = New BGSM
         End If
         mat.AlphaTest = False
         mat.AlphaTestRef = 128
@@ -1743,6 +1747,7 @@ Public Class FO4UnifiedMaterial_Class
             shad._sourceTexture.Content = Mat.BaseTexture
         End If
 
+
         If IsNothing(shad._normalTexture) Then
             shad._normalTexture = New NiString4(Mat.NormalTexture)
         Else
@@ -1814,12 +1819,13 @@ Public Class FO4UnifiedMaterial_Class
             texset.Textures.Add(New NiString4 With {.Content = ""})
         End While
 
+        ' REVISARRRRR!!!!!!!
         texset.Textures(0).Content = Mat.DiffuseTexture
         texset.Textures(1).Content = Mat.NormalTexture
         texset.Textures(2).Content = Mat.GlowTexture
-        texset.Textures(3).Content = ""
+        texset.Textures(3).Content = Mat.DisplacementTexture
         texset.Textures(4).Content = Mat.EnvmapTexture
-        texset.Textures(5).Content = Mat.EnvmapTexture
+        texset.Textures(5).Content = Mat.FlowTexture
         texset.Textures(6).Content = Mat.LightingTexture
         texset.Textures(7).Content = Mat.SmoothSpecTexture
 
