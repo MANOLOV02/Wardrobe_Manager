@@ -3,6 +3,7 @@ Imports System.ComponentModel
 Imports System.Drawing.Imaging
 Imports System.IO
 Imports System.Runtime.InteropServices
+Imports System.Security.Cryptography
 Imports System.Text
 Imports Material_Editor.BaseMaterialFile
 Imports OpenTK.GLControl
@@ -883,7 +884,7 @@ Public Class PreviewModel
                     If MaterialBase.AlphaBlendMode = AlphaBlendModeType.Standard Then Return True
                     If MaterialBase.AlphaBlendMode = AlphaBlendModeType.Multiplicative Then Return True
                     If MaterialBase.AlphaBlendMode = AlphaBlendModeType.Additive Then Return True
-                    If MaterialBase.AlphaBlendMode = AlphaBlendModeType.Unknown Then Return GetAlphaFromShape
+                    If MaterialBase.AlphaBlendMode = AlphaBlendModeType.Unknown Then Return GetAlphaFromShape()
                     Debugger.Break()
                     Return False
                 End Get
@@ -1104,8 +1105,12 @@ Public Class PreviewModel
             Public ReadOnly Property EnvmapMaskTexture_ID As UInteger
                 Get
                     Dim key As String = FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.EnvmapMaskTexture)
-                    If key = "" Then Return 0
+                    If key = "" Then
+                        key = FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.FlowTexture)
+                        If key = "" Then Return 0
+                    End If
                     If ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary.ContainsKey(key) = False Then Return 0
+                    If ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary(key).Cubemap = True Then Return 0
                     Return ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary(key).Texture_ID
                 End Get
             End Property
