@@ -207,6 +207,11 @@ Public Class Nifcontent_Class_Manolo
         End Try
         BaseMaterials.Clear()
 
+        If Me.Header.Version.IsSK AndAlso Config_App.Current.Game = Config_App.Game_Enum.Skyrim Then
+            Dim opt As New NifFileOptimizeOptions With {.TargetVersion = NiVersion.GetSSE}
+            Dim xx = Me.OptimizeFor(opt)
+        End If
+
         For Each shap In Me.GetShapes
             If SupportedShape(shap.GetType) Then
                 BaseMaterials.Add(shap.Name.String, GetRelatedMaterial(shap))
@@ -220,12 +225,9 @@ Public Class Nifcontent_Class_Manolo
     End Sub
     Public Shared Function SupportedShape(shapetype As Type) As Boolean
         Select Case shapetype
-            Case GetType(NiTriShape)
-                Debugger.Break()
-                Return False
             Case GetType(NiParticles), GetType(BSStripParticleSystem), GetType(NiParticleSystem)
                 Return False
-            Case GetType(BSSubIndexTriShape), GetType(BSTriShape), GetType(BSLODTriShape), GetType(BSSegmentedTriShape), GetType(BSMeshLODTriShape), GetType(BSDynamicTriShape)
+            Case GetType(BSSubIndexTriShape), GetType(BSTriShape), GetType(BSLODTriShape), GetType(BSSegmentedTriShape), GetType(BSMeshLODTriShape), GetType(BSDynamicTriShape), GetType(NiTriShape)
                 Return True
             Case Else
                 Debugger.Break()
@@ -403,7 +405,6 @@ Public Class Nifcontent_Class_Manolo
         If SupportedShape(srcShape.GetType) = False Then
             Throw New Exception
         End If
-
         Dim rootNode = GetRootNode()
         Dim srcRootNode = srcNif.GetRootNode()
 

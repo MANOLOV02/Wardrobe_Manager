@@ -53,6 +53,8 @@ Public Class SkinningHelper
         Dim Nifversion = shape.ParentSliderSet.NIFContent.Header.Version
         ' 1) Transformación global del shape
         Dim shapeNode = TryCast(shape.ParentSliderSet.NIFContent.GetParentNode(tri), NiNode)
+        If IsNothing(shapeNode) Then shape.ParentSliderSet.NIFContent.GetRootNode()
+
         Dim GlobalTransform = If(shapeNode IsNot Nothing, Transform_Class.GetGlobalTransform(shapeNode, shape.ParentSliderSet.NIFContent).ToMatrix4d(), Matrix4d.Identity)
         ' 2) Datos brutos
         Dim rawVerts = tri.VertexPositions.Select(Function(v) New Vector3d(v.X, v.Y, v.Z)).ToArray()
