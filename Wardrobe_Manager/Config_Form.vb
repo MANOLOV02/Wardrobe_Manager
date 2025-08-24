@@ -1,4 +1,5 @@
-﻿Imports System.ComponentModel
+﻿' Version Uploaded of Wardrobe 2.1.3
+Imports System.ComponentModel
 
 Public Class Config_Form
     Private initialgame As Config_App.Game_Enum

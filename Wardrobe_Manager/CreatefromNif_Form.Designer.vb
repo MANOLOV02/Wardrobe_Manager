@@ -1,4 +1,5 @@
-﻿<Global.Microsoft.VisualBasic.CompilerServices.DesignerGenerated()> _
+﻿' Version Uploaded of Wardrobe 2.1.3
+<Global.Microsoft.VisualBasic.CompilerServices.DesignerGenerated()>
 Partial Class Create_from_Nif_Form
     Inherits System.Windows.Forms.Form
 

@@ -1,4 +1,5 @@
-﻿Public Class GrayScaleTrackbar
+﻿' Version Uploaded of Wardrobe 2.1.3
+Public Class GrayScaleTrackbar
     Inherits PictureBox
 
     Public Property Minimum As Integer = 0

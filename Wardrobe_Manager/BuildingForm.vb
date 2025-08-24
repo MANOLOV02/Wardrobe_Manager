@@ -1,4 +1,6 @@
-﻿Imports Wardrobe_Manager.Wardrobe_Manager_Form
+﻿' Version Uploaded of Wardrobe 2.1.3
+
+Imports Wardrobe_Manager.Wardrobe_Manager_Form
 
 Public Class BuildingForm
 

@@ -1,4 +1,5 @@
-﻿Public Class ColorComboBox
+﻿' Version Uploaded of Wardrobe 2.1.3
+Public Class ColorComboBox
     Inherits ComboBox
     Public Property Dibuja As Boolean = False
     Public Sub New()

@@ -1,4 +1,5 @@
-﻿<Global.Microsoft.VisualBasic.CompilerServices.DesignerGenerated()>
+﻿' Version Uploaded of Wardrobe 2.1.3
+<Global.Microsoft.VisualBasic.CompilerServices.DesignerGenerated()>
 Partial Class LightRigForm
     Inherits System.Windows.Forms.Form
 
