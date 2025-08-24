@@ -941,7 +941,7 @@ Public Class FO4UnifiedMaterial_Class
                 Case GetType(BGSM)
                     Return CType(Underlying_Material, BGSM).SpecularMult
                 Case GetType(BGEM)
-                    Return 0
+                    Return 1
             End Select
             Throw New Exception
         End Get
@@ -1645,12 +1645,6 @@ Public Class FO4UnifiedMaterial_Class
         Dim mat As BGSM
         If Not IsNothing(shad) Then
             mat = New BGSM With {
-            .DiffuseTexture = CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet).Textures(0).Content,
-            .NormalTexture = CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet).Textures(1).Content,
-            .LightingTexture = CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet).Textures(6).Content,
-            .GlowTexture = CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet).Textures(2).Content,
-            .EnvmapTexture = IIf(CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet).Textures(4).Content <> "", CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet).Textures(4).Content, CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet).Textures(5).Content),
-            .SmoothSpecTexture = CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet).Textures(7).Content,
             .TwoSided = shad.DoubleSided,
             .UOffset = shad.UVOffset.U,
             .VOffset = shad.UVOffset.V,
@@ -1662,8 +1656,16 @@ Public Class FO4UnifiedMaterial_Class
             .ModelSpaceNormals = shad.ModelSpace,
             .BackLighting = shad.HasBacklight
                                                       }
+            If Not IsNothing(shad.TextureSetRef) AndAlso shad.TextureSetRef.Index <> -1 Then
+                mat.DiffuseTexture = CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet).Textures(0).Content
+                mat.NormalTexture = CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet).Textures(1).Content
+                mat.LightingTexture = CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet).Textures(6).Content
+                mat.GlowTexture = CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet).Textures(2).Content
+                mat.EnvmapTexture = IIf(CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet).Textures(4).Content <> "", CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet).Textures(4).Content, CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet).Textures(5).Content)
+                mat.SmoothSpecTexture = CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet).Textures(7).Content
+            End If
         Else
-            mat = New BGSM
+                mat = New BGSM
         End If
         mat.AlphaTest = False
         mat.AlphaTestRef = 128
@@ -1674,6 +1676,9 @@ Public Class FO4UnifiedMaterial_Class
             mat.AlphaTestRef = alp.Threshold
             If alp.Flags.AlphaBlend Then
                 mat.AlphaBlendMode = Determine_Alphablend(alp.Flags.SourceBlendMode, alp.Flags.DestinationBlendMode)
+                If alp.Flags.TestFunc = Enums.TestFunction.TEST_NEVER Or (alp.Flags.TestFunc = Enums.TestFunction.TEST_GREATER And mat.AlphaTestRef = 0) Then
+                    mat.AlphaBlendMode = AlphaBlendModeType.None
+                End If
             Else
                 mat.AlphaBlendMode = AlphaBlendModeType.None
             End If
@@ -1715,6 +1720,9 @@ Public Class FO4UnifiedMaterial_Class
             mat.AlphaTestRef = alp.Threshold
             If alp.Flags.AlphaBlend Then
                 mat.AlphaBlendMode = Determine_Alphablend(alp.Flags.SourceBlendMode, alp.Flags.DestinationBlendMode)
+                If alp.Flags.TestFunc = Enums.TestFunction.TEST_NEVER Or (alp.Flags.TestFunc = Enums.TestFunction.TEST_GREATER And mat.AlphaTestRef = 0) Then
+                    mat.AlphaBlendMode = AlphaBlendModeType.None
+                End If
             Else
                 mat.AlphaBlendMode = AlphaBlendModeType.None
             End If

@@ -479,13 +479,65 @@ Public Class PreviewControl
         If Me.IsInDesignMode Then Return
         If Force OrElse (Me.Width <> lastW OrElse Me.Height <> lastH) Then
             GL.Viewport(0, 0, Me.Width, Me.Height)
-            projection = Matrix4.CreatePerspectiveFieldOfView(MathHelper.DegreesToRadians(45.0F), Me.Width / CSng(Me.Height), 0.1F, 1000.0F)
             lastW = Me.Width
             lastH = Me.Height
-            updateRequired = True
+            UpdateProjection(True)
         End If
     End Sub
+    ' === Frustum dinámico ===
+    Private lastNear As Single = 0.1F
+    Private lastFar As Single = 1000.0F
 
+    ' Recalcula la proyección en función del tamaño de escena y la distancia actual de la cámara.
+    Public Sub UpdateProjection(Optional force As Boolean = False)
+        If Me.Height <= 0 Then Return
+
+        ' Bounds de escena (si no hay meshes aún, usa un AABB mínimo)
+        Dim minB As Vector3
+        Dim maxB As Vector3
+        If Model IsNot Nothing AndAlso Model.meshes IsNot Nothing AndAlso Model.meshes.Count > 0 Then
+            GetSceneBounds(minB, maxB)
+        Else
+            minB = New Vector3(-1.0F)
+            maxB = New Vector3(1.0F)
+        End If
+
+        Dim size As Vector3 = maxB - minB
+        ' Ejes: X=ancho, Y=profundidad, Z=alto (tu código ya usa esta convención)
+        Dim halfW As Single = Math.Abs(size.X) * 0.5F
+        Dim halfD As Single = Math.Abs(size.Y) * 0.5F
+        Dim halfH As Single = Math.Abs(size.Z) * 0.5F
+
+        ' Radio: cuanto “crece” la escena alrededor del centro
+        Dim radius As Single = Math.Max(halfW, Math.Max(halfD, halfH))
+
+        ' Distancia actual cámara → foco
+        Dim eyeToCenter As Single = Math.Max(1.0F, camera.distance)
+
+        ' Margen para asegurar que no clippea por el far plane
+        Dim margin As Single = 0.2F
+
+        ' Far plane sugerido: distancia + radio + margen
+        Dim farZ As Single = eyeToCenter + radius * (1.0F + margin) + 1.0F
+        ' Mínimo razonable para escenas pequeñas
+        farZ = Math.Max(1000.0F, farZ)
+
+        ' Near plane: suficientemente pequeño, pero no exagerado para no perder precisión de Z
+        Dim nearZ As Single = Math.Max(0.05F, farZ / 10000.0F)
+
+        ' Evitar recalcular si el cambio es mínimo
+        If Not force AndAlso Math.Abs(farZ - lastFar) < 1.0F AndAlso Math.Abs(nearZ - lastNear) < 0.01F Then
+            Return
+        End If
+
+        Dim aspect As Single = Me.Width / CSng(Math.Max(1, Me.Height))
+        Dim fovY As Single = MathHelper.DegreesToRadians(45.0F)
+
+        projection = Matrix4.CreatePerspectiveFieldOfView(fovY, aspect, nearZ, farZ)
+        lastNear = nearZ
+        lastFar = farZ
+        updateRequired = True
+    End Sub
     Protected Overrides Sub OnPaint(e As PaintEventArgs)
         If Me.IsInDesignMode OrElse Not updateRequired Then Exit Sub
         MyBase.OnPaint(e)
@@ -618,7 +670,8 @@ Public Class PreviewControl
     Protected Overrides Sub OnMouseWheel(e As MouseEventArgs)
         If Me.IsInDesignMode Then Return
         MyBase.OnMouseWheel(e)
-        camera.Zoom(e.Delta / 1200.0F)
+        camera.Zoom(e.Delta / 120.0F)
+        UpdateProjection(False)
         updateRequired = True
     End Sub
 
@@ -692,7 +745,8 @@ Public Class PreviewControl
         ' SUMAMOS la media profundidad para asegurar que el punto más cercano también entra en FOV
         Dim baseDistance As Single = halfD + Math.Max(distH, distW)
         Dim idealDistance As Single = baseDistance * (1.0F + marginPct)
-
+        camera.MaxDistance = idealDistance * 10
+        camera.MinDistance = idealDistance / 10
         camera.distance = Math.Clamp(idealDistance, camera.MinDistance, camera.MaxDistance)
         camera.Optimaldistance = camera.distance
 
@@ -701,8 +755,7 @@ Public Class PreviewControl
         camera.angleY = 0F
         camera.UpdateDirectionFromAngles()
         camera.Up = Vector3.UnitZ
-
-        updateRequired = True
+        UpdateProjection(True)
     End Sub
 
     Protected Overrides Sub Dispose(disposing As Boolean)
@@ -978,12 +1031,7 @@ Public Class PreviewModel
             Public ReadOnly Property SmoothSpecTexture_ID As UInteger
                 Get
                     Dim key As String = FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.SmoothSpecTexture)
-                    If key = "" Then
-                        key = FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.SpecularTexture)
-                        If key = "" Then Return 0
-                        Debugger.Break()
-                    End If
-
+                    If key = "" Then Return 0
                     If ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary.ContainsKey(key) = False Then Return 0
                     Return ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary(key).Texture_ID
                 End Get
@@ -1007,11 +1055,7 @@ Public Class PreviewModel
             Public ReadOnly Property GlowTexture_ID As UInteger
                 Get
                     Dim key As String = FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.GlowTexture)
-                    If key = "" Then
-                        key = FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.LightingTexture)
-                        If key = "" Then Return 0
-                        Debugger.Break()
-                    End If
+                    If key = "" Then Return 0
                     If ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary.ContainsKey(key) = False Then Return 0
                     Return ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary(key).Texture_ID
                 End Get
@@ -1413,14 +1457,14 @@ Public Class PreviewModel
                 Me.ParentModel.ParentControl.SharedActiveShader.BindTexture("texNormal", Me.ParentModel.ParentControl.defaultNormalTex, TextureUnit.Texture1)
             End If
 
-            If material.EnvmapTexture_ID <> 0 And material.HasCubemap Then
+            If material.EnvmapTexture_ID <> 0 AndAlso material.HasCubemap Then
                 Me.ParentModel.ParentControl.SharedActiveShader.BindCubeMap("texCubemap", material.EnvmapTexture_ID, TextureUnit.Texture2)
             Else
                 Me.ParentModel.ParentControl.SharedActiveShader.BindCubeMap("texCubemap", Me.ParentModel.ParentControl.defaultCubeMap, TextureUnit.Texture2)
             End If
 
-            If material.EnvmapTexture_ID <> 0 And material.HasCubemap = False Then
-                Me.ParentModel.ParentControl.SharedActiveShader.BindTexture("texEnvMask", material.EnvmapTexture_ID, TextureUnit.Texture3)
+            If material.EnvmapMaskTexture_ID <> 0 Then
+                Me.ParentModel.ParentControl.SharedActiveShader.BindTexture("texEnvMask", material.EnvmapMaskTexture_ID, TextureUnit.Texture3)
             Else
                 Me.ParentModel.ParentControl.SharedActiveShader.BindTexture("texEnvMask", Me.ParentModel.ParentControl.defaultWhiteTex, TextureUnit.Texture3)
             End If
@@ -1428,7 +1472,7 @@ Public Class PreviewModel
             If material.SmoothSpecTexture_ID <> 0 Then
                 Me.ParentModel.ParentControl.SharedActiveShader.BindTexture("texSpecular", material.SmoothSpecTexture_ID, TextureUnit.Texture4)
             Else
-                Me.ParentModel.ParentControl.SharedActiveShader.BindTexture("texSpecular", Me.ParentModel.ParentControl.defaultNormalTex, TextureUnit.Texture4)
+                Me.ParentModel.ParentControl.SharedActiveShader.BindTexture("texSpecular", Me.ParentModel.ParentControl.defaultWhiteTex, TextureUnit.Texture4)
             End If
 
             If material.GreyscaleTexture_ID <> 0 Then
@@ -1472,13 +1516,7 @@ Public Class PreviewModel
             Me.ParentModel.ParentControl.SharedActiveShader.SetFloat("fresnelPower", material.MaterialBase.FresnelPower)
             Me.ParentModel.ParentControl.SharedActiveShader.SetFloat("subsurfaceRolloff", material.MaterialBase.SubsurfaceLightingRolloff)
             Me.ParentModel.ParentControl.SharedActiveShader.SetFloat("paletteScale", material.MaterialBase.GrayscaleToPaletteScale)
-
-            ' CORREGIR
-            If material.MaterialBase.EnvironmentMapping Then
-                Me.ParentModel.ParentControl.SharedActiveShader.SetFloat("envReflection", material.MaterialBase.EnvironmentMappingMaskScale)
-            Else
-                Me.ParentModel.ParentControl.SharedActiveShader.SetFloat("envReflection", 0)
-            End If
+            Me.ParentModel.ParentControl.SharedActiveShader.SetFloat("envReflection", material.MaterialBase.EnvironmentMappingMaskScale)
 
             Me.ParentModel.ParentControl.SharedActiveShader.SetBool("bBacklight", material.MaterialBase.BackLighting)
             Me.ParentModel.ParentControl.SharedActiveShader.SetFloat("backlightPower", material.MaterialBase.BackLightPower)
@@ -1671,6 +1709,7 @@ Public Class PreviewModel
         Process_Indices_GL()
         Process_Textures_GL()
         ParentControl.RenderTimer.Start()
+        ParentControl.UpdateProjection(True)  ' ← ya hay meshes/bounds; ajusta frustum
         Can_Render = True
         Cleaned = False
     End Sub
@@ -1821,7 +1860,8 @@ Public Class OrbitCamera
     Const pixelScale As Single = 0.01F
 
     Public Sub Zoom(delta As Single)
-        distance = Math.Clamp(distance - delta * 1 / pixelScale, MinDistance, MaxDistance)
+        Dim factor As Single = MathF.Exp(-pixelScale * 5 * delta)   ' acercar: steps>0 ⇒ reduce distancia
+        distance = Math.Clamp(distance * factor, MinDistance, MaxDistance)
     End Sub
 
     Public Function GetViewMatrix() As Matrix4

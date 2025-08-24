@@ -1618,7 +1618,7 @@ Public Class Shape_class
     Public ReadOnly Property RelatedNifSkin As NiObject
         Get
             If IsNothing(RelatedNifShape) Then Return Nothing
-            If RelatedNifShape.SkinInstanceRef.Index = -1 Then Return Nothing
+            If IsNothing(RelatedNifShape.SkinInstanceRef) OrElse RelatedNifShape.SkinInstanceRef.Index = -1 Then Return Nothing
             Return TryCast(Me.ParentSliderSet.NIFContent.Blocks(RelatedNifShape.SkinInstanceRef.Index), NiObject)
         End Get
     End Property
