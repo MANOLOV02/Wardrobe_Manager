@@ -82,25 +82,13 @@ Public Class FilesDictionary_class
             Else
                 Try
                     Using fs As FileStream = File.OpenRead(IO.Path.Combine(FO4Path, Me.BA2File))
-                        Using pack As New UnifiedBethesdaArchive(fs)
+                        Using pack As New BSA_BA2_Library_DLL.BethesdaArchive.Core.BethesdaReader(fs)
                             Return pack.ExtractToMemory(Index)
                         End Using
                     End Using
                 Catch ex As Exception
                     Return Array.Empty(Of Byte)
                 End Try
-
-                'If IO.Path.GetExtension(BA2File).Contains("ba2", StringComparison.OrdinalIgnoreCase) Then
-                '    Dim pack As New SharpBSABA2.BA2Util.BA2(IO.Path.Combine(FO4Path, Me.BA2File))
-                '    Dim _Uncompressed2 = pack.Files(Index).GetDataStream.ToArray
-                '    pack.Close()
-                '    Return _Uncompressed2
-                'Else
-                '    Dim pack As New SharpBSABA2.BSAUtil.BSA(IO.Path.Combine(FO4Path, Me.BA2File))
-                '    Dim _Uncompressed2 = pack.Files(Index).GetDataStream.ToArray
-                '    pack.Close()
-                '    Return _Uncompressed2
-                'End If
             End If
         End Function
 
@@ -207,7 +195,7 @@ Public Class FilesDictionary_class
         Try
             Using fs As FileStream = File.OpenRead(ba2) ' o .bsa
                 Dim i As Integer = 0
-                Using arc As New UnifiedBethesdaArchive(fs)
+                Using arc As New BSA_BA2_Library_DLL.BethesdaArchive.Core.BethesdaReader(fs)
                     For Each fil In arc.EntriesFiles
                         Dim standardized = fil.FullPath.Correct_Path_Separator
                         Dim entry As New File_Location With {.BA2File = Path.GetFileName(ba2), .Index = fil.Index, .FullPath = standardized}
@@ -217,29 +205,6 @@ Public Class FilesDictionary_class
                     Next
                 End Using
             End Using
-            'If IO.Path.GetExtension(ba2).Contains("ba2", StringComparison.OrdinalIgnoreCase) Then
-            '    'Dim pack As New SharpBSABA2.BA2Util.BA2(ba2)
-            '    'For Each fil In pack.Files.Where(Function(pf) Extensiones.Contains(Path.GetExtension(pf.FileName)))
-
-            '    '    Dim standardized = fil.FullPath.Correct_Path_Separator
-            '    '    Dim entry As New File_Location With {.BA2File = Path.GetFileName(ba2), .Index = fil.Index, .FullPath = standardized}
-            '    '    Dictionary.AddOrUpdate(standardized, entry, Function(key, existing)
-            '    '                                                    If Resolve_Conflict(existing, entry) Then Return entry Else Return existing
-            '    '                                                End Function)
-            '    'Next
-            '    'pack.Close()
-            'Else
-            '    Dim pack As New SharpBSABA2.BSAUtil.BSA(ba2)
-            '    For Each fil In pack.Files.Where(Function(pf) Extensiones.Contains(Path.GetExtension(pf.FileName)))
-            '        Dim standardized = fil.FullPath.Correct_Path_Separator
-            '        Dim idx = fil.Index
-            '        Dim entry As New File_Location With {.BA2File = Path.GetFileName(ba2), .Index = idx, .FullPath = standardized}
-            '        Dictionary.AddOrUpdate(standardized, entry, Function(key, existing)
-            '                                                        If Resolve_Conflict(existing, entry) Then Return entry Else Return existing
-            '                                                    End Function)
-            '    Next
-            '    pack.Close()
-            'End If
 
         Catch ex As Exception
             MsgBox("Error procesing Ba2 " + ba2 + " :" + ex.ToString)

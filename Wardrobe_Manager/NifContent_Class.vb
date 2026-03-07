@@ -163,20 +163,20 @@ End Class
 Public Class Nifcontent_Class_Manolo
     Inherits NiflySharp.NifFile
 
-    Private Function CloneBrute() As Nifcontent_Class_Manolo
-        Dim result = New Nifcontent_Class_Manolo(Me.ParentSlider)
-        Using ms As New MemoryStream()
-            ' Serialize this object into the memory stream
-            Me.Save(ms)
+    'Private Function CloneBrute() As Nifcontent_Class_Manolo
+    '    Dim result = New Nifcontent_Class_Manolo(Me.ParentSlider)
+    '    Using ms As New MemoryStream()
+    '        ' Serialize this object into the memory stream
+    '        Me.Save(ms)
 
-            ' Reset position to read from start
-            ms.Position = 0
+    '        ' Reset position to read from start
+    '        ms.Position = 0
 
-            ' Load into result from memory stream
-            result.Load(ms)
-        End Using
-        Return result
-    End Function
+    '        ' Load into result from memory stream
+    '        result.Load(ms)
+    '    End Using
+    '    Return result
+    'End Function
     Public Property ParentSlider As SliderSet_Class
     Sub New(Parent As SliderSet_Class)
         Me.ParentSlider = Parent
@@ -226,14 +226,31 @@ Public Class Nifcontent_Class_Manolo
     End Sub
     Public Shared Function SupportedShape(shapetype As Type) As Boolean
         Select Case shapetype
-            Case GetType(NiParticles), GetType(BSStripParticleSystem), GetType(NiParticleSystem)
+            Case GetType(NiParticles)
                 Return False
-            Case GetType(BSSubIndexTriShape), GetType(BSTriShape), GetType(BSLODTriShape), GetType(BSSegmentedTriShape), GetType(BSMeshLODTriShape), GetType(BSDynamicTriShape), GetType(NiTriShape)
+            Case GetType(BSStripParticleSystem)
+                Return False
+            Case GetType(NiParticleSystem)
+                Return False
+            Case GetType(BSSubIndexTriShape)
+                Return True
+            Case GetType(BSTriShape)
+                Return True
+            Case GetType(BSLODTriShape)
+                Return True
+            Case GetType(BSSegmentedTriShape)
+                Return True
+            Case GetType(BSMeshLODTriShape)
+                Return True
+            Case GetType(BSDynamicTriShape)
+                Return True
+            Case GetType(NiTriShape)
                 Return True
             Case Else
                 Debugger.Break()
                 Throw New Exception
         End Select
+        Return False
     End Function
     Public Sub AddTriData(shapeName As String, triPath As String, toRoot As Boolean)
         Dim target As NiAVObject
@@ -398,250 +415,254 @@ Public Class Nifcontent_Class_Manolo
     End Sub
 
     Public Function CloneShape_Original(srcShape As INiShape, destShapeName As String, srcNif As Nifcontent_Class_Manolo) As INiShape
-        If srcNif Is Nothing Then srcNif = Me
-        If srcShape Is Nothing Then
-            Return Nothing
-        End If
-
-        If SupportedShape(srcShape.GetType) = False Then
-            Throw New Exception
-        End If
-        Dim rootNode = GetRootNode()
-        Dim srcRootNode = srcNif.GetRootNode()
-
-        ' Geometry
-        Dim destShapeS As INiShape = srcShape.Clone ' ACA VA CLONE
-
         If srcShape.GetType Is GetType(BSDynamicTriShape) Then
-            Dim idx = srcNif.Blocks.IndexOf(srcShape)
-            Dim clon = srcNif.CloneBrute
-            destShapeS = clon.Blocks(idx)
-            'revisar
-            ' El clone es bruto
+            ' TESTEAR QUE ANDA !!!!!
             Debugger.Break()
         End If
+        Return Me.CloneShape(srcShape, destShapeName, srcNif)
+        '    ''Debugger.Break()
+        '    If srcShape Is Nothing Then Return Nothing
+        '    If srcNif Is Nothing Then srcNif = Me
 
-        Dim destShape As INiShape = destShapeS
-        destShape.Name.String = destShapeName
+        '    If SupportedShape(srcShape.GetType) = False Then
+        '        Debugger.Break()
+        '        Throw New Exception
+        '    End If
 
-        Dim destId As Integer = AddBlock(destShapeS)
-        If srcNif Is Me Then
-            ' Assign copied geometry to the same parent
-            Dim parentNode = GetParentNode(srcShape)
-            parentNode?.Children.AddBlockRef(destId)
-        ElseIf rootNode IsNot Nothing Then
-            rootNode.Children.AddBlockRef(destId)
-        End If
+        '    Dim rootNode = GetRootNode()
+        '    Dim srcRootNode = srcNif.GetRootNode()
 
-        ' Children
-        CloneChildren(destShape, srcNif)
+        '    ' Geometry
+        '    Dim destShapeS As INiShape = srcShape.Clone ' ACA VA CLONE
 
-        ' Geometry Data
-        Dim destGeomData = CType(GetBlock(Of NiObject)(destShape.DataRef()), NiTriBasedGeomData)
+        '    If srcShape.GetType Is GetType(BSDynamicTriShape) Then
+        '        Dim idx = srcNif.Blocks.IndexOf(srcShape)
+        '        Dim clon = srcNif.CloneBrute
+        '        destShapeS = clon.Blocks(idx)
+        '        'revisar
+        '        ' El clone es bruto
+        '        Debugger.Break()
+        '    End If
 
-        If destGeomData IsNot Nothing Then
-            destShape.GeometryData = destGeomData
-        End If
+        '    Dim destShape As INiShape = destShapeS
+        '    destShape.Name.String = destShapeName
 
-        ' Shader
-        If Not IsNothing(GetShader(destShape)) Then
-            If (GetShader(destShape).GetType Is GetType(BSLightingShaderProperty)) = True Then
-                Dim destShader As BSLightingShaderProperty = GetShader(destShape)
-                If destShader IsNot Nothing Then
-                    If Header.Version().IsSK() OrElse Header.Version().IsSSE() Then
-                        ' Kill normals and tangents
-                        If destShader.ModelSpace Then
-                            destShape.HasNormals = False
-                            destShape.HasTangents = False
-                        End If
-                    End If
-                End If
-            Else
-                If GetShader(destShape).GetType Is GetType(BSEffectShaderProperty) = False Then
-                    Debugger.Break()
-                End If
-            End If
-        End If
+        '    Dim destId As Integer = AddBlock(destShapeS)
+        '    If srcNif Is Me Then
+        '        ' Assign copied geometry to the same parent
+        '        Dim parentNode = GetParentNode(srcShape)
+        '        parentNode?.Children.AddBlockRef(destId)
+        '    ElseIf rootNode IsNot Nothing Then
+        '        rootNode.Children.AddBlockRef(destId)
+        '    End If
 
-        ' Bones
-        Dim srcBoneList As New List(Of String)
-        Dim sourcBoneCont As NiObject = srcNif.GetBlock(Of NiObject)(srcShape.SkinInstanceRef())
-        If Not IsNothing(sourcBoneCont) Then
-            Select Case sourcBoneCont.GetType
-                Case GetType(BSSkin_Instance)
-                    For Each bon In TryCast(sourcBoneCont, BSSkin_Instance).Bones.References
-                        Dim nod = srcNif.GetBlock(bon)
-                        srcBoneList.Add(CType(nod, NiNode).Name.String)
-                    Next
-                Case GetType(BSDismemberSkinInstance)
-                    For Each bon In TryCast(sourcBoneCont, BSDismemberSkinInstance).Bones.References
-                        Dim nod = srcNif.GetBlock(bon)
-                        srcBoneList.Add(CType(nod, NiNode).Name.String)
-                    Next
-                Case GetType(NiSkinInstance)
-                    For Each bon In TryCast(sourcBoneCont, NiSkinInstance).Bones.References
-                        Dim nod = srcNif.GetBlock(bon)
-                        srcBoneList.Add(CType(nod, NiNode).Name.String)
-                    Next
-                Case Else
-                    Throw New Exception
-            End Select
-        End If
+        '    ' Children
+        '    CloneChildren_Manolo(destShape, srcNif)
 
-        Dim destBoneCont As NiObject = GetBlock(Of NiObject)(destShape.SkinInstanceRef())
-        If destBoneCont IsNot Nothing Then
-            If Not IsNothing(destBoneCont) Then
-                Select Case destBoneCont.GetType
-                    Case GetType(BSSkin_Instance)
-                        TryCast(destBoneCont, BSSkin_Instance).Bones.Clear()
-                    Case GetType(BSDismemberSkinInstance)
-                        TryCast(destBoneCont, BSDismemberSkinInstance).Bones.Clear()
-                    Case GetType(NiSkinInstance)
-                        TryCast(destBoneCont, NiSkinInstance).Bones.Clear()
-                    Case Else
-                        Throw New Exception
-                End Select
-            End If
-        End If
+        '    ' Geometry Data
+        '    Dim destGeomData = CType(GetBlock(Of NiObject)(destShape.DataRef()), NiTriBasedGeomData)
 
-        If rootNode IsNot Nothing AndAlso srcRootNode IsNot Nothing Then
-            For Each child In srcRootNode.References
-                Dim srcChildNode = srcNif.GetBlock(Of NiNode)(child)
-                If srcChildNode IsNot Nothing Then
-                    CloneNodes_Action(srcChildNode, rootNode, srcNif)
-                End If
-            Next
-        End If
+        '    If destGeomData IsNot Nothing Then
+        '        destShape.GeometryData = destGeomData
+        '    End If
 
-        ' Add bones to container if used in skin
-        If destBoneCont IsNot Nothing Then
-            For Each boneName In srcBoneList
-                Dim node = FindBlockByName(Of NiNode)(boneName)
-                Dim boneID As Integer = Blocks.IndexOf(node)
-                If node IsNot Nothing Then
-                    Select Case destBoneCont.GetType
-                        Case GetType(BSSkin_Instance)
-                            TryCast(destBoneCont, BSSkin_Instance).Bones.AddBlockRef(boneID)
-                        Case GetType(BSDismemberSkinInstance)
-                            TryCast(destBoneCont, BSDismemberSkinInstance).Bones.AddBlockRef(boneID)
-                        Case GetType(NiSkinInstance)
-                            TryCast(destBoneCont, NiSkinInstance).Bones.AddBlockRef(boneID)
-                        Case Else
-                            Throw New Exception
-                    End Select
-                End If
-            Next
-        End If
-        Return destShape
+        '    ' Shader
+        '    If Not IsNothing(GetShader(destShape)) Then
+        '        If (GetShader(destShape).GetType Is GetType(BSLightingShaderProperty)) = True Then
+        '            Dim destShader As BSLightingShaderProperty = GetShader(destShape)
+        '            If destShader IsNot Nothing Then
+        '                If Header.Version().IsSK() OrElse Header.Version().IsSSE() Then
+        '                    ' Kill normals and tangents
+        '                    If destShader.ModelSpace Then
+        '                        destShape.HasNormals = False
+        '                        destShape.HasTangents = False
+        '                    End If
+        '                End If
+        '            End If
+        '        Else
+        '            If GetShader(destShape).GetType Is GetType(BSEffectShaderProperty) = False Then
+        '                Debugger.Break()
+        '            End If
+        '        End If
+        '    End If
+
+        '    ' Bones
+        '    Dim srcBoneList As New List(Of String)
+        '    Dim sourcBoneCont As NiObject = srcNif.GetBlock(Of NiObject)(srcShape.SkinInstanceRef())
+        '    If Not IsNothing(sourcBoneCont) Then
+        '        Select Case sourcBoneCont.GetType
+        '            Case GetType(BSSkin_Instance)
+        '                For Each bon In TryCast(sourcBoneCont, BSSkin_Instance).Bones.References
+        '                    Dim nod = srcNif.GetBlock(bon)
+        '                    srcBoneList.Add(CType(nod, NiNode).Name.String)
+        '                Next
+        '            Case GetType(BSDismemberSkinInstance)
+        '                For Each bon In TryCast(sourcBoneCont, BSDismemberSkinInstance).Bones.References
+        '                    Dim nod = srcNif.GetBlock(bon)
+        '                    srcBoneList.Add(CType(nod, NiNode).Name.String)
+        '                Next
+        '            Case GetType(NiSkinInstance)
+        '                For Each bon In TryCast(sourcBoneCont, NiSkinInstance).Bones.References
+        '                    Dim nod = srcNif.GetBlock(bon)
+        '                    srcBoneList.Add(CType(nod, NiNode).Name.String)
+        '                Next
+        '            Case Else
+        '                Throw New Exception
+        '        End Select
+        '    End If
+
+        '    Dim destBoneCont As NiObject = GetBlock(Of NiObject)(destShape.SkinInstanceRef())
+        '    If destBoneCont IsNot Nothing Then
+        '        If Not IsNothing(destBoneCont) Then
+        '            Select Case destBoneCont.GetType
+        '                Case GetType(BSSkin_Instance)
+        '                    TryCast(destBoneCont, BSSkin_Instance).Bones.Clear()
+        '                Case GetType(BSDismemberSkinInstance)
+        '                    TryCast(destBoneCont, BSDismemberSkinInstance).Bones.Clear()
+        '                Case GetType(NiSkinInstance)
+        '                    TryCast(destBoneCont, NiSkinInstance).Bones.Clear()
+        '                Case Else
+        '                    Throw New Exception
+        '            End Select
+        '        End If
+        '    End If
+
+        '    If rootNode IsNot Nothing AndAlso srcRootNode IsNot Nothing Then
+        '        For Each child In srcRootNode.References
+        '            Dim srcChildNode = srcNif.GetBlock(Of NiNode)(child)
+        '            If srcChildNode IsNot Nothing Then
+        '                CloneNodes_Action(srcChildNode, rootNode, srcNif)
+        '            End If
+        '        Next
+        '    End If
+
+        '    ' Add bones to container if used in skin
+        '    If destBoneCont IsNot Nothing Then
+        '        For Each boneName In srcBoneList
+        '            Dim node = FindBlockByName(Of NiNode)(boneName)
+        '            Dim boneID As Integer = Blocks.IndexOf(node)
+        '            If node IsNot Nothing Then
+        '                Select Case destBoneCont.GetType
+        '                    Case GetType(BSSkin_Instance)
+        '                        TryCast(destBoneCont, BSSkin_Instance).Bones.AddBlockRef(boneID)
+        '                    Case GetType(BSDismemberSkinInstance)
+        '                        TryCast(destBoneCont, BSDismemberSkinInstance).Bones.AddBlockRef(boneID)
+        '                    Case GetType(NiSkinInstance)
+        '                        TryCast(destBoneCont, NiSkinInstance).Bones.AddBlockRef(boneID)
+        '                    Case Else
+        '                        Throw New Exception
+        '                End Select
+        '            End If
+        '        Next
+        '    End If
+        '    Return destShape
     End Function
-    Private Sub CloneChildren(block As NiObject, srcNif As Nifcontent_Class_Manolo)
-        If srcNif Is Nothing Then
-            srcNif = Me
-        End If
-        ' Asignar nuevas referencias y cadenas, volver a enlazar punteros donde sea posible
-        cloneBlock_Action(block, -1, -1, srcNif)
-    End Sub
-    Private Sub CloneBlock_Action(b As NiObject, parentOldId As Integer, parentNewId As Integer, ByRef srcnif As Nifcontent_Class_Manolo)
-        For Each r In b.References
-            Dim srcChild = srcnif.GetBlock(Of NiObject)(r)
-            If srcChild IsNot Nothing Then
+    'Private Sub CloneChildren_Manolo(block As NiObject, srcNif As Nifcontent_Class_Manolo)
+    '    If srcNif Is Nothing Then srcNif = Me
+    '    ' Asignar nuevas referencias y cadenas, volver a enlazar punteros donde sea posible
+    '    CloneBlock_Action(block, -1, -1, srcNif)
+    'End Sub
+    'Private Sub CloneBlock_Action(b As NiObject, parentOldId As Integer, parentNewId As Integer, ByRef srcnif As Nifcontent_Class_Manolo)
+    '    For Each r In b.References
+    '        Dim srcChild = srcnif.GetBlock(Of NiObject)(r)
+    '        If srcChild IsNot Nothing Then
 
-                Dim destChildS = srcChild.Clone   ' ACA VA CLONE
-                Dim destChild = destChildS
-                Dim destId As Integer = AddBlock(destChildS)
+    '            Dim destChildS = srcChild.Clone   ' ACA VA CLONE
+    '            Dim destChild = destChildS
+    '            Dim destId As Integer = AddBlock(destChildS)
 
-                Dim oldId As Integer = r.Index
-                r.Index = destId
+    '            Dim oldId As Integer = r.Index
+    '            r.Index = destId
 
-                For Each Str2 In destChild.StringRefs
-                    Dim strId As Integer = Header.AddOrFindStringId(Str2.String, False)
-                    Str2.Index = strId
-                Next
+    '            For Each Str2 In destChild.StringRefs
+    '                Dim strId As Integer = Header.AddOrFindStringId(Str2.String, False)
+    '                Str2.Index = strId
+    '            Next
 
-                If parentOldId <> -1 Then
-                    For Each p In destChild.Pointers
-                        If p.Index = parentOldId Then
-                            p.Index = parentNewId
-                        End If
-                    Next
+    '            If parentOldId <> -1 Then
+    '                For Each p In destChild.Pointers
+    '                    If p.Index = parentOldId Then
+    '                        p.Index = parentNewId
+    '                    End If
+    '                Next
 
-                    CloneBlock_Action(destChild, parentOldId, parentNewId, srcnif)
-                Else
-                    CloneBlock_Action(destChild, oldId, destId, srcnif)
-                End If
-            Else
-                Debugger.Break()
-            End If
-        Next
-    End Sub
+    '                CloneBlock_Action(destChild, parentOldId, parentNewId, srcnif)
+    '            Else
+    '                CloneBlock_Action(destChild, oldId, destId, srcnif)
+    '            End If
+    '        Else
+    '            Debugger.Break()
+    '        End If
+    '    Next
+    'End Sub
 
-    Private Sub CloneNodes_Action(srcNode As NiNode, ByRef rootNode As NiNode, ByRef srcnif As NifFile)
-        Dim boneName As String = srcNode.Name.String
+    'Private Sub CloneNodes_Action(srcNode As NiNode, ByRef rootNode As NiNode, ByRef srcnif As NifFile)
+    '    Dim boneName As String = srcNode.Name.String
 
-        ' Insert as root child by default
-        Dim nodeParent As NiNode = rootNode
+    '    ' Insert as root child by default
+    '    Dim nodeParent As NiNode = rootNode
 
-        ' Look for existing node to use as parent instead
-        Dim srcNodeParent = srcnif.GetParentNode(srcNode)
-        If srcNodeParent IsNot Nothing Then
-            Dim parent = FindBlockByName(Of NiNode)(srcNodeParent.Name.String)
-            If parent IsNot Nothing Then
-                nodeParent = parent
-            End If
-        End If
+    '    ' Look for existing node to use as parent instead
+    '    Dim srcNodeParent = srcnif.GetParentNode(srcNode)
+    '    If srcNodeParent IsNot Nothing Then
+    '        Dim parent = FindBlockByName(Of NiNode)(srcNodeParent.Name.String)
+    '        If parent IsNot Nothing Then
+    '            nodeParent = parent
+    '        End If
+    '    End If
 
-        Dim node = FindBlockByName(Of NiNode)(boneName)
-        Dim boneID As Integer = Blocks.IndexOf(node)
-        If node Is Nothing Then
-            ' Clone missing node into the right parent
-            boneID = CloneNamedNode_Manolo(boneName, srcnif)
-            nodeParent.Children.AddBlockRef(boneID)
-        Else
-            ' Move existing node to non-root parent
-            Dim oldParent = GetParentNode(node)
-            If oldParent IsNot Nothing AndAlso oldParent IsNot nodeParent AndAlso nodeParent IsNot rootNode Then
-                Dim sour = srcnif.FindBlockByName(Of NiNode)(boneName)
+    '    Dim node = FindBlockByName(Of NiNode)(boneName)
+    '    Dim boneID As Integer = Blocks.IndexOf(node)
+    '    If node Is Nothing Then
+    '        ' Clone missing node into the right parent
+    '        boneID = CloneNamedNode_Manolo(boneName, srcnif)
+    '        nodeParent.Children.AddBlockRef(boneID)
+    '    Else
+    '        ' Move existing node to non-root parent
+    '        Dim oldParent = GetParentNode(node)
+    '        If oldParent IsNot Nothing AndAlso oldParent IsNot nodeParent AndAlso nodeParent IsNot rootNode Then
+    '            Dim sour = srcnif.FindBlockByName(Of NiNode)(boneName)
 
-                For Each ref In oldParent.References
-                    If ref.Index = boneID Then
-                        ref.Clear()
-                    End If
-                Next
+    '            For Each ref In oldParent.References
+    '                If ref.Index = boneID Then
+    '                    ref.Clear()
+    '                End If
+    '            Next
 
-                Dim dest = FindBlockByName(Of NiNode)(boneName)
+    '            Dim dest = FindBlockByName(Of NiNode)(boneName)
 
-                nodeParent.Children.AddBlockRef(boneID)
-                dest.Scale = sour.Scale
-                dest.Translation = sour.Translation
-                dest.Rotation = sour.Rotation
-            End If
-        End If
+    '            nodeParent.Children.AddBlockRef(boneID)
+    '            dest.Scale = sour.Scale
+    '            dest.Translation = sour.Translation
+    '            dest.Rotation = sour.Rotation
+    '        End If
+    '    End If
 
-        ' Recurse children
-        For Each child In srcNode.References
-            Dim childNodet = srcnif.GetBlock(Of NiAVObject)(child)
-            Dim childNode = TryCast(childNodet, NiNode)
-            If childNode IsNot Nothing Then
-                CloneNodes_Action(childNode, rootNode, srcnif)
-            End If
-        Next
-    End Sub
-    Private Function CloneNamedNode_Manolo(nodeName As String, srcnif As Nifcontent_Class_Manolo) As Integer
-        If srcnif Is Nothing Then
-            srcnif = Me
-        End If
-        Dim srcNode = srcnif.FindBlockByName(Of NiAVObject)(nodeName)
-        If srcNode Is Nothing Then
-            Debugger.Break()
-        End If
+    '    ' Recurse children
+    '    For Each child In srcNode.References
+    '        Dim childNodet = srcnif.GetBlock(Of NiAVObject)(child)
+    '        Dim childNode = TryCast(childNodet, NiNode)
+    '        If childNode IsNot Nothing Then
+    '            CloneNodes_Action(childNode, rootNode, srcnif)
+    '        End If
+    '    Next
+    'End Sub
+    'Private Function CloneNamedNode_Manolo(nodeName As String, srcnif As Nifcontent_Class_Manolo) As Integer
+    '    If srcnif Is Nothing Then
+    '        srcnif = Me
+    '    End If
+    '    Dim srcNode = srcnif.FindBlockByName(Of NiAVObject)(nodeName)
+    '    If srcNode Is Nothing Then
+    '        Debugger.Break()
+    '    End If
 
-        Dim destNode As NiNode = srcNode.Clone ' ACA VA CLONE
-        destNode.Name.String = nodeName
-        If Not IsNothing(destNode.CollisionObject) Then destNode.CollisionObject.Clear()
-        If Not IsNothing(destNode.Controller) Then destNode.Controller.Clear()
-        If Not IsNothing(destNode.Children) Then destNode.Children.Clear()
-        If Not IsNothing(destNode.Effects) Then destNode.Effects.Clear()
+    '    Dim destNode As NiNode = srcNode.Clone ' ACA VA CLONE
+    '    destNode.Name.String = nodeName
+    '    If Not IsNothing(destNode.CollisionObject) Then destNode.CollisionObject.Clear()
+    '    If Not IsNothing(destNode.Controller) Then destNode.Controller.Clear()
+    '    If Not IsNothing(destNode.Children) Then destNode.Children.Clear()
+    '    If Not IsNothing(destNode.Effects) Then destNode.Effects.Clear()
 
-        Return AddBlock(destNode)
-    End Function
+    '    Return AddBlock(destNode)
+    'End Function
 End Class
