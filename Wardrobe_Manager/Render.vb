@@ -1663,9 +1663,11 @@ Public Class PreviewModel
         Skeleton_Class.AppplyPoseToSkeleton(Last_Pose)
         Dim result As New ConcurrentBag(Of RenderableMesh)
         Parallel.ForEach(shapes, Sub(shape)
+                                     'For Each shape In shapes
                                      Dim mesh = LoadShapeSafe(shape)
 
                                      If mesh IsNot Nothing Then result.Add(mesh)
+                                     'Next
                                  End Sub)
         meshes.AddRange(result)
     End Sub

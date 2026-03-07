@@ -598,7 +598,7 @@ Public Class Editor_Form
             End If
             Selected_Slider.Save_Shapedatas(True)
             Selected_Slider.ParentOSP.Save_Pack(True)
-            Dim hhfile = IO.Path.Combine(Wardrobe_Manager_Form.Directorios.Fallout4data, IO.Path.Combine(Selected_Slider.OutputPathValue, Selected_Slider.OutputFileValue)).Replace(".nif", "hht", StringComparison.OrdinalIgnoreCase)
+            Dim hhfile = Selected_Slider.SourceFileFullPath
             If hhfile.EndsWith(".hht") = False Then hhfile += ".hht"
             Selected_Slider.SaveHighHeel(hhfile, True)
             Finalizado_Edit()

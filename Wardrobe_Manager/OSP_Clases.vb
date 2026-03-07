@@ -1616,11 +1616,12 @@ Public Class Shape_class
         End Get
     End Property
 
-    Public ReadOnly Property RelatedNifSkin As NiObject
+    Public ReadOnly Property RelatedNifSkin As INiSkin
         Get
             If IsNothing(RelatedNifShape) Then Return Nothing
             If IsNothing(RelatedNifShape.SkinInstanceRef) OrElse RelatedNifShape.SkinInstanceRef.Index = -1 Then Return Nothing
-            Return TryCast(Me.ParentSliderSet.NIFContent.Blocks(RelatedNifShape.SkinInstanceRef.Index), NiObject)
+
+            Return TryCast(Me.ParentSliderSet.NIFContent.Blocks(RelatedNifShape.SkinInstanceRef.Index), INiSkin)
         End Get
     End Property
 
@@ -1628,8 +1629,6 @@ Public Class Shape_class
         Get
             If IsNothing(RelatedNifSkin) Then Return New List(Of Transform_Class)
             Dim regreso As New List(Of Transform_Class)
-
-
             Select Case RelatedNifSkin.GetType
                 Case GetType(BSSkin_Instance)
                     Dim resu = Me.ParentSliderSet.NIFContent.Blocks(TryCast(RelatedNifSkin, BSSkin_Instance).Data.Index)
@@ -1649,7 +1648,6 @@ Public Class Shape_class
                     For Each bon In bl
                         regreso.Add(New Transform_Class(bon))
                     Next
-
                 Case Else
                     Throw New Exception
             End Select
@@ -1660,17 +1658,7 @@ Public Class Shape_class
     Public ReadOnly Property RelatedBones As List(Of NiNode)
         Get
             If IsNothing(RelatedNifSkin) Then Return New List(Of NiNode)
-            Select Case RelatedNifSkin.GetType
-                Case GetType(BSSkin_Instance)
-                    Return TryCast(RelatedNifSkin, BSSkin_Instance).Bones.Indices.Select(Function(pf) CType(Me.ParentSliderSet.NIFContent.Blocks(pf), NiNode)).ToList
-                Case GetType(BSDismemberSkinInstance)
-                    Return TryCast(RelatedNifSkin, BSDismemberSkinInstance).Bones.Indices.Select(Function(pf) CType(Me.ParentSliderSet.NIFContent.Blocks(pf), NiNode)).ToList
-                Case GetType(NiSkinInstance)
-                    Return TryCast(RelatedNifSkin, NiSkinInstance).Bones.Indices.Select(Function(pf) CType(Me.ParentSliderSet.NIFContent.Blocks(pf), NiNode)).ToList
-                Case Else
-                    Debugger.Break()
-                    Throw New Exception
-            End Select
+            Return RelatedNifSkin.Bones.Indices.Select(Function(pf) CType(Me.ParentSliderSet.NIFContent.Blocks(pf), NiNode)).ToList
             Return New List(Of NiNode)
         End Get
     End Property
