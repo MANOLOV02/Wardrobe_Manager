@@ -999,27 +999,41 @@ Public Class SliderSet_Class
             Return HighHeelHeight <> 0
         End Get
     End Property
+
     Public Sub SetPreset(Preset As SlidersPreset_Class, Weight As Config_App.SliderSize)
         For Each slid In Sliders
             slid.Current_Setting = slid.Default_Setting(Weight)
-            If Not IsNothing(Preset) Then
-                If Preset.Sliders.Where(Function(pf) pf.Name.Equals(slid.Nombre, StringComparison.OrdinalIgnoreCase)).Any Then
-                    For Each sli In Preset.Sliders.Where(Function(pf) pf.Name.Equals(slid.Nombre, StringComparison.OrdinalIgnoreCase)).OrderBy(Function(pf) pf.Size)
+            If IsNothing(Preset) Then Continue For
 
-                        If sli.Size = Config_App.SliderSize.Small Then
-                            If Weight = Config_App.SliderSize.Small AndAlso Config_App.Current.Game <> Config_App.Game_Enum.Fallout4 Then slid.Current_Setting = sli.Value
-                        Else
-                            If Weight <> Config_App.SliderSize.Small OrElse Config_App.Current.Game = Config_App.Game_Enum.Fallout4 Then slid.Current_Setting = sli.Value
-                        End If
+            Dim matches = Preset.Sliders.
+            Where(Function(pf) pf.Name.Equals(slid.Nombre, StringComparison.OrdinalIgnoreCase)).
+            OrderBy(Function(pf) pf.Size).
+            ToList()
 
-                    Next
+            If matches.Count = 0 Then Continue For
 
+            If Config_App.Current.Game = Config_App.Game_Enum.Fallout4 Then
+                Dim presetDefault = matches.FirstOrDefault(Function(pf) pf.Size = Config_App.SliderSize.Default)
+                Dim presetBig = matches.FirstOrDefault(Function(pf) pf.Size = Config_App.SliderSize.Big)
+
+                If presetDefault IsNot Nothing Then
+                    slid.Current_Setting = presetDefault.Value
+                ElseIf presetBig IsNot Nothing Then
+                    slid.Current_Setting = presetBig.Value
                 End If
+
+                Continue For
             End If
 
+            For Each sli In matches
+                If sli.Size = Config_App.SliderSize.Small Then
+                    If Weight = Config_App.SliderSize.Small Then slid.Current_Setting = sli.Value
+                Else
+                    If Weight <> Config_App.SliderSize.Small Then slid.Current_Setting = sli.Value
+                End If
+            Next
         Next
     End Sub
-
     Public ReadOnly Property HasPhysics As Boolean
         Get
             Return Me.Shapes.Where(Function(pf) pf.HasPhysics).Any

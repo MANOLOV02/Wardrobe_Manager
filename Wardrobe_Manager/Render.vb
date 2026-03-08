@@ -1,4 +1,4 @@
-Ôªø' Version Uploaded of Wardrobe 2.1.3
+' Version Uploaded of Wardrobe 2.1.3
 Imports System.Collections.Concurrent
 Imports System.ComponentModel
 Imports System.Drawing.Imaging
@@ -95,7 +95,7 @@ Public Class TextOverlayRenderer
         GL.BindVertexArray(vao)
         GL.BindBuffer(BufferTarget.ArrayBuffer, vbo)
 
-        ' Quad 0‚Äì1 with UVs
+        ' Quad 0ñ1 with UVs
         Dim vertices As Single() = {
             0F, 0F, 0F, 0F,
             1.0F, 0F, 1.0F, 0F,
@@ -211,13 +211,13 @@ Public Class PreviewControl
 
 
     ''' <summary>
-    ''' Crea una textura 2D de w√óh p√≠xeles con el color indicado.
+    ''' Crea una textura 2D de w◊h pÌxeles con el color indicado.
     ''' </summary>
     ''' 
     Private Shared Function CreateColorTexture(w As Integer, h As Integer, r As Byte, g As Byte, b As Byte, a As Byte) As Integer
         If w <= 0 OrElse h <= 0 Then Throw New ArgumentOutOfRangeException("w/h deben ser > 0")
 
-        ' Evita overflow en el tama√±o del array
+        ' Evita overflow en el tamaÒo del array
         Dim total As Long = CLng(w) * CLng(h) * 4L
         If total > Integer.MaxValue Then Throw New OutOfMemoryException("Textura demasiado grande.")
 
@@ -233,7 +233,7 @@ Public Class PreviewControl
         Dim texID As Integer = GL.GenTexture()
         GL.BindTexture(TextureTarget.Texture2D, texID)
 
-        ' Alineaci√≥n segura
+        ' AlineaciÛn segura
         GL.PixelStore(PixelStoreParameter.UnpackAlignment, 1)
 
         GL.TexImage2D(TextureTarget.Texture2D,
@@ -256,21 +256,21 @@ Public Class PreviewControl
     End Function
 
     ''' <summary>
-    ''' Inicializa defaultWhiteTex, defaultNormalTex y defaultCubeMap como 4√ó4.
+    ''' Inicializa defaultWhiteTex, defaultNormalTex y defaultCubeMap como 4◊4.
     ''' Llamar una vez tras crear el contexto GL.
     ''' </summary>
     Public Sub GenerateDefaultTextures()
-        ' 4√ó4 blanco puro
+        ' 4◊4 blanco puro
         defaultWhiteTex = CreateColorTexture(4, 4, 255, 255, 255, 255)
 
-        ' 4√ó4 normal map por defecto: (0.5,0.5,1) ‚Üí (128,128,255)
+        ' 4◊4 normal map por defecto: (0.5,0.5,1) ? (128,128,255)
         defaultNormalTex = CreateColorTexture(4, 4, 128, 128, 128, 128)
 
-        ' Cubemap 4√ó4 blanco en todas las caras
+        ' Cubemap 4◊4 blanco en todas las caras
         defaultCubeMap = GL.GenTexture()
         GL.BindTexture(TextureTarget.TextureCubeMap, defaultCubeMap)
 
-        ' Preparamos datos 4√ó4 blancos para cada cara
+        ' Preparamos datos 4◊4 blancos para cada cara
         Dim faceData(4 * 4 * 4 - 1) As Byte
         For i As Integer = 0 To faceData.Length - 1 Step 4
             faceData(i + 0) = 255
@@ -382,7 +382,7 @@ Public Class PreviewControl
     Public Sub New(settings As GLControlSettings)
         MyBase.New(settings)
         RenderTimer = New System.Windows.Forms.Timer With {
-            .Interval = 16    ' 16 ms ‚âà 60 Hz
+            .Interval = 16    ' 16 ms ò 60 Hz
             }
         RenderTimer.Start()
     End Sub
@@ -444,17 +444,17 @@ Public Class PreviewControl
         ApplyResize(True)
         GenerateDefaultTextures()
         SharedActiveShader = New Shader_Class
-        ' 1) Aseguramos que el contexto GL est√° activo
+        ' 1) Aseguramos que el contexto GL est· activo
         Me.MakeCurrent()
 
-        ' 2) (Opcional) Debug Output para capturar s√≥lo errores
+        ' 2) (Opcional) Debug Output para capturar sÛlo errores
         GL.Enable(EnableCap.DebugOutput)
         GL.Enable(EnableCap.DebugOutputSynchronous)
         DebugProc = AddressOf DebugCallback
         GL.DebugMessageCallback(DebugProc, IntPtr.Zero)
         GL.DebugMessageControl(DebugSourceControl.DontCare, DebugTypeControl.DontCare, DebugSeverityControl.DebugSeverityHigh, 0, Array.Empty(Of Integer)(), True)
 
-        ' 3) Estado GL est√°ndar
+        ' 3) Estado GL est·ndar
         GL.Enable(EnableCap.DepthTest)
         GL.DepthFunc(DepthFunction.Lequal)
 
@@ -486,15 +486,15 @@ Public Class PreviewControl
             UpdateProjection(True)
         End If
     End Sub
-    ' === Frustum din√°mico ===
+    ' === Frustum din·mico ===
     Private lastNear As Single = 0.1F
     Private lastFar As Single = 1000.0F
 
-    ' Recalcula la proyecci√≥n en funci√≥n del tama√±o de escena y la distancia actual de la c√°mara.
+    ' Recalcula la proyecciÛn en funciÛn del tamaÒo de escena y la distancia actual de la c·mara.
     Public Sub UpdateProjection(Optional force As Boolean = False)
         If Me.Height <= 0 Then Return
 
-        ' Bounds de escena (si no hay meshes a√∫n, usa un AABB m√≠nimo)
+        ' Bounds de escena (si no hay meshes a˙n, usa un AABB mÌnimo)
         Dim minB As Vector3
         Dim maxB As Vector3
         If Model IsNot Nothing AndAlso Model.meshes IsNot Nothing AndAlso Model.meshes.Count > 0 Then
@@ -505,15 +505,15 @@ Public Class PreviewControl
         End If
 
         Dim size As Vector3 = maxB - minB
-        ' Ejes: X=ancho, Y=profundidad, Z=alto (tu c√≥digo ya usa esta convenci√≥n)
+        ' Ejes: X=ancho, Y=profundidad, Z=alto (tu cÛdigo ya usa esta convenciÛn)
         Dim halfW As Single = Math.Abs(size.X) * 0.5F
         Dim halfD As Single = Math.Abs(size.Y) * 0.5F
         Dim halfH As Single = Math.Abs(size.Z) * 0.5F
 
-        ' Radio: cuanto ‚Äúcrece‚Äù la escena alrededor del centro
+        ' Radio: cuanto ìcreceî la escena alrededor del centro
         Dim radius As Single = Math.Max(halfW, Math.Max(halfD, halfH))
 
-        ' Distancia actual c√°mara ‚Üí foco
+        ' Distancia actual c·mara ? foco
         Dim eyeToCenter As Single = Math.Max(1.0F, camera.distance)
 
         ' Margen para asegurar que no clippea por el far plane
@@ -521,13 +521,13 @@ Public Class PreviewControl
 
         ' Far plane sugerido: distancia + radio + margen
         Dim farZ As Single = eyeToCenter + radius * (1.0F + margin) + 1.0F
-        ' M√≠nimo razonable para escenas peque√±as
+        ' MÌnimo razonable para escenas pequeÒas
         farZ = Math.Max(1000.0F, farZ)
 
-        ' Near plane: suficientemente peque√±o, pero no exagerado para no perder precisi√≥n de Z
+        ' Near plane: suficientemente pequeÒo, pero no exagerado para no perder precisiÛn de Z
         Dim nearZ As Single = Math.Max(0.05F, farZ / 10000.0F)
 
-        ' Evitar recalcular si el cambio es m√≠nimo
+        ' Evitar recalcular si el cambio es mÌnimo
         If Not force AndAlso Math.Abs(farZ - lastFar) < 1.0F AndAlso Math.Abs(nearZ - lastNear) < 0.01F Then
             Return
         End If
@@ -540,19 +540,53 @@ Public Class PreviewControl
         lastFar = farZ
         updateRequired = True
     End Sub
-    Protected Overrides Sub OnPaint(e As PaintEventArgs)
-        If Me.IsInDesignMode OrElse Not updateRequired Then Exit Sub
-        MyBase.OnPaint(e)
+    Private Sub RenderScene()
         GL.ClearColor(Config_App.Current.Setting_BackColor)
         GL.Clear(ClearBufferMask.ColorBufferBit Or ClearBufferMask.DepthBufferBit)
         If Model.Can_Render Then
             Model.RenderAll(projection, camera)
         End If
+    End Sub
 
-        SwapBuffers()
+    Private Sub FinishRenderFrame()
         GL.DepthMask(True)
         GL.Disable(EnableCap.Blend)
         updateRequired = False
+    End Sub
+
+    Public Function CaptureBitmap() As Bitmap
+        If Me.IsInDesignMode OrElse Me.Width <= 0 OrElse Me.Height <= 0 Then Return Nothing
+
+        Me.MakeCurrent()
+        ApplyResize(True)
+
+        If updateRequired Then
+            RenderScene()
+            SwapBuffers()
+            FinishRenderFrame()
+        End If
+
+        Dim bmp As New Bitmap(Me.Width, Me.Height, Imaging.PixelFormat.Format32bppArgb)
+        Dim rect As New Rectangle(0, 0, bmp.Width, bmp.Height)
+        Dim data As BitmapData = bmp.LockBits(rect, ImageLockMode.WriteOnly, Imaging.PixelFormat.Format32bppArgb)
+        Try
+            GL.ReadBuffer(ReadBufferMode.Front)
+            GL.PixelStore(PixelStoreParameter.PackAlignment, 4)
+            GL.ReadPixels(0, 0, bmp.Width, bmp.Height, OpenTK.Graphics.OpenGL4.PixelFormat.Bgra, PixelType.UnsignedByte, data.Scan0)
+        Finally
+            bmp.UnlockBits(data)
+        End Try
+
+        bmp.RotateFlip(RotateFlipType.RotateNoneFlipY)
+        Return bmp
+    End Function
+
+    Protected Overrides Sub OnPaint(e As PaintEventArgs)
+        If Me.IsInDesignMode OrElse Not updateRequired Then Exit Sub
+        MyBase.OnPaint(e)
+        RenderScene()
+        SwapBuffers()
+        FinishRenderFrame()
     End Sub
     Protected Overrides Sub OnMouseDown(e As MouseEventArgs)
         MyBase.OnMouseDown(e)
@@ -580,7 +614,7 @@ Public Class PreviewControl
         ' Left drag sin Ctrl ni Alt: salimos de free-cam (si era el caso) y rotamos en orbit
         If e.Button = MouseButtons.Left AndAlso (Control.ModifierKeys And Keys.Control) = 0 AndAlso (Control.ModifierKeys And Keys.Alt) = 0 Then
             ' Si venimos de free-cam, restauramos el radio original
-            ' Ahora la rotaci√≥n orbital normal
+            ' Ahora la rotaciÛn orbital normal
             Dim dx = e.X - lastX
             Dim dy = e.Y - lastY
             lastX = e.X
@@ -592,8 +626,8 @@ Public Class PreviewControl
         End If
 
         If e.Button = MouseButtons.Left AndAlso (Control.ModifierKeys And Keys.Alt) <> 0 Then
-            ' Calcula delta de rat√≥n
-            ' Calcula delta de rat√≥n
+            ' Calcula delta de ratÛn
+            ' Calcula delta de ratÛn
             Dim dx = e.X - lastX
             Dim dy = e.Y - lastY
             lastX = e.X
@@ -604,13 +638,13 @@ Public Class PreviewControl
         End If
 
 
-        ' 2) Barrido con Ctrl + bot√≥n izquierdo
+        ' 2) Barrido con Ctrl + botÛn izquierdo
         If AllowMask AndAlso e.Button = MouseButtons.Left AndAlso (Control.ModifierKeys And Keys.Control) <> 0 Then
             Cursor.Current = Cursors.Hand
             Dim vw = Me.Width
             Dim vh = Me.Height
             Dim r2 As Single = BrushRadiusPx * BrushRadiusPx
-            ' ‚Äî Hoist de matrices: calcula viewProj una sola vez
+            ' ó Hoist de matrices: calcula viewProj una sola vez
             Dim viewMatrix As Matrix4 = camera.GetViewMatrix()
             Dim viewProj As Matrix4 = viewMatrix * projection
             Dim camPos = camera.GetEyePosition()
@@ -623,7 +657,7 @@ Public Class PreviewControl
                     If mesh.MeshData.Meshgeometry.VertexMask(i) = -1 And mesh.MeshData.Shape.ApplyZaps Then Continue For
                     If mesh.MeshData.Meshgeometry.VertexMask(i) = -1 Then If mesh.MeshData.Shape.MaskedVertices.Contains(i) Then mesh.MeshData.Meshgeometry.VertexMask(i) = 1 Else mesh.MeshData.Meshgeometry.VertexMask(i) = 0
                     If (mesh.MeshData.Meshgeometry.VertexMask(i) = 1 AndAlso Not InvertMasking) OrElse (mesh.MeshData.Meshgeometry.VertexMask(i) = 0 AndAlso InvertMasking) Then Continue For
-                    ' 2.1b) Filtrar solo v√©rtices de la cara delantera (normal-camera)
+                    ' 2.1b) Filtrar solo vÈrtices de la cara delantera (normal-camera)
                     Dim normal As Vector3 = norms(i)
                     Dim toCam As Vector3 = camPos - verts(i)
                     If Vector3.Dot(normal, toCam) <= 0 Then Continue For
@@ -631,7 +665,7 @@ Public Class PreviewControl
                     Dim clipPos As Vector4 = New Vector4(verts(i), 1.0F) * viewProj
 
 
-                    ' 2.2) Filtrado de frustum (W>0) ‚Äî opcional quitar para probar
+                    ' 2.2) Filtrado de frustum (W>0) ó opcional quitar para probar
                     If clipPos.W <= 0 Then Continue For
 
                     ' 2.3) De clip a NDC
@@ -721,30 +755,30 @@ Public Class PreviewControl
         Dim minB As Vector3, maxB As Vector3
         GetSceneBounds(minB, maxB)
 
-        ' 2) Centro y tama√±o
+        ' 2) Centro y tamaÒo
         Dim center As Vector3 = (minB + maxB) * 0.5F
         Dim size As Vector3 = maxB - minB
 
         ' 3) Focus y orbit mode
         camera.FocusPosition = center
 
-        ' 4) Par√°metros de c√°mara
+        ' 4) Par·metros de c·mara
         Dim fovY As Single = MathHelper.DegreesToRadians(45.0F)
         Dim aspect As Single = Me.Width / CSng(Me.Height)
 
-        ' ** Usamos Z para altura, X para anchura y Y para profundidad (hacia la c√°mara) **
-        Dim halfH As Single = size.Z * 0.5F   ' vertical ‚Üê Z
-        Dim halfW As Single = size.X * 0.5F   ' horizontal ‚Üê X
-        Dim halfD As Single = size.Y * 0.5F   ' profundidad ‚Üê Y
+        ' ** Usamos Z para altura, X para anchura y Y para profundidad (hacia la c·mara) **
+        Dim halfH As Single = size.Z * 0.5F   ' vertical ? Z
+        Dim halfW As Single = size.X * 0.5F   ' horizontal ? X
+        Dim halfD As Single = size.Y * 0.5F   ' profundidad ? Y
 
-        ' 5) Calculamos distancias m√≠nimas sin margen
+        ' 5) Calculamos distancias mÌnimas sin margen
         Dim distH = halfH / CSng(Math.Tan(fovY * 0.5F))
         Dim fovX = 2.0F * CSng(Math.Atan(Math.Tan(fovY * 0.5F) * aspect))
         Dim distW = halfW / CSng(Math.Tan(fovX * 0.5F))
 
         ' 6) Margen uniforme (p.ej. 15% extra)
         Dim marginPct As Single = 0.1F
-        ' SUMAMOS la media profundidad para asegurar que el punto m√°s cercano tambi√©n entra en FOV
+        ' SUMAMOS la media profundidad para asegurar que el punto m·s cercano tambiÈn entra en FOV
         Dim baseDistance As Single = halfD + Math.Max(distH, distW)
         Dim idealDistance As Single = baseDistance * (1.0F + marginPct)
         camera.MaxDistance = idealDistance * 10
@@ -752,7 +786,7 @@ Public Class PreviewControl
         camera.distance = Math.Clamp(idealDistance, camera.MinDistance, camera.MaxDistance)
         camera.Optimaldistance = camera.distance
 
-        ' 7) Reset √°ngulos y orientaci√≥n
+        ' 7) Reset ·ngulos y orientaciÛn
         camera.angleX = 0F
         camera.angleY = 0F
         camera.UpdateDirectionFromAngles()
@@ -765,7 +799,7 @@ Public Class PreviewControl
     End Sub
     Private Sub RenderTimer_Tick(sender As Object, e As EventArgs) Handles RenderTimer.Tick
         If updateRequired AndAlso RenderTimer.Enabled = True Then
-            Me.Invalidate()  ' disparar√° OnPaint
+            Me.Invalidate()  ' disparar· OnPaint
         End If
     End Sub
     Public Sub Clean()
@@ -780,7 +814,7 @@ Public Class PreviewControl
             _Model = Nothing
         End If
         If SharedActiveShader IsNot Nothing Then
-            SharedActiveShader.Dispose() ' Aseg√∫rate que Shader_Class tenga este m√©todo
+            SharedActiveShader.Dispose() ' Aseg˙rate que Shader_Class tenga este mÈtodo
             SharedActiveShader = Nothing
         End If
 
@@ -863,8 +897,8 @@ Public Class PreviewModel
 
 
 
-        ' A√±ade **s√≥lo** estas dos l√≠neas:
-        Private vboMask As Integer                                    ' VBO dedicado a m√°scara
+        ' AÒade **sÛlo** estas dos lÌneas:
+        Private vboMask As Integer                                    ' VBO dedicado a m·scara
         Public MeshData As MeshData_Class
         Private indexCount As Integer
         Public Class MaterialData
@@ -1149,7 +1183,7 @@ Public Class PreviewModel
         Private ReadOnly ParentModel As PreviewModel
 
         Public Sub Clean()
-            ' ‚Äî Eliminar VAO y buffers de atributos ‚Äî
+            ' ó Eliminar VAO y buffers de atributos ó
             If vao > 0 Then GL.DeleteVertexArray(vao) : vao = 0
             If ebo > 0 Then GL.DeleteBuffer(ebo) : ebo = 0
             If vboPosition > 0 Then GL.DeleteBuffer(vboPosition) : vboPosition = 0
@@ -1160,7 +1194,7 @@ Public Class PreviewModel
             If vboUVMaskWeight > 0 Then GL.DeleteBuffer(vboUVMaskWeight) : vboUVMaskWeight = 0
             If vboMask > 0 Then GL.DeleteBuffer(vboMask) : vboMask = 0
 
-            ' ‚Äî Reducir flags de dirty-tracking a m√≠nima expresi√≥n ‚Äî
+            ' ó Reducir flags de dirty-tracking a mÌnima expresiÛn ó
             MeshData.Meshgeometry = Nothing
         End Sub
 
@@ -1173,7 +1207,7 @@ Public Class PreviewModel
         Public Sub UpdateSkinBuffers_GL()
             ' Actualiza VBOs de Normales, Tangentes, Bitangentes y Posiciones usando MapBufferRange en un solo bucle
             If MeshData.Meshgeometry.dirtyVertexIndices.Count > 0 Then
-                Const elementSize As Integer = 3 * 4  ' bytes por v√©rtice y por atributo
+                Const elementSize As Integer = 3 * 4  ' bytes por vÈrtice y por atributo
                 Dim totalBytes As Integer = MeshData.Meshgeometry.Vertices.Length * elementSize
                 Dim mapMask As MapBufferAccessMask = MapBufferAccessMask.MapWriteBit Or MapBufferAccessMask.MapUnsynchronizedBit
 
@@ -1231,16 +1265,16 @@ Public Class PreviewModel
         End Sub
         Public Sub UpdateUpdateSkinBuffersMask_GL()
             If MeshData.Meshgeometry.dirtyMaskIndices.Count > 0 Then
-                Const maskSize As Integer = 4 ' bytes por m√°scara
+                Const maskSize As Integer = 4 ' bytes por m·scara
                 Dim totalMaskBytes As Integer = MeshData.Meshgeometry.VertexMask.Length * maskSize
-                ' Usar misma l√≥gica de MapBufferRange y MapUnsynchronizedBit
+                ' Usar misma lÛgica de MapBufferRange y MapUnsynchronizedBit
                 Dim mapMask As MapBufferAccessMask = MapBufferAccessMask.MapWriteBit Or MapBufferAccessMask.MapUnsynchronizedBit
 
-                ' Mapear buffer de m√°scara
+                ' Mapear buffer de m·scara
                 GL.BindBuffer(BufferTarget.ArrayBuffer, vboMask)
                 Dim ptrM As IntPtr = GL.MapBufferRange(BufferTarget.ArrayBuffer, IntPtr.Zero, totalMaskBytes, mapMask)
 
-                ' Un solo bucle para escribir m√°scaras sucias
+                ' Un solo bucle para escribir m·scaras sucias
                 For Each i As Integer In MeshData.Meshgeometry.dirtyMaskIndices
                     Dim offsetBytes As Int64 = CLng(i) * maskSize
                     Dim baseM As IntPtr = ptrM + offsetBytes
@@ -1249,7 +1283,7 @@ Public Class PreviewModel
                     MeshData.Meshgeometry.dirtyMaskFlags(i) = False
                 Next
 
-                ' Desmapear buffer de m√°scara
+                ' Desmapear buffer de m·scara
                 GL.BindBuffer(BufferTarget.ArrayBuffer, vboMask)
                 GL.UnmapBuffer(BufferTarget.ArrayBuffer)
                 GL.BindBuffer(BufferTarget.ArrayBuffer, 0)
@@ -1277,31 +1311,31 @@ Public Class PreviewModel
             Dim tanF() As Vector3 = Array.ConvertAll(MeshData.Meshgeometry.Tangents, Function(v) New Vector3(v.X, v.Y, v.Z))
             Dim bitanF() As Vector3 = Array.ConvertAll(MeshData.Meshgeometry.Bitangents, Function(v) New Vector3(v.X, v.Y, v.Z))
 
-            ' POSICIONES ‚Äî DynamicDraw
+            ' POSICIONES ó DynamicDraw
             GL.BindBuffer(BufferTarget.ArrayBuffer, vboPosition)
             GL.BufferData(BufferTarget.ArrayBuffer, posF.Length * 3 * 4, posF, BufferUsageHint.DynamicDraw)
             GL.EnableVertexAttribArray(0)
             GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, False, 0, 0)
 
-            ' NORMALES ‚Äî DynamicDraw
+            ' NORMALES ó DynamicDraw
             GL.BindBuffer(BufferTarget.ArrayBuffer, vboNormal)
             GL.BufferData(BufferTarget.ArrayBuffer, nrmF.Length * 3 * 4, nrmF, BufferUsageHint.DynamicDraw)
             GL.EnableVertexAttribArray(1)
             GL.VertexAttribPointer(1, 3, VertexAttribPointerType.Float, False, 0, 0)
 
-            ' TANGENTES ‚Äî DynamicDraw
+            ' TANGENTES ó DynamicDraw
             GL.BindBuffer(BufferTarget.ArrayBuffer, vboTangent)
             GL.BufferData(BufferTarget.ArrayBuffer, tanF.Length * 3 * 4, tanF, BufferUsageHint.DynamicDraw)
             GL.EnableVertexAttribArray(2)
             GL.VertexAttribPointer(2, 3, VertexAttribPointerType.Float, False, 0, 0)
 
-            ' BITANGENTES ‚Äî DynamicDraw
+            ' BITANGENTES ó DynamicDraw
             GL.BindBuffer(BufferTarget.ArrayBuffer, vboBitangent)
             GL.BufferData(BufferTarget.ArrayBuffer, bitanF.Length * 3 * 4, bitanF, BufferUsageHint.DynamicDraw)
             GL.EnableVertexAttribArray(3)
             GL.VertexAttribPointer(3, 3, VertexAttribPointerType.Float, False, 0, 0)
 
-            ' COLOR + ALPHA ‚Äî StaticDraw
+            ' COLOR + ALPHA ó StaticDraw
 
             GL.BindBuffer(BufferTarget.ArrayBuffer, vboColorAlpha)
             GL.BufferData(BufferTarget.ArrayBuffer, MeshData.Meshgeometry.VertexColors.Length * 4 * 4, MeshData.Meshgeometry.VertexColors, BufferUsageHint.StaticDraw)
@@ -1310,7 +1344,7 @@ Public Class PreviewModel
             GL.EnableVertexAttribArray(5)
             GL.VertexAttribPointer(5, 1, VertexAttribPointerType.Float, False, 4 * 4, 3 * 4)
 
-            ' UV + WEIGHT ‚Äî StaticDraw
+            ' UV + WEIGHT ó StaticDraw
             GL.BindBuffer(BufferTarget.ArrayBuffer, vboUVMaskWeight)
             GL.BufferData(BufferTarget.ArrayBuffer, MeshData.Meshgeometry.Uvs_Weight.Length * 3 * 4, MeshData.Meshgeometry.Uvs_Weight, BufferUsageHint.StaticDraw)
             GL.EnableVertexAttribArray(6)
@@ -1318,7 +1352,7 @@ Public Class PreviewModel
             GL.EnableVertexAttribArray(8)
             GL.VertexAttribPointer(8, 1, VertexAttribPointerType.Float, False, 3 * 4, 2 * 4)
 
-            ' M√ÅSCARA ‚Äî DynamicDraw
+            ' M¡SCARA ó DynamicDraw
             GL.BindBuffer(BufferTarget.ArrayBuffer, vboMask)
             GL.BufferData(BufferTarget.ArrayBuffer, MeshData.Meshgeometry.VertexMask.Length * 4, MeshData.Meshgeometry.VertexMask, BufferUsageHint.DynamicDraw)
 
@@ -1366,16 +1400,16 @@ Public Class PreviewModel
             Dim isTwoSidedBlended As Boolean = MeshData.Material.HasAlphaBlend AndAlso mat.TwoSided AndAlso Not MeshData.Shape.Wireframe
 
             If isTwoSidedBlended Then
-                ' ‚Äî Pasada 1: caras traseras (culling de frontales) ‚Äî
+                ' ó Pasada 1: caras traseras (culling de frontales) ó
                 GL.Enable(EnableCap.CullFace)
                 GL.CullFace(TriangleFace.Front)
                 GL.DrawElements(PrimitiveType.Triangles, indexCount, DrawElementsType.UnsignedInt, 0)
 
-                ' ‚Äî Pasada 2: caras frontales (culling de traseras) ‚Äî
+                ' ó Pasada 2: caras frontales (culling de traseras) ó
                 GL.CullFace(TriangleFace.Back)
                 GL.DrawElements(PrimitiveType.Triangles, indexCount, DrawElementsType.UnsignedInt, 0)
             Else
-                ' ‚Äî Caso normal: una sola pasada ‚Äî
+                ' ó Caso normal: una sola pasada ó
                 If mat.TwoSided Then
                     GL.Disable(EnableCap.CullFace)      ' dibuja front y back
                 Else
@@ -1386,7 +1420,7 @@ Public Class PreviewModel
                 GL.DrawElements(PrimitiveType.Triangles, indexCount, DrawElementsType.UnsignedInt, 0)
             End If
 
-            ' (Opcional) restaurar estado si luego renderizas m√°s cosas:
+            ' (Opcional) restaurar estado si luego renderizas m·s cosas:
             GL.DepthMask(True)
             GL.Disable(EnableCap.Blend)
             GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Fill)
@@ -1399,7 +1433,7 @@ Public Class PreviewModel
 
 
             '===============================
-            ' üé® PROPIEDADES DE COLOR B√ÅSICO
+            ' ?? PROPIEDADES DE COLOR B¡SICO
             '===============================
             Me.ParentModel.ParentControl.SharedActiveShader.SetVector3("color", Shader_Class.Color_to_Vector(MeshData.Shape.Wirecolor))
             Me.ParentModel.ParentControl.SharedActiveShader.SetFloat("WireAlpha", MeshData.Shape.WireAlpha)
@@ -1411,7 +1445,7 @@ Public Class PreviewModel
             Me.ParentModel.ParentControl.SharedActiveShader.SetVector3("subColor", Shader_Class.Color_to_Vector(MeshData.Shape.TintColor))
 
             '===============================
-            ' üü¢ TOGGLES DE VISUALIZACI√ìN
+            ' ?? TOGGLES DE VISUALIZACI”N
             '===============================
             Me.ParentModel.ParentControl.SharedActiveShader.SetBool("bShowTexture", Me.MeshData.Shape.ShowTexture)
             Me.ParentModel.ParentControl.SharedActiveShader.SetBool("bShowMask", Me.MeshData.Shape.ShowMask)
@@ -1424,11 +1458,11 @@ Public Class PreviewModel
 
 
             '===============================
-            ' üí° ILUMINACI√ìN PRINCIPAL
+            ' ?? ILUMINACI”N PRINCIPAL
             '===============================
-            ' üí° ILUMINACI√ìN PRINCIPAL
+            ' ?? ILUMINACI”N PRINCIPAL
 
-            ' main ‚Äúfrontal‚Äù light
+            ' main ìfrontalî light
             Dim cam = ParentModel.ParentControl.camera
 
             Me.ParentModel.ParentControl.SharedActiveShader.SetBool("bLightEnabled", True)
@@ -1449,7 +1483,7 @@ Public Class PreviewModel
             Me.ParentModel.ParentControl.SharedActiveShader.SetVector3("directional2.direction", Config_App.Current.Setting_Lightrig.BackLight.GetDirection(cam))
 
             '===============================
-            ' üß™ TEXTURAS (Sample BINDs)
+            ' ?? TEXTURAS (Sample BINDs)
             '===============================
             If material.DiffuseTexture_ID <> 0 Then
                 Me.ParentModel.ParentControl.SharedActiveShader.BindTexture("texDiffuse", material.DiffuseTexture_ID, TextureUnit.Texture0)
@@ -1494,15 +1528,15 @@ Public Class PreviewModel
             End If
 
             '===============================
-            ' ‚öôÔ∏è PROPIEDADES DEL MATERIAL
+            ' ?? PROPIEDADES DEL MATERIAL
             '===============================
             Me.ParentModel.ParentControl.SharedActiveShader.SetVector2("uvOffset", New Vector2(material.MaterialBase.UOffset, material.MaterialBase.VOffset))
             Me.ParentModel.ParentControl.SharedActiveShader.SetVector2("uvScale", New Vector2(material.MaterialBase.UScale, material.MaterialBase.VScale))
-            ' Umbral de alpha (solo necesario si us√°s discard por transparencia)
+            ' Umbral de alpha (solo necesario si us·s discard por transparencia)
             Me.ParentModel.ParentControl.SharedActiveShader.SetFloat("alphaThreshold", material.MaterialBase.AlphaTestRef / 255)
 
             '===============================
-            ' üß© TOGGLES DE EFECTOS Y SOMBREADO
+            ' ?? TOGGLES DE EFECTOS Y SOMBREADO
             '===============================
             Me.ParentModel.ParentControl.SharedActiveShader.SetBool("bCubemap", material.HasCubemap)
             Me.ParentModel.ParentControl.SharedActiveShader.SetBool("bAlphaTest", material.HasAlphaTest)
@@ -1565,7 +1599,7 @@ Public Class PreviewModel
                 GL.Enable(EnableCap.Blend)
                 GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha)
             ElseIf material.HasAlphaBlend Then
-                ' Blending est√°ndar
+                ' Blending est·ndar
                 GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Fill)
                 GL.Enable(EnableCap.Blend)
                 Dim blend = material.Calculate_Blending()
@@ -1593,26 +1627,26 @@ Public Class PreviewModel
                 sw.WriteLine("# Exportado por ExportMeshToOBJ")
                 sw.WriteLine("# Shape: " & MeshData.ShapeName)
 
-                ' üî∑ V√©rtices
+                ' ?? VÈrtices
                 For Each v In MeshData.Meshgeometry.Vertices
                     sw.WriteLine(String.Format(System.Globalization.CultureInfo.InvariantCulture, "v {0} {1} {2}", v.X, v.Y, v.Z))
                 Next
 
-                ' üî∑ Normales
+                ' ?? Normales
                 If MeshData.Meshgeometry.Normals IsNot Nothing AndAlso MeshData.Meshgeometry.Normals.Length = MeshData.Meshgeometry.Vertices.Length Then
                     For Each n In MeshData.Meshgeometry.Normals
                         sw.WriteLine(String.Format(System.Globalization.CultureInfo.InvariantCulture, "vn {0} {1} {2}", n.X, n.Y, n.Z))
                     Next
                 End If
 
-                ' üî∑ UVs
+                ' ?? UVs
                 If MeshData.Meshgeometry.Uvs_Weight IsNot Nothing AndAlso MeshData.Meshgeometry.Uvs_Weight.Length = MeshData.Meshgeometry.Vertices.Length Then
                     For Each uv In MeshData.Meshgeometry.Uvs_Weight
                         sw.WriteLine(String.Format(System.Globalization.CultureInfo.InvariantCulture, "vt {0} {1}", uv.X, 1 - uv.Y)) ' invertir V
                     Next
                 End If
 
-                ' üî∑ Caras (tri√°ngulos)
+                ' ?? Caras (tri·ngulos)
                 Dim tieneUV As Boolean = MeshData.Meshgeometry.Uvs_Weight IsNot Nothing AndAlso MeshData.Meshgeometry.Uvs_Weight.Length = MeshData.Meshgeometry.Vertices.Length
                 Dim tieneNorm As Boolean = MeshData.Meshgeometry.Normals IsNot Nothing AndAlso MeshData.Meshgeometry.Normals.Length = MeshData.Meshgeometry.Vertices.Length
 
@@ -1697,7 +1731,7 @@ Public Class PreviewModel
             If IsNothing(shape.RelatedNifShape) Then Return Nothing
             Dim geom = SkinningHelper.ExtractSkinnedGeometry(shape, ApplyPose:=HasPose, SingleBoneSkinning, RecalculateNormals)
 
-            ' 2) Rellenar MeshData con la geometr√≠a final
+            ' 2) Rellenar MeshData con la geometrÌa final
             Dim mesh As New RenderableMesh.MeshData_Class With {
                 .Shape = shape,
                 .Meshgeometry = geom
@@ -1717,7 +1751,7 @@ Public Class PreviewModel
         Process_Indices_GL()
         Process_Textures_GL()
         ParentControl.RenderTimer.Start()
-        ParentControl.UpdateProjection(True)  ' ‚Üê ya hay meshes/bounds; ajusta frustum
+        ParentControl.UpdateProjection(True)  ' ? ya hay meshes/bounds; ajusta frustum
         Can_Render = True
         Cleaned = False
     End Sub
@@ -1747,7 +1781,7 @@ Public Class PreviewModel
     End Sub
 
     Public Sub CleanTextures()
-        ' ‚Äî Eliminar texturas cargadas ‚Äî
+        ' ó Eliminar texturas cargadas ó
         Dim seen As New HashSet(Of UInteger)
         For Each texID In Textures_Dictionary.Values.Select(Function(pf) pf.Texture_ID)
             If texID > 0 AndAlso Not seen.Contains(texID) Then
@@ -1785,22 +1819,22 @@ Public Class PreviewModel
         Public Depth As Single
     End Structure
     Public Sub RenderAll(projection As Matrix4, camera As OrbitCamera)
-        ' Clasificaci√≥n por tipo de alpha
+        ' ClasificaciÛn por tipo de alpha
         Dim cutout = meshes.Where(Function(m) Not m.MeshData.Material?.HasAlphaBlend AndAlso m.MeshData.Material?.HasAlphaTest AndAlso Not m.MeshData.Shape.Wireframe).OrderBy(Function(pf) pf.MeshData.Idx)
         Dim opaque = meshes.Where(Function(m) Not m.MeshData.Material?.HasAlphaBlend AndAlso Not m.MeshData.Material?.HasAlphaTest AndAlso Not m.MeshData.Shape.Wireframe).OrderBy(Function(pf) pf.MeshData.Idx)
         Dim blended = meshes.Where(Function(m) m.MeshData.Material?.HasAlphaBlend OrElse m.MeshData.Shape.Wireframe).OrderBy(Function(pf) pf.MeshData.Idx)
 
-        ' 1. OPAQUE ‚Äî sin blending, depth write habilitado
+        ' 1. OPAQUE ó sin blending, depth write habilitado
         For Each mesh In opaque
             mesh.Render(projection, camera)
         Next
 
-        ' 2. CUTOUT ‚Äî alpha test, sin blending, depth write habilitado
+        ' 2. CUTOUT ó alpha test, sin blending, depth write habilitado
         For Each mesh In cutout
             mesh.Render(projection, camera)
         Next
 
-        ' 3. BLENDED ‚Äî requiere ordenamiento por profundidad
+        ' 3. BLENDED ó requiere ordenamiento por profundidad
         Dim viewMatrix = camera.GetViewMatrix()
         Dim sorted = blended.Select(Function(m)
                                         Dim viewPos = Vector3.TransformPosition(m.MeshData.Meshgeometry.Boundingcenter, viewMatrix)
@@ -1836,7 +1870,7 @@ Public Class OrbitCamera
         distance = 167
         FocusPosition = Vector3.Zero
         UpdateDirectionFromAngles()
-        Up = Vector3.UnitZ         ' ‚Üê cambio aqu√≠: Z-up
+        Up = Vector3.UnitZ         ' ? cambio aquÌ: Z-up
     End Sub
 
     Public Sub UpdateDirectionFromAngles()
@@ -1858,8 +1892,8 @@ Public Class OrbitCamera
         FocusPosition += (-dx) * right + dy * upPlane
     End Sub
 
-    ' Variante: pan a partir de arrastre en pantalla (dx,dy en p√≠xeles).
-    ' pixelScale: cu√°nto vale 1 p√≠xel en unidades de mundo a la distancia actual.
+    ' Variante: pan a partir de arrastre en pantalla (dx,dy en pÌxeles).
+    ' pixelScale: cu·nto vale 1 pÌxel en unidades de mundo a la distancia actual.
     Public Sub PanScreen(dxPixels As Single, dyPixels As Single)
         Dim pixelScale2 As Single = distance * pixelScale * 0.2F
         PanWorld(-dxPixels * pixelScale2, dyPixels * pixelScale2)
@@ -1868,7 +1902,7 @@ Public Class OrbitCamera
     Const pixelScale As Single = 0.01F
 
     Public Sub Zoom(delta As Single)
-        Dim factor As Single = MathF.Exp(-pixelScale * 5 * delta)   ' acercar: steps>0 ‚áí reduce distancia
+        Dim factor As Single = MathF.Exp(-pixelScale * 5 * delta)   ' acercar: steps>0 ? reduce distancia
         distance = Math.Clamp(distance * factor, MinDistance, MaxDistance)
     End Sub
 
@@ -1886,5 +1920,6 @@ Public Class OrbitCamera
         Return FocusPosition + Forward * distance
     End Function
 End Class
+
 
 
