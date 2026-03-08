@@ -1761,10 +1761,16 @@ Public Class FO4UnifiedMaterial_Class
             shad._greyscaleTexture.Content = Mat.GrayscaleTexture
         End If
 
-        If IsNothing(shad._envMaskTexture) Then
-            shad._envMaskTexture = New NiString4(Mat.EnvmapTexture)
+        If IsNothing(shad._envMapTexture) Then
+            shad._envMapTexture = New NiString4(Mat.EnvmapTexture)
         Else
-            shad._envMaskTexture.Content = Mat.EnvmapTexture
+            shad._envMapTexture.Content = Mat.EnvmapTexture
+        End If
+
+        If IsNothing(shad._envMaskTexture) Then
+            shad._envMaskTexture = New NiString4(Mat.EnvmapMaskTexture)
+        Else
+            shad._envMaskTexture.Content = Mat.EnvmapMaskTexture
         End If
 
         If IsNothing(shad._lightingTexture) Then

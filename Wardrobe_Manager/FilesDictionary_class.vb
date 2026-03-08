@@ -266,6 +266,13 @@ Public Class FilesDictionary_class
         If Original.BA2File.StartsWith("DLCROBOT", StringComparison.OrdinalIgnoreCase) And Nueva.BA2File.StartsWith("DLCNUKA", StringComparison.OrdinalIgnoreCase) Then Return True
         If Nueva.BA2File.StartsWith("DLCROBOT", StringComparison.OrdinalIgnoreCase) And Original.BA2File.StartsWith("DLCCOAST", StringComparison.OrdinalIgnoreCase) Then Return False
         If Original.BA2File.StartsWith("DLCROBOT", StringComparison.OrdinalIgnoreCase) And Nueva.BA2File.StartsWith("DLCCOAST", StringComparison.OrdinalIgnoreCase) Then Return True
+        If Nueva.BA2File.StartsWith("DLCCOAST", StringComparison.OrdinalIgnoreCase) And Original.BA2File.StartsWith("DLCNUKA", StringComparison.OrdinalIgnoreCase) Then Return False
+        If Original.BA2File.StartsWith("DLCworkshop03", StringComparison.OrdinalIgnoreCase) And Nueva.BA2File.StartsWith("DLCCOAST", StringComparison.OrdinalIgnoreCase) Then Return True
+        If Original.BA2File.StartsWith("DLCCOAST", StringComparison.OrdinalIgnoreCase) And Nueva.BA2File.StartsWith("DLCworkshop03", StringComparison.OrdinalIgnoreCase) Then Return False
+
+        If Original.BA2File.StartsWith("ccBGSFO4038", StringComparison.OrdinalIgnoreCase) And Nueva.BA2File.StartsWith("ccBGSFO4044", StringComparison.OrdinalIgnoreCase) Then Return False
+        If Original.BA2File.StartsWith("ccBGSFO4044", StringComparison.OrdinalIgnoreCase) And Nueva.BA2File.StartsWith("ccBGSFO4038", StringComparison.OrdinalIgnoreCase) Then Return True
+
         If Original.BA2File.Contains(".bsa") = False Then
             Debugger.Break()
         End If

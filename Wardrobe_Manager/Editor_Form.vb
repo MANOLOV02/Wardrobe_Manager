@@ -1,4 +1,4 @@
-ÔªøImports System.ComponentModel
+Imports System.ComponentModel
 Imports System.Diagnostics.Eventing.Reader
 Imports System.Globalization
 Imports System.IO
@@ -192,7 +192,7 @@ Public Class Editor_Form
         tlp.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
         tlp.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100))
 
-        ' Recorre cada categor√≠a y cada slider definido en XML
+        ' Recorre cada categorÌa y cada slider definido en XML
         For Each kvp In Selected_Preset.Sliders.Select(Function(pf) pf.Category).Order.Distinct
             Dim catName As String = kvp
             Dim sliderNames As List(Of PresetSlider_Class) = Selected_Preset.Sliders.Where(Function(pf) pf.Category = catName AndAlso pf.Size = Selected_size).ToList
@@ -680,6 +680,40 @@ Public Class Editor_Form
         EditPreviewControl.Dispose()
     End Sub
 
+    Private Sub ButtonRenderScreenshot_Click(sender As Object, e As EventArgs) Handles ButtonRenderScreenshot.Click
+        If IsNothing(EditPreviewControl) OrElse EditPreviewControl.IsDisposed Then Exit Sub
+
+        Dim baseName As String = "render"
+        If Not IsNothing(Selected_Slider) AndAlso String.IsNullOrWhiteSpace(Selected_Slider.Nombre) = False Then
+            baseName = Selected_Slider.Nombre
+        End If
+        For Each ch In Path.GetInvalidFileNameChars()
+            baseName = baseName.Replace(ch, "_"c)
+        Next
+
+        Using sd As New SaveFileDialog With {
+            .AddExtension = True,
+            .OverwritePrompt = True,
+            .AddToRecent = False,
+            .DefaultExt = "png",
+            .Filter = "PNG image (*.png)|*.png",
+            .FileName = baseName & "_" & Date.Now.ToString("yyyyMMdd_HHmmss") & ".png",
+            .Title = "Save render screenshot"
+        }
+            If sd.ShowDialog() <> DialogResult.OK Then Exit Sub
+            Try
+                Using bmp = EditPreviewControl.CaptureBitmap()
+                    If IsNothing(bmp) Then
+                        MsgBox("Could not capture render preview", vbOKOnly + vbCritical, "Error")
+                        Exit Sub
+                    End If
+                    bmp.Save(sd.FileName, System.Drawing.Imaging.ImageFormat.Png)
+                End Using
+            Catch ex As Exception
+                MsgBox("Error saving render screenshot: " & ex.Message, vbOKOnly + vbCritical, "Error")
+            End Try
+        End Using
+    End Sub
 
     Private Sub ButtonMatCancel_Click(sender As Object, e As EventArgs) Handles ButtonMatCancel.Click
         If ComboBoxMaterials.SelectedIndex = -1 Then Exit Sub
@@ -1128,9 +1162,9 @@ Public Class Editor_Form
         Select Case Size
             Case Config_App.SliderSize.Big
                 Return "big"
-            Case Config_App.SliderSize.Default
-                Return "small"
             Case Config_App.SliderSize.Small
+                Return "small"
+            Case Config_App.SliderSize.Default
                 Return "default"
         End Select
         Return "big"
@@ -1443,9 +1477,9 @@ Public Class Editor_Form
         Dim original = New HashSet(Of Integer)
         original.UnionWith(marked)
         For Each tri As NiflySharp.Structs.Triangle In triangles
-            ' si alguno de los tres ya est√° marcado...
+            ' si alguno de los tres ya est· marcado...
             If original.Contains(tri(0)) OrElse original.Contains(tri(1)) OrElse original.Contains(tri(2)) Then
-                ' ...a√±adimos los tres al HashSet
+                ' ...aÒadimos los tres al HashSet
                 marked.Add(tri(0))
                 marked.Add(tri(1))
                 marked.Add(tri(2))
@@ -1458,9 +1492,9 @@ Public Class Editor_Form
         Dim original = New HashSet(Of Integer)
         original.UnionWith(marked)
         For Each tri As NiflySharp.Structs.Triangle In triangles
-            ' si alguno de los tres ya est√° marcado...
+            ' si alguno de los tres ya est· marcado...
             If Not original.Contains(tri(0)) OrElse Not original.Contains(tri(1)) OrElse Not original.Contains(tri(2)) Then
-                ' ...a√±adimos los tres al HashSet
+                ' ...aÒadimos los tres al HashSet
                 marked.Remove(tri(0))
                 marked.Remove(tri(1))
                 marked.Remove(tri(2))
@@ -1707,11 +1741,11 @@ Public Class Editor_Form
 
     Public Sub New()
 
-        ' Esta llamada es exigida por el dise√±ador.
+        ' Esta llamada es exigida por el diseÒador.
         InitializeComponent()
         CheckBoxSaveSAF.Checked = Config_App.Current.Setting_ExportSam
         'ThemeManager.SetTheme(Config_App.Current.theme, Me)
-        ' Agregue cualquier inicializaci√≥n despu√©s de la llamada a InitializeComponent().
+        ' Agregue cualquier inicializaciÛn despuÈs de la llamada a InitializeComponent().
 
     End Sub
 
@@ -1998,3 +2032,4 @@ Public Class Editor_Form
         Process_render_Changes(False)
     End Sub
 End Class
+
