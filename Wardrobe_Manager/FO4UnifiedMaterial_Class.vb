@@ -1698,20 +1698,20 @@ Public Class FO4UnifiedMaterial_Class
         If Not IsNothing(shad) Then
             mat = New BGEM With {
             .TwoSided = shad.DoubleSided,
-            .BaseTexture = If(shad._sourceTexture?.Content, String.Empty),
-            .GrayscaleTexture = If(shad._greyscaleTexture?.Content, String.Empty),
-            .NormalTexture = If(shad._normalTexture?.Content, String.Empty),
-            .EnvmapMaskTexture = If(shad._envMaskTexture?.Content, String.Empty),
-            .EnvmapTexture = If(shad._envMapTexture?.Content, String.Empty), ' ← ojo con esto
-            .LightingTexture = If(shad._lightingTexture?.Content, String.Empty),
-            .SpecularTexture = If(shad._reflectanceTexture?.Content, String.Empty),
-            .GlowTexture = If(shad._emitGradientTexture?.Content, String.Empty),
+            .BaseTexture = If(shad.SourceTexture?.Content, String.Empty),
+            .GrayscaleTexture = If(shad.GreyscaleTexture?.Content, String.Empty),
+            .NormalTexture = If(shad.NormalTexture?.Content, String.Empty),
+            .EnvmapMaskTexture = If(shad.EnvMaskTexture?.Content, String.Empty),
+            .EnvmapTexture = If(shad.EnvMapTexture?.Content, String.Empty), ' ← ojo con esto
+            .LightingTexture = If(shad.LightingTexture?.Content, String.Empty),
+            .SpecularTexture = If(shad.ReflectanceTexture?.Content, String.Empty),
+            .GlowTexture = If(shad.EmitGradientTexture?.Content, String.Empty),
             .UOffset = shad.UVOffset.U,
             .VOffset = shad.UVOffset.V,
             .UScale = shad.UVScale.U,
             .VScale = shad.UVScale.V,
             .EnvironmentMappingMaskScale = shad.EnvironmentMapScale,
-            .EmittanceColor = ColorToUInteger(NifColorToColor(shad._emittanceColor))
+            .EmittanceColor = ColorToUInteger(NifColorToColor(shad.EmittanceColor))
             }
         Else
             mat = New BGEM
@@ -1739,56 +1739,56 @@ Public Class FO4UnifiedMaterial_Class
         shad.DoubleSided = Mat.TwoSided
         shad.UVOffset = New TexCoord(Mat.UOffset, Mat.VOffset)
         shad.UVScale = New TexCoord(Mat.UScale, Mat.VScale)
-        shad._environmentMapScale = Mat.EnvironmentMappingMaskScale
-        shad._emittanceColor = UIntegerToNifColor3(Mat.EmittanceColor)
         shad.EnvironmentMapScale = Mat.EnvironmentMappingMaskScale
-        If IsNothing(shad._sourceTexture) Then
-            shad._sourceTexture = New NiString4(Mat.BaseTexture)
+        shad.EmittanceColor = UIntegerToNifColor3(Mat.EmittanceColor)
+        shad.EnvironmentMapScale = Mat.EnvironmentMappingMaskScale
+        If IsNothing(shad.SourceTexture) Then
+            shad.SourceTexture = New NiString4(Mat.BaseTexture)
         Else
-            shad._sourceTexture.Content = Mat.BaseTexture
+            shad.SourceTexture.Content = Mat.BaseTexture
         End If
 
 
-        If IsNothing(shad._normalTexture) Then
-            shad._normalTexture = New NiString4(Mat.NormalTexture)
+        If IsNothing(shad.NormalTexture) Then
+            shad.NormalTexture = New NiString4(Mat.NormalTexture)
         Else
-            shad._normalTexture.Content = Mat.NormalTexture
+            shad.NormalTexture.Content = Mat.NormalTexture
         End If
 
-        If IsNothing(shad._greyscaleTexture) Then
-            shad._greyscaleTexture = New NiString4(Mat.GrayscaleTexture)
+        If IsNothing(shad.GreyscaleTexture) Then
+            shad.GreyscaleTexture = New NiString4(Mat.GrayscaleTexture)
         Else
-            shad._greyscaleTexture.Content = Mat.GrayscaleTexture
+            shad.GreyscaleTexture.Content = Mat.GrayscaleTexture
         End If
 
-        If IsNothing(shad._envMapTexture) Then
-            shad._envMapTexture = New NiString4(Mat.EnvmapTexture)
+        If IsNothing(shad.EnvMapTexture) Then
+            shad.EnvMapTexture = New NiString4(Mat.EnvmapTexture)
         Else
-            shad._envMapTexture.Content = Mat.EnvmapTexture
+            shad.EnvMapTexture.Content = Mat.EnvmapTexture
         End If
 
-        If IsNothing(shad._envMaskTexture) Then
-            shad._envMaskTexture = New NiString4(Mat.EnvmapMaskTexture)
+        If IsNothing(shad.EnvMaskTexture) Then
+            shad.EnvMaskTexture = New NiString4(Mat.EnvmapMaskTexture)
         Else
-            shad._envMaskTexture.Content = Mat.EnvmapMaskTexture
+            shad.EnvMaskTexture.Content = Mat.EnvmapMaskTexture
         End If
 
-        If IsNothing(shad._lightingTexture) Then
-            shad._lightingTexture = New NiString4(Mat.LightingTexture)
+        If IsNothing(shad.LightingTexture) Then
+            shad.LightingTexture = New NiString4(Mat.LightingTexture)
         Else
-            shad._lightingTexture.Content = Mat.LightingTexture
+            shad.LightingTexture.Content = Mat.LightingTexture
         End If
 
-        If IsNothing(shad._reflectanceTexture) Then
-            shad._reflectanceTexture = New NiString4(Mat.SpecularTexture)
+        If IsNothing(shad.ReflectanceTexture) Then
+            shad.ReflectanceTexture = New NiString4(Mat.SpecularTexture)
         Else
-            shad._reflectanceTexture.Content = Mat.SpecularTexture
+            shad.ReflectanceTexture.Content = Mat.SpecularTexture
         End If
 
-        If IsNothing(shad._emitGradientTexture) Then
-            shad._emitGradientTexture = New NiString4(Mat.GlowTexture)
+        If IsNothing(shad.EmitGradientTexture) Then
+            shad.EmitGradientTexture = New NiString4(Mat.GlowTexture)
         Else
-            shad._emitGradientTexture.Content = Mat.GlowTexture
+            shad.EmitGradientTexture.Content = Mat.GlowTexture
         End If
 
         If IsNothing(shap.AlphaPropertyRef) OrElse shap.AlphaPropertyRef.Index = -1 Then
@@ -1816,7 +1816,7 @@ Public Class FO4UnifiedMaterial_Class
 
         If IsNothing(shad.TextureSetRef) OrElse shad.TextureSetRef.Index = -1 Then
             Dim texset1 = New BSShaderTextureSet
-            shad._textureSet = New NiBlockRef(Of BSShaderTextureSet) With {.Index = Nif.AddBlock(texset1)}
+            shad.TextureSetRef = New NiBlockRef(Of BSShaderTextureSet) With {.Index = Nif.AddBlock(texset1)}
             texset1.Textures = New List(Of NiString4)
         End If
 
@@ -2006,59 +2006,6 @@ End Class
 
 Public Class InhertedBGEMShader
     Inherits BSEffectShaderProperty
-    Public ReadOnly Property Emitcolor As UInteger
-        Get
-            Return FO4UnifiedMaterial_Class.ColorToUInteger(FO4UnifiedMaterial_Class.NifColorToColor(Me._emittanceColor))
-        End Get
-    End Property
-    Public ReadOnly Property NormalTexture As String
-        Get
-            If IsNothing(Me._normalTexture) Or IsNothing(Me._normalTexture) Then Return ""
-            Return Me._normalTexture.Content
-        End Get
-    End Property
-    Public ReadOnly Property BaseTexture As String
-        Get
-            If IsNothing(Me._sourceTexture) Or IsNothing(Me._sourceTexture) Then Return ""
-            Return Me._sourceTexture.Content
-        End Get
-    End Property
-    Public ReadOnly Property GrayscaleTexture As String
-        Get
-            If IsNothing(Me._greyscaleTexture) Or IsNothing(Me._greyscaleTexture) Then Return ""
-            Return Me._greyscaleTexture.Content
-        End Get
-    End Property
-    Public ReadOnly Property EnvMapTexture As String
-        Get
-            If IsNothing(Me._envMapTexture) Or IsNothing(Me._envMapTexture) Then Return ""
-            Return Me._envMapTexture.Content
-        End Get
-    End Property
-    Public ReadOnly Property EnvMaskTexture As String
-        Get
-            If IsNothing(Me._envMaskTexture) Or IsNothing(Me._envMaskTexture) Then Return ""
-            Return Me._envMaskTexture.Content
-        End Get
-    End Property
-    Public ReadOnly Property LightingTexture As String
-        Get
-            If IsNothing(Me._lightingTexture) Or IsNothing(Me._lightingTexture) Then Return ""
-            Return Me._lightingTexture.Content
-        End Get
-    End Property
-    Public ReadOnly Property ReflectanceTexture As String
-        Get
-            If IsNothing(Me._reflectanceTexture) Or IsNothing(Me._reflectanceTexture) Then Return ""
-            Return Me._reflectanceTexture.Content
-        End Get
-    End Property
-    Public ReadOnly Property GlowTexture As String
-        Get
-            If IsNothing(Me._emitGradientTexture) Or IsNothing(Me._emitGradientTexture) Then Return ""
-            Return Me._emitGradientTexture.Content
-        End Get
-    End Property
 End Class
 Public Class InhertedBGSMshader
     Inherits BSLightingShaderProperty

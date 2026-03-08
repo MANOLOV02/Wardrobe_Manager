@@ -457,7 +457,7 @@ Public Class Editor_Form
             Dim shad = New BSLightingShaderProperty
             Selected_Shape.RelatedNifShape.ShaderPropertyRef = New NiBlockRef(Of BSShaderProperty) With {.Index = nif.AddBlock(shad)}
             Dim texset1 = New BSShaderTextureSet
-            shad._textureSet = New NiBlockRef(Of BSShaderTextureSet) With {.Index = nif.AddBlock(texset1)}
+            shad.TextureSetRef = New NiBlockRef(Of BSShaderTextureSet) With {.Index = nif.AddBlock(texset1)}
             texset1.Textures = New List(Of NiString4)
             While texset1.Textures.Count < 8
                 texset1.Textures.Add(New NiString4 With {.Content = ""})
