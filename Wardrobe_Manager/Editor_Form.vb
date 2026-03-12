@@ -567,10 +567,12 @@ Public Class Editor_Form
         If MsgBox("This cant be undone, do you want to delete all physics", vbYesNo, "Remove Physics") = MsgBoxResult.Yes Then
             Selected_Slider.NIFContent.RemoveBlocksOfType(Of BSClothExtraData)()
             Render_Changes(True)
+            Lee_Bones()
             ButtonRemovePhysics.Enabled = False
             Iniciado_Edit()
         End If
     End Sub
+
 
     Private Sub Button1_Click(sender As Object, e As EventArgs) Handles Button1.Click
         Selected_Slider.RemoveShape(Selected_Shape)
