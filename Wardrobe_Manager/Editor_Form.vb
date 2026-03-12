@@ -1,4 +1,4 @@
-Imports System.ComponentModel
+ÔªøImports System.ComponentModel
 Imports System.Diagnostics.Eventing.Reader
 Imports System.Globalization
 Imports System.IO
@@ -192,7 +192,7 @@ Public Class Editor_Form
         tlp.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
         tlp.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100))
 
-        ' Recorre cada categorÌa y cada slider definido en XML
+        ' Recorre cada categor√≠a y cada slider definido en XML
         For Each kvp In Selected_Preset.Sliders.Select(Function(pf) pf.Category).Order.Distinct
             Dim catName As String = kvp
             Dim sliderNames As List(Of PresetSlider_Class) = Selected_Preset.Sliders.Where(Function(pf) pf.Category = catName AndAlso pf.Size = Selected_size).ToList
@@ -1477,9 +1477,9 @@ Public Class Editor_Form
         Dim original = New HashSet(Of Integer)
         original.UnionWith(marked)
         For Each tri As NiflySharp.Structs.Triangle In triangles
-            ' si alguno de los tres ya est· marcado...
+            ' si alguno de los tres ya est√° marcado...
             If original.Contains(tri(0)) OrElse original.Contains(tri(1)) OrElse original.Contains(tri(2)) Then
-                ' ...aÒadimos los tres al HashSet
+                ' ...a√±adimos los tres al HashSet
                 marked.Add(tri(0))
                 marked.Add(tri(1))
                 marked.Add(tri(2))
@@ -1492,9 +1492,9 @@ Public Class Editor_Form
         Dim original = New HashSet(Of Integer)
         original.UnionWith(marked)
         For Each tri As NiflySharp.Structs.Triangle In triangles
-            ' si alguno de los tres ya est· marcado...
+            ' si alguno de los tres ya est√° marcado...
             If Not original.Contains(tri(0)) OrElse Not original.Contains(tri(1)) OrElse Not original.Contains(tri(2)) Then
-                ' ...aÒadimos los tres al HashSet
+                ' ...a√±adimos los tres al HashSet
                 marked.Remove(tri(0))
                 marked.Remove(tri(1))
                 marked.Remove(tri(2))
@@ -1741,11 +1741,11 @@ Public Class Editor_Form
 
     Public Sub New()
 
-        ' Esta llamada es exigida por el diseÒador.
+        ' Esta llamada es exigida por el dise√±ador.
         InitializeComponent()
         CheckBoxSaveSAF.Checked = Config_App.Current.Setting_ExportSam
         'ThemeManager.SetTheme(Config_App.Current.theme, Me)
-        ' Agregue cualquier inicializaciÛn despuÈs de la llamada a InitializeComponent().
+        ' Agregue cualquier inicializaci√≥n despu√©s de la llamada a InitializeComponent().
 
     End Sub
 
@@ -1878,7 +1878,7 @@ Public Class Editor_Form
     End Sub
     Private Sub Render_Pose_Change(Edited As Boolean?)
         If Not IsNothing(Edited) Then pose_is_Edited = Edited
-        Skeleton_Class.AppplyPoseToSkeleton(Selected_Pose)
+        Skeleton_Class.PrepareSkeletonForShapes(Selected_Slider.Shapes, Selected_Pose)
         Update_Bone_Sliders()
         Process_render_Changes(True)
     End Sub
@@ -2032,4 +2032,3 @@ Public Class Editor_Form
         Process_render_Changes(False)
     End Sub
 End Class
-

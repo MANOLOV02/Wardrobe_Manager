@@ -1,0 +1,131 @@
+﻿Imports System.Linq
+Imports NiflySharp.Blocks
+Imports NiflySharp.Structs
+Imports OpenTK.Mathematics
+
+Public NotInheritable Class SkeletonClothOverlayHelper_Class
+
+    Public Shared Sub InjectMissingBonesIntoLiveSkeleton(shape As Shape_class,
+                                                         injectedBones As System.Collections.Generic.HashSet(Of String))
+        If IsNothing(shape) OrElse Not Skeleton_Class.HasSkeleton Then Exit Sub
+        If IsNothing(shape.RelatedBones) OrElse shape.RelatedBones.Count = 0 Then Exit Sub
+        If Not shape.HasPhysics Then Exit Sub
+        If IsNothing(shape.ParentSliderSet) OrElse IsNothing(shape.ParentSliderSet.NIFContent) Then Exit Sub
+
+        Dim shapeName = If(IsNothing(shape.RelatedNifShape) OrElse IsNothing(shape.RelatedNifShape.Name), "<shape>", shape.RelatedNifShape.Name.String)
+        Dim cloth = shape.ParentSliderSet.NIFContent.Blocks.OfType(Of BSClothExtraData)().FirstOrDefault()
+        If IsNothing(cloth) Then Exit Sub
+
+        Try
+            Dim packfile = HkxPackfileParser_Class.Parse(cloth)
+            Dim graph = HkxObjectGraphParser_Class.BuildGraph(packfile)
+            Dim skeletonObject = graph.GetObjectsByClassName("hkaSkeleton").FirstOrDefault()
+            If IsNothing(skeletonObject) Then Exit Sub
+
+            Dim skeleton = graph.ParseSkeleton(skeletonObject)
+            If IsNothing(skeleton) OrElse IsNothing(skeleton.Bones) OrElse IsNothing(skeleton.ReferencePose) OrElse IsNothing(skeleton.ParentIndices) Then Exit Sub
+            If skeleton.Bones.Count = 0 OrElse skeleton.ReferencePose.Count <> skeleton.Bones.Count Then Exit Sub
+
+            Dim hkxBoneLookup = skeleton.Bones.
+                Where(Function(bone) bone IsNot Nothing AndAlso Not String.IsNullOrWhiteSpace(bone.Name)).
+                GroupBy(Function(bone) NormalizeBoneName(bone.Name), StringComparer.OrdinalIgnoreCase).
+                ToDictionary(Function(group) group.Key,
+                             Function(group) group.First().Index,
+                             StringComparer.OrdinalIgnoreCase)
+
+            For Each shapeBone In shape.RelatedBones
+                If IsNothing(shapeBone) OrElse IsNothing(shapeBone.Name) Then Continue For
+
+                Dim shapeBoneName = shapeBone.Name.String
+                If String.IsNullOrWhiteSpace(shapeBoneName) Then Continue For
+                shapeBoneName = shapeBoneName.Trim()
+                If Skeleton_Class.SkeletonDictionary.ContainsKey(shapeBoneName) Then Continue For
+
+                Dim targetIndex As Integer = -1
+                If Not hkxBoneLookup.TryGetValue(NormalizeBoneName(shapeBoneName), targetIndex) Then Continue For
+                EnsureLiveInjectedBone(targetIndex, skeleton, injectedBones, shapeName, shapeBoneName)
+            Next
+        Catch ex As Exception
+            Debugger.Break()
+        End Try
+    End Sub
+
+    Private Shared Function EnsureLiveInjectedBone(index As Integer,
+                                                   skeleton As HkaSkeletonGraph_Class,
+                                                   injectedBones As System.Collections.Generic.HashSet(Of String),
+                                                   shapeName As String,
+                                                   Optional requestedName As String = Nothing) As Skeleton_Class.HierarchiBone_class
+        If IsNothing(skeleton) OrElse IsNothing(skeleton.Bones) OrElse index < 0 OrElse index >= skeleton.Bones.Count Then Return Nothing
+
+        Dim boneName = skeleton.Bones(index).Name
+        If String.IsNullOrWhiteSpace(boneName) Then Return Nothing
+        Dim dictionaryKey = If(String.IsNullOrWhiteSpace(requestedName), boneName, requestedName.Trim())
+
+        Dim existing As Skeleton_Class.HierarchiBone_class = Nothing
+        If Skeleton_Class.SkeletonDictionary.TryGetValue(dictionaryKey, existing) Then Return existing
+        If Not dictionaryKey.Equals(boneName, StringComparison.OrdinalIgnoreCase) AndAlso Skeleton_Class.SkeletonDictionary.TryGetValue(boneName, existing) Then Return existing
+
+        Dim parentBone As Skeleton_Class.HierarchiBone_class = Nothing
+        Dim parentIndex = If(index < skeleton.ParentIndices.Count, CInt(skeleton.ParentIndices(index)), -1)
+        If parentIndex >= 0 Then
+            parentBone = EnsureLiveInjectedBone(parentIndex, skeleton, injectedBones, shapeName)
+        End If
+
+        Dim nuevo As New Skeleton_Class.HierarchiBone_class With {
+            .BoneName = dictionaryKey,
+            .Parent = parentBone,
+            .DeltaTransform = Nothing,
+            .OriginalLocaLTransform = LocalReferencePoseToTransform(skeleton.ReferencePose(index))
+        }
+
+        If IsNothing(parentBone) Then
+            Skeleton_Class.SkeletonStructure.Add(nuevo)
+        Else
+            parentBone.Childrens.Add(nuevo)
+        End If
+
+        Skeleton_Class.SkeletonDictionary.Add(dictionaryKey, nuevo)
+        If Not IsNothing(injectedBones) Then injectedBones.Add(dictionaryKey)
+        Return nuevo
+    End Function
+
+    Private Shared Function LocalReferencePoseToTransform(source As HkxQsTransformGraph_Class) As Transform_Class
+        If IsNothing(source) Then Return New Transform_Class()
+
+        Dim scale = ResolveUniformScale(source.Scale)
+        Dim rotation As Quaternion
+        If IsNothing(source.Rotation) Then
+            rotation = Quaternion.Identity
+        Else
+            rotation = New Quaternion(source.Rotation.X, source.Rotation.Y, source.Rotation.Z, source.Rotation.W)
+            If rotation.LengthSquared <= 0.000001F Then
+                rotation = Quaternion.Identity
+            Else
+                rotation = Quaternion.Normalize(rotation)
+            End If
+        End If
+
+        Dim transformMatrix =
+            Matrix4.CreateScale(scale) *
+            Matrix4.CreateFromQuaternion(rotation) *
+            Matrix4.CreateTranslation(source.Translation.X, source.Translation.Y, source.Translation.Z)
+
+        Return New Transform_Class(transformMatrix)
+    End Function
+
+    Private Shared Function ResolveUniformScale(scale As HkxVector4Graph_Class) As Single
+        If IsNothing(scale) Then Return 1.0F
+
+        Dim values = {scale.X, scale.Y, scale.Z}.
+            Where(Function(value) Single.IsFinite(value) AndAlso Math.Abs(value) > 0.000001F).
+            ToArray()
+
+        If values.Length = 0 Then Return 1.0F
+        Return CSng(values.Average())
+    End Function
+
+    Private Shared Function NormalizeBoneName(name As String) As String
+        If String.IsNullOrWhiteSpace(name) Then Return String.Empty
+        Return name.Trim().ToUpperInvariant()
+    End Function
+End Class

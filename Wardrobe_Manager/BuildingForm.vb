@@ -31,7 +31,6 @@ Public Class BuildingForm
         If Config_App.Current.Settings_Build.SaveTri Then TriFile.Read_Looksmenu_Sliders()
 
         Dim has_pose = (Config_App.Current.Settings_Build.BuildInPose AndAlso _Pose.Source <> Poses_class.Pose_Source_Enum.None)
-        If has_pose Then Skeleton_Class.AppplyPoseToSkeleton(_Pose)
         For Each sliderset_target In _Lista
             Try
                 Dim NodoClone = DummyOSP.xml.ImportNode(sliderset_target.Nodo.Clone, True)
@@ -46,6 +45,7 @@ Public Class BuildingForm
                     ProgressBar1.Value += 1
                     OSP_Project_Class.Load_and_Check_Shapedata(builder)
                     builder.HighHeelHeight = sliderset_target.HighHeelHeight
+                    Skeleton_Class.PrepareSkeletonForShapes(builder.Shapes, If(has_pose, _Pose, Nothing))
                     ProgressBar1.Value += 1
 
                     Dim fil = IO.Path.Combine(IO.Path.Combine(Directorios.Fallout4data, builder.OutputPathValue), builder.OutputFileValue) + IIf(sliderset_target.Multisize, "_" + Sizecount.ToString, "") + ".nif"
