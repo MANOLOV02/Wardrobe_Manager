@@ -108,15 +108,18 @@ Public Class Skeleton_Class
         Dim hasPose = Not IsNothing(pose) AndAlso pose.Source <> Poses_class.Pose_Source_Enum.None
 
         ClearInjectedBones()
+
+        For Each shape In shapes
+            SkeletonClothOverlayHelper_Class.InjectMissingBonesIntoLiveSkeleton(shape, SkeletonInjectedBones)
+        Next
+
         If hasPose Then
             AppplyPoseToSkeleton(pose)
         Else
             Reset()
         End If
 
-        For Each shape In shapes
-            SkeletonClothOverlayHelper_Class.InjectMissingBonesIntoLiveSkeleton(shape, SkeletonInjectedBones)
-        Next
+
     End Sub
     Public Shared Function IsInjectedBone(boneName As String) As Boolean
         If String.IsNullOrWhiteSpace(boneName) Then Return False
