@@ -89,19 +89,27 @@ Public Class SkinningHelper
         Dim matsPose(bones.Length - 1) As Matrix4d
         For k = 0 To bones.Length - 1
             Dim localT = boneTrans(k)
-            Dim bindT = Transform_Class.GetGlobalTransform(bones(k), shape.ParentSliderSet.NIFContent)
-            matsBind(k) = bindT.ComposeTransforms(localT).ToMatrix4d()
+            Dim boneName = bones(k).Name.String
+            Dim bindT As Transform_Class
             Dim poseT As Transform_Class
+            Dim SkeletonBone As Skeleton_Class.HierarchiBone_class = Nothing
 
-            Dim value As Skeleton_Class.HierarchiBone_class = Nothing
+            If Skeleton_Class.SkeletonDictionary.TryGetValue(boneName, SkeletonBone) Then
+                bindT = SkeletonBone.OriginalGetGlobalTransform
+            Else
+                bindT = Transform_Class.GetGlobalTransform(bones(k), shape.ParentSliderSet.NIFContent)
+            End If
 
-            If ApplyPose AndAlso Not singleboneskinning AndAlso Skeleton_Class.SkeletonDictionary.TryGetValue(bones(k).Name.String, value) Then
-                poseT = value.GetGlobalTransform()
+            matsBind(k) = bindT.ComposeTransforms(localT).ToMatrix4d()
+
+            If ApplyPose AndAlso Not singleboneskinning AndAlso Not IsNothing(SkeletonBone) Then
+                poseT = SkeletonBone.GetGlobalTransform()
                 matsPose(k) = poseT.ComposeTransforms(localT).ToMatrix4d()
             Else
                 poseT = bindT
                 matsPose(k) = matsBind(k)
             End If
+
         Next
 
         ' 4) Aplicar skinning CPU

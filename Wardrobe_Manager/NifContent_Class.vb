@@ -11,8 +11,9 @@ Imports Wardrobe_Manager.Wardrobe_Manager_Form
 Public Class Skeleton_Class
     Inherits Nifcontent_Class_Manolo
     Public Shared Property Skeleton As Nifcontent_Class_Manolo = Nothing
-    Public Shared Property SkeletonStructure As New List(Of HierarchiBone_class)(StringComparison.OrdinalIgnoreCase)
-    Public Shared Property SkeletonDictionary As New Dictionary(Of String, HierarchiBone_class)(StringComparison.OrdinalIgnoreCase)
+    Public Shared Property SkeletonStructure As New List(Of HierarchiBone_class)
+    Public Shared Property SkeletonDictionary As New Dictionary(Of String, HierarchiBone_class)(StringComparer.OrdinalIgnoreCase)
+    Private Shared ReadOnly SkeletonInjectedBones As New System.Collections.Generic.HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
     Public Shared Sub AppplyPoseToSkeleton(Pose As Poses_class)
         If HasSkeleton = False Then Exit Sub
 
@@ -97,9 +98,49 @@ Public Class Skeleton_Class
             Return SkeletonDictionary.Count <> 0
         Catch ex As Exception
             Skeleton = Nothing
+            SkeletonInjectedBones.Clear()
             Return False
         End Try
     End Function
+    Public Shared Sub PrepareSkeletonForShapes(shapes As List(Of Shape_class), Optional pose As Poses_class = Nothing)
+        If HasSkeleton = False Then Exit Sub
+
+        Dim hasPose = Not IsNothing(pose) AndAlso pose.Source <> Poses_class.Pose_Source_Enum.None
+
+        ClearInjectedBones()
+        If hasPose Then
+            AppplyPoseToSkeleton(pose)
+        Else
+            Reset()
+        End If
+
+        For Each shape In shapes
+            SkeletonClothOverlayHelper_Class.InjectMissingBonesIntoLiveSkeleton(shape, SkeletonInjectedBones)
+        Next
+    End Sub
+    Public Shared Function IsInjectedBone(boneName As String) As Boolean
+        If String.IsNullOrWhiteSpace(boneName) Then Return False
+        Return SkeletonInjectedBones.Contains(boneName)
+    End Function
+    Private Shared Sub ClearInjectedBones()
+        If SkeletonInjectedBones.Count = 0 Then Exit Sub
+
+        Dim injectedNames As New System.Collections.Generic.List(Of String)(SkeletonInjectedBones)
+        For Each boneName In injectedNames
+            Dim bone As HierarchiBone_class = Nothing
+            If Not SkeletonDictionary.TryGetValue(boneName, bone) Then Continue For
+
+            If IsNothing(bone.Parent) Then
+                SkeletonStructure.Remove(bone)
+            Else
+                bone.Parent.Childrens.Remove(bone)
+            End If
+
+            SkeletonDictionary.Remove(boneName)
+        Next
+
+        SkeletonInjectedBones.Clear()
+    End Sub
     Public Shared Sub Reset()
         For Each bon In SkeletonDictionary.Values
             bon.DeltaTransform = Nothing
