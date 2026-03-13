@@ -5,6 +5,7 @@ Imports Material_Editor
 Imports NiflySharp
 Imports NiflySharp.Blocks
 Imports NiflySharp.Enums
+Imports NiflySharp.Structs
 Imports Wardrobe_Manager.Wardrobe_Manager_Form
 
 
@@ -456,7 +457,69 @@ Public Class Nifcontent_Class_Manolo
         For Each shap In SrcNif.GetShapes.ToList
             DestNif.CloneShape_Original(shap, shap.Name.String, SrcNif)
         Next
+        If MergeClothesData Then CloneRootClothExtraData(DestNif, SrcNif)
+
     End Sub
+
+    Private Shared Sub CloneRootClothExtraData(DestNif As Nifcontent_Class_Manolo, SrcNif As Nifcontent_Class_Manolo)
+        Dim destRoot = DestNif.GetRootNode()
+        Dim srcRoot = SrcNif.GetRootNode()
+        If IsNothing(destRoot) OrElse IsNothing(srcRoot) Then Exit Sub
+
+        Dim sourceCloth = GetRootExtraData(srcRoot, SrcNif).OfType(Of BSClothExtraData).ToList()
+        If sourceCloth.Count = 0 Then
+            sourceCloth = SrcNif.Blocks.OfType(Of BSClothExtraData).ToList()
+        End If
+        If sourceCloth.Count = 0 Then Exit Sub
+
+        Dim destCloth = GetRootExtraData(destRoot, DestNif).OfType(Of BSClothExtraData).ToList()
+        If destCloth.Count > 0 Then
+            MsgBox("The destination mesh already has physics. Physics from the merged mesh will be omitted.", vbInformation, "Merge Physics")
+            Exit Sub
+        End If
+
+        If IsNothing(destRoot.ExtraDataList) Then destRoot.ExtraDataList = New NiBlockRefArray(Of NiExtraData)
+
+        For Each srcCloth In sourceCloth
+            Dim cloned = TryCast(srcCloth.Clone(), BSClothExtraData)
+            If IsNothing(cloned) Then Continue For
+            If Not IsNothing(cloned.NextExtraData) Then cloned.NextExtraData.Clear()
+
+            Dim blockId = DestNif.AddBlock(cloned)
+            destRoot.ExtraDataList.AddBlockRef(blockId)
+
+            If IsNothing(destRoot.ExtraData) Then
+                destRoot.ExtraData = New NiBlockRef(Of NiExtraData)
+                destRoot.ExtraData.Index = blockId
+            End If
+        Next
+    End Sub
+
+    Private Shared Iterator Function GetRootExtraData(root As NiNode, nif As Nifcontent_Class_Manolo) As IEnumerable(Of NiExtraData)
+        If IsNothing(root) OrElse IsNothing(nif) Then Return
+
+        Dim visited As New HashSet(Of Integer)
+        If Not IsNothing(root.ExtraData) Then
+            Dim current = nif.GetBlock(Of NiExtraData)(root.ExtraData)
+            Do While Not IsNothing(current)
+                Dim idx = nif.Blocks.IndexOf(current)
+                If idx <> -1 AndAlso visited.Add(idx) = False Then Exit Do
+                Yield current
+                If IsNothing(current.NextExtraData) Then Exit Do
+                current = nif.GetBlock(Of NiExtraData)(current.NextExtraData)
+            Loop
+        End If
+
+        If IsNothing(root.ExtraDataList) Then Return
+
+        For Each reference In root.ExtraDataList.References
+            Dim extra = nif.GetBlock(Of NiExtraData)(reference)
+            If IsNothing(extra) Then Continue For
+
+            Dim idx = nif.Blocks.IndexOf(extra)
+            If idx = -1 OrElse visited.Add(idx) Then Yield extra
+        Next
+    End Function
 
     Public Function CloneShape_Original(srcShape As INiShape, destShapeName As String, srcNif As Nifcontent_Class_Manolo) As INiShape
         If srcShape.GetType Is GetType(BSDynamicTriShape) Then

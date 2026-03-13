@@ -218,10 +218,13 @@ Public NotInheritable Class HclStructuredGraphParser_Class
         If IsNothing(graph) OrElse IsNothing(source) Then Return Nothing
         If Not source.ClassName.Equals("hclSimulateOperator", StringComparison.OrdinalIgnoreCase) Then Return Nothing
 
+        Dim header = ReadUInt32Block(graph, source.RelativeOffset + &H18, 6)
         Return New HclSimulateOperatorDetail_Class With {
             .SourceObject = source,
             .Name = graph.ResolveLocalString(source.RelativeOffset + &H10),
-            .HeaderUInt32 = ReadUInt32Block(graph, source.RelativeOffset + &H18, 6),
+            .HeaderUInt32 = header,
+            .SubstepCount = If(header.Count > 3, CInt(header(3)), 0),
+            .SolveIterationCount = If(header.Count > 4, CInt(header(4)), 0),
             .Configs = ReadUInt32ConfigArray(graph, graph.ReadArrayHeader(source.RelativeOffset + &H30))
         }
     End Function
@@ -278,12 +281,51 @@ Public NotInheritable Class HclStructuredGraphParser_Class
 
     Public Shared Function ParseCapsuleShape(graph As HkxObjectGraph_Class, source As HkxVirtualObjectGraph_Class) As HclCapsuleShapeDetail_Class
         If IsNothing(graph) OrElse IsNothing(source) Then Return Nothing
-        If Not source.ClassName.Equals("hclCapsuleShape", StringComparison.OrdinalIgnoreCase) Then Return Nothing
+        Dim className = If(source.ClassName, String.Empty)
+        If Not className.Equals("hclCapsuleShape", StringComparison.OrdinalIgnoreCase) AndAlso
+           Not className.Equals("hclTaperedCapsuleShape", StringComparison.OrdinalIgnoreCase) Then Return Nothing
 
+        Dim isTapered = className.Equals("hclTaperedCapsuleShape", StringComparison.OrdinalIgnoreCase)
         Dim vectorCount = Math.Max(0, (source.Size - &H10) \ 16)
+        Dim vectors = ReadVector4Block(graph, source.RelativeOffset + &H10, vectorCount)
+        Dim endpointA = If(vectorCount > 1, vectors(1), Nothing)
+        Dim endpointB = If(vectorCount > 2, vectors(2), Nothing)
+        Dim extraVector0 = If(isTapered AndAlso vectorCount > 8, vectors(8), Nothing)
+        Dim extraVector1 = If(isTapered AndAlso vectorCount > 9, vectors(9), Nothing)
+        Dim segmentLength = 0.0F
+        If endpointA IsNot Nothing AndAlso endpointB IsNot Nothing Then
+            Dim dx = endpointA.X - endpointB.X
+            Dim dy = endpointA.Y - endpointB.Y
+            Dim dz = endpointA.Z - endpointB.Z
+            segmentLength = CSng(Math.Sqrt((dx * dx) + (dy * dy) + (dz * dz)))
+        End If
+        If isTapered AndAlso vectorCount > 5 Then
+            segmentLength = vectors(5).X
+        End If
+        Dim radiusA = If(Not isTapered AndAlso vectorCount > 4, vectors(4).X, If(extraVector0 IsNot Nothing, extraVector0.X, 0.0F))
+        Dim radiusB = If(Not isTapered AndAlso vectorCount > 4, vectors(4).X, If(extraVector0 IsNot Nothing, extraVector0.Y, 0.0F))
+        Dim taperFactor = 0.0F
+        If segmentLength > 0.000001F Then taperFactor = Math.Abs(radiusB - radiusA) / segmentLength
+        Dim taperCosine = If(isTapered AndAlso extraVector1 IsNot Nothing, extraVector1.X, CSng(Math.Sqrt(Math.Max(0.0R, 1.0R - (taperFactor * taperFactor)))))
+
         Return New HclCapsuleShapeDetail_Class With {
             .SourceObject = source,
-            .Vectors = ReadVector4Block(graph, source.RelativeOffset + &H10, vectorCount)
+            .ShapeClassName = className,
+            .Vectors = vectors,
+            .EndpointA = endpointA,
+            .EndpointB = endpointB,
+            .AxisHint = If(vectorCount > 3, vectors(3), Nothing),
+            .ParameterVector = If(vectorCount > 4, vectors(4), Nothing),
+            .Radius = radiusA,
+            .AuxiliaryRadius = radiusB,
+            .SegmentLength = segmentLength,
+            .TaperFactor = taperFactor,
+            .TaperCosine = taperCosine,
+            .ExtraScalar0 = If(isTapered AndAlso vectorCount > 5, vectors(5).X, 0.0F),
+            .ExtraScalar1 = If(isTapered AndAlso vectorCount > 6, vectors(6).X, 0.0F),
+            .ExtraScalar2 = If(isTapered AndAlso vectorCount > 7, vectors(7).X, 0.0F),
+            .ExtraVector0 = extraVector0,
+            .ExtraVector1 = extraVector1
         }
     End Function
 
@@ -291,17 +333,23 @@ Public NotInheritable Class HclStructuredGraphParser_Class
         If IsNothing(graph) OrElse IsNothing(source) Then Return Nothing
         If Not source.ClassName.Equals("hclCollidable", StringComparison.OrdinalIgnoreCase) Then Return Nothing
 
+        Dim payloadBytes = ReadPayloadBytes(graph, source, &H18)
+        Dim payloadVectors = ReadVector4Block(graph, source.RelativeOffset + &H18, If(IsNothing(payloadBytes), 0, payloadBytes.Length \ 16))
         Return New HclCollidableDetail_Class With {
             .SourceObject = source,
             .Name = graph.ResolveLocalString(source.RelativeOffset + &H10),
             .ShapeObject = graph.ResolveGlobalObject(source.RelativeOffset + &H88),
             .ShapeDetail = ParseCapsuleShape(graph, graph.ResolveGlobalObject(source.RelativeOffset + &H88)),
             .PayloadRelativeOffset = source.RelativeOffset + &H18,
-            .PayloadBytes = ReadPayloadBytes(graph, source, &H18),
-            .PayloadUInt32 = ReadPayloadUInt32(graph, source, &H18)
+            .PayloadBytes = payloadBytes,
+            .PayloadUInt32 = ReadPayloadUInt32(graph, source, &H18),
+            .PayloadVectors = payloadVectors,
+            .TransformMatrix = CreateMatrix4FromVectorRows(payloadVectors, 0),
+            .LinearVelocity = If(payloadVectors.Count > 4, payloadVectors(4), Nothing),
+            .AngularVelocity = If(payloadVectors.Count > 5, payloadVectors(5), Nothing),
+            .ParameterVector = If(payloadVectors.Count > 6, payloadVectors(6), Nothing)
         }
     End Function
-
     Public Shared Function ParseStandardLinkConstraintSet(graph As HkxObjectGraph_Class, source As HkxVirtualObjectGraph_Class) As HclStandardLinkConstraintSetDetail_Class
         If IsNothing(graph) OrElse IsNothing(source) Then Return Nothing
         If Not source.ClassName.Equals("hclStandardLinkConstraintSet", StringComparison.OrdinalIgnoreCase) Then Return Nothing
@@ -355,8 +403,515 @@ Public NotInheritable Class HclStructuredGraphParser_Class
             .Constraints = rawConstraints
         }
         result.ConstraintDetails.AddRange(ParseLocalRangeConstraints(rawConstraints))
+        result.UniformMaximumDistance = ResolveUniformParameter(result.ConstraintDetails.Select(Function(item) item.MaximumDistance))
+        result.UniformMaximumNormalDistance = ResolveUniformParameter(result.ConstraintDetails.Select(Function(item) item.MaximumNormalDistance))
+        result.UniformMinimumNormalDistance = ResolveUniformParameter(result.ConstraintDetails.Select(Function(item) item.MinimumNormalDistance))
+        result.DistinctParticleCount = result.ConstraintDetails.Select(Function(item) CInt(item.ParticleIndex)).Distinct().Count()
+        result.DistinctReferenceVertexCount = result.ConstraintDetails.Select(Function(item) CInt(item.ReferenceVertexIndex)).Distinct().Count()
+        result.ParticleReferenceIdentityCount = result.ConstraintDetails.Where(Function(item) item.ParticleIndex = item.ReferenceVertexIndex).Count()
         Return result
     End Function
+
+    Public Shared Function ParseVolumeConstraintMx(graph As HkxObjectGraph_Class, source As HkxVirtualObjectGraph_Class) As HclVolumeConstraintMxDetail_Class
+        If IsNothing(graph) OrElse IsNothing(source) Then Return Nothing
+        If Not source.ClassName.Equals("hclVolumeConstraintMx", StringComparison.OrdinalIgnoreCase) Then Return Nothing
+
+        Dim result As New HclVolumeConstraintMxDetail_Class With {
+            .SourceObject = source,
+            .Name = graph.ResolveLocalString(source.RelativeOffset + &H10),
+            .Field20RawStructs = ReadRawStructArray(graph, graph.ReadArrayHeader(source.RelativeOffset + &H20), 352),
+            .Field30RawStructs = ReadRawStructArray(graph, graph.ReadArrayHeader(source.RelativeOffset + &H30), 32),
+            .Field40RawStructs = ReadRawStructArray(graph, graph.ReadArrayHeader(source.RelativeOffset + &H40), 352),
+            .Field50RawStructs = ReadRawStructArray(graph, graph.ReadArrayHeader(source.RelativeOffset + &H50), 32),
+            .Field20VectorBlocks = ReadVectorStructArray(graph, graph.ReadArrayHeader(source.RelativeOffset + &H20), 22),
+            .Field30VectorBlocks = ReadVectorStructArray(graph, graph.ReadArrayHeader(source.RelativeOffset + &H30), 2),
+            .Field40VectorBlocks = ReadVectorStructArray(graph, graph.ReadArrayHeader(source.RelativeOffset + &H40), 22),
+            .Field50VectorBlocks = ReadVectorStructArray(graph, graph.ReadArrayHeader(source.RelativeOffset + &H50), 2)
+        }
+
+        result.Field20Batches.AddRange(ParseVolumeConstraintBatches(result.Field20RawStructs, result.Field20VectorBlocks))
+        result.Field30Entries.AddRange(ParseVolumeConstraintVectorEntries(result.Field30VectorBlocks))
+        result.Field40Batches.AddRange(ParseVolumeConstraintBatches(result.Field40RawStructs, result.Field40VectorBlocks))
+        result.Field50Entries.AddRange(ParseVolumeConstraintVectorEntries(result.Field50VectorBlocks))
+        result.Field20QuadSlots.AddRange(result.Field20Batches.SelectMany(Function(batch) batch.QuadSlots))
+        result.Field40QuadSlots.AddRange(result.Field40Batches.SelectMany(Function(batch) batch.QuadSlots))
+        result.Field40BridgeSlots.AddRange(ParseVolumeConstraintBridgeSlots(result.Field40QuadSlots, result.Field20QuadSlots))
+        result.Field20BridgeSourceQuadSlots.AddRange(BuildVolumeBridgeSourceQuadSlots(result.Field40BridgeSlots))
+        result.Field40BridgeSourceChain.AddRange(BuildVolumeBridgeSourceChain(result.Field40BridgeSlots))
+        result.Field20NonBridgeQuadSlots.AddRange(BuildVolumeNonBridgeQuadSlots(result.Field20QuadSlots, result.Field20BridgeSourceQuadSlots))
+        result.Field30ParameterValues.AddRange(ExtractVolumeConstraintParameterValues(result.Field30Entries))
+        result.Field50ParameterValues.AddRange(ExtractVolumeConstraintParameterValues(result.Field50Entries))
+        result.Field50ToField30PivotMatches.AddRange(BuildVolumeConstraintPivotMatches(result.Field50Entries, result.Field30Entries))
+        result.Field40TerminalQuadSlots.AddRange(BuildVolumeTerminalQuadSlots(result.Field40QuadSlots, result.Field40BridgeSlots))
+        result.Field30UniformParameter = ResolveUniformParameter(result.Field30ParameterValues)
+        result.Field50UniformParameter = ResolveUniformParameter(result.Field50ParameterValues)
+        result.Field20BatchParameterMatchesField30Parameter = result.Field20BatchUniformParameter.HasValue AndAlso result.Field30UniformParameter.HasValue AndAlso Math.Abs(CDbl(result.Field20BatchUniformParameter.Value - result.Field30UniformParameter.Value)) <= 0.0001R
+        result.Field40BatchParameterMatchesField50Parameter = result.Field40BatchUniformParameter.HasValue AndAlso result.Field50UniformParameter.HasValue AndAlso Math.Abs(CDbl(result.Field40BatchUniformParameter.Value - result.Field50UniformParameter.Value)) <= 0.0001R
+        result.Field20AndField40ParametersDistinct = result.Field20BatchUniformParameter.HasValue AndAlso result.Field40BatchUniformParameter.HasValue AndAlso Math.Abs(CDbl(result.Field20BatchUniformParameter.Value - result.Field40BatchUniformParameter.Value)) > 0.0001R
+        result.HasDistinctParameterGroups = result.Field20AndField40ParametersDistinct AndAlso result.Field20BatchParameterMatchesField30Parameter AndAlso result.Field40BatchParameterMatchesField50Parameter
+        result.Field50PivotReuseOffset = ResolvePivotReuseOffset(result.Field50ToField30PivotMatches)
+        result.Field50PivotReuseCount = result.Field50ToField30PivotMatches.Count
+        result.Field20MidVectorsLookZeroish = result.Field20Batches.All(Function(batch) batch Is Nothing OrElse batch.MidVectorsLookZeroish)
+        result.Field40MidVectorsLookZeroish = result.Field40Batches.All(Function(batch) batch Is Nothing OrElse batch.MidVectorsLookZeroish)
+        result.Field20BatchUniformParameter = ResolveUniformParameter(result.Field20Batches.Where(Function(batch) batch IsNot Nothing AndAlso batch.UniformLaneParameter.HasValue).Select(Function(batch) batch.UniformLaneParameter.Value))
+        result.Field40BatchUniformParameter = ResolveUniformParameter(result.Field40Batches.Where(Function(batch) batch IsNot Nothing AndAlso batch.UniformLaneParameter.HasValue).Select(Function(batch) batch.UniformLaneParameter.Value))
+        result.Field20LaneParametersUniformAcrossBatches = result.Field20BatchUniformParameter.HasValue
+        result.Field40LaneParametersUniformAcrossBatches = result.Field40BatchUniformParameter.HasValue
+        result.Field40BridgeCountMatchesField50Count = (result.Field40BridgeSlots.Count > 0 AndAlso result.Field40BridgeSlots.Count = result.Field50Entries.Count)
+        result.Field40BridgeSlotsExact = result.Field40BridgeSlots.All(Function(slot) slot IsNot Nothing AndAlso slot.SharedParticlesFirst.Count = 2 AndAlso slot.SharedParticlesSecond.Count = 2 AndAlso slot.BridgeParticles.Count = 6)
+        result.Field40BridgeFormsSequentialChain = ResolveVolumeBridgeSequentialChain(result.Field40BridgeSlots)
+        Dim terminalExtension = ResolveVolumeTerminalBridgeExtension(result.Field40TerminalQuadSlots, result.Field40BridgeSlots)
+        result.Field40TerminalExtendsBridgeChain = terminalExtension.Item1
+        result.Field40TerminalSharedParticleCount = terminalExtension.Item2
+        result.Field40TerminalAddedParticleCount = terminalExtension.Item3
+        result.Field40BridgeSourceChainCount = result.Field40BridgeSourceChain.Count
+        result.Field40NonZeroQuadCount = result.Field40QuadSlots.Where(Function(slot) slot IsNot Nothing AndAlso Not slot.IsAllZero).Count()
+        result.Field40ExactBridgeCount = result.Field40BridgeSlots.Count
+        result.Field50PivotTailStartIndex = ResolvePivotTailStartIndex(result.Field50ToField30PivotMatches)
+        result.Field50MatchesField30Tail = result.Field50PivotTailStartIndex.HasValue AndAlso (result.Field50PivotTailStartIndex.Value + result.Field50PivotReuseCount = result.Field30Entries.Count)
+        result.Field20NonZeroQuadCount = result.Field20QuadSlots.Where(Function(slot) slot IsNot Nothing AndAlso Not slot.IsAllZero).Count()
+        result.Field20NonZeroQuadCountMatchesField30Count = (result.Field20NonZeroQuadCount > 0 AndAlso result.Field20NonZeroQuadCount = result.Field30Entries.Count)
+        result.Field40NonZeroQuadCountMatchesField50Count = (result.Field40NonZeroQuadCount > 0 AndAlso result.Field40NonZeroQuadCount = result.Field50Entries.Count)
+        result.Field30LeadEntryCount = If(result.Field50PivotTailStartIndex.HasValue, result.Field50PivotTailStartIndex.Value, 0)
+        result.Field30TailEntryCount = result.Field30Entries.Count - result.Field30LeadEntryCount
+        result.Field30LeadEntries.AddRange(result.Field30Entries.Where(Function(entry) entry IsNot Nothing AndAlso entry.EntryIndex < result.Field30LeadEntryCount))
+        result.Field30TailEntries.AddRange(result.Field30Entries.Where(Function(entry) entry IsNot Nothing AndAlso entry.EntryIndex >= result.Field30LeadEntryCount))
+        result.Field50TailSourceEntries.AddRange(result.Field30TailEntries.Where(Function(entry) result.Field50ToField30PivotMatches.Any(Function(match) match.MatchedEntryIndex = entry.EntryIndex)))
+        result.Field40TerminalQuadCount = Math.Max(0, result.Field40NonZeroQuadCount - result.Field40ExactBridgeCount)
+        result.Field20ExtraActiveQuadCount = Math.Max(0, result.Field20NonZeroQuadCount - result.Field30Entries.Count)
+        result.Field20BridgeSourceQuadCount = result.Field20BridgeSourceQuadSlots.Count
+        result.Field20NonBridgeQuadCount = result.Field20NonBridgeQuadSlots.Count
+        result.Field50TailSourceEntryCount = result.Field50TailSourceEntries.Count
+        result.Field20BridgeSourceAndNonBridgePartitionMatchesActiveQuads = (result.Field20BridgeSourceQuadCount + result.Field20NonBridgeQuadCount = result.Field20NonZeroQuadCount)
+        result.Field40BridgeAndTerminalPartitionMatchesActiveQuads = (result.Field40ExactBridgeCount + result.Field40TerminalQuadCount = result.Field40NonZeroQuadCount)
+        result.Field40BridgeSourceChainMatchesField20BridgeSourceCount = (result.Field40BridgeSourceChainCount = result.Field20BridgeSourceQuadCount)
+        result.Field30LeadCountMatchesField20ExtraActiveQuadCount = (result.Field30LeadEntryCount = result.Field20ExtraActiveQuadCount)
+        result.Field30TailCountMatchesField40BridgeSourceChainCount = (result.Field30TailEntryCount = result.Field40BridgeSourceChainCount)
+        result.Field50EntryCountMatchesField40BridgeSourceChainCount = (result.Field50Entries.Count = result.Field40BridgeSourceChainCount)
+        result.Field50TailSourceCountMatchesField50EntryCount = (result.Field50TailSourceEntryCount = result.Field50Entries.Count)
+        result.Field50TailSourceCountMatchesField30TailEntryCount = (result.Field50TailSourceEntryCount = result.Field30TailEntryCount)
+        Return result
+    End Function
+
+    Private Shared Function ParseVolumeConstraintBatches(rawStructs As IEnumerable(Of HkxRawStructGraph_Class),
+                                                         vectorBlocks As IEnumerable(Of HkxVectorStructBlockGraph_Class)) As List(Of HclVolumeConstraintBatch_Class)
+        Dim result As New List(Of HclVolumeConstraintBatch_Class)
+        If IsNothing(rawStructs) Then Return result
+
+        Dim vectorByEntry As New Dictionary(Of Integer, HkxVectorStructBlockGraph_Class)
+        If Not IsNothing(vectorBlocks) Then
+            For Each block In vectorBlocks
+                If IsNothing(block) Then Continue For
+                vectorByEntry(block.EntryIndex) = block
+            Next
+        End If
+
+        For Each raw In rawStructs
+            If IsNothing(raw) Then Continue For
+
+            Dim block As HkxVectorStructBlockGraph_Class = Nothing
+            vectorByEntry.TryGetValue(raw.EntryIndex, block)
+
+            Dim batch As New HclVolumeConstraintBatch_Class With {
+                .EntryIndex = raw.EntryIndex,
+                .RawStruct = raw,
+                .VectorBlock = block
+            }
+
+            If block IsNot Nothing AndAlso block.Vectors IsNot Nothing Then
+                batch.AllVectors.AddRange(block.Vectors)
+                batch.PreQuadVectors.AddRange(block.Vectors.Take(16))
+                batch.MidVectors.AddRange(block.Vectors.Skip(16).Take(2))
+                batch.PostQuadVectors.AddRange(block.Vectors.Skip(18).Take(4))
+            End If
+
+            batch.QuadSlots.AddRange(ParseVolumeConstraintQuadSlots({raw}))
+            PopulateVolumeConstraintBatchLanes(batch)
+            batch.MidVectorsLookZeroish = batch.MidVectors.All(Function(v) v Is Nothing OrElse (Math.Abs(CDbl(v.X)) <= 0.0001R AndAlso Math.Abs(CDbl(v.Y)) <= 0.0001R AndAlso Math.Abs(CDbl(v.Z)) <= 0.0001R AndAlso Math.Abs(CDbl(v.W)) <= 0.0001R))
+            batch.UniformLaneParameter = ResolveUniformParameter(batch.Lanes.Where(Function(l) l?.ParameterVector IsNot Nothing).Select(Function(l) CSng(l.ParameterVector.Y)))
+            batch.LaneParameterIsUniform = batch.UniformLaneParameter.HasValue
+            result.Add(batch)
+        Next
+
+        Return result
+    End Function
+
+    Private Shared Sub PopulateVolumeConstraintBatchLanes(batch As HclVolumeConstraintBatch_Class)
+        If IsNothing(batch) Then Return
+        batch.Lanes.Clear()
+
+        For laneIndex = 0 To 3
+            Dim lane As New HclVolumeConstraintLane_Class With {
+                .LaneIndex = laneIndex,
+                .QuadSlot = If(laneIndex < batch.QuadSlots.Count, batch.QuadSlots(laneIndex), Nothing),
+                .ParameterVector = If(laneIndex < batch.PostQuadVectors.Count, batch.PostQuadVectors(laneIndex), Nothing)
+            }
+
+            lane.CoefficientVectors.AddRange(batch.PreQuadVectors.Skip(laneIndex * 4).Take(4))
+            batch.Lanes.Add(lane)
+        Next
+    End Sub
+
+    Private Shared Function ParseVolumeConstraintQuadSlots(items As IEnumerable(Of HkxRawStructGraph_Class)) As List(Of HclVolumeConstraintQuadSlot_Class)
+        Dim result As New List(Of HclVolumeConstraintQuadSlot_Class)
+        If IsNothing(items) Then Return result
+
+        For Each raw In items
+            If IsNothing(raw?.RawBytes) OrElse raw.RawBytes.Length < 288 Then Continue For
+
+            For slotIndex = 0 To 3
+                Dim byteOffset = 256 + (slotIndex * 8)
+                If byteOffset + 7 >= raw.RawBytes.Length Then Exit For
+
+                Dim quad As New HclVolumeConstraintQuadSlot_Class With {
+                    .RawStructEntryIndex = raw.EntryIndex,
+                    .SlotIndex = slotIndex,
+                    .ByteOffset = byteOffset,
+                    .ParticleA = BitConverter.ToUInt16(raw.RawBytes, byteOffset),
+                    .ParticleB = BitConverter.ToUInt16(raw.RawBytes, byteOffset + 2),
+                    .ParticleC = BitConverter.ToUInt16(raw.RawBytes, byteOffset + 4),
+                    .ParticleD = BitConverter.ToUInt16(raw.RawBytes, byteOffset + 6)
+                }
+                quad.Particles.AddRange(New Integer() {quad.ParticleA, quad.ParticleB, quad.ParticleC, quad.ParticleD})
+                quad.IsAllZero = (quad.ParticleA = 0 AndAlso quad.ParticleB = 0 AndAlso quad.ParticleC = 0 AndAlso quad.ParticleD = 0)
+                result.Add(quad)
+            Next
+        Next
+
+        Return result
+    End Function
+
+    Private Shared Function ParseVolumeConstraintBridgeSlots(subsetSlots As IEnumerable(Of HclVolumeConstraintQuadSlot_Class),
+                                                             referenceSlots As IEnumerable(Of HclVolumeConstraintQuadSlot_Class)) As List(Of HclVolumeConstraintBridgeSlot_Class)
+        Dim result As New List(Of HclVolumeConstraintBridgeSlot_Class)
+        If IsNothing(subsetSlots) OrElse IsNothing(referenceSlots) Then Return result
+
+        Dim references = referenceSlots.ToList()
+        For Each slot In subsetSlots
+            If IsNothing(slot) OrElse slot.Particles.Count = 0 Then Continue For
+
+            Dim overlaps = references.
+                Select(Function(reference)
+                           If IsNothing(reference) Then Return Nothing
+                           Dim sharedParticles = slot.Particles.Intersect(reference.Particles).ToList()
+                           Return New With { .Slot = reference, .SharedParticles = sharedParticles, .SharedCount = sharedParticles.Count }
+                       End Function).
+                Where(Function(match) match IsNot Nothing AndAlso match.SharedCount > 0).
+                OrderByDescending(Function(match) match.SharedCount).
+                ThenBy(Function(match) match.Slot.RawStructEntryIndex).
+                ThenBy(Function(match) match.Slot.SlotIndex).
+                ToList()
+
+            Dim bridgeMatches = overlaps.Where(Function(match) match.SharedCount = 2).Take(2).ToList()
+            If bridgeMatches.Count < 2 Then Continue For
+
+            Dim bridge As New HclVolumeConstraintBridgeSlot_Class With {
+                .TargetSlot = slot,
+                .FirstSourceSlot = bridgeMatches(0).Slot,
+                .SecondSourceSlot = bridgeMatches(1).Slot
+            }
+            bridge.SharedParticlesFirst.AddRange(bridgeMatches(0).SharedParticles)
+            bridge.SharedParticlesSecond.AddRange(bridgeMatches(1).SharedParticles)
+            bridge.OuterParticlesFirst.AddRange(bridgeMatches(0).Slot.Particles.Except(bridgeMatches(0).SharedParticles))
+            bridge.OuterParticlesSecond.AddRange(bridgeMatches(1).Slot.Particles.Except(bridgeMatches(1).SharedParticles))
+            bridge.BridgeParticles.AddRange(bridgeMatches(0).Slot.Particles.Union(bridgeMatches(1).Slot.Particles).Distinct())
+            result.Add(bridge)
+        Next
+
+        Return result
+    End Function
+
+    Private Shared Function BuildVolumeTerminalQuadSlots(activeSlots As IEnumerable(Of HclVolumeConstraintQuadSlot_Class),
+                                                         bridgeSlots As IEnumerable(Of HclVolumeConstraintBridgeSlot_Class)) As List(Of HclVolumeConstraintQuadSlot_Class)
+        Dim result As New List(Of HclVolumeConstraintQuadSlot_Class)
+        If IsNothing(activeSlots) Then Return result
+
+        Dim bridgeTargets As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+        If Not IsNothing(bridgeSlots) Then
+            For Each bridge In bridgeSlots
+                If bridge?.TargetSlot Is Nothing Then Continue For
+                bridgeTargets.Add(CreateVolumeConstraintQuadSlotKey(bridge.TargetSlot))
+            Next
+        End If
+
+        For Each slot In activeSlots
+            If slot Is Nothing OrElse slot.IsAllZero Then Continue For
+            Dim key = CreateVolumeConstraintQuadSlotKey(slot)
+            If bridgeTargets.Contains(key) Then Continue For
+            result.Add(slot)
+        Next
+
+        Return result
+    End Function
+
+    Private Shared Function BuildVolumeBridgeSourceQuadSlots(bridgeSlots As IEnumerable(Of HclVolumeConstraintBridgeSlot_Class)) As List(Of HclVolumeConstraintQuadSlot_Class)
+        Dim result As New List(Of HclVolumeConstraintQuadSlot_Class)
+        If IsNothing(bridgeSlots) Then Return result
+
+        Dim seen As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+        For Each bridge In bridgeSlots
+            If bridge Is Nothing Then Continue For
+            For Each slot In New HclVolumeConstraintQuadSlot_Class() {bridge.FirstSourceSlot, bridge.SecondSourceSlot}
+                If slot Is Nothing OrElse slot.IsAllZero Then Continue For
+                Dim key = CreateVolumeConstraintQuadSlotKey(slot)
+                If seen.Add(key) Then result.Add(slot)
+            Next
+        Next
+
+        Return result
+    End Function
+
+    Private Shared Function BuildVolumeBridgeSourceChain(bridgeSlots As IEnumerable(Of HclVolumeConstraintBridgeSlot_Class)) As List(Of HclVolumeConstraintQuadSlot_Class)
+        Dim result As New List(Of HclVolumeConstraintQuadSlot_Class)
+        If IsNothing(bridgeSlots) Then Return result
+
+        Dim ordered = bridgeSlots.
+            Where(Function(slot) slot?.TargetSlot IsNot Nothing AndAlso slot.FirstSourceSlot IsNot Nothing AndAlso slot.SecondSourceSlot IsNot Nothing).
+            OrderBy(Function(slot) slot.TargetSlot.RawStructEntryIndex).
+            ThenBy(Function(slot) slot.TargetSlot.SlotIndex).
+            ThenBy(Function(slot) slot.TargetSlot.ByteOffset).
+            ToList()
+
+        If ordered.Count = 0 Then Return result
+        If ordered.Count = 1 Then
+            result.Add(ordered(0).FirstSourceSlot)
+            result.Add(ordered(0).SecondSourceSlot)
+            Return result
+        End If
+
+        Dim nextKeys = New HashSet(Of String)(StringComparer.OrdinalIgnoreCase) From {
+            CreateVolumeConstraintQuadSlotKey(ordered(1).FirstSourceSlot),
+            CreateVolumeConstraintQuadSlotKey(ordered(1).SecondSourceSlot)
+        }
+
+        Dim firstSlot = ordered(0).FirstSourceSlot
+        Dim secondSlot = ordered(0).SecondSourceSlot
+        If nextKeys.Contains(CreateVolumeConstraintQuadSlotKey(firstSlot)) AndAlso Not nextKeys.Contains(CreateVolumeConstraintQuadSlotKey(secondSlot)) Then
+            result.Add(secondSlot)
+            result.Add(firstSlot)
+        Else
+            result.Add(firstSlot)
+            result.Add(secondSlot)
+        End If
+
+        For i = 1 To ordered.Count - 1
+            Dim tailKey = CreateVolumeConstraintQuadSlotKey(result(result.Count - 1))
+            Dim leftSlot = ordered(i).FirstSourceSlot
+            Dim rightSlot = ordered(i).SecondSourceSlot
+            Dim leftKey = CreateVolumeConstraintQuadSlotKey(leftSlot)
+            Dim rightKey = CreateVolumeConstraintQuadSlotKey(rightSlot)
+
+            If StringComparer.OrdinalIgnoreCase.Equals(leftKey, tailKey) Then
+                result.Add(rightSlot)
+            ElseIf StringComparer.OrdinalIgnoreCase.Equals(rightKey, tailKey) Then
+                result.Add(leftSlot)
+            Else
+                result.Clear()
+                Return result
+            End If
+        Next
+
+        Return result
+
+    End Function
+    Private Shared Function BuildVolumeNonBridgeQuadSlots(activeSlots As IEnumerable(Of HclVolumeConstraintQuadSlot_Class),
+                                                          bridgeSourceSlots As IEnumerable(Of HclVolumeConstraintQuadSlot_Class)) As List(Of HclVolumeConstraintQuadSlot_Class)
+        Dim result As New List(Of HclVolumeConstraintQuadSlot_Class)
+        If IsNothing(activeSlots) Then Return result
+
+        Dim bridgeKeys As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+        If Not IsNothing(bridgeSourceSlots) Then
+            For Each slot In bridgeSourceSlots
+                If slot Is Nothing OrElse slot.IsAllZero Then Continue For
+                bridgeKeys.Add(CreateVolumeConstraintQuadSlotKey(slot))
+            Next
+        End If
+
+        For Each slot In activeSlots
+            If slot Is Nothing OrElse slot.IsAllZero Then Continue For
+            Dim key = CreateVolumeConstraintQuadSlotKey(slot)
+            If bridgeKeys.Contains(key) Then Continue For
+            result.Add(slot)
+        Next
+
+        Return result
+    End Function
+
+    Private Shared Function CreateVolumeConstraintQuadSlotKey(slot As HclVolumeConstraintQuadSlot_Class) As String
+        If slot Is Nothing Then Return String.Empty
+        Return $"{slot.RawStructEntryIndex}:{slot.SlotIndex}:{slot.ByteOffset}"
+    End Function
+
+    Private Shared Function ParseVolumeConstraintVectorEntries(items As IEnumerable(Of HkxVectorStructBlockGraph_Class)) As List(Of HclVolumeConstraintVectorEntry_Class)
+        Dim result As New List(Of HclVolumeConstraintVectorEntry_Class)
+        If IsNothing(items) Then Return result
+
+        For Each item In items
+            If IsNothing(item) Then Continue For
+            result.Add(New HclVolumeConstraintVectorEntry_Class With {
+                .EntryIndex = item.EntryIndex,
+                .Pivot = If(item.Vectors.Count > 0, item.Vectors(0), Nothing),
+                .Parameters = If(item.Vectors.Count > 1, item.Vectors(1), Nothing)
+            })
+        Next
+
+        Return result
+    End Function
+
+    Private Shared Function ExtractVolumeConstraintParameterValues(entries As IEnumerable(Of HclVolumeConstraintVectorEntry_Class)) As IEnumerable(Of Single)
+        If IsNothing(entries) Then Return Enumerable.Empty(Of Single)()
+
+        Return entries.
+            Where(Function(entry) entry?.Parameters IsNot Nothing).
+            Select(Function(entry) entry.Parameters.Y).
+            Distinct().
+            OrderBy(Function(value) value).
+            ToList()
+    End Function
+
+    Private Shared Function BuildVolumeConstraintPivotMatches(subsetEntries As IEnumerable(Of HclVolumeConstraintVectorEntry_Class),
+                                                             referenceEntries As IEnumerable(Of HclVolumeConstraintVectorEntry_Class)) As IEnumerable(Of HclVolumeConstraintPivotMatch_Class)
+        Dim result As New List(Of HclVolumeConstraintPivotMatch_Class)
+        If IsNothing(subsetEntries) OrElse IsNothing(referenceEntries) Then Return result
+
+        Dim references = referenceEntries.Where(Function(entry) entry?.Pivot IsNot Nothing).ToList()
+        For Each entry In subsetEntries.Where(Function(item) item?.Pivot IsNot Nothing)
+            Dim matchIndex = references.FindIndex(Function(candidate) VolumeConstraintVectorsAlmostEqual(entry.Pivot, candidate.Pivot, 0.001F))
+            If matchIndex < 0 Then Continue For
+
+            result.Add(New HclVolumeConstraintPivotMatch_Class With {
+                .EntryIndex = entry.EntryIndex,
+                .MatchedEntryIndex = references(matchIndex).EntryIndex
+            })
+        Next
+
+        Return result
+    End Function
+
+    Private Shared Function ResolveUniformParameter(values As IEnumerable(Of Single)) As Single?
+        If IsNothing(values) Then Return Nothing
+
+        Dim distinctValues = values.Distinct().ToList()
+        If distinctValues.Count <> 1 Then Return Nothing
+        Return distinctValues(0)
+    End Function
+
+    Private Shared Function ResolvePivotTailStartIndex(matches As IEnumerable(Of HclVolumeConstraintPivotMatch_Class)) As Integer?
+        If IsNothing(matches) Then Return Nothing
+
+        Dim ordered = matches.Select(Function(match) match.MatchedEntryIndex).Distinct().OrderBy(Function(value) value).ToList()
+        If ordered.Count = 0 Then Return Nothing
+
+        For i = 1 To ordered.Count - 1
+            If ordered(i) <> ordered(i - 1) + 1 Then Return Nothing
+        Next
+
+        Return ordered(0)
+    End Function
+
+    Private Shared Function ResolvePivotReuseOffset(matches As IEnumerable(Of HclVolumeConstraintPivotMatch_Class)) As Integer?
+        If IsNothing(matches) Then Return Nothing
+
+        Dim deltas = matches.Select(Function(match) match.MatchedEntryIndex - match.EntryIndex).Distinct().ToList()
+        If deltas.Count <> 1 Then Return Nothing
+        Return deltas(0)
+    End Function
+
+    Private Shared Function ResolveVolumeBridgeSequentialChain(bridgeSlots As IEnumerable(Of HclVolumeConstraintBridgeSlot_Class)) As Boolean
+        If IsNothing(bridgeSlots) Then Return False
+
+        Dim ordered = bridgeSlots.
+            Where(Function(slot) slot?.TargetSlot IsNot Nothing AndAlso slot.FirstSourceSlot IsNot Nothing AndAlso slot.SecondSourceSlot IsNot Nothing).
+            OrderBy(Function(slot) slot.TargetSlot.RawStructEntryIndex).
+            ThenBy(Function(slot) slot.TargetSlot.SlotIndex).
+            ThenBy(Function(slot) slot.TargetSlot.ByteOffset).
+            ToList()
+
+        If ordered.Count = 0 Then Return False
+        If ordered.Count = 1 Then Return True
+
+        Dim nextKeys = New HashSet(Of String)(StringComparer.OrdinalIgnoreCase) From {
+            CreateVolumeConstraintQuadSlotKey(ordered(1).FirstSourceSlot),
+            CreateVolumeConstraintQuadSlotKey(ordered(1).SecondSourceSlot)
+        }
+
+        Dim chain As New List(Of String)
+        Dim firstKey = CreateVolumeConstraintQuadSlotKey(ordered(0).FirstSourceSlot)
+        Dim secondKey = CreateVolumeConstraintQuadSlotKey(ordered(0).SecondSourceSlot)
+        If nextKeys.Contains(firstKey) AndAlso Not nextKeys.Contains(secondKey) Then
+            chain.Add(secondKey)
+            chain.Add(firstKey)
+        Else
+            chain.Add(firstKey)
+            chain.Add(secondKey)
+        End If
+
+        For i = 1 To ordered.Count - 1
+            Dim tail = chain(chain.Count - 1)
+            Dim leftKey = CreateVolumeConstraintQuadSlotKey(ordered(i).FirstSourceSlot)
+            Dim rightKey = CreateVolumeConstraintQuadSlotKey(ordered(i).SecondSourceSlot)
+
+            If StringComparer.OrdinalIgnoreCase.Equals(leftKey, tail) Then
+                chain.Add(rightKey)
+            ElseIf StringComparer.OrdinalIgnoreCase.Equals(rightKey, tail) Then
+                chain.Add(leftKey)
+            Else
+                Return False
+            End If
+        Next
+
+        Return chain.Count = ordered.Count + 1
+    End Function
+
+    Private Shared Function ResolveVolumeTerminalBridgeExtension(terminalSlots As IEnumerable(Of HclVolumeConstraintQuadSlot_Class),
+                                                                bridgeSlots As IEnumerable(Of HclVolumeConstraintBridgeSlot_Class)) As Tuple(Of Boolean, Integer, Integer)
+        Dim terminals = If(terminalSlots, Enumerable.Empty(Of HclVolumeConstraintQuadSlot_Class)()).Where(Function(slot) slot IsNot Nothing AndAlso Not slot.IsAllZero).ToList()
+        Dim ordered = If(bridgeSlots, Enumerable.Empty(Of HclVolumeConstraintBridgeSlot_Class)()).
+            Where(Function(slot) slot?.TargetSlot IsNot Nothing AndAlso slot.FirstSourceSlot IsNot Nothing AndAlso slot.SecondSourceSlot IsNot Nothing).
+            OrderBy(Function(slot) slot.TargetSlot.RawStructEntryIndex).
+            ThenBy(Function(slot) slot.TargetSlot.SlotIndex).
+            ThenBy(Function(slot) slot.TargetSlot.ByteOffset).
+            ToList()
+
+        If terminals.Count <> 1 OrElse ordered.Count = 0 Then Return Tuple.Create(False, 0, 0)
+
+        Dim chain As New List(Of HclVolumeConstraintQuadSlot_Class)
+        chain.Add(ordered(0).FirstSourceSlot)
+        chain.Add(ordered(0).SecondSourceSlot)
+
+        For i = 1 To ordered.Count - 1
+            Dim tailKey = CreateVolumeConstraintQuadSlotKey(chain(chain.Count - 1))
+            Dim leftSlot = ordered(i).FirstSourceSlot
+            Dim rightSlot = ordered(i).SecondSourceSlot
+            Dim leftKey = CreateVolumeConstraintQuadSlotKey(leftSlot)
+            Dim rightKey = CreateVolumeConstraintQuadSlotKey(rightSlot)
+
+            If StringComparer.OrdinalIgnoreCase.Equals(leftKey, tailKey) Then
+                chain.Add(rightSlot)
+            ElseIf StringComparer.OrdinalIgnoreCase.Equals(rightKey, tailKey) Then
+                chain.Add(leftSlot)
+            Else
+                Return Tuple.Create(False, 0, 0)
+            End If
+        Next
+
+        Dim lastSource = chain(chain.Count - 1)
+        Dim terminal = terminals(0)
+        Dim sharedCount = terminal.Particles.Intersect(lastSource.Particles).Count()
+        Dim added = terminal.Particles.Except(lastSource.Particles).Count()
+        Return Tuple.Create(sharedCount = 2 AndAlso added = 2, sharedCount, added)
+    End Function
+
+    Private Shared Function VolumeConstraintVectorsAlmostEqual(left As HkxVector4Graph_Class,
+                                                             right As HkxVector4Graph_Class,
+                                                             tolerance As Single) As Boolean
+        If IsNothing(left) OrElse IsNothing(right) Then Return False
+        Return Math.Abs(left.X - right.X) <= tolerance AndAlso
+               Math.Abs(left.Y - right.Y) <= tolerance AndAlso
+               Math.Abs(left.Z - right.Z) <= tolerance AndAlso
+               Math.Abs(left.W - right.W) <= tolerance
+    End Function
+
     Private Shared Function ParseSimParticleData(values As IEnumerable(Of HkxVector4Graph_Class)) As List(Of HclSimParticleDataGraph_Class)
         Dim result As New List(Of HclSimParticleDataGraph_Class)
         If IsNothing(values) Then Return result
@@ -453,11 +1008,31 @@ Public NotInheritable Class HclStructuredGraphParser_Class
                 Return ParseBendStiffnessConstraintSet(graph, source)
             Case "hcllocalrangeconstraintset"
                 Return ParseLocalRangeConstraintSet(graph, source)
+            Case "hclvolumeconstraintmx"
+                Return ParseVolumeConstraintMx(graph, source)
             Case Else
                 Return source
         End Select
     End Function
 
+    Private Shared Function CreateMatrix4FromVectorRows(vectors As IReadOnlyList(Of HkxVector4Graph_Class), startIndex As Integer) As HkxMatrix4Graph_Class
+        If IsNothing(vectors) Then Return Nothing
+        If startIndex < 0 OrElse vectors.Count < startIndex + 4 Then Return Nothing
+
+        Dim values As New List(Of Single)(16)
+        For i = 0 To 3
+            Dim row = vectors(startIndex + i)
+            If IsNothing(row) Then Return Nothing
+            values.Add(row.X)
+            values.Add(row.Y)
+            values.Add(row.Z)
+            values.Add(row.W)
+        Next
+
+        Return New HkxMatrix4Graph_Class With {
+            .Values = values.ToArray()
+        }
+    End Function
     Private Shared Function ReadVertexParticlePairs(graph As HkxObjectGraph_Class, field As HkxObjectArrayHeader_Class) As List(Of HclMoveParticlesVertexParticlePairGraph_Class)
         Dim result As New List(Of HclMoveParticlesVertexParticlePairGraph_Class)
         If IsNothing(field) OrElse field.Count <= 0 OrElse field.DataRelativeOffset < 0 Then Return result
@@ -558,6 +1133,24 @@ Public NotInheritable Class HclStructuredGraphParser_Class
         For i = 0 To field.Count - 1
             Dim entryOffset = field.DataRelativeOffset + (i * structSize)
             result.Add(CreateRawStruct(graph, i, entryOffset, structSize))
+        Next
+
+        Return result
+    End Function
+
+
+    Private Shared Function ReadVectorStructArray(graph As HkxObjectGraph_Class, field As HkxObjectArrayHeader_Class, vectorCountPerEntry As Integer) As List(Of HkxVectorStructBlockGraph_Class)
+        Dim result As New List(Of HkxVectorStructBlockGraph_Class)
+        If IsNothing(field) OrElse vectorCountPerEntry <= 0 OrElse field.Count <= 0 OrElse field.DataRelativeOffset < 0 Then Return result
+
+        Dim structSize = vectorCountPerEntry * 16
+        For i = 0 To field.Count - 1
+            Dim entryOffset = field.DataRelativeOffset + (i * structSize)
+            result.Add(New HkxVectorStructBlockGraph_Class With {
+                .EntryIndex = i,
+                .EntryRelativeOffset = entryOffset,
+                .Vectors = ReadVector4Block(graph, entryOffset, vectorCountPerEntry)
+            })
         Next
 
         Return result
@@ -725,6 +1318,12 @@ Public Class HclSimClothDataDetail_Class
     Public Property Field108Bytes As Byte()
     Public ReadOnly Property PinchDetectionFlags As New List(Of Byte)
     Public Property Field118Pairs As List(Of HkxUInt32PairGraph_Class)
+    Public Property CollidableBindingUniformParameter As Single?
+    Public Property CollidableBindingParametersUniform As Boolean
+    Public Property CollidableBindingsAllMatrixIdentity As Boolean
+    Public Property VolumeConstraintCount As Integer
+    Public Property VolumeConstraintField30MatchesBindingParameter As Boolean
+    Public Property VolumeConstraintField50MatchesBindingParameter As Boolean
 End Class
 
 Public Class HclSimCollidableBinding_Class
@@ -736,6 +1335,14 @@ Public Class HclSimCollidableBinding_Class
     Public Property ParameterSingle As Single
     Public Property Collidable As HclCollidableDetail_Class
     Public Property Matrix As HkxMatrix4Graph_Class
+    Public Property MatrixIdentityDelta As Double
+    Public Property CollidableTransformIdentityDelta As Double
+    Public Property BindTimesCollidableIdentityDelta As Double
+    Public Property CollidableTimesBindIdentityDelta As Double
+    Public Property BindingInverseCollidableDelta As Double
+    Public Property MatrixIsIdentity As Boolean
+    Public Property CollidableTransformIsIdentity As Boolean
+    Public Property BindingMatchesInverseCollidable As Boolean
 End Class
 
 Public Class HclClothStateDetail_Class
@@ -846,6 +1453,8 @@ Public Class HclSimulateOperatorDetail_Class
     Public Property SourceObject As HkxVirtualObjectGraph_Class
     Public Property Name As String
     Public Property HeaderUInt32 As List(Of UInteger)
+    Public Property SubstepCount As Integer
+    Public Property SolveIterationCount As Integer
     Public Property Configs As List(Of HclSimulateOperatorConfigGraph_Class)
 End Class
 
@@ -853,6 +1462,9 @@ Public Class HclSimulateOperatorConfigGraph_Class
     Public Property EntryIndex As Integer
     Public Property EntryRelativeOffset As Integer
     Public Property Value As UInteger
+    Public Property ConstraintIndex As Integer = -1
+    Public Property IsTerminator As Boolean
+    Public Property ResolvedConstraint As Object
     Public Property ResolvedConstraintName As String
     Public Property ResolvedConstraintType As String
 End Class
@@ -888,11 +1500,42 @@ Public Class HclCollidableDetail_Class
     Public Property PayloadRelativeOffset As Integer
     Public Property PayloadBytes As Byte()
     Public Property PayloadUInt32 As List(Of UInteger)
+    Public Property PayloadVectors As List(Of HkxVector4Graph_Class)
+    Public Property TransformMatrix As HkxMatrix4Graph_Class
+    Public Property LinearVelocity As HkxVector4Graph_Class
+    Public Property AngularVelocity As HkxVector4Graph_Class
+    Public Property ParameterVector As HkxVector4Graph_Class
 End Class
 
 Public Class HclCapsuleShapeDetail_Class
     Public Property SourceObject As HkxVirtualObjectGraph_Class
+    Public Property ShapeClassName As String
     Public Property Vectors As List(Of HkxVector4Graph_Class)
+    Public Property EndpointA As HkxVector4Graph_Class
+    Public Property EndpointB As HkxVector4Graph_Class
+    Public Property AxisHint As HkxVector4Graph_Class
+    Public Property ParameterVector As HkxVector4Graph_Class
+    Public Property Radius As Single
+    Public Property AuxiliaryRadius As Single
+    Public Property SegmentLength As Single
+    Public Property TaperFactor As Single
+    Public Property TaperCosine As Single
+    Public Property ExtraScalar0 As Single
+    Public Property ExtraScalar1 As Single
+    Public Property ExtraScalar2 As Single
+    Public Property ExtraVector0 As HkxVector4Graph_Class
+    Public Property ExtraVector1 As HkxVector4Graph_Class
+End Class
+
+Public Class HclVolumeConstraintBridgeSlot_Class
+    Public Property TargetSlot As HclVolumeConstraintQuadSlot_Class
+    Public Property FirstSourceSlot As HclVolumeConstraintQuadSlot_Class
+    Public Property SecondSourceSlot As HclVolumeConstraintQuadSlot_Class
+    Public ReadOnly Property SharedParticlesFirst As New List(Of Integer)
+    Public ReadOnly Property SharedParticlesSecond As New List(Of Integer)
+    Public ReadOnly Property OuterParticlesFirst As New List(Of Integer)
+    Public ReadOnly Property OuterParticlesSecond As New List(Of Integer)
+    Public ReadOnly Property BridgeParticles As New List(Of Integer)
 End Class
 
 Public Class HclStandardLinkConstraintSetDetail_Class
@@ -909,11 +1552,62 @@ Public Class HclStretchLinkConstraintSetDetail_Class
     Public ReadOnly Property LinkDetails As New List(Of HclDistanceConstraintGraph_Class)
 End Class
 
+Public Class HclVolumeConstraintQuadSlot_Class
+    Public Property RawStructEntryIndex As Integer
+    Public Property SlotIndex As Integer
+    Public Property ByteOffset As Integer
+    Public Property ParticleA As Integer
+    Public Property ParticleB As Integer
+    Public Property ParticleC As Integer
+    Public Property ParticleD As Integer
+    Public ReadOnly Property Particles As New List(Of Integer)
+    Public Property IsAllZero As Boolean
+End Class
+
+Public Class HclVolumeConstraintVectorEntry_Class
+    Public Property EntryIndex As Integer
+    Public Property Pivot As HkxVector4Graph_Class
+    Public Property Parameters As HkxVector4Graph_Class
+End Class
+
+Public Class HclVolumeConstraintPivotMatch_Class
+    Public Property EntryIndex As Integer
+    Public Property MatchedEntryIndex As Integer
+End Class
+
+Public Class HclVolumeConstraintLane_Class
+    Public Property LaneIndex As Integer
+    Public Property QuadSlot As HclVolumeConstraintQuadSlot_Class
+    Public Property ParameterVector As HkxVector4Graph_Class
+    Public ReadOnly Property CoefficientVectors As New List(Of HkxVector4Graph_Class)
+End Class
+
+Public Class HclVolumeConstraintBatch_Class
+    Public Property EntryIndex As Integer
+    Public Property RawStruct As HkxRawStructGraph_Class
+    Public Property VectorBlock As HkxVectorStructBlockGraph_Class
+    Public ReadOnly Property AllVectors As New List(Of HkxVector4Graph_Class)
+    Public ReadOnly Property PreQuadVectors As New List(Of HkxVector4Graph_Class)
+    Public ReadOnly Property MidVectors As New List(Of HkxVector4Graph_Class)
+    Public ReadOnly Property PostQuadVectors As New List(Of HkxVector4Graph_Class)
+    Public Property MidVectorsLookZeroish As Boolean
+    Public Property UniformLaneParameter As Single?
+    Public Property LaneParameterIsUniform As Boolean
+    Public ReadOnly Property QuadSlots As New List(Of HclVolumeConstraintQuadSlot_Class)
+    Public ReadOnly Property Lanes As New List(Of HclVolumeConstraintLane_Class)
+End Class
+
 Public Class HclBendStiffnessConstraintSetDetail_Class
     Public Property SourceObject As HkxVirtualObjectGraph_Class
     Public Property Name As String
     Public Property Links As List(Of HkxRawStructGraph_Class)
     Public ReadOnly Property LinkDetails As New List(Of HclBendConstraintGraph_Class)
+    Public Property ResolvedTopologyCount As Integer
+    Public Property ResolvedRestGeometryCount As Integer
+    Public Property SignedUnitCount As Integer
+    Public Property OppOppEdgeEdgeOrderCount As Integer
+    Public Property AverageRestEdgeLength As Single?
+    Public Property AverageAbsRestCurvatureMinusDihedralOverEdge As Single?
 End Class
 
 Public Class HclLocalRangeConstraintSetDetail_Class
@@ -921,7 +1615,93 @@ Public Class HclLocalRangeConstraintSetDetail_Class
     Public Property Name As String
     Public Property Constraints As List(Of HkxRawStructGraph_Class)
     Public ReadOnly Property ConstraintDetails As New List(Of HclLocalRangeConstraintGraph_Class)
+    Public Property UniformMaximumDistance As Single?
+    Public Property UniformMaximumNormalDistance As Single?
+    Public Property UniformMinimumNormalDistance As Single?
+    Public Property DistinctParticleCount As Integer
+    Public Property DistinctReferenceVertexCount As Integer
+    Public Property ParticleReferenceIdentityCount As Integer
 End Class
+
+Public Class HclVolumeConstraintMxDetail_Class
+    Public Property SourceObject As HkxVirtualObjectGraph_Class
+    Public Property Name As String
+    Public Property Field20RawStructs As List(Of HkxRawStructGraph_Class)
+    Public Property Field30RawStructs As List(Of HkxRawStructGraph_Class)
+    Public Property Field40RawStructs As List(Of HkxRawStructGraph_Class)
+    Public Property Field50RawStructs As List(Of HkxRawStructGraph_Class)
+    Public Property Field20VectorBlocks As List(Of HkxVectorStructBlockGraph_Class)
+    Public Property Field30VectorBlocks As List(Of HkxVectorStructBlockGraph_Class)
+    Public Property Field40VectorBlocks As List(Of HkxVectorStructBlockGraph_Class)
+    Public Property Field50VectorBlocks As List(Of HkxVectorStructBlockGraph_Class)
+    Public ReadOnly Property Field20Batches As New List(Of HclVolumeConstraintBatch_Class)
+    Public ReadOnly Property Field20QuadSlots As New List(Of HclVolumeConstraintQuadSlot_Class)
+    Public ReadOnly Property Field30Entries As New List(Of HclVolumeConstraintVectorEntry_Class)
+    Public ReadOnly Property Field40Batches As New List(Of HclVolumeConstraintBatch_Class)
+    Public ReadOnly Property Field40QuadSlots As New List(Of HclVolumeConstraintQuadSlot_Class)
+    Public ReadOnly Property Field40BridgeSlots As New List(Of HclVolumeConstraintBridgeSlot_Class)
+    Public ReadOnly Property Field40TerminalQuadSlots As New List(Of HclVolumeConstraintQuadSlot_Class)
+    Public ReadOnly Property Field20BridgeSourceQuadSlots As New List(Of HclVolumeConstraintQuadSlot_Class)
+    Public ReadOnly Property Field20NonBridgeQuadSlots As New List(Of HclVolumeConstraintQuadSlot_Class)
+    Public ReadOnly Property Field40BridgeSourceChain As New List(Of HclVolumeConstraintQuadSlot_Class)
+    Public ReadOnly Property Field30ParameterValues As New List(Of Single)
+    Public ReadOnly Property Field50ParameterValues As New List(Of Single)
+    Public ReadOnly Property Field50ToField30PivotMatches As New List(Of HclVolumeConstraintPivotMatch_Class)
+    Public Property Field20MidVectorsLookZeroish As Boolean
+    Public Property Field40MidVectorsLookZeroish As Boolean
+    Public Property Field20BatchUniformParameter As Single?
+    Public Property Field40BatchUniformParameter As Single?
+    Public Property Field20LaneParametersUniformAcrossBatches As Boolean
+    Public Property Field40LaneParametersUniformAcrossBatches As Boolean
+    Public Property Field30UniformParameter As Single?
+    Public Property Field50UniformParameter As Single?
+    Public Property Field20BatchParameterMatchesField30Parameter As Boolean
+    Public Property Field40BatchParameterMatchesField50Parameter As Boolean
+    Public Property Field20AndField40ParametersDistinct As Boolean
+    Public Property HasDistinctParameterGroups As Boolean
+    Public Property Field50PivotReuseOffset As Integer?
+    Public Property Field50PivotReuseCount As Integer
+    Public Property Field40BridgeCountMatchesField50Count As Boolean
+    Public Property Field40BridgeSlotsExact As Boolean
+    Public Property Field40BridgeFormsSequentialChain As Boolean
+    Public Property Field40TerminalExtendsBridgeChain As Boolean
+    Public Property Field40TerminalSharedParticleCount As Integer
+    Public Property Field40TerminalAddedParticleCount As Integer
+    Public Property Field40BridgeSourceChainCount As Integer
+    Public Property Field30LeadCountMatchesField20ExtraActiveQuadCount As Boolean
+    Public Property Field30TailCountMatchesField40BridgeSourceChainCount As Boolean
+    Public Property Field50EntryCountMatchesField40BridgeSourceChainCount As Boolean
+    Public Property Field40NonZeroQuadCount As Integer
+    Public Property Field40ExactBridgeCount As Integer
+    Public Property Field50PivotTailStartIndex As Integer?
+    Public Property Field50MatchesField30Tail As Boolean
+    Public Property Field20NonZeroQuadCount As Integer
+    Public Property Field20NonZeroQuadCountMatchesField30Count As Boolean
+    Public Property Field40NonZeroQuadCountMatchesField50Count As Boolean
+    Public Property Field30LeadEntryCount As Integer
+    Public Property Field30TailEntryCount As Integer
+    Public Property Field40TerminalQuadCount As Integer
+    Public Property Field20ExtraActiveQuadCount As Integer
+    Public Property Field20BridgeSourceQuadCount As Integer
+    Public Property Field20NonBridgeQuadCount As Integer
+    Public Property Field50TailSourceEntryCount As Integer
+    Public Property Field20BridgeSourceAndNonBridgePartitionMatchesActiveQuads As Boolean
+    Public Property Field40BridgeAndTerminalPartitionMatchesActiveQuads As Boolean
+    Public Property Field40BridgeSourceChainMatchesField20BridgeSourceCount As Boolean
+    Public Property Field50TailSourceCountMatchesField50EntryCount As Boolean
+    Public Property Field50TailSourceCountMatchesField30TailEntryCount As Boolean
+    Public ReadOnly Property Field50Entries As New List(Of HclVolumeConstraintVectorEntry_Class)
+    Public ReadOnly Property Field30LeadEntries As New List(Of HclVolumeConstraintVectorEntry_Class)
+    Public ReadOnly Property Field30TailEntries As New List(Of HclVolumeConstraintVectorEntry_Class)
+    Public ReadOnly Property Field50TailSourceEntries As New List(Of HclVolumeConstraintVectorEntry_Class)
+End Class
+
+Public Class HkxVectorStructBlockGraph_Class
+    Public Property EntryIndex As Integer
+    Public Property EntryRelativeOffset As Integer
+    Public Property Vectors As List(Of HkxVector4Graph_Class)
+End Class
+
 
 Public Class HclSimParticleDataGraph_Class
     Public Property EntryIndex As Integer
@@ -953,6 +1733,27 @@ Public Class HclBendConstraintGraph_Class
     Public Property ParticleD As UShort
     Public Property BendStiffness As Single
     Public Property RestCurvature As Single
+    Public Property WeightSum As Single
+    Public Property HasZeroWeightSum As Boolean
+    Public Property SharedEdgeParticleA As Integer = -1
+    Public Property SharedEdgeParticleB As Integer = -1
+    Public Property OppositeParticleA As Integer = -1
+    Public Property OppositeParticleB As Integer = -1
+    Public Property TriangleIndexA As Integer = -1
+    Public Property TriangleIndexB As Integer = -1
+    Public Property HasResolvedTopology As Boolean
+    Public Property PositiveWeightPairSum As Single
+    Public Property NegativeWeightPairSum As Single
+    Public Property FirstPairFormsUnit As Boolean
+    Public Property SecondPairFormsNegativeUnit As Boolean
+    Public Property WeightPairsFormSignedUnit As Boolean
+    Public Property ParticleOrderMatchesOppOppEdgeEdge As Boolean
+    Public Property HasResolvedRestGeometry As Boolean
+    Public Property RestEdgeLength As Single
+    Public Property RestDihedralAngle As Single
+    Public Property RestDihedralOverEdge As Single
+    Public Property RestCurvatureMinusDihedral As Single
+    Public Property RestCurvatureMinusDihedralOverEdge As Single
 End Class
 
 Public Class HclLocalRangeConstraintGraph_Class
@@ -987,8 +1788,6 @@ Public Class HkxRawStructGraph_Class
     Public ReadOnly Property UInt32Values As New List(Of UInteger)
     Public ReadOnly Property SingleValues As New List(Of Single)
 End Class
-
-
 
 
 
