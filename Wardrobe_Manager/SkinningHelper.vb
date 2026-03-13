@@ -676,9 +676,14 @@ Public Class MorphingHelper
 
         ' ==== 4) Reindexado de morphs
         For Each dat In shape.Related_Slider_data
-            For Each block In dat.RelatedOSDBlocks.ToList
-                For Each ddiff In block.DataDiff.ToList
-                    ddiff.Index = oldToNew(ddiff.Index)
+            For Each block In dat.RelatedOSDBlocks.ToList()
+                For Each ddiff In block.DataDiff.ToList()
+                    Dim oldIdx As Integer = CInt(ddiff.Index)
+                    If oldIdx < 0 OrElse oldIdx >= oldToNew.Length Then
+                        block.DataDiff.Remove(ddiff)
+                        Continue For
+                    End If
+                    ddiff.Index = oldToNew(oldIdx)
                     If ddiff.Index < 0 Then
                         block.DataDiff.Remove(ddiff)
                     End If
@@ -688,7 +693,6 @@ Public Class MorphingHelper
                 End If
             Next
         Next
-
     End Sub
 
     Private Shared Sub ApplyMask_CPU(shape As Shape_class, ByRef Geometry As SkinnedGeometry, AllowMask As Boolean)
