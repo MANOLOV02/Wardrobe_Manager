@@ -1,6 +1,8 @@
 ﻿' Version Uploaded of Wardrobe 2.1.3
+Imports System.DirectoryServices.ActiveDirectory
 Imports System.Globalization
 Imports System.IO
+Imports System.Net.Http.Json
 Imports System.Numerics
 Imports System.Text.Json
 Imports System.Text.Json.Serialization
@@ -11,6 +13,54 @@ Imports NiflySharp
 Imports NiflySharp.Blocks
 Imports NiflySharp.Structs
 Imports Wardrobe_Manager.Wardrobe_Manager_Form
+
+Public Class HighHeels_Plugins_values
+    Public Property HighHeelsKeys As New Dictionary(Of String, Double)
+    Public Class HHJsonItem
+        <JsonPropertyName("key")>
+        Public Property ItemKey As String
+
+        <JsonPropertyName("value")>
+        Public Property ItemValue As Double
+    End Class
+    Sub Lee_HH_Json_y_txt()
+        Dim carpeta As String = Directorios.HighHeels_Plugin
+        If IO.Directory.Exists(carpeta) = False Then Exit Sub
+
+        For Each archivo As String In Directory.GetFiles(carpeta, "*.json")
+            Dim contenido As String = File.ReadAllText(archivo)
+            Dim data = JsonSerializer.Deserialize(Of Dictionary(Of String, List(Of HHJsonItem)))(contenido)
+
+            If data IsNot Nothing Then
+                For Each kvp In data
+                    For Each item In kvp.Value
+                        item.ItemKey = Correct_Path_Separator(item.ItemKey)
+                        HighHeelsKeys(item.ItemKey) = item.ItemValue
+                    Next
+                Next
+            End If
+        Next
+
+        For Each archivo As String In Directory.GetFiles(carpeta, "*.txt")
+            Dim archivoSTM = New StreamReader(archivo)
+            Dim lin As String = archivoSTM.ReadLine
+            archivoSTM.Close()
+            If lin.Contains("="c) = False Then Exit Sub
+            Dim sep = lin.Split("=")
+            If sep.Length <> 2 Then Exit Sub
+            Dim kvp = New HHJsonItem With {
+                .ItemKey = IO.Path.GetFileNameWithoutExtension(archivo) + ".nif",
+                .ItemValue = CDbl(sep(1).Replace(".", System.Globalization.CultureInfo.CurrentUICulture.NumberFormat.NumberDecimalSeparator))}
+            HighHeelsKeys(kvp.ItemKey) = kvp.ItemValue
+        Next
+    End Sub
+    Public Sub LoadFromDirectory()
+        HighHeelsKeys.Clear()
+        Lee_HH_Json_y_txt()
+    End Sub
+
+End Class
+
 
 Public Class SlidersPreset_Class
     Public Property Name As String = ""
@@ -130,6 +180,8 @@ Public Class SliderPresetCollection
     Public Property Presets As New SortedDictionary(Of String, SlidersPreset_Class)
     Public Property Categories As New Dictionary(Of String, List(Of String()))
     Public Property Poses As New Dictionary(Of String, Poses_class)
+
+
     Public Sub LoadPosesBS(PosesPath As String)
         If IO.Directory.Exists(PosesPath) = False Then Exit Sub
         Dim filesPoses = FilesDictionary_class.EnumerateFilesWithSymlinkSupport(PosesPath, "*.xml", False).ToList
@@ -780,8 +832,8 @@ Public Class OSP_Project_Class
         Sliderset_Target.Update_Names(Nombre_Proyecto, Me.Nombre)
 
         ' Exclude reference
-        If ExcludeReference = True AndAlso Sliderset_Target.Shapes.Where(Function(pf) pf.Isreference).Any Then
-            Sliderset_Target.RemoveShape(Sliderset_Target.Shapes.Where(Function(pf) pf.Isreference).First)
+        If ExcludeReference = True AndAlso Sliderset_Target.Shapes.Where(Function(pf) pf.IsReference).Any Then
+            Sliderset_Target.RemoveShape(Sliderset_Target.Shapes.Where(Function(pf) pf.IsReference).First)
         End If
 
         ' Clona Material
@@ -841,8 +893,8 @@ Public Class OSP_Project_Class
         Next
 
         ' Reference
-        If Sliderset_Madre.Shapes.Where(Function(pf) pf.Isreference).Any Then
-            For Each extsh In Sliderset_Target.Shapes.Where(Function(pf) pf.Isreference)
+        If Sliderset_Madre.Shapes.Where(Function(pf) pf.IsReference).Any Then
+            For Each extsh In Sliderset_Target.Shapes.Where(Function(pf) pf.IsReference)
                 For Each dat In extsh.Related_Slider_data.ToList
                     If dat.Islocal = False Then
                         For Each block In dat.RelatedOSDBlocks.ToList
@@ -1103,23 +1155,32 @@ Public Class SliderSet_Class
         Shapes = Nodo.SelectNodes("Shape").Cast(Of XmlNode)().Select(Function(shap) New Shape_class(shap, Me)).ToList
         Sliders = Nodo.SelectNodes("Slider").Cast(Of XmlNode)().Select(Function(slid) New Slider_class(slid, Me)).ToList
     End Sub
+
+    Public Function ReadHighHeelTXT(archivoName As String) As Double
+        Dim archivo = New StreamReader(archivoName)
+        Dim lin As String = archivo.ReadLine
+        archivo.Close()
+        If lin.Contains("="c) = False Then Return 0
+        Dim sep = lin.Split("=")
+        If sep.Length <> 2 Then Return 0
+        Return CDbl(sep(1).Replace(".", System.Globalization.CultureInfo.CurrentUICulture.NumberFormat.NumberDecimalSeparator))
+    End Function
     Public Sub ReadhighHeel()
         Select Case Config_App.Current.Game
             Case Config_App.Game_Enum.Fallout4
                 Dim hh0 As String = IO.Path.Combine(IO.Path.Combine(Directorios.ShapedataRoot, Me.ParentOSP.Nombre), Me.Nombre + ".hht")
-                Dim hh1 As String = IO.Path.Combine(IO.Path.Combine(IO.Path.Combine(Directorios.Fallout4data, "F4SE\Plugins\HHS")), Me.OutputFileValue + ".txt")
+                Dim hh1 As String = Correct_Path_Separator(IO.Path.Combine(IO.Path.Combine(IO.Path.Combine(Directorios.Fallout4data, Me.OutputPathValue)), Me.OutputFileValue + ".nif"))
+                'aDim hh1b As String = IO.Path.Combine(Directorios.HighHeels_Plugin, Me.OutputFileValue + ".json")
                 Dim hh2 As String = IO.Path.Combine(IO.Path.Combine(IO.Path.Combine(Directorios.Fallout4data, Me.OutputPathValue)), Me.OutputFileValue + ".txt")
-                Dim archivo As StreamReader = Nothing
-                If IsNothing(archivo) Then If IO.File.Exists(hh0) Then archivo = New StreamReader(hh0)
-                If IsNothing(archivo) Then If IO.File.Exists(hh1) Then archivo = New StreamReader(hh1)
-                If IsNothing(archivo) Then If IO.File.Exists(hh2) Then archivo = New StreamReader(hh2)
-                If IsNothing(archivo) Then Exit Sub
-                Dim lin As String = archivo.ReadLine
-                archivo.Close()
-                If lin.Contains("="c) = False Then Exit Sub
-                Dim sep = lin.Split("=")
-                If sep.Length <> 2 Then Exit Sub
-                HighHeelHeight = CDbl(sep(1).Replace(".", System.Globalization.CultureInfo.CurrentUICulture.NumberFormat.NumberDecimalSeparator))
+
+                If IO.File.Exists(hh0) Then HighHeelHeight = ReadHighHeelTXT(hh0) : Exit Sub
+                If FilesDictionary_class.HighHeels_Plugin_Value.HighHeelsKeys.Where(Function(pf) hh1.EndsWith(pf.Key, StringComparison.CurrentCultureIgnoreCase)).Any Then
+                    HighHeelHeight = FilesDictionary_class.HighHeels_Plugin_Value.HighHeelsKeys.OrderByDescending(Function(pf) pf.Key.Length).Where(Function(pf) hh1.EndsWith(pf.Key, StringComparison.CurrentCultureIgnoreCase)).First.Value
+                    Exit Sub
+                End If
+                If IO.File.Exists(hh2) Then HighHeelHeight = ReadHighHeelTXT(hh2) : Exit Sub
+
+                HighHeelHeight = 0
 
             Case Config_App.Game_Enum.Skyrim
                 Dim maxhh = 0

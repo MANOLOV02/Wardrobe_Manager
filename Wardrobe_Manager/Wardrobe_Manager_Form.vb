@@ -110,7 +110,11 @@ Public Class Wardrobe_Manager_Form
                 Return IO.Path.Combine(Config_App.Current.BsPath, "SliderSets\Descartados")
             End Get
         End Property
-
+        Public Shared ReadOnly Property HighHeels_Plugin As String
+            Get
+                Return IO.Path.Combine(Config_App.Current.FO4EDataPath, "F4SE\Plugins\HHS")
+            End Get
+        End Property
         Public Shared ReadOnly Property ShapedataRoot As String
             Get
                 Return IO.Path.Combine(Config_App.Current.BsPath, "ShapeData\")
@@ -208,6 +212,8 @@ Public Class Wardrobe_Manager_Form
                 FilesDictionary_class.SliderPresets.LoadFromXml(xm)
                 ProgressBar1.Value += 1
             Next
+
+            FilesDictionary_class.HighHeels_Plugin_Value.LoadFromDirectory
 
             ' 2) Parsear en background SALVO DEEP CHECK
             Dim allOSPs = New ConcurrentBag(Of OSP_Project_Class)()
