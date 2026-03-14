@@ -680,6 +680,7 @@ Public Class MorphingHelper
                 For Each ddiff In block.DataDiff.ToList()
                     Dim oldIdx As Integer = CInt(ddiff.Index)
                     If oldIdx < 0 OrElse oldIdx >= oldToNew.Length Then
+                        Debugger.Break()
                         block.DataDiff.Remove(ddiff)
                         Continue For
                     End If
