@@ -315,6 +315,7 @@ Public Class Editor_Form
 
     Private Selected_size As Config_App.SliderSize
     Public Sub Lee_Edit(Seleccion As SliderSet_Class, Preset As String, Pose As String)
+        ComboBoxAllXYZ.SelectedIndex = 1
         OSP_Project_Class.Load_and_CHeck_Project(Seleccion, True)
         CheckBoxZappedShapes.Checked = Seleccion.KeepZappedShapes
         CheckBoxPreventMorph.Checked = Seleccion.PreventMorphFile
@@ -2033,4 +2034,126 @@ Public Class Editor_Form
         Actualiza_Preset()
         Process_render_Changes(False)
     End Sub
+
+    Private Sub ButtonClickAll_Click(sender As Object, e As EventArgs) Handles ButtonClickAll.Click
+        If IsNothing(Selected_Shape) Then Exit Sub
+
+        If ComboBoxAllXYZ.SelectedIndex = -1 Then
+            MsgBox("Select a direction first.", vbExclamation, "Mask")
+            Exit Sub
+        End If
+
+        If Selected_Shape.MaskedVertices.Count = 0 Then
+            MsgBox("You need at least one masked vertex as reference.", vbExclamation, "Mask")
+            Exit Sub
+        End If
+
+        Dim vertsToProcess As HashSet(Of Integer) = GetDirectionalVerticesFromCurrentMask(ComboBoxAllXYZ.SelectedIndex)
+        If vertsToProcess.Count = 0 Then Exit Sub
+
+        If RadioButton1.Checked Then
+            ' MASK
+            Selected_Shape.MaskedVertices.UnionWith(vertsToProcess)
+        Else
+            ' UNMASK
+            Selected_Shape.MaskedVertices.ExceptWith(vertsToProcess)
+        End If
+
+        Process_render_Changes(False)
+    End Sub
+    Private Function GetDirectionalVerticesFromCurrentMask(directionIndex As Integer) As HashSet(Of Integer)
+        Dim result As New HashSet(Of Integer)
+
+        If IsNothing(Selected_Shape) Then Return result
+        If Selected_Shape.MaskedVertices.Count = 0 Then Return result
+        If IsNothing(Selected_Shape.RelatedNifShape) Then Return result
+        If IsNothing(Selected_Shape.RelatedNifShape.VertexPositions) OrElse Selected_Shape.RelatedNifShape.VertexPositions.Count = 0 Then Return result
+
+        Dim verts = Selected_Shape.RelatedNifShape.VertexPositions
+
+        Dim limit As Single = 0
+        Dim first As Boolean = True
+
+        Select Case directionIndex
+            Case 0 ' Above  -> desde el Z más bajo, todo hacia arriba
+                For Each idx In Selected_Shape.MaskedVertices
+                    Dim v As Single = verts(idx).Z
+                    If first OrElse v < limit Then
+                        limit = v
+                        first = False
+                    End If
+                Next
+
+                For i = 0 To verts.Count - 1
+                    If verts(i).Z >= limit Then result.Add(i)
+                Next
+
+            Case 1 ' Below -> desde el Z más alto, todo hacia abajo
+                For Each idx In Selected_Shape.MaskedVertices
+                    Dim v As Single = verts(idx).Z
+                    If first OrElse v > limit Then
+                        limit = v
+                        first = False
+                    End If
+                Next
+
+                For i = 0 To verts.Count - 1
+                    If verts(i).Z <= limit Then result.Add(i)
+                Next
+
+            Case 2 ' Left -> desde el X más a la derecha, todo hacia la izquierda
+                For Each idx In Selected_Shape.MaskedVertices
+                    Dim v As Single = verts(idx).X
+                    If first OrElse v > limit Then
+                        limit = v
+                        first = False
+                    End If
+                Next
+
+                For i = 0 To verts.Count - 1
+                    If verts(i).X <= limit Then result.Add(i)
+                Next
+
+            Case 3 ' Right -> desde el X más a la izquierda, todo hacia la derecha
+                For Each idx In Selected_Shape.MaskedVertices
+                    Dim v As Single = verts(idx).X
+                    If first OrElse v < limit Then
+                        limit = v
+                        first = False
+                    End If
+                Next
+
+                For i = 0 To verts.Count - 1
+                    If verts(i).X >= limit Then result.Add(i)
+                Next
+
+            Case 4 ' Front -> desde el Y más atrás, todo hacia delante
+                For Each idx In Selected_Shape.MaskedVertices
+                    Dim v As Single = verts(idx).Y
+                    If first OrElse v < limit Then
+                        limit = v
+                        first = False
+                    End If
+                Next
+
+                For i = 0 To verts.Count - 1
+                    If verts(i).Y >= limit Then result.Add(i)
+                Next
+
+            Case 5 ' Back -> desde el Y más adelante, todo hacia atrás
+                For Each idx In Selected_Shape.MaskedVertices
+                    Dim v As Single = verts(idx).Y
+                    If first OrElse v > limit Then
+                        limit = v
+                        first = False
+                    End If
+                Next
+
+                For i = 0 To verts.Count - 1
+                    If verts(i).Y <= limit Then result.Add(i)
+                Next
+        End Select
+
+        Return result
+    End Function
 End Class
