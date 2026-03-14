@@ -150,14 +150,18 @@ Public Class Editor_Form
             Selected_Preset.Name = Selected_Combo_Preset.Name
             Selected_Preset.GroupNames = Selected_Combo_Preset.GroupNames.ToList
             Selected_Preset.SetName = Selected_Combo_Preset.SetName
+            Dim nodefault = Selected_Combo_Preset.Sliders.Where(Function(pf) pf.Size = Config_App.SliderSize.Default).Any = False
+            Dim nobig = Selected_Combo_Preset.Sliders.Where(Function(pf) pf.Size = Config_App.SliderSize.Big).Any = False
+            Dim nosmall = Selected_Combo_Preset.Sliders.Where(Function(pf) pf.Size = Config_App.SliderSize.Small).Any = False
             For Each slid In Selected_Combo_Preset.Sliders
                 If IsNothing(Selected_Preset.Sliders.Find(Function(pf) pf.Name = slid.Name)) = False Then
                     Dim sli0 As PresetSlider_Class = Selected_Preset.Sliders.Where(Function(pf) pf.Name = slid.Name And pf.Size = Config_App.SliderSize.Default).FirstOrDefault
-                    If Not IsNothing(sli0) And slid.Size = Config_App.SliderSize.Default Then sli0.Value = slid.Value
+
+                    If Not IsNothing(sli0) And slid.Size = define_cual_size(Config_App.SliderSize.Default, nodefault, nobig, nosmall) Then sli0.Value = slid.Value
                     Dim sli As PresetSlider_Class = Selected_Preset.Sliders.Where(Function(pf) pf.Name = slid.Name And pf.Size = Config_App.SliderSize.Big).FirstOrDefault
-                    If Not IsNothing(sli) And slid.Size = Config_App.SliderSize.Big Then sli.Value = slid.Value
+                    If Not IsNothing(sli) And slid.Size = define_cual_size(Config_App.SliderSize.Big, nodefault, nobig, nosmall) Then sli.Value = slid.Value
                     Dim sli2 As PresetSlider_Class = Selected_Preset.Sliders.Where(Function(pf) pf.Name = slid.Name And pf.Size = Config_App.SliderSize.Small).FirstOrDefault
-                    If Not IsNothing(sli2) And slid.Size = Config_App.SliderSize.Small Then sli2.Value = slid.Value
+                    If Not IsNothing(sli2) And slid.Size = define_cual_size(Config_App.SliderSize.Small, nodefault, nobig, nosmall) Then sli2.Value = slid.Value
                 Else
                     Dim sli As New PresetSlider_Class With {.Name = slid.Name, .DisplayName = slid.Name, .Value = slid.Value, .Category = Slid_cat, .Size = slid.Size}
                     Selected_Preset.Sliders.Add(sli)
@@ -169,6 +173,26 @@ Public Class Editor_Form
         Habilita_Preset_Botones(False)
         Pone_SLiders()
     End Sub
+    Private Function define_cual_size(target As Config_App.SliderSize, nodefault As Boolean, nobig As Boolean, nosmall As Boolean) As Config_App.SliderSize
+        Select Case target
+            Case Config_App.SliderSize.Default
+                If nodefault = False Then Return Config_App.SliderSize.Default
+                If nobig = False Then Return Config_App.SliderSize.Big
+                If nosmall = False Then Return Config_App.SliderSize.Small
+                Return Config_App.SliderSize.Default
+            Case Config_App.SliderSize.Big
+                If nobig = False Then Return Config_App.SliderSize.Big
+                If nodefault = False Then Return Config_App.SliderSize.Default
+                If nosmall = False Then Return Config_App.SliderSize.Small
+                Return Config_App.SliderSize.Big
+            Case Config_App.SliderSize.Small
+                If nosmall = False Then Return Config_App.SliderSize.Small
+                If nodefault = False Then Return Config_App.SliderSize.Default
+                If nobig = False Then Return Config_App.SliderSize.Big
+                Return Config_App.SliderSize.Small
+        End Select
+        Return target
+    End Function
 
     Private Sub Habilita_Preset_Botones(Opcion As Boolean)
         ButtondelPreset.Enabled = Not Opcion
