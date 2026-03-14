@@ -252,34 +252,50 @@ Public Class SliderPresetCollection
             End Try
         Next
     End Sub
-    Public Sub LoadCategories(xmlPath As String)
+    Public Sub LoadCategories(xmlFolder As String)
         ' Carga el documento XML
         Categories.Clear()
-        If IO.File.Exists(xmlPath) = False Then Exit Sub
-        Try
-            Dim rawXml As String = IO.File.ReadAllText(xmlPath)
-            ' Arreglar posibles errores de formato: insertar espacio antes de 'displayname'
-            rawXml = rawXml.Replace("""displayname", """ displayname")
+        If IO.Directory.Exists(xmlFolder) = False Then Exit Sub
+        Dim files = FilesDictionary_class.EnumerateFilesWithSymlinkSupport(xmlFolder, "*.xml", False).ToList
+        For Each xmlPath In files
+            Try
+                Dim rawXml As String = IO.File.ReadAllText(xmlPath)
+                ' Arreglar posibles errores de formato: insertar espacio antes de 'displayname'
+                rawXml = rawXml.Replace("""displayname", """ displayname")
 
-            ' Cargar el documento desde el string corregido
-            Dim doc As XDocument = XDocument.Parse(rawXml)
+                ' Cargar el documento desde el string corregido
+                Dim doc As XDocument = XDocument.Parse(rawXml)
 
-            ' Recorre cada elemento <Category>
-            For Each categoryElem As XElement In doc.Root.Elements("Category")
-                Dim categoryName As String = CStr(categoryElem.Attribute("name").Value)
-                Dim sliderNames As New List(Of String())()
+                ' Recorre cada elemento <Category>
+                For Each categoryElem As XElement In doc.Root.Elements("Category")
+                    Dim categoryName As String = CStr(categoryElem.Attribute("name").Value)
+                    Dim sliderNames As New List(Of String())()
+                    If Categories.TryGetValue(categoryName, sliderNames) = False Then
+                        sliderNames = New List(Of String())()
+                        Categories.Add(categoryName, sliderNames)
+                    Else
+                        sliderNames = Categories(categoryName)
+                    End If
 
-                ' Agrega cada atributo "name" de <Slider>
-                For Each sliderElem As XElement In categoryElem.Elements("Slider")
-                    Dim sliderName As String() = {CStr(sliderElem.Attribute("name").Value), CStr(sliderElem.Attribute("displayname").Value)}
-                    sliderNames.Add(sliderName)
+                    ' Agrega cada atributo "name" de <Slider>
+                    For Each sliderElem As XElement In categoryElem.Elements("Slider")
+                        Dim valname As String = CStr(sliderElem.Attribute("name").Value)
+                        Dim valdisplay As String = CStr(sliderElem.Attribute("displayname").Value)
+                        Dim sliderName As String() = {valname, valdisplay}
+                        If sliderNames.Count > 0 AndAlso sliderNames.Where(Function(pf) valname.ToUpper.Equals(pf(0).ToUpper) = True).Any Then
+                            sliderName = sliderNames.Where(Function(pf) valname.ToUpper.Equals(pf(0).ToUpper) = True).First
+                            sliderName(1) = valdisplay
+                        Else
+                            sliderNames.Add(sliderName)
+                        End If
+
+                    Next
+
                 Next
-
-                Categories.Add(categoryName, sliderNames)
-            Next
-        Catch ex As Exception
-            MsgBox("Error reading Category file " + xmlPath, vbCritical, "Error")
-        End Try
+            Catch ex As Exception
+                MsgBox("Error reading Category file " + xmlPath, vbCritical, "Error")
+            End Try
+        Next
 
     End Sub
 
