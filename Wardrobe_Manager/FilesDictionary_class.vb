@@ -18,10 +18,8 @@ Public Class FilesDictionary_class
     Public Shared Property MaterialsDictionary_Filter As New FilesDictionary_class.DictionaryFilePickerConfig With {.DictionaryProvider = Function() FilesDictionary_class.Dictionary, .RootPrefix = "Materials\", .AllowedExtensions = New HashSet(Of String)(StringComparer.OrdinalIgnoreCase) From {".bgsm", ".bgem"}}
     Public Shared Property MaterialsDictionary_BGEM_Filter As New FilesDictionary_class.DictionaryFilePickerConfig With {.DictionaryProvider = Function() FilesDictionary_class.Dictionary, .RootPrefix = "Materials\", .AllowedExtensions = New HashSet(Of String)(StringComparer.OrdinalIgnoreCase) From {".bgem"}}
     Public Shared Property MaterialsDictionary_BGSM_Filter As New FilesDictionary_class.DictionaryFilePickerConfig With {.DictionaryProvider = Function() FilesDictionary_class.Dictionary, .RootPrefix = "Materials\", .AllowedExtensions = New HashSet(Of String)(StringComparer.OrdinalIgnoreCase) From {".bgsm"}}
-
     Public Shared Property MeshesDictionary_Filter As New FilesDictionary_class.DictionaryFilePickerConfig With {.DictionaryProvider = Function() FilesDictionary_class.Dictionary, .RootPrefix = "Meshes\", .AllowedExtensions = New HashSet(Of String)(StringComparer.OrdinalIgnoreCase) From {".nif"}}
     Public Shared Property ALLMeshesDictionary_Filter As New FilesDictionary_class.DictionaryFilePickerConfig With {.DictionaryProvider = Function() FilesDictionary_class.Dictionary, .RootPrefix = "", .AllowedExtensions = New HashSet(Of String)(StringComparer.OrdinalIgnoreCase) From {".nif"}}
-
     Public Class DictionaryFilePickerConfig
         ' Debe apuntar a tu ConcurrentDictionary(Of String, File_Location)
         Public Property DictionaryProvider As Func(Of ConcurrentDictionary(Of String, FilesDictionary_class.File_Location))
@@ -97,7 +95,7 @@ Public Class FilesDictionary_class
     Private Shared _fO4Path As String = ""
     Private Shared _dictionary As New ConcurrentDictionary(Of String, File_Location)(StringComparer.OrdinalIgnoreCase)
     Private Shared ReadOnly Extensiones As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase) From {".dds", ".bgsm", ".bgem", ".nif", ".tri"}
-
+    Private Shared _HighHeels_Plugin_Values As New HighHeels_Plugins_values
 
 
     Public Shared Function GetBytes(File As String) As Byte()
@@ -130,6 +128,14 @@ Public Class FilesDictionary_class
     Private Shared totalCount As Integer
     Private Shared completed As Integer
 
+    Public Shared Property HighHeels_Plugin_Value As HighHeels_Plugins_values
+        Get
+            Return _HighHeels_Plugin_Values
+        End Get
+        Set(value As HighHeels_Plugins_values)
+            _HighHeels_Plugin_Values = value
+        End Set
+    End Property
     Public Shared Property SliderPresets As SliderPresetCollection
         Get
             Return _sliderPresets
