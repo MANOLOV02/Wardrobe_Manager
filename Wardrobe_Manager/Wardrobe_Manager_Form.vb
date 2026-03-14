@@ -89,7 +89,7 @@ Public Class Wardrobe_Manager_Form
         End Property
         Public Shared ReadOnly Property CBBESliderCategories As String
             Get
-                Return IO.Path.Combine(Config_App.Current.BsPath, "SliderCategories\CBBE.xml")
+                Return IO.Path.Combine(Config_App.Current.BsPath, "SliderCategories")
             End Get
         End Property
         Public Shared ReadOnly Property SkeletonPath As String
