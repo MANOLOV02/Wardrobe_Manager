@@ -35,15 +35,15 @@ Public Class BuildingForm
             Try
                 Dim NodoClone = DummyOSP.xml.ImportNode(sliderset_target.Nodo.Clone, True)
                 Dim builder As New SliderSet_Class(NodoClone, DummyOSP)
-                OSP_Project_Class.Load_and_Check_Shapedata(sliderset_target)
+                OSP_Project_Class.Load_and_Check_Shapedata(sliderset_target, True)
 
                 Dim size As Config_App.SliderSize = Config_App.SliderSize.Default
                 For Sizecount = 0 To CInt(IIf(sliderset_target.Multisize, 1, 0))
                     ProgressBar1.Value = 0
                     ProgressBar1.Maximum = (builder.Shapes.Count * 5 + 5)
-                    OSP_Project_Class.Load_and_CHeck_Project(builder, False)
+                    OSP_Project_Class.Load_and_CHeck_Project(builder, False, True)
                     ProgressBar1.Value += 1
-                    OSP_Project_Class.Load_and_Check_Shapedata(builder)
+                    OSP_Project_Class.Load_and_Check_Shapedata(builder, True)
                     builder.HighHeelHeight = sliderset_target.HighHeelHeight
                     Skeleton_Class.PrepareSkeletonForShapes(builder.Shapes, If(has_pose, _Pose, Nothing))
                     ProgressBar1.Value += 1

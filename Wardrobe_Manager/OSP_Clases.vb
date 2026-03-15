@@ -533,7 +533,7 @@ Public Class OSP_Project_Class
     End Function
     Public Function AddProject(ByRef Template As SliderSet_Class) As SliderSet_Class
         Dim Sliderset_Target = New SliderSet_Class(Me.xml.DocumentElement.AppendChild(Me.xml.ImportNode(Template.Nodo.Clone, True)), Me)
-        Load_and_CHeck_Project(Sliderset_Target, True)
+        Load_and_CHeck_Project(Sliderset_Target, True, True)
         SliderSets.Add(Sliderset_Target)
         Return Sliderset_Target
     End Function
@@ -750,7 +750,7 @@ Public Class OSP_Project_Class
             Return False
         End Get
     End Property
-    Public Shared Function Load_and_Check_Shapedata(ByRef Sliderset_Target As SliderSet_Class) As Boolean
+    Public Shared Function Load_and_Check_Shapedata(ByRef Sliderset_Target As SliderSet_Class, verbose As Boolean) As Boolean
         Try
             If Sliderset_Target.Unreadable_NIF Then Return False
 
@@ -766,14 +766,14 @@ Public Class OSP_Project_Class
             If Sliderset_Target.Sliders.SelectMany(Function(pf) pf.Datas).Select(Function(pf) (pf.Nombre.ToLower + pf.ParentSlider.Nombre.ToLower)).GroupBy(Function(key) key).Any(Function(g) g.Count() > 1) Then Throw New Exception("Duplicated Slider Data")
         Catch ex As Exception
             Sliderset_Target.Unreadable_NIF = True
-            MsgBox("Error reading shapedata from project: " + Sliderset_Target.Nombre + " " + ex.Message.ToString, vbCritical + vbOK, "Error")
+            If verbose Then MsgBox("Error reading shapedata from project: " + Sliderset_Target.Nombre + " " + ex.Message.ToString, vbCritical + vbOK, "Error")
             Return False
         End Try
         Return True
     End Function
 
 
-    Public Shared Function Load_and_CHeck_Project(ByRef Sliderset_Target As SliderSet_Class, Deep_Analize As Boolean) As Boolean
+    Public Shared Function Load_and_CHeck_Project(ByRef Sliderset_Target As SliderSet_Class, Deep_Analize As Boolean, verbose As Boolean) As Boolean
         Dim nombre As String = "(Sin Nombre)"
         If Sliderset_Target.Unreadable_Project Then Return False
 
@@ -790,12 +790,12 @@ Public Class OSP_Project_Class
             'If Sliderset_Target.Shapes.Where(Function(pf) pf.Nombre <> pf.Target).Count > 1 Then Throw New Exception("Shape name and target doesnt match")
         Catch ex As Exception
             Sliderset_Target.Unreadable_Project = True
-            MsgBox("Error reading project: " + nombre + " " + ex.Message.ToString, vbCritical + vbOK, "Error")
+            If verbose Then MsgBox("Error reading project: " + nombre + " " + ex.Message.ToString, vbCritical + vbOK, "Error")
             Return False
         End Try
 
         ''ESTO LO HACE LENTO PERO SIRVE PARA CONTROLLAR
-        If Deep_Analize Then Return OSP_Project_Class.Load_and_Check_Shapedata(Sliderset_Target)
+        If Deep_Analize Then Return OSP_Project_Class.Load_and_Check_Shapedata(Sliderset_Target, verbose)
         Return True
     End Function
     Public Sub Lee_Slidersets(Deep_Analize As Boolean)
@@ -809,7 +809,7 @@ Public Class OSP_Project_Class
                 Else
                     Sliderset_target = New SliderSet_Class(Sset, Me)
                 End If
-                Load_and_CHeck_Project(Sliderset_target, Deep_Analize)
+                Load_and_CHeck_Project(Sliderset_target, Deep_Analize, True)
                 SliderSets.Add(Sliderset_target)
             Next
 
@@ -884,7 +884,7 @@ Public Class OSP_Project_Class
     Public Shared Function Merge_Proyecto(Sliderset_Madre As SliderSet_Class, Sliderset_Source As SliderSet_Class, ExcludeReference As Boolean, OverwriteShapeFiles As Boolean, Clone_Materials As Boolean, Keep_Physics As Boolean) As SliderSet_Class
         ' Add project and update
         Dim Sliderset_Target = New SliderSet_Class(Sliderset_Madre.ParentOSP.xml.ImportNode(Sliderset_Source.Nodo.Clone, True), Sliderset_Madre.ParentOSP)
-        If OSP_Project_Class.Load_and_CHeck_Project(Sliderset_Target, True) = False Then Return Nothing
+        If OSP_Project_Class.Load_and_CHeck_Project(Sliderset_Target, True, True) = False Then Return Nothing
 
         If Sliderset_Source.HighHeelHeight <> 0 Then If Sliderset_Madre.IsHighHeel = 0 Or Sliderset_Madre.HighHeelHeight = Sliderset_Source.HighHeelHeight Then Sliderset_Madre.HighHeelHeight = Sliderset_Source.HighHeelHeight Else Sliderset_Madre.HighHeelHeight = Math.Max(Sliderset_Madre.HighHeelHeight, Sliderset_Source.HighHeelHeight) : MsgBox("Different High Heels setup. Higher assumed", vbInformation, "Warning")
 
@@ -1319,7 +1319,7 @@ Public Class SliderSet_Class
         If Me.OsdLocalFullPath.Any Then Oldosd = Me.OsdLocalFullPath.First
 
         ' Carga OSD y NIF
-        OSP_Project_Class.Load_and_Check_Shapedata(Me)
+        OSP_Project_Class.Load_and_Check_Shapedata(Me, True)
 
         Me.Nombre = Nombre
         Me.DataFolderValue = Pack.ToString

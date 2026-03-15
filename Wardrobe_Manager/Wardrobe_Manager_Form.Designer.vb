@@ -46,8 +46,8 @@ Partial Class Wardrobe_Manager_Form
         GroupBox1 = New GroupBox()
         RadioButton3 = New RadioButton()
         Physics_Label = New Label()
-        Button3 = New Button()
-        Button2 = New Button()
+        ButtonDataSheetSelected = New Button()
+        ButtonPreviewSelected = New Button()
         Panel_Preview_Container = New Panel()
         Label6 = New Label()
         RadioButton2 = New RadioButton()
@@ -55,7 +55,7 @@ Partial Class Wardrobe_Manager_Form
         TableLayoutPanel1 = New TableLayoutPanel()
         RecalculateNormalsCheck = New CheckBox()
         SingleBoneCheck = New CheckBox()
-        Button4 = New Button()
+        ButtonOpenConfig = New Button()
         PhysicsCheckbox = New CheckBox()
         CloneMaterialsCheck = New CheckBox()
         OutputDirChangeCheck = New CheckBox()
@@ -91,7 +91,7 @@ Partial Class Wardrobe_Manager_Form
         ColumnHeader2 = New ColumnHeader()
         GroupBox3 = New GroupBox()
         TableLayoutPanel3 = New TableLayoutPanel()
-        Button1 = New Button()
+        ButtonCreateFromNif = New Button()
         ButtonDeleteSource = New Button()
         MergeInSelectedButton = New Button()
         CopytoPackButton = New Button()
@@ -106,9 +106,9 @@ Partial Class Wardrobe_Manager_Form
         Panel3 = New Panel()
         ComboBoxSize = New ComboBox()
         TableLayoutPanel4 = New TableLayoutPanel()
-        Button7 = New Button()
-        Button6 = New Button()
-        Button5 = New Button()
+        ButtonLightRigSettings = New Button()
+        ButtonLeftPanel = New Button()
+        ButtonRightPanel = New Button()
         ColorComboBox1 = New ColorComboBox()
         ProgressBar1 = New ProgressBar()
         Label4 = New Label()
@@ -359,8 +359,8 @@ Partial Class Wardrobe_Manager_Form
         ' 
         GroupBox1.Controls.Add(RadioButton3)
         GroupBox1.Controls.Add(Physics_Label)
-        GroupBox1.Controls.Add(Button3)
-        GroupBox1.Controls.Add(Button2)
+        GroupBox1.Controls.Add(ButtonDataSheetSelected)
+        GroupBox1.Controls.Add(ButtonPreviewSelected)
         GroupBox1.Controls.Add(Panel_Preview_Container)
         GroupBox1.Controls.Add(Label6)
         GroupBox1.Controls.Add(RadioButton2)
@@ -401,24 +401,24 @@ Partial Class Wardrobe_Manager_Form
         ' 
         ' Button3
         ' 
-        Button3.Location = New Point(83, 46)
-        Button3.Name = "Button3"
-        Button3.Size = New Size(72, 22)
-        Button3.TabIndex = 38
-        Button3.Text = "Data"
-        ToolTip1.SetToolTip(Button3, "Show project data instead of the 3D preview.")
-        Button3.UseVisualStyleBackColor = True
+        ButtonDataSheetSelected.Location = New Point(83, 46)
+        ButtonDataSheetSelected.Name = "Button3"
+        ButtonDataSheetSelected.Size = New Size(72, 22)
+        ButtonDataSheetSelected.TabIndex = 38
+        ButtonDataSheetSelected.Text = "Data"
+        ToolTip1.SetToolTip(ButtonDataSheetSelected, "Show project data instead of the 3D preview.")
+        ButtonDataSheetSelected.UseVisualStyleBackColor = True
         ' 
         ' Button2
         ' 
-        Button2.FlatStyle = FlatStyle.Flat
-        Button2.Location = New Point(5, 46)
-        Button2.Name = "Button2"
-        Button2.Size = New Size(72, 22)
-        Button2.TabIndex = 37
-        Button2.Text = "Preview"
-        ToolTip1.SetToolTip(Button2, "Show the 3D preview for the selected project.")
-        Button2.UseVisualStyleBackColor = True
+        ButtonPreviewSelected.FlatStyle = FlatStyle.Flat
+        ButtonPreviewSelected.Location = New Point(5, 46)
+        ButtonPreviewSelected.Name = "Button2"
+        ButtonPreviewSelected.Size = New Size(72, 22)
+        ButtonPreviewSelected.TabIndex = 37
+        ButtonPreviewSelected.Text = "Preview"
+        ToolTip1.SetToolTip(ButtonPreviewSelected, "Show the 3D preview for the selected project.")
+        ButtonPreviewSelected.UseVisualStyleBackColor = True
         ' 
         ' Panel_Preview_Container
         ' 
@@ -474,7 +474,7 @@ Partial Class Wardrobe_Manager_Form
         TableLayoutPanel1.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 33.3333359F))
         TableLayoutPanel1.Controls.Add(RecalculateNormalsCheck, 1, 2)
         TableLayoutPanel1.Controls.Add(SingleBoneCheck, 2, 2)
-        TableLayoutPanel1.Controls.Add(Button4, 0, 2)
+        TableLayoutPanel1.Controls.Add(ButtonOpenConfig, 0, 2)
         TableLayoutPanel1.Controls.Add(Exclude_Reference_Checkbox, 0, 0)
         TableLayoutPanel1.Controls.Add(PhysicsCheckbox, 1, 0)
         TableLayoutPanel1.Controls.Add(CloneMaterialsCheck, 2, 0)
@@ -520,19 +520,19 @@ Partial Class Wardrobe_Manager_Form
         ' 
         ' Button4
         ' 
-        Button4.Dock = DockStyle.Fill
-        Button4.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
-        Button4.ImageAlign = ContentAlignment.MiddleLeft
-        Button4.ImageIndex = 12
-        Button4.ImageList = ImageList1
-        Button4.Location = New Point(3, 71)
-        Button4.Name = "Button4"
-        Button4.Size = New Size(189, 29)
-        Button4.TabIndex = 7
-        Button4.Text = "Settings"
-        Button4.TextImageRelation = TextImageRelation.ImageBeforeText
-        ToolTip1.SetToolTip(Button4, "Open application settings, paths, build options, and rendering options.")
-        Button4.UseVisualStyleBackColor = True
+        ButtonOpenConfig.Dock = DockStyle.Fill
+        ButtonOpenConfig.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
+        ButtonOpenConfig.ImageAlign = ContentAlignment.MiddleLeft
+        ButtonOpenConfig.ImageIndex = 12
+        ButtonOpenConfig.ImageList = ImageList1
+        ButtonOpenConfig.Location = New Point(3, 71)
+        ButtonOpenConfig.Name = "Button4"
+        ButtonOpenConfig.Size = New Size(189, 29)
+        ButtonOpenConfig.TabIndex = 7
+        ButtonOpenConfig.Text = "Settings"
+        ButtonOpenConfig.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ButtonOpenConfig, "Open application settings, paths, build options, and rendering options.")
+        ButtonOpenConfig.UseVisualStyleBackColor = True
         ' 
         ' PhysicsCheckbox
         ' 
@@ -1001,7 +1001,7 @@ Partial Class Wardrobe_Manager_Form
         TableLayoutPanel3.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 33.3333321F))
         TableLayoutPanel3.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 33.3333321F))
         TableLayoutPanel3.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 33.3333321F))
-        TableLayoutPanel3.Controls.Add(Button1, 2, 2)
+        TableLayoutPanel3.Controls.Add(ButtonCreateFromNif, 2, 2)
         TableLayoutPanel3.Controls.Add(ButtonDeleteSource, 2, 1)
         TableLayoutPanel3.Controls.Add(MergeInSelectedButton, 2, 0)
         TableLayoutPanel3.Controls.Add(CopytoPackButton, 0, 0)
@@ -1022,19 +1022,19 @@ Partial Class Wardrobe_Manager_Form
         ' 
         ' Button1
         ' 
-        Button1.Dock = DockStyle.Fill
-        Button1.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
-        Button1.ImageAlign = ContentAlignment.MiddleLeft
-        Button1.ImageIndex = 8
-        Button1.ImageList = ImageList1
-        Button1.Location = New Point(427, 71)
-        Button1.Name = "Button1"
-        Button1.Size = New Size(208, 29)
-        Button1.TabIndex = 10
-        Button1.Text = "Create from NIF"
-        Button1.TextImageRelation = TextImageRelation.ImageBeforeText
-        ToolTip1.SetToolTip(Button1, "Create a new project from a NIF file and optionally import sliders from a TRI file.")
-        Button1.UseVisualStyleBackColor = True
+        ButtonCreateFromNif.Dock = DockStyle.Fill
+        ButtonCreateFromNif.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
+        ButtonCreateFromNif.ImageAlign = ContentAlignment.MiddleLeft
+        ButtonCreateFromNif.ImageIndex = 8
+        ButtonCreateFromNif.ImageList = ImageList1
+        ButtonCreateFromNif.Location = New Point(427, 71)
+        ButtonCreateFromNif.Name = "Button1"
+        ButtonCreateFromNif.Size = New Size(208, 29)
+        ButtonCreateFromNif.TabIndex = 10
+        ButtonCreateFromNif.Text = "Create from NIF"
+        ButtonCreateFromNif.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ButtonCreateFromNif, "Create a new project from a NIF file and optionally import sliders from a TRI file.")
+        ButtonCreateFromNif.UseVisualStyleBackColor = True
         ' 
         ' ButtonDeleteSource
         ' 
@@ -1276,9 +1276,9 @@ Partial Class Wardrobe_Manager_Form
         TableLayoutPanel4.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
         TableLayoutPanel4.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
         TableLayoutPanel4.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
-        TableLayoutPanel4.Controls.Add(Button7, 2, 0)
-        TableLayoutPanel4.Controls.Add(Button6, 0, 0)
-        TableLayoutPanel4.Controls.Add(Button5, 3, 0)
+        TableLayoutPanel4.Controls.Add(ButtonLightRigSettings, 2, 0)
+        TableLayoutPanel4.Controls.Add(ButtonLeftPanel, 0, 0)
+        TableLayoutPanel4.Controls.Add(ButtonRightPanel, 3, 0)
         TableLayoutPanel4.Controls.Add(ColorComboBox1, 1, 0)
         TableLayoutPanel4.Dock = DockStyle.Bottom
         TableLayoutPanel4.Location = New Point(0, 114)
@@ -1290,54 +1290,54 @@ Partial Class Wardrobe_Manager_Form
         ' 
         ' Button7
         ' 
-        Button7.Dock = DockStyle.Fill
-        Button7.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
-        Button7.ImageAlign = ContentAlignment.MiddleLeft
-        Button7.ImageIndex = 16
-        Button7.ImageList = ImageList1
-        Button7.Location = New Point(299, 3)
-        Button7.Name = "Button7"
-        Button7.Size = New Size(142, 28)
-        Button7.TabIndex = 46
-        Button7.Text = "Lights"
-        Button7.TextAlign = ContentAlignment.MiddleRight
-        Button7.TextImageRelation = TextImageRelation.ImageBeforeText
-        ToolTip1.SetToolTip(Button7, "Open preview light rig settings.")
-        Button7.UseVisualStyleBackColor = True
+        ButtonLightRigSettings.Dock = DockStyle.Fill
+        ButtonLightRigSettings.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
+        ButtonLightRigSettings.ImageAlign = ContentAlignment.MiddleLeft
+        ButtonLightRigSettings.ImageIndex = 16
+        ButtonLightRigSettings.ImageList = ImageList1
+        ButtonLightRigSettings.Location = New Point(299, 3)
+        ButtonLightRigSettings.Name = "Button7"
+        ButtonLightRigSettings.Size = New Size(142, 28)
+        ButtonLightRigSettings.TabIndex = 46
+        ButtonLightRigSettings.Text = "Lights"
+        ButtonLightRigSettings.TextAlign = ContentAlignment.MiddleRight
+        ButtonLightRigSettings.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ButtonLightRigSettings, "Open preview light rig settings.")
+        ButtonLightRigSettings.UseVisualStyleBackColor = True
         ' 
         ' Button6
         ' 
-        Button6.Dock = DockStyle.Fill
-        Button6.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
-        Button6.ImageAlign = ContentAlignment.MiddleLeft
-        Button6.ImageIndex = 15
-        Button6.ImageList = ImageList1
-        Button6.Location = New Point(3, 3)
-        Button6.Name = "Button6"
-        Button6.Size = New Size(142, 28)
-        Button6.TabIndex = 43
-        Button6.Text = "Left panel"
-        Button6.TextAlign = ContentAlignment.MiddleLeft
-        Button6.TextImageRelation = TextImageRelation.ImageBeforeText
-        ToolTip1.SetToolTip(Button6, "Collapse or expand the left-side panel.")
-        Button6.UseVisualStyleBackColor = True
+        ButtonLeftPanel.Dock = DockStyle.Fill
+        ButtonLeftPanel.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
+        ButtonLeftPanel.ImageAlign = ContentAlignment.MiddleLeft
+        ButtonLeftPanel.ImageIndex = 15
+        ButtonLeftPanel.ImageList = ImageList1
+        ButtonLeftPanel.Location = New Point(3, 3)
+        ButtonLeftPanel.Name = "Button6"
+        ButtonLeftPanel.Size = New Size(142, 28)
+        ButtonLeftPanel.TabIndex = 43
+        ButtonLeftPanel.Text = "Left panel"
+        ButtonLeftPanel.TextAlign = ContentAlignment.MiddleLeft
+        ButtonLeftPanel.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ButtonLeftPanel, "Collapse or expand the left-side panel.")
+        ButtonLeftPanel.UseVisualStyleBackColor = True
         ' 
         ' Button5
         ' 
-        Button5.Dock = DockStyle.Fill
-        Button5.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
-        Button5.ImageAlign = ContentAlignment.MiddleLeft
-        Button5.ImageIndex = 15
-        Button5.ImageList = ImageList1
-        Button5.Location = New Point(447, 3)
-        Button5.Name = "Button5"
-        Button5.Size = New Size(142, 28)
-        Button5.TabIndex = 44
-        Button5.Text = "Right panel"
-        Button5.TextAlign = ContentAlignment.MiddleRight
-        Button5.TextImageRelation = TextImageRelation.ImageBeforeText
-        ToolTip1.SetToolTip(Button5, "Collapse or expand the right-side panel.")
-        Button5.UseVisualStyleBackColor = True
+        ButtonRightPanel.Dock = DockStyle.Fill
+        ButtonRightPanel.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
+        ButtonRightPanel.ImageAlign = ContentAlignment.MiddleLeft
+        ButtonRightPanel.ImageIndex = 15
+        ButtonRightPanel.ImageList = ImageList1
+        ButtonRightPanel.Location = New Point(447, 3)
+        ButtonRightPanel.Name = "Button5"
+        ButtonRightPanel.Size = New Size(142, 28)
+        ButtonRightPanel.TabIndex = 44
+        ButtonRightPanel.Text = "Right panel"
+        ButtonRightPanel.TextAlign = ContentAlignment.MiddleRight
+        ButtonRightPanel.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ButtonRightPanel, "Collapse or expand the right-side panel.")
+        ButtonRightPanel.UseVisualStyleBackColor = True
         ' 
         ' ColorComboBox1
         ' 
@@ -1561,8 +1561,8 @@ Partial Class Wardrobe_Manager_Form
     Friend WithEvents GroupBox2 As GroupBox
     Friend WithEvents ButtonDelete As Button
     Friend WithEvents OutputDirChangeCheck As CheckBox
-    Friend WithEvents Button3 As Button
-    Friend WithEvents Button2 As Button
+    Friend WithEvents ButtonDataSheetSelected As Button
+    Friend WithEvents ButtonPreviewSelected As Button
     Friend WithEvents Physics_Label As Label
     Friend WithEvents PhysicsCheckbox As CheckBox
     Friend WithEvents Label7 As Label
@@ -1610,21 +1610,21 @@ Partial Class Wardrobe_Manager_Form
     Friend WithEvents ButtonEditInternally As Button
     Friend WithEvents ButtonSourceInternalEdit As Button
     Friend WithEvents ButtonBuildFullPack As Button
-    Friend WithEvents Button4 As Button
+    Friend WithEvents ButtonOpenConfig As Button
     Friend WithEvents ButtonDeleteSource As Button
     Friend WithEvents SingleBoneCheck As CheckBox
-    Friend WithEvents Button1 As Button
+    Friend WithEvents ButtonCreateFromNif As Button
     Friend WithEvents ButtonSkeleton As Button
     Friend WithEvents ComboBoxPoses As ComboBox
     Friend WithEvents Label4 As Label
     Friend WithEvents RecalculateNormalsCheck As CheckBox
-    Friend WithEvents Button5 As Button
-    Friend WithEvents Button6 As Button
+    Friend WithEvents ButtonRightPanel As Button
+    Friend WithEvents ButtonLeftPanel As Button
     Friend WithEvents TableLayoutPanel4 As TableLayoutPanel
     Friend WithEvents ColorComboBox1 As ColorComboBox
     Friend WithEvents ColumnHeader7 As ColumnHeader
     Friend WithEvents ColumnHeader6 As ColumnHeader
-    Friend WithEvents Button7 As Button
+    Friend WithEvents ButtonLightRigSettings As Button
     Friend WithEvents CheckBoxReloadDict As CheckBox
     Friend WithEvents ComboBoxSize As ComboBox
     Friend WithEvents ToolTip1 As ToolTip
