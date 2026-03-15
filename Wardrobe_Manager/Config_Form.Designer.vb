@@ -94,6 +94,7 @@ Partial Class Config_Form
         CheckBoxBuildHH = New CheckBox()
         RadioButtonWMEngine = New RadioButton()
         Label12 = New Label()
+        ToolTip1 = New ToolTip(components)
         GroupBox1.SuspendLayout()
         CType(NumericUpDownUVEps, ComponentModel.ISupportInitialize).BeginInit()
         CType(NumericUpDownPositionEps, ComponentModel.ISupportInitialize).BeginInit()
@@ -921,6 +922,55 @@ Partial Class Config_Form
         Label12.Text = "Build engine:"
         Label12.TextAlign = ContentAlignment.MiddleLeft
         ' 
+        ' Tooltips
+        ' 
+        ToolTip1.SetToolTip(TextBox1, "Path to the game executable.")
+        ToolTip1.SetToolTip(Button1, "Browse for the game executable and auto-detect related tool paths when possible.")
+        ToolTip1.SetToolTip(TextBox2, "Path to the BodySlide executable.")
+        ToolTip1.SetToolTip(Button2, "Browse for the BodySlide executable.")
+        ToolTip1.SetToolTip(TextBox3, "Path to the Outfit Studio executable.")
+        ToolTip1.SetToolTip(Button3, "Browse for the Outfit Studio executable.")
+        ToolTip1.SetToolTip(ListView1, "List of BA2/BSA archives. Checked entries are allowed as clone sources for materials and textures.")
+        ToolTip1.SetToolTip(TextBox4, "Path to the skeleton NIF used for preview and posing.")
+        ToolTip1.SetToolTip(Button4, "Browse for the skeleton NIF.")
+        ToolTip1.SetToolTip(RecalculateNormalsCheck, "Enable normal recalculation during preview and internal rendering.")
+        ToolTip1.SetToolTip(NumericUpDownPositionEps, "Position epsilon used by the normal recalculation and welding logic.")
+        ToolTip1.SetToolTip(SingleBoneCheck, "Use single-bone skinning in rendering and preview.")
+        ToolTip1.SetToolTip(RadioButtonByArea, "Weight normals by triangle area.")
+        ToolTip1.SetToolTip(RadioButtoncombined, "Weight normals by both triangle area and triangle angles.")
+        ToolTip1.SetToolTip(RadioButtonByangles, "Weight normals by triangle angles.")
+        ToolTip1.SetToolTip(NormalsNormalize, "Normalize recalculated tangent-space vectors.")
+        ToolTip1.SetToolTip(NormalsRepairNan, "Repair invalid NaN values found in recalculated tangent-space data.")
+        ToolTip1.SetToolTip(NormalsForceOrthogonal, "Force orthogonal tangent space when recalculating normals.")
+        ToolTip1.SetToolTip(NumericUpDownUVEps, "UV epsilon used by tangent-space and welding operations.")
+        ToolTip1.SetToolTip(CheckBoxWelding, "Temporarily weld matching vertices before recalculating normals.")
+        ToolTip1.SetToolTip(NumericUpDownWeldEpsUv, "UV epsilon used when welding vertices.")
+        ToolTip1.SetToolTip(RadioButtonWeldboth, "Weld vertices only when both position and UVs match.")
+        ToolTip1.SetToolTip(RadioButtonWeldpsonly, "Weld vertices using position only.")
+        ToolTip1.SetToolTip(NumericUpDownWeldEpspos, "Position epsilon used when welding vertices.")
+        ToolTip1.SetToolTip(Button5, "Reset rendering-related settings to defaults.")
+        ToolTip1.SetToolTip(Button6, "Apply the current rendering settings to the project currently shown in the main preview.")
+        ToolTip1.SetToolTip(CheckBoxzoomreset, "Reset the camera zoom to an optimal distance when loading a new project.")
+        ToolTip1.SetToolTip(CheckBoxanglereset, "Reset camera rotation when loading a new project.")
+        ToolTip1.SetToolTip(CheckBoxDeletewithProject, "Delete built files when the related project is deleted.")
+        ToolTip1.SetToolTip(CheckBoxDeleteBefore, "Delete existing built files before building new output.")
+        ToolTip1.SetToolTip(CheckBoxBuildTri, "Build TRI morph files when supported.")
+        ToolTip1.SetToolTip(RadioButtonBSEngine, "Use external BodySlide to build final output.")
+        ToolTip1.SetToolTip(CheckBoxBuildHH, "Build High Heels output files.")
+        ToolTip1.SetToolTip(RadioButtonWMEngine, "Use Wardrobe Manager's internal build engine.")
+        ToolTip1.SetToolTip(Button8, "Delete the saved additional LooksMenu sliders file.")
+        ToolTip1.SetToolTip(Button7, "Reset build settings to defaults.")
+        ToolTip1.SetToolTip(CheckBoxLMASkipManoloFixes, "Skip Wardrobe Manager Fix sliders when exporting additional LooksMenu sliders.")
+        ToolTip1.SetToolTip(CheckBoxLMReseteachBuild, "Reset additional sliders on each build.")
+        ToolTip1.SetToolTip(CheckBoxLMAddAditionals, "Export additional sliders for LooksMenu integration.")
+        ToolTip1.SetToolTip(CheckBoxIgnorePrevent, "Ignore the PreventMorphFile project flag during build.")
+        ToolTip1.SetToolTip(CheckBoxBuildInPose, "Build meshes in the currently selected pose (be carefull, it will have unexpected results on animated game assets).")
+        ToolTip1.SetToolTip(CheckBoxFreeze, "Keep the camera fully frozen when the loaded NIF changes (be sure to uncheck it for different size nifs).")
+        ToolTip1.SetToolTip(ComboBoxGame, "Select the active target game. This affects paths, skeletons, and build logic.")
+        ToolTip1.SetToolTip(RadioButtonAllwaysWeight, "Always build weight output regardless of project settings.")
+        ToolTip1.SetToolTip(RadioButtonNeverWeights, "Never build weight output regardless of project settings.")
+        ToolTip1.SetToolTip(CheckBoxweightignore, "Ignore the project-level weight generation setting and use the option selected here.")
+        ' 
         ' Config_Form
         ' 
         AutoScaleDimensions = New SizeF(7F, 15F)
@@ -1026,4 +1076,5 @@ Partial Class Config_Form
     Friend WithEvents RadioButtonAllwaysWeight As RadioButton
     Friend WithEvents RadioButtonNeverWeights As RadioButton
     Friend WithEvents CheckBoxweightignore As CheckBox
+    Friend WithEvents ToolTip1 As ToolTip
 End Class

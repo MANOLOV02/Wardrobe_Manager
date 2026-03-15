@@ -118,6 +118,7 @@ Partial Class Wardrobe_Manager_Form
         Split_Split_y_Menu_Target = New SplitContainer()
         Split_Panel_y_Lista_target = New SplitContainer()
         Panel4 = New Panel()
+        ToolTip1 = New ToolTip(components)
         GroupBox1.SuspendLayout()
         Panel_Preview_Container.SuspendLayout()
         TableLayoutPanel1.SuspendLayout()
@@ -167,16 +168,17 @@ Partial Class Wardrobe_Manager_Form
         ' 
         ComboboxPacks.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
         ComboboxPacks.DropDownStyle = ComboBoxStyle.DropDownList
-        ComboboxPacks.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ComboboxPacks.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ComboboxPacks.FormattingEnabled = True
         ComboboxPacks.Location = New Point(154, 34)
         ComboboxPacks.Name = "ComboboxPacks"
         ComboboxPacks.Size = New Size(408, 29)
         ComboboxPacks.TabIndex = 1
+        ToolTip1.SetToolTip(ComboboxPacks, "Select the current destination pack. All target operations apply to this pack.")
         ' 
         ' Label1
         ' 
-        Label1.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label1.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Label1.Location = New Point(6, 34)
         Label1.Name = "Label1"
         Label1.Size = New Size(132, 29)
@@ -186,7 +188,7 @@ Partial Class Wardrobe_Manager_Form
         ' 
         ' Label2
         ' 
-        Label2.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label2.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Label2.Location = New Point(0, 4)
         Label2.Name = "Label2"
         Label2.Size = New Size(138, 28)
@@ -197,11 +199,12 @@ Partial Class Wardrobe_Manager_Form
         ' TextBox_SourceName
         ' 
         TextBox_SourceName.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        TextBox_SourceName.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        TextBox_SourceName.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         TextBox_SourceName.Location = New Point(139, 3)
         TextBox_SourceName.Name = "TextBox_SourceName"
         TextBox_SourceName.Size = New Size(451, 29)
         TextBox_SourceName.TabIndex = 0
+        ToolTip1.SetToolTip(TextBox_SourceName, "Filter source projects by name, description, or file.")
         ' 
         ' ImageList1
         ' 
@@ -268,6 +271,7 @@ Partial Class Wardrobe_Manager_Form
         Exclude_Reference_Checkbox.Size = New Size(189, 28)
         Exclude_Reference_Checkbox.TabIndex = 0
         Exclude_Reference_Checkbox.Text = "Exclude reference"
+        ToolTip1.SetToolTip(Exclude_Reference_Checkbox, "When enabled, removes the reference shape while copying or merging projects.")
         Exclude_Reference_Checkbox.UseVisualStyleBackColor = True
         ' 
         ' Ovewrite_DataFiles
@@ -279,17 +283,19 @@ Partial Class Wardrobe_Manager_Form
         Ovewrite_DataFiles.Size = New Size(189, 28)
         Ovewrite_DataFiles.TabIndex = 3
         Ovewrite_DataFiles.Text = "Overwrite files"
+        ToolTip1.SetToolTip(Ovewrite_DataFiles, "Allow existing output files, shapedata, materials, or textures to be overwritten without asking.")
         Ovewrite_DataFiles.UseVisualStyleBackColor = True
         ' 
         ' NewPackButton
         ' 
         NewPackButton.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        NewPackButton.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        NewPackButton.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         NewPackButton.Location = New Point(576, 36)
         NewPackButton.Name = "NewPackButton"
         NewPackButton.Size = New Size(64, 29)
         NewPackButton.TabIndex = 2
         NewPackButton.Text = "New"
+        ToolTip1.SetToolTip(NewPackButton, "Create a new empty Wardrobe Manager pack.")
         NewPackButton.UseVisualStyleBackColor = True
         ' 
         ' ListViewTargets
@@ -301,6 +307,7 @@ Partial Class Wardrobe_Manager_Form
         ListViewTargets.Name = "ListViewTargets"
         ListViewTargets.Size = New Size(646, 820)
         ListViewTargets.TabIndex = 0
+        ToolTip1.SetToolTip(ListViewTargets, "Targets projects loaded from SliderSets. Select one or more projects to copy, merge, edit, or build.")
         ListViewTargets.UseCompatibleStateImageBehavior = False
         ListViewTargets.View = View.Details
         ' 
@@ -333,6 +340,7 @@ Partial Class Wardrobe_Manager_Form
         EditTargetButton.TabIndex = 5
         EditTargetButton.Text = "Edit in OS"
         EditTargetButton.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(EditTargetButton, "Open the selected target project in Outfit Studio.")
         EditTargetButton.UseVisualStyleBackColor = True
         ' 
         ' Auto_Move_Check
@@ -344,6 +352,7 @@ Partial Class Wardrobe_Manager_Form
         Auto_Move_Check.Size = New Size(189, 28)
         Auto_Move_Check.TabIndex = 4
         Auto_Move_Check.Text = "Auto move"
+        ToolTip1.SetToolTip(Auto_Move_Check, "After a successful operation, move processed source projects to the Processed folder automatically.")
         Auto_Move_Check.UseVisualStyleBackColor = True
         ' 
         ' GroupBox1
@@ -374,6 +383,7 @@ Partial Class Wardrobe_Manager_Form
         RadioButton3.TabIndex = 41
         RadioButton3.TabStop = True
         RadioButton3.Text = "Auto"
+        ToolTip1.SetToolTip(RadioButton3, "Automatically show preview and details for the list that currently has focus.")
         RadioButton3.UseVisualStyleBackColor = True
         ' 
         ' Physics_Label
@@ -396,6 +406,7 @@ Partial Class Wardrobe_Manager_Form
         Button3.Size = New Size(72, 22)
         Button3.TabIndex = 38
         Button3.Text = "Data"
+        ToolTip1.SetToolTip(Button3, "Show project data instead of the 3D preview.")
         Button3.UseVisualStyleBackColor = True
         ' 
         ' Button2
@@ -406,6 +417,7 @@ Partial Class Wardrobe_Manager_Form
         Button2.Size = New Size(72, 22)
         Button2.TabIndex = 37
         Button2.Text = "Preview"
+        ToolTip1.SetToolTip(Button2, "Show the 3D preview for the selected project.")
         Button2.UseVisualStyleBackColor = True
         ' 
         ' Panel_Preview_Container
@@ -439,6 +451,7 @@ Partial Class Wardrobe_Manager_Form
         RadioButton2.Size = New Size(58, 19)
         RadioButton2.TabIndex = 14
         RadioButton2.Text = "Target"
+        ToolTip1.SetToolTip(RadioButton2, "Show preview and  details for the selected target project.")
         RadioButton2.UseVisualStyleBackColor = True
         ' 
         ' RadioButton1
@@ -446,9 +459,10 @@ Partial Class Wardrobe_Manager_Form
         RadioButton1.AutoSize = True
         RadioButton1.Location = New Point(5, 21)
         RadioButton1.Name = "RadioButton1"
-        RadioButton1.Size = New Size(60, 19)
+        RadioButton1.Size = New Size(61, 19)
         RadioButton1.TabIndex = 13
-        RadioButton1.Text = "source"
+        RadioButton1.Text = "Source"
+        ToolTip1.SetToolTip(RadioButton1, "Show preview and details for the selected source project.")
         RadioButton1.UseVisualStyleBackColor = True
         ' 
         ' TableLayoutPanel1
@@ -474,7 +488,7 @@ Partial Class Wardrobe_Manager_Form
         TableLayoutPanel1.RowStyles.Add(New RowStyle(SizeType.Percent, 33.3333321F))
         TableLayoutPanel1.RowStyles.Add(New RowStyle(SizeType.Percent, 33.3333321F))
         TableLayoutPanel1.RowStyles.Add(New RowStyle(SizeType.Percent, 33.3333321F))
-        TableLayoutPanel1.RowStyles.Add(New RowStyle(SizeType.Absolute, 20F))
+        TableLayoutPanel1.RowStyles.Add(New RowStyle(SizeType.Absolute, 20.0F))
         TableLayoutPanel1.Size = New Size(586, 103)
         TableLayoutPanel1.TabIndex = 41
         ' 
@@ -489,6 +503,7 @@ Partial Class Wardrobe_Manager_Form
         RecalculateNormalsCheck.Size = New Size(189, 29)
         RecalculateNormalsCheck.TabIndex = 9
         RecalculateNormalsCheck.Text = "Recalculate Normals"
+        ToolTip1.SetToolTip(RecalculateNormalsCheck, "Recalculate normals in preview and building using the current normal reconstruction settings.")
         RecalculateNormalsCheck.UseVisualStyleBackColor = True
         ' 
         ' SingleBoneCheck
@@ -500,6 +515,7 @@ Partial Class Wardrobe_Manager_Form
         SingleBoneCheck.Size = New Size(190, 29)
         SingleBoneCheck.TabIndex = 8
         SingleBoneCheck.Text = "Single bone skinning"
+        ToolTip1.SetToolTip(SingleBoneCheck, "Use single-bone skinning in preview. Faster, more resilient to complex physics, but posing support is not compatible.")
         SingleBoneCheck.UseVisualStyleBackColor = True
         ' 
         ' Button4
@@ -515,6 +531,7 @@ Partial Class Wardrobe_Manager_Form
         Button4.TabIndex = 7
         Button4.Text = "Settings"
         Button4.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(Button4, "Open application settings, paths, build options, and rendering options.")
         Button4.UseVisualStyleBackColor = True
         ' 
         ' PhysicsCheckbox
@@ -528,6 +545,7 @@ Partial Class Wardrobe_Manager_Form
         PhysicsCheckbox.Size = New Size(189, 28)
         PhysicsCheckbox.TabIndex = 1
         PhysicsCheckbox.Text = "Keep physics"
+        ToolTip1.SetToolTip(PhysicsCheckbox, "Keep BSClothExtraData (physics) block during copy and merge operations.")
         PhysicsCheckbox.UseVisualStyleBackColor = True
         ' 
         ' CloneMaterialsCheck
@@ -541,6 +559,7 @@ Partial Class Wardrobe_Manager_Form
         CloneMaterialsCheck.Size = New Size(190, 28)
         CloneMaterialsCheck.TabIndex = 2
         CloneMaterialsCheck.Text = "Clone materials"
+        ToolTip1.SetToolTip(CloneMaterialsCheck, "Clone referenced material and texture files to independent loose files (for ba2 originals must be allowed in settings).")
         CloneMaterialsCheck.UseVisualStyleBackColor = True
         ' 
         ' OutputDirChangeCheck
@@ -554,20 +573,22 @@ Partial Class Wardrobe_Manager_Form
         OutputDirChangeCheck.Size = New Size(190, 28)
         OutputDirChangeCheck.TabIndex = 5
         OutputDirChangeCheck.Text = "Change out dir."
+        ToolTip1.SetToolTip(OutputDirChangeCheck, "Rewrite the output directory to a safe cloned path instead of keeping the original mesh output path (disable it for replacers).")
         OutputDirChangeCheck.UseVisualStyleBackColor = True
         ' 
         ' TextBox_TargetName
         ' 
         TextBox_TargetName.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        TextBox_TargetName.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        TextBox_TargetName.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         TextBox_TargetName.Location = New Point(154, 3)
         TextBox_TargetName.Name = "TextBox_TargetName"
         TextBox_TargetName.Size = New Size(486, 29)
         TextBox_TargetName.TabIndex = 0
+        ToolTip1.SetToolTip(TextBox_TargetName, "Optional name override used when creating or copying target projects.")
         ' 
         ' Label3
         ' 
-        Label3.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label3.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Label3.Location = New Point(6, 3)
         Label3.Name = "Label3"
         Label3.Size = New Size(132, 29)
@@ -624,6 +645,7 @@ Partial Class Wardrobe_Manager_Form
         ButtonBuildFullPack.TabIndex = 8
         ButtonBuildFullPack.Text = "Build full pack"
         ButtonBuildFullPack.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ButtonBuildFullPack, "Build every project currently listed in the selected pack.")
         ButtonBuildFullPack.UseVisualStyleBackColor = True
         ' 
         ' ButtonEditInternally
@@ -640,6 +662,7 @@ Partial Class Wardrobe_Manager_Form
         ButtonEditInternally.TabIndex = 7
         ButtonEditInternally.Text = "Edit internally"
         ButtonEditInternally.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ButtonEditInternally, "Open the selected target project in the internal editor.")
         ButtonEditInternally.UseVisualStyleBackColor = True
         ' 
         ' ButtonBuildSingles
@@ -655,6 +678,7 @@ Partial Class Wardrobe_Manager_Form
         ButtonBuildSingles.TabIndex = 6
         ButtonBuildSingles.Text = "Build"
         ButtonBuildSingles.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ButtonBuildSingles, "Build the selected target projects to final game files.")
         ButtonBuildSingles.UseVisualStyleBackColor = True
         ' 
         ' ButtonDelete
@@ -671,6 +695,7 @@ Partial Class Wardrobe_Manager_Form
         ButtonDelete.TabIndex = 0
         ButtonDelete.Text = "Delete"
         ButtonDelete.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ButtonDelete, "Delete the selected target project from the current pack.")
         ButtonDelete.UseVisualStyleBackColor = True
         ' 
         ' CloneButton
@@ -687,6 +712,7 @@ Partial Class Wardrobe_Manager_Form
         CloneButton.TabIndex = 4
         CloneButton.Text = "Clone target"
         CloneButton.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(CloneButton, "Clone the selected target project inside the current pack.")
         CloneButton.UseVisualStyleBackColor = True
         ' 
         ' RenameButton
@@ -703,6 +729,7 @@ Partial Class Wardrobe_Manager_Form
         RenameButton.TabIndex = 1
         RenameButton.Text = "Rename"
         RenameButton.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(RenameButton, "Rename the selected target project.")
         RenameButton.UseVisualStyleBackColor = True
         ' 
         ' MergeIntoTargetButton
@@ -719,6 +746,7 @@ Partial Class Wardrobe_Manager_Form
         MergeIntoTargetButton.TabIndex = 3
         MergeIntoTargetButton.Text = "Merge sources"
         MergeIntoTargetButton.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(MergeIntoTargetButton, "Merge the selected source projects into the selected target project.")
         MergeIntoTargetButton.UseVisualStyleBackColor = True
         ' 
         ' ExtractSingleButton
@@ -735,11 +763,12 @@ Partial Class Wardrobe_Manager_Form
         ExtractSingleButton.TabIndex = 2
         ExtractSingleButton.Text = "Extract to single"
         ExtractSingleButton.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ExtractSingleButton, "Extract the selected target project into a standalone source project.")
         ExtractSingleButton.UseVisualStyleBackColor = True
         ' 
         ' Label7
         ' 
-        Label7.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label7.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Label7.Location = New Point(0, 36)
         Label7.Name = "Label7"
         Label7.Size = New Size(141, 27)
@@ -751,12 +780,13 @@ Partial Class Wardrobe_Manager_Form
         ' 
         ComboBoxPresets.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
         ComboBoxPresets.DropDownStyle = ComboBoxStyle.DropDownList
-        ComboBoxPresets.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ComboBoxPresets.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ComboBoxPresets.FormattingEnabled = True
         ComboBoxPresets.Location = New Point(138, 34)
         ComboBoxPresets.Name = "ComboBoxPresets"
         ComboBoxPresets.Size = New Size(347, 29)
         ComboBoxPresets.TabIndex = 1
+        ToolTip1.SetToolTip(ComboBoxPresets, "Select the preset sliders applied to preview and building.")
         ' 
         ' SplitPrincipal_1
         ' 
@@ -828,12 +858,13 @@ Partial Class Wardrobe_Manager_Form
         CheckBoxReloadDict.Size = New Size(118, 19)
         CheckBoxReloadDict.TabIndex = 24
         CheckBoxReloadDict.Text = "Reload dictionary"
+        ToolTip1.SetToolTip(CheckBoxReloadDict, "Mark the file dictionary to be rebuilt on the next refresh.")
         CheckBoxReloadDict.UseVisualStyleBackColor = True
         ' 
         ' TextBox2
         ' 
         TextBox2.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        TextBox2.Font = New Font("Segoe UI", 12F, FontStyle.Bold)
+        TextBox2.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold)
         TextBox2.Location = New Point(170, 9)
         TextBox2.Name = "TextBox2"
         TextBox2.Size = New Size(468, 29)
@@ -849,6 +880,7 @@ Partial Class Wardrobe_Manager_Form
         ShowCollectionsCheck.Size = New Size(117, 19)
         ShowCollectionsCheck.TabIndex = 4
         ShowCollectionsCheck.Text = "Show Collections"
+        ToolTip1.SetToolTip(ShowCollectionsCheck, "Show collection-style projects (multiple project osp) in the source list.")
         ShowCollectionsCheck.UseVisualStyleBackColor = True
         ' 
         ' ShowCBBECheck
@@ -859,22 +891,24 @@ Partial Class Wardrobe_Manager_Form
         ShowCBBECheck.Size = New Size(86, 19)
         ShowCBBECheck.TabIndex = 1
         ShowCBBECheck.Text = "Show CBBE"
+        ToolTip1.SetToolTip(ShowCBBECheck, "Show CBBE-related projects (Body and Vanilla outfits) in the source list.")
         ShowCBBECheck.UseVisualStyleBackColor = True
         ' 
         ' RefreshButton
         ' 
         RefreshButton.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        RefreshButton.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        RefreshButton.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         RefreshButton.Location = New Point(286, 44)
         RefreshButton.Name = "RefreshButton"
         RefreshButton.Size = New Size(228, 29)
         RefreshButton.TabIndex = 2
         RefreshButton.Text = "Refresh"
+        ToolTip1.SetToolTip(RefreshButton, "Reload projects, presets, poses, skeleton, and dictionaries from disk.")
         RefreshButton.UseVisualStyleBackColor = True
         ' 
         ' Label5
         ' 
-        Label5.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label5.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Label5.Location = New Point(3, 10)
         Label5.Name = "Label5"
         Label5.Size = New Size(164, 28)
@@ -890,6 +924,7 @@ Partial Class Wardrobe_Manager_Form
         DeepAnalize_check.Size = New Size(95, 19)
         DeepAnalize_check.TabIndex = 5
         DeepAnalize_check.Text = "Deep analyze"
+        ToolTip1.SetToolTip(DeepAnalize_check, "Perform deeper validation when loading projects, including shapedata and OSD consistency checks (very slow).")
         DeepAnalize_check.UseVisualStyleBackColor = True
         ' 
         ' CheckShowpacks
@@ -900,6 +935,7 @@ Partial Class Wardrobe_Manager_Form
         CheckShowpacks.Size = New Size(88, 19)
         CheckShowpacks.TabIndex = 3
         CheckShowpacks.Text = "Show packs"
+        ToolTip1.SetToolTip(CheckShowpacks, "Show Wardrobe Manager pack files also in the source list.")
         CheckShowpacks.UseVisualStyleBackColor = True
         ' 
         ' Split_Panel_y_Lista_Source
@@ -929,6 +965,7 @@ Partial Class Wardrobe_Manager_Form
         ListViewSources.Name = "ListViewSources"
         ListViewSources.Size = New Size(644, 820)
         ListViewSources.TabIndex = 0
+        ToolTip1.SetToolTip(ListViewSources, "Source projects loaded from SliderSets. Select one or more projects to copy, merge, edit, or remove.")
         ListViewSources.UseCompatibleStateImageBehavior = False
         ListViewSources.View = View.Details
         ' 
@@ -996,6 +1033,7 @@ Partial Class Wardrobe_Manager_Form
         Button1.TabIndex = 10
         Button1.Text = "Create from NIF"
         Button1.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(Button1, "Create a new project from a NIF file and optionally import sliders from a TRI file.")
         Button1.UseVisualStyleBackColor = True
         ' 
         ' ButtonDeleteSource
@@ -1012,6 +1050,7 @@ Partial Class Wardrobe_Manager_Form
         ButtonDeleteSource.TabIndex = 9
         ButtonDeleteSource.Text = "Delete"
         ButtonDeleteSource.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ButtonDeleteSource, "Delete the selected source project. If it becomes empty, its OSP file may also be removed.")
         ButtonDeleteSource.UseVisualStyleBackColor = True
         ' 
         ' MergeInSelectedButton
@@ -1028,6 +1067,7 @@ Partial Class Wardrobe_Manager_Form
         MergeInSelectedButton.TabIndex = 5
         MergeInSelectedButton.Text = "Merge in selected"
         MergeInSelectedButton.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(MergeInSelectedButton, "Merge selected sources into the selected target project.")
         MergeInSelectedButton.UseVisualStyleBackColor = True
         ' 
         ' CopytoPackButton
@@ -1044,6 +1084,7 @@ Partial Class Wardrobe_Manager_Form
         CopytoPackButton.TabIndex = 0
         CopytoPackButton.Text = "Copy singles"
         CopytoPackButton.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(CopytoPackButton, "Copy each selected source project into the current pack as a new target.")
         CopytoPackButton.UseVisualStyleBackColor = True
         ' 
         ' EditButton
@@ -1060,6 +1101,7 @@ Partial Class Wardrobe_Manager_Form
         EditButton.TabIndex = 4
         EditButton.Text = "Edit in OS"
         EditButton.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(EditButton, "Open the selected source project in Outfit Studio. It is reloaded after save.")
         EditButton.UseVisualStyleBackColor = True
         ' 
         ' MovetoDiscardedButton
@@ -1077,6 +1119,7 @@ Partial Class Wardrobe_Manager_Form
         MovetoDiscardedButton.TabIndex = 3
         MovetoDiscardedButton.Text = "Move to discarded"
         MovetoDiscardedButton.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(MovetoDiscardedButton, "Move selected source projects to the Discarded folder.")
         MovetoDiscardedButton.UseVisualStyleBackColor = True
         ' 
         ' MoveToProcessedButton
@@ -1094,6 +1137,7 @@ Partial Class Wardrobe_Manager_Form
         MoveToProcessedButton.TabIndex = 2
         MoveToProcessedButton.Text = "Move to processed"
         MoveToProcessedButton.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(MoveToProcessedButton, "Move selected source projects to the Processed folder.")
         MoveToProcessedButton.UseVisualStyleBackColor = True
         ' 
         ' MergeButton
@@ -1110,6 +1154,7 @@ Partial Class Wardrobe_Manager_Form
         MergeButton.TabIndex = 1
         MergeButton.Text = "Merge in new"
         MergeButton.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(MergeButton, "Create a new target project by merging the selected source projects.")
         MergeButton.UseVisualStyleBackColor = True
         ' 
         ' ButtonSourceInternalEdit
@@ -1126,6 +1171,7 @@ Partial Class Wardrobe_Manager_Form
         ButtonSourceInternalEdit.TabIndex = 8
         ButtonSourceInternalEdit.Text = "Edit internally"
         ButtonSourceInternalEdit.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ButtonSourceInternalEdit, "Open the selected source project in the internal editor.")
         ButtonSourceInternalEdit.UseVisualStyleBackColor = True
         ' 
         ' Split_Principal2
@@ -1214,21 +1260,22 @@ Partial Class Wardrobe_Manager_Form
         ' 
         ComboBoxSize.Anchor = AnchorStyles.Top Or AnchorStyles.Right
         ComboBoxSize.DropDownStyle = ComboBoxStyle.DropDownList
-        ComboBoxSize.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ComboBoxSize.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ComboBoxSize.FormattingEnabled = True
         ComboBoxSize.Items.AddRange(New Object() {"Default", "Big", "Small"})
         ComboBoxSize.Location = New Point(491, 34)
         ComboBoxSize.Name = "ComboBoxSize"
         ComboBoxSize.Size = New Size(98, 29)
         ComboBoxSize.TabIndex = 46
+        ToolTip1.SetToolTip(ComboBoxSize, "Select the body size variant used for preview and build operations. (SkyrimSSE Big and Small support)")
         ' 
         ' TableLayoutPanel4
         ' 
         TableLayoutPanel4.ColumnCount = 4
-        TableLayoutPanel4.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
-        TableLayoutPanel4.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
-        TableLayoutPanel4.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
-        TableLayoutPanel4.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
+        TableLayoutPanel4.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
+        TableLayoutPanel4.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
+        TableLayoutPanel4.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
+        TableLayoutPanel4.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
         TableLayoutPanel4.Controls.Add(Button7, 2, 0)
         TableLayoutPanel4.Controls.Add(Button6, 0, 0)
         TableLayoutPanel4.Controls.Add(Button5, 3, 0)
@@ -1237,7 +1284,7 @@ Partial Class Wardrobe_Manager_Form
         TableLayoutPanel4.Location = New Point(0, 114)
         TableLayoutPanel4.Name = "TableLayoutPanel4"
         TableLayoutPanel4.RowCount = 1
-        TableLayoutPanel4.RowStyles.Add(New RowStyle(SizeType.Percent, 100F))
+        TableLayoutPanel4.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
         TableLayoutPanel4.Size = New Size(592, 34)
         TableLayoutPanel4.TabIndex = 45
         ' 
@@ -1255,6 +1302,7 @@ Partial Class Wardrobe_Manager_Form
         Button7.Text = "Lights"
         Button7.TextAlign = ContentAlignment.MiddleRight
         Button7.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(Button7, "Open preview light rig settings.")
         Button7.UseVisualStyleBackColor = True
         ' 
         ' Button6
@@ -1271,6 +1319,7 @@ Partial Class Wardrobe_Manager_Form
         Button6.Text = "Left panel"
         Button6.TextAlign = ContentAlignment.MiddleLeft
         Button6.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(Button6, "Collapse or expand the left-side panel.")
         Button6.UseVisualStyleBackColor = True
         ' 
         ' Button5
@@ -1287,6 +1336,7 @@ Partial Class Wardrobe_Manager_Form
         Button5.Text = "Right panel"
         Button5.TextAlign = ContentAlignment.MiddleRight
         Button5.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(Button5, "Collapse or expand the right-side panel.")
         Button5.UseVisualStyleBackColor = True
         ' 
         ' ColorComboBox1
@@ -1296,12 +1346,13 @@ Partial Class Wardrobe_Manager_Form
         ColorComboBox1.DrawMode = DrawMode.OwnerDrawFixed
         ColorComboBox1.DropDownStyle = ComboBoxStyle.DropDownList
         ColorComboBox1.FormattingEnabled = True
-        ColorComboBox1.Items.AddRange(New Object() {"None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None"})
+        ColorComboBox1.Items.AddRange(New Object() {"None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None"})
         ColorComboBox1.Location = New Point(151, 3)
         ColorComboBox1.Name = "ColorComboBox1"
         ColorComboBox1.SelectedColor = Color.Black
         ColorComboBox1.Size = New Size(142, 24)
         ColorComboBox1.TabIndex = 45
+        ToolTip1.SetToolTip(ColorComboBox1, "Select the preview background color.")
         ' 
         ' ProgressBar1
         ' 
@@ -1313,7 +1364,7 @@ Partial Class Wardrobe_Manager_Form
         ' 
         ' Label4
         ' 
-        Label4.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label4.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Label4.Location = New Point(0, 67)
         Label4.Name = "Label4"
         Label4.Size = New Size(141, 28)
@@ -1334,18 +1385,20 @@ Partial Class Wardrobe_Manager_Form
         ButtonSkeleton.TabIndex = 40
         ButtonSkeleton.Text = "Skeleton"
         ButtonSkeleton.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ButtonSkeleton, "Select the skeleton NIF used for preview, posing, and skinning.")
         ButtonSkeleton.UseVisualStyleBackColor = True
         ' 
         ' ComboBoxPoses
         ' 
         ComboBoxPoses.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
         ComboBoxPoses.DropDownStyle = ComboBoxStyle.DropDownList
-        ComboBoxPoses.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ComboBoxPoses.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ComboBoxPoses.FormattingEnabled = True
         ComboBoxPoses.Location = New Point(139, 66)
         ComboBoxPoses.Name = "ComboBoxPoses"
         ComboBoxPoses.Size = New Size(346, 29)
         ComboBoxPoses.TabIndex = 38
+        ToolTip1.SetToolTip(ComboBoxPoses, "Select the preview pose.")
         ' 
         ' GroupBox4
         ' 
@@ -1419,7 +1472,7 @@ Partial Class Wardrobe_Manager_Form
         ' 
         ' Wardrobe_Manager_Form
         ' 
-        AutoScaleDimensions = New SizeF(7F, 15F)
+        AutoScaleDimensions = New SizeF(7.0F, 15.0F)
         AutoScaleMode = AutoScaleMode.Font
         ClientSize = New Size(1904, 1041)
         Controls.Add(SplitPrincipal_1)
@@ -1574,4 +1627,5 @@ Partial Class Wardrobe_Manager_Form
     Friend WithEvents Button7 As Button
     Friend WithEvents CheckBoxReloadDict As CheckBox
     Friend WithEvents ComboBoxSize As ComboBox
+    Friend WithEvents ToolTip1 As ToolTip
 End Class

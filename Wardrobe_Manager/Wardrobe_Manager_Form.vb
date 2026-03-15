@@ -243,6 +243,17 @@ Public Class Wardrobe_Manager_Form
                 End If
             Next
 
+            ' Si no existe ningún pack, crear uno por defecto automáticamente
+            If ComboboxPacks.Items.Count = 0 Then
+                Dim defaultPackPath = Path.Combine(Directorios.SliderSetsRoot, "(WM Default Pack).osp")
+                Dim defaultPack = OSP_Project_Class.Create_New(defaultPackPath, False, True)
+
+                If Not IsNothing(defaultPack) Then
+                    OSP_Files.Add(defaultPack)
+                    ComboboxPacks.Items.Add(defaultPack)
+                End If
+            End If
+
             ' 4) Construir la lista de ListViewItem con el filtro original
             Dim tmp As New List(Of ListViewItem)()
             For Each osp In allOSPs.OrderBy(Function(pf) pf.Nombre)

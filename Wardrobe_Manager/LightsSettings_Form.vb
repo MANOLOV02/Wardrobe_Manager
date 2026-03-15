@@ -79,7 +79,7 @@ Partial Public Class LightRigForm
         lblFillLStrength.Text = $"Strength {tbFillL.Value / 100.0:F2}"
         lblFillRStrength.Text = $"Strength {tbFillR.Value / 100.0:F2}"
         lblBackStrength.Text = $"Strength {tbBack.Value / 100.0:F2}"
-        lblambient.Text = $"ambient {tambient.Value / 100.0:F2}"
+        lblambient.Text = $"Strength {tambient.Value / 100.0:F2}"
         VolcarUIenModelo()
     End Sub
 
