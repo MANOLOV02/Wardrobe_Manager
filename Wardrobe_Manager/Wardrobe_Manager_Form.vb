@@ -132,31 +132,69 @@ Public Class Wardrobe_Manager_Form
     Private Last_List_focused As System.Windows.Forms.ListView = ListViewSources
     Private Sub Habilita_deshabilita()
         Dim fullpack As Boolean = Full_packs_Selected()
-        MovetoDiscardedButton.Enabled = Me.Enabled AndAlso ListViewSources.SelectedIndices.Count > 0 AndAlso fullpack
-        CopytoPackButton.Enabled = Me.Enabled AndAlso ListViewSources.SelectedIndices.Count > 0 AndAlso ComboboxPacks.SelectedIndex <> -1
-        EditButton.Enabled = Me.Enabled And ListViewSources.SelectedIndices.Count = 1
-        MoveToProcessedButton.Enabled = Me.Enabled AndAlso ListViewSources.SelectedIndices.Count > 0 AndAlso fullpack
-        MergeButton.Enabled = Me.Enabled And ListViewSources.SelectedIndices.Count > 1 And ComboboxPacks.SelectedIndex <> -1
-        MergeIntoTargetButton.Enabled = Me.Enabled And ListViewSources.SelectedIndices.Count > 0 And ComboboxPacks.SelectedIndex <> -1 And ListViewTargets.SelectedIndices.Count > 0
-        MergeInSelectedButton.Enabled = Me.Enabled And ListViewSources.SelectedIndices.Count > 0 And ComboboxPacks.SelectedIndex <> -1 And ListViewTargets.SelectedIndices.Count > 0
-        ExtractSingleButton.Enabled = ListViewTargets.SelectedIndices.Count > 0
-        RenameButton.Enabled = ListViewTargets.SelectedIndices.Count = 1
-        EditTargetButton.Enabled = Me.Enabled And ListViewTargets.SelectedIndices.Count = 1
-        ButtonEditInternally.Enabled = Me.Enabled And ListViewTargets.SelectedIndices.Count = 1
-        ButtonSourceInternalEdit.Enabled = Me.Enabled And ListViewSources.SelectedIndices.Count = 1
-        ButtonDelete.Enabled = Me.Enabled And ListViewTargets.SelectedIndices.Count > 0
-        CloneButton.Enabled = Me.Enabled And ListViewTargets.SelectedIndices.Count > 0
-        'GroupBox2.Enabled = Me.Enabled And ListViewTargets.SelectedIndices.Count > 0
-        ButtonBuildSingles.Enabled = Me.Enabled And ListViewTargets.SelectedIndices.Count > 0
-        ButtonDeleteSource.Enabled = Me.Enabled And ListViewSources.SelectedIndices.Count > 0
-        ButtonBuildFullPack.Enabled = Me.Enabled And ComboboxPacks.SelectedIndex <> -1
+        Dim normalUi As Boolean = Me.Enabled
+        Dim externalLock As Boolean = _ExternalEditActive
+
+        ' Navigation / project-changing controls
+        ListViewSources.Enabled = normalUi AndAlso Not externalLock
+        ListViewTargets.Enabled = normalUi AndAlso Not externalLock
+        ComboboxPacks.Enabled = normalUi AndAlso Not externalLock
+        RadioButton1.Enabled = normalUi AndAlso Not externalLock
+        RadioButton2.Enabled = normalUi AndAlso Not externalLock
+        RadioButton3.Enabled = normalUi AndAlso Not externalLock
+
+        ' Filters and list rebuild controls
+        TextBox_SourceName.Enabled = normalUi AndAlso Not externalLock
+        TextBox2.Enabled = normalUi AndAlso Not externalLock
+        TextBox_TargetName.Enabled = normalUi AndAlso Not externalLock
+        ShowCollectionsCheck.Enabled = normalUi AndAlso Not externalLock
+        ShowCBBECheck.Enabled = normalUi AndAlso Not externalLock
+        CheckShowpacks.Enabled = normalUi AndAlso Not externalLock
+        DeepAnalize_check.Enabled = normalUi AndAlso Not externalLock
+        CheckBoxReloadDict.Enabled = normalUi AndAlso Not externalLock
+        RefreshButton.Enabled = normalUi AndAlso Not externalLock
+        NewPackButton.Enabled = normalUi AndAlso Not externalLock
+        ButtonCreateFromNif.Enabled = normalUi AndAlso Not externalLock
+
+        ' Source actions
+        MovetoDiscardedButton.Enabled = normalUi AndAlso Not externalLock AndAlso ListViewSources.SelectedIndices.Count > 0 AndAlso fullpack
+        CopytoPackButton.Enabled = normalUi AndAlso Not externalLock AndAlso ListViewSources.SelectedIndices.Count > 0 AndAlso ComboboxPacks.SelectedIndex <> -1
+        EditButton.Enabled = normalUi AndAlso Not externalLock AndAlso ListViewSources.SelectedIndices.Count = 1
+        MoveToProcessedButton.Enabled = normalUi AndAlso Not externalLock AndAlso ListViewSources.SelectedIndices.Count > 0 AndAlso fullpack
+        MergeButton.Enabled = normalUi AndAlso Not externalLock AndAlso ListViewSources.SelectedIndices.Count > 1 AndAlso ComboboxPacks.SelectedIndex <> -1
+        MergeIntoTargetButton.Enabled = normalUi AndAlso Not externalLock AndAlso ListViewSources.SelectedIndices.Count > 0 AndAlso ComboboxPacks.SelectedIndex <> -1 AndAlso ListViewTargets.SelectedIndices.Count > 0
+        MergeInSelectedButton.Enabled = normalUi AndAlso Not externalLock AndAlso ListViewSources.SelectedIndices.Count > 0 AndAlso ComboboxPacks.SelectedIndex <> -1 AndAlso ListViewTargets.SelectedIndices.Count > 0
+        ButtonSourceInternalEdit.Enabled = normalUi AndAlso Not externalLock AndAlso ListViewSources.SelectedIndices.Count = 1
+        ButtonDeleteSource.Enabled = normalUi AndAlso Not externalLock AndAlso ListViewSources.SelectedIndices.Count > 0
+
+        ' Target actions
+        ExtractSingleButton.Enabled = normalUi AndAlso Not externalLock AndAlso ListViewTargets.SelectedIndices.Count > 0
+        RenameButton.Enabled = normalUi AndAlso Not externalLock AndAlso ListViewTargets.SelectedIndices.Count = 1
+        EditTargetButton.Enabled = normalUi AndAlso Not externalLock AndAlso ListViewTargets.SelectedIndices.Count = 1
+        ButtonEditInternally.Enabled = normalUi AndAlso Not externalLock AndAlso ListViewTargets.SelectedIndices.Count = 1
+        ButtonDelete.Enabled = normalUi AndAlso Not externalLock AndAlso ListViewTargets.SelectedIndices.Count > 0
+        CloneButton.Enabled = normalUi AndAlso Not externalLock AndAlso ListViewTargets.SelectedIndices.Count > 0
+        ButtonBuildSingles.Enabled = normalUi AndAlso Not externalLock AndAlso ListViewTargets.SelectedIndices.Count > 0
+        ButtonBuildFullPack.Enabled = normalUi AndAlso Not externalLock AndAlso ComboboxPacks.SelectedIndex <> -1
+
+        ' Keep preview controls active during external editing
+        ComboBoxPresets.Enabled = normalUi
+        ComboBoxPoses.Enabled = normalUi
+        SingleBoneCheck.Enabled = normalUi
+        RecalculateNormalsCheck.Enabled = normalUi
+        ColorComboBox1.Enabled = normalUi
+        ButtonLightRigSettings.Enabled = normalUi
+        ButtonPreviewSelected.Enabled = normalUi
+        ButtonDataSheetSelected.Enabled = normalUi
+        ComboBoxSize.Enabled = normalUi
+        ButtonSkeleton.Enabled = normalUi
+
         If Skeleton_Class.HasSkeleton = True Then
             ButtonSkeleton.ForeColor = Color.Black
         Else
             ButtonSkeleton.ForeColor = Color.Red
         End If
     End Sub
-
     Private Async Sub Lee_Listbox()
         If firstime = True Then Exit Sub
         Habilita_deshabilita()
@@ -213,7 +251,7 @@ Public Class Wardrobe_Manager_Form
                 ProgressBar1.Value += 1
             Next
 
-            FilesDictionary_class.HighHeels_Plugin_Value.LoadFromDirectory
+            FilesDictionary_class.HighHeels_Plugin_Value.LoadFromDirectory()
 
             ' 2) Parsear en background SALVO DEEP CHECK
             Dim allOSPs = New ConcurrentBag(Of OSP_Project_Class)()
@@ -343,7 +381,7 @@ Public Class Wardrobe_Manager_Form
         Physics_Label.Visible = False
         Cursor.Current = Cursors.WaitCursor
         Dim it As ListViewItem
-        If OSP_Project_Class.Load_and_Check_Shapedata(Seleccionado) = False Then
+        If OSP_Project_Class.Load_and_Check_Shapedata(Seleccionado, False) = False Then
             preview_Control.Update_Render(Seleccionado, False, Selected_Combo_Preset, Selected_Combo_Pose, ComboBoxSize.SelectedIndex)
             Exit Sub
         End If
@@ -531,35 +569,25 @@ Public Class Wardrobe_Manager_Form
     End Sub
 
     Private Sub EditButton_Click(sender As Object, e As EventArgs) Handles EditButton.Click
-        Empieza_Procesos(1)
+        If ListViewSources.FocusedItem Is Nothing Then Exit Sub
         Dim Selected_Source As SliderSet_Class = ListViewSources.FocusedItem.Tag
-        Dim lastsave = IO.File.GetLastWriteTime(Selected_Source.ParentOSP.Filename)
-        Abre_Sliderset(Selected_Source, Selected_Source.ParentOSP.Filename)
-        If lastsave.Equals(IO.File.GetLastWriteTime(Selected_Source.ParentOSP.Filename)) = False Then
-            Selected_Source.Reload(DeepAnalize_check.Checked)
-            If preview_Control.Model.Last_rendered Is Selected_Source Then
-                preview_Control.Model.Clean(False)
-            End If
-            Lee_shapes()
-        End If
-        Termina_Procesos()
+        StartExternalEditSession(Selected_Source, False)
+    End Sub
+    Private Sub EditTargetButto_Click(sender As Object, e As EventArgs) Handles EditTargetButton.Click
+        If ListViewTargets.SelectedItems.Count = 0 Then Exit Sub
+        Dim sliderset_target As SliderSet_Class = ListViewTargets.SelectedItems(0).Tag
+        StartExternalEditSession(sliderset_target, True)
     End Sub
 
-    Private Sub EditTargetButto_Click(sender As Object, e As EventArgs) Handles EditTargetButton.Click
-        Empieza_Procesos(1)
-        Dim sliderset_target As SliderSet_Class = ListViewTargets.SelectedItems(0).Tag
-        Dim lastsave = IO.File.GetLastWriteTime(sliderset_target.ParentOSP.Filename)
-        Abre_Sliderset(sliderset_target, sliderset_target.ParentOSP.Filename)
-        If lastsave.Equals(IO.File.GetLastWriteTime(sliderset_target.ParentOSP.Filename)) = False Then
-            sliderset_target.Reload(DeepAnalize_check.Checked)
-            If preview_Control.Model.Last_rendered Is sliderset_target Then
-                preview_Control.Model.Clean(False)
-            End If
-            Lee_shapes()
-        End If
-        Termina_Procesos()
-    End Sub
     Private _Procesando As Boolean = False
+    Private _ExternalEditActive As Boolean = False
+    Private _ExternalEditSlider As SliderSet_Class = Nothing
+    Private _ExternalEditFromTarget As Boolean = False
+    Private _ExternalEditProcess As Process = Nothing
+    Private _ExternalEditLastOspWrite As Date = Date.MinValue
+    Private _ExternalEditReloading As Boolean = False
+    Private WithEvents _ExternalEditTimer As New Timer With {.Interval = 700}
+
     Private Sub Empieza_Procesos(cantidad)
         Try
             Cursor.Current = Cursors.WaitCursor
@@ -650,20 +678,194 @@ Public Class Wardrobe_Manager_Form
             ListViewSources.Items.Remove(ind)
         End If
     End Sub
+    Private Sub ReloadExternalEditedProject()
+        If Not _ExternalEditActive Then Exit Sub
+        If IsNothing(_ExternalEditSlider) Then Exit Sub
+        If _ExternalEditReloading Then Exit Sub
+
+        _ExternalEditReloading = True
+        Try
+            _ExternalEditSlider.Reload(DeepAnalize_check.Checked)
+            If preview_Control.Model.Last_rendered Is _ExternalEditSlider Then
+                preview_Control.Model.Clean(False)
+                preview_Control.Model.CleanTextures()
+            End If
+            Lee_shapes()
+            _ExternalEditReloading = Not (Not _ExternalEditSlider.Unreadable_NIF And Not _ExternalEditSlider.Unreadable_Project)
+        Catch ex As Exception
+            MsgBox("External edit reload failed: " & ex.Message, MsgBoxStyle.Exclamation, "Error")
+        Finally
+
+        End Try
+    End Sub
+    Private Sub EndExternalEditSession(doFinalReload As Boolean)
+        Dim lockedSlider = _ExternalEditSlider
+
+        _ExternalEditTimer.Stop()
+
+        _ExternalEditActive = False
+        _ExternalEditProcess = Nothing
+        _ExternalEditLastOspWrite = Date.MinValue
+        _ExternalEditReloading = False
+        _ExternalEditSlider = Nothing
+        _ExternalEditFromTarget = False
+
+        If doFinalReload AndAlso Not IsNothing(lockedSlider) Then
+            Try
+                lockedSlider.Reload(DeepAnalize_check.Checked)
+                If preview_Control.Model.Last_rendered Is lockedSlider Then
+                    preview_Control.Model.Clean(False)
+                    preview_Control.Model.CleanTextures()
+                End If
+                Lee_shapes()
+            Catch ex As Exception
+                MsgBox("Final external edit reload failed: " & ex.Message, MsgBoxStyle.Exclamation, "Error")
+            End Try
+        End If
+
+        Habilita_deshabilita()
+    End Sub
+    Private Function GetExistingExternalEditFiles(sliderset As SliderSet_Class) As List(Of String)
+        Dim files As New List(Of String)
+
+        If IsNothing(sliderset) Then Return files
+
+        Try
+            If Not IsNothing(sliderset.ParentOSP) AndAlso
+           String.IsNullOrWhiteSpace(sliderset.ParentOSP.Filename) = False AndAlso
+           IO.File.Exists(sliderset.ParentOSP.Filename) Then
+                files.Add(sliderset.ParentOSP.Filename)
+            End If
+        Catch
+        End Try
+
+        Try
+            If String.IsNullOrWhiteSpace(sliderset.SourceFileFullPath) = False AndAlso
+           IO.File.Exists(sliderset.SourceFileFullPath) Then
+                files.Add(sliderset.SourceFileFullPath)
+            End If
+        Catch
+        End Try
+
+        Try
+            For Each osdPath In sliderset.OsdLocalFullPath
+                If String.IsNullOrWhiteSpace(osdPath) = False AndAlso IO.File.Exists(osdPath) Then
+                    files.Add(osdPath)
+                End If
+            Next
+        Catch
+        End Try
+
+        Return files.Distinct(StringComparer.OrdinalIgnoreCase).ToList
+    End Function
+
+    Private Function GetLatestExternalEditWriteTime(sliderset As SliderSet_Class) As Date
+        Dim latest As Date = Date.MinValue
+
+        For Each f In GetExistingExternalEditFiles(sliderset)
+            Try
+                Dim dt = IO.File.GetLastWriteTime(f)
+                If dt > latest Then latest = dt
+            Catch
+            End Try
+        Next
+
+        Return latest
+    End Function
+    Private Sub StartExternalEditSession(sliderset As SliderSet_Class, fromTarget As Boolean)
+        If IsNothing(sliderset) Then Exit Sub
+
+        If _ExternalEditActive Then
+            MsgBox("An Outfit Studio editing session is already active.")
+            Exit Sub
+        End If
+
+        _ExternalEditSlider = sliderset
+        _ExternalEditFromTarget = fromTarget
+        _ExternalEditReloading = False
+        _ExternalEditLastOspWrite = GetLatestExternalEditWriteTime(sliderset)
+
+        Try
+            _ExternalEditProcess = Abre_Sliderset(sliderset, sliderset.ParentOSP.Filename)
+        Catch ex As Exception
+            _ExternalEditProcess = Nothing
+            MsgBox(ex.Message, MsgBoxStyle.Exclamation, "Error")
+        End Try
+
+        If IsNothing(_ExternalEditProcess) Then
+            _ExternalEditSlider = Nothing
+            _ExternalEditFromTarget = False
+            _ExternalEditLastOspWrite = Date.MinValue
+            _ExternalEditActive = False
+            _ExternalEditReloading = False
+            Exit Sub
+        End If
 
 
-    Private Shared Sub Abre_Sliderset(sliderset As SliderSet_Class, OSP_Filename As String)
+        _ExternalEditActive = True
+        _ExternalEditTimer.Start()
+        Habilita_deshabilita()
+    End Sub
+
+    Private Sub _ExternalEditTimer_Tick(sender As Object, e As EventArgs) Handles _ExternalEditTimer.Tick
+        If Not _ExternalEditActive Then
+            _ExternalEditTimer.Stop()
+            Exit Sub
+        End If
+
+        If IsNothing(_ExternalEditSlider) Then
+            EndExternalEditSession(False)
+            Exit Sub
+        End If
+
+        If IsNothing(_ExternalEditProcess) Then
+            EndExternalEditSession(True)
+            Exit Sub
+        End If
+
+        Try
+            If _ExternalEditProcess.HasExited Then
+                EndExternalEditSession(True)
+                Exit Sub
+            End If
+        Catch
+            EndExternalEditSession(True)
+            Exit Sub
+        End Try
+
+        Dim ospPath As String = _ExternalEditSlider.ParentOSP.Filename
+        If IO.File.Exists(ospPath) = False Then Exit Sub
+
+        Dim currentWrite As Date
+        Try
+            currentWrite = GetLatestExternalEditWriteTime(_ExternalEditSlider)
+        Catch
+            Exit Sub
+        End Try
+
+        If currentWrite > _ExternalEditLastOspWrite Then
+            ReloadExternalEditedProject()
+            If _ExternalEditReloading = False Then _ExternalEditLastOspWrite = currentWrite Else _ExternalEditReloading = False
+        End If
+    End Sub
+    Private Shared Function Abre_Sliderset(sliderset As SliderSet_Class, OSP_Filename As String) As Process
         Dim second As String = Chr(34) + OSP_Filename + Chr(34)
         Dim first As String = Chr(34) + sliderset.Nombre + Chr(34)
+
         Dim Strat As New ProcessStartInfo With {
-            .Arguments = ""
-        }
+        .Arguments = ""
+    }
+
         Strat.Arguments += "-proj" + " " + first + " " + second + " "
         Strat.Arguments = Strat.Arguments.Trim
         Strat.FileName = Config_App.Current.OSExePath
-        Process.Start(Strat).WaitForExit()
-    End Sub
 
+        Dim pr As Process = Process.Start(Strat)
+        If Not IsNothing(pr) Then
+            pr.EnableRaisingEvents = True
+        End If
+        Return pr
+    End Function
 
     Private Sub RefreshButtoClick(sender As Object, e As EventArgs) Handles RefreshButton.Click
         Lee_Listbox()
@@ -730,16 +932,16 @@ Public Class Wardrobe_Manager_Form
     End Sub
 
 
-    Private Sub Button2_Click(sender As Object, e As EventArgs) Handles Button2.Click
-        Button2.FlatStyle = FlatStyle.Flat
-        Button3.FlatStyle = FlatStyle.Standard
+    Private Sub Button2_Click(sender As Object, e As EventArgs) Handles ButtonPreviewSelected.Click
+        ButtonPreviewSelected.FlatStyle = FlatStyle.Flat
+        ButtonDataSheetSelected.FlatStyle = FlatStyle.Standard
         ListView2.Visible = False
         preview_Control.Visible = True
         Lee_shapes()
     End Sub
-    Private Sub Button3_Click(sender As Object, e As EventArgs) Handles Button3.Click
-        Button2.FlatStyle = FlatStyle.Standard
-        Button3.FlatStyle = FlatStyle.Flat
+    Private Sub Button3_Click(sender As Object, e As EventArgs) Handles ButtonDataSheetSelected.Click
+        ButtonPreviewSelected.FlatStyle = FlatStyle.Standard
+        ButtonDataSheetSelected.FlatStyle = FlatStyle.Flat
         ListView2.Visible = True
         preview_Control.Visible = False
     End Sub
@@ -748,7 +950,7 @@ Public Class Wardrobe_Manager_Form
         If ComboBoxPresets.SelectedIndex <> -1 Then
             Config_App.Current.Default_Preset = ComboBoxPresets.SelectedItem.ToString
         End If
-        Lee_shapes
+        Lee_shapes()
     End Sub
     Private Sub ComboBox1_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboboxPacks.SelectedIndexChanged
         Lee_Listbox_Targets()
@@ -833,7 +1035,7 @@ Public Class Wardrobe_Manager_Form
             Dim selected_target As SliderSet_Class = Determina_Seleccionado_y_CambiaNombres(1)
             For Each it In ListViewTargets.SelectedItems
                 Dim target As SliderSet_Class = it.Tag
-                OSP_Project_Class.Load_and_Check_Shapedata(target)
+                OSP_Project_Class.Load_and_Check_Shapedata(target, True)
                 Merge_Part(target, Nothing, False)
             Next
             selected_target.Reload(DeepAnalize_check.Checked)
@@ -1117,7 +1319,7 @@ Public Class Wardrobe_Manager_Form
 
     End Sub
 
-    Private Sub Button4_Click_2(sender As Object, e As EventArgs) Handles Button4.Click
+    Private Sub Button4_Click_2(sender As Object, e As EventArgs) Handles ButtonOpenConfig.Click
         Dim Config As New Config_Form
         Dim Oldtheme = Config_App.Current.theme
         Config.ShowDialog(Me)
@@ -1217,7 +1419,7 @@ Public Class Wardrobe_Manager_Form
         Config_App.Current.Setting_ShowCollections = ShowCollectionsCheck.Checked
     End Sub
 
-    Private Sub Button1_Click_2(sender As Object, e As EventArgs) Handles Button1.Click
+    Private Sub Button1_Click_2(sender As Object, e As EventArgs) Handles ButtonCreateFromNif.Click
         Dim dict_used As FilesDictionary_class.DictionaryFilePickerConfig = FilesDictionary_class.ALLMeshesDictionary_Filter
         Dim dictProvider = dict_used.DictionaryProvider
         Dim dict = dictProvider.Invoke()
@@ -1275,25 +1477,23 @@ Public Class Wardrobe_Manager_Form
 #End If
     End Sub
 
-    Private Sub Button5_Click(sender As Object, e As EventArgs) Handles Button5.Click
-    End Sub
 
-    Private Sub Button5_Click_1(sender As Object, e As EventArgs) Handles Button5.Click
+    Private Sub Button5_Click_1(sender As Object, e As EventArgs) Handles ButtonRightPanel.Click
         Split_Principal2.Panel2Collapsed = Not Split_Principal2.Panel2Collapsed
         If Split_Principal2.Panel2Collapsed Then
-            Button5.ImageIndex = 14
+            ButtonRightPanel.ImageIndex = 14
         Else
-            Button5.ImageIndex = 15
+            ButtonRightPanel.ImageIndex = 15
         End If
 
     End Sub
 
-    Private Sub Button6_Click(sender As Object, e As EventArgs) Handles Button6.Click
+    Private Sub Button6_Click(sender As Object, e As EventArgs) Handles ButtonLeftPanel.Click
         SplitPrincipal_1.Panel1Collapsed = Not SplitPrincipal_1.Panel1Collapsed
         If SplitPrincipal_1.Panel1Collapsed Then
-            Button6.ImageIndex = 14
+            ButtonLeftPanel.ImageIndex = 14
         Else
-            Button6.ImageIndex = 15
+            ButtonLeftPanel.ImageIndex = 15
         End If
     End Sub
 
@@ -1384,7 +1584,7 @@ Public Class Wardrobe_Manager_Form
         End Function
     End Class
 
-    Private Sub Button7_Click(sender As Object, e As EventArgs) Handles Button7.Click
+    Private Sub Button7_Click(sender As Object, e As EventArgs) Handles ButtonLightRigSettings.Click
         Dim lightfirn As New LightRigForm
         lightfirn.ShowDialog(Me)
     End Sub
