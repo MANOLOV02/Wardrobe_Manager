@@ -23,12 +23,14 @@ Partial Class Create_from_Nif_Form
     'No lo modifique con el editor de código.
     <System.Diagnostics.DebuggerStepThrough()> _
     Private Sub InitializeComponent()
+        components = New ComponentModel.Container()
         DictionaryPicker_Control1 = New DictionaryPicker_Control()
         SplitContainer1 = New SplitContainer()
         SplitContainer2 = New SplitContainer()
         Panel1 = New Panel()
         TextBox1 = New TextBox()
         CheckBox1 = New CheckBox()
+        ToolTip1 = New ToolTip(components)
         CType(SplitContainer1, ComponentModel.ISupportInitialize).BeginInit()
         SplitContainer1.Panel1.SuspendLayout()
         SplitContainer1.Panel2.SuspendLayout()
@@ -41,6 +43,7 @@ Partial Class Create_from_Nif_Form
         ' 
         ' DictionaryPicker_Control1
         ' 
+        DictionaryPicker_Control1.AllowClone = True
         DictionaryPicker_Control1.Dock = DockStyle.Fill
         DictionaryPicker_Control1.Location = New Point(0, 0)
         DictionaryPicker_Control1.Name = "DictionaryPicker_Control1"
@@ -115,9 +118,15 @@ Partial Class Create_from_Nif_Form
         CheckBox1.Text = "Create sliders from .tri file if possible"
         CheckBox1.UseVisualStyleBackColor = True
         ' 
+        ' Tooltip1
+        ' 
+        ToolTip1.SetToolTip(DictionaryPicker_Control1, "Browse and select a NIF file from the file dictionary.")
+        ToolTip1.SetToolTip(CheckBox1, "If a matching TRI file exists, import morph sliders from it when creating the project.")
+        ToolTip1.SetToolTip(TextBox1, "Name of the new project to be created from the selected NIF.")
+        ' 
         ' Create_from_Nif_Form
         ' 
-        AutoScaleDimensions = New SizeF(7F, 15F)
+        AutoScaleDimensions = New SizeF(7.0F, 15.0F)
         AutoScaleMode = AutoScaleMode.Font
         ClientSize = New Size(1200, 617)
         Controls.Add(SplitContainer1)
@@ -145,4 +154,5 @@ Partial Class Create_from_Nif_Form
     Friend WithEvents Panel1 As Panel
     Friend WithEvents CheckBox1 As CheckBox
     Friend WithEvents TextBox1 As TextBox
+    Friend WithEvents ToolTip1 As ToolTip
 End Class

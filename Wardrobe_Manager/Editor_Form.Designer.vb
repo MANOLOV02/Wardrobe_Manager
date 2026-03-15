@@ -200,6 +200,7 @@ Partial Class Editor_Form
         GroupBox13 = New GroupBox()
         ButtonRenderScreenshot = New Button()
         ComboBoxSize = New ComboBox()
+        ToolTip1 = New ToolTip(components)
         GroupBox6.SuspendLayout()
         TableLayoutPanel1.SuspendLayout()
         CType(TrackBar1, ComponentModel.ISupportInitialize).BeginInit()
@@ -271,7 +272,7 @@ Partial Class Editor_Form
         ' Button1
         ' 
         Button1.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        Button1.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Button1.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Button1.ImageIndex = 0
         Button1.Location = New Point(622, 19)
         Button1.Name = "Button1"
@@ -279,16 +280,17 @@ Partial Class Editor_Form
         Button1.TabIndex = 7
         Button1.Text = "Remove"
         Button1.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(Button1, "Remove the currently selected shape from the project.")
         Button1.UseVisualStyleBackColor = True
         ' 
         ' TableLayoutPanel1
         ' 
         TableLayoutPanel1.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
         TableLayoutPanel1.ColumnCount = 4
-        TableLayoutPanel1.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
-        TableLayoutPanel1.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
-        TableLayoutPanel1.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
-        TableLayoutPanel1.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
+        TableLayoutPanel1.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
+        TableLayoutPanel1.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
+        TableLayoutPanel1.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
+        TableLayoutPanel1.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
         TableLayoutPanel1.Controls.Add(Label18, 2, 2)
         TableLayoutPanel1.Controls.Add(RenderCheckVertexColors, 2, 1)
         TableLayoutPanel1.Controls.Add(RenderCheckHide, 3, 1)
@@ -304,9 +306,9 @@ Partial Class Editor_Form
         TableLayoutPanel1.Location = New Point(7, 48)
         TableLayoutPanel1.Name = "TableLayoutPanel1"
         TableLayoutPanel1.RowCount = 4
-        TableLayoutPanel1.RowStyles.Add(New RowStyle(SizeType.Absolute, 26F))
-        TableLayoutPanel1.RowStyles.Add(New RowStyle(SizeType.Absolute, 26F))
-        TableLayoutPanel1.RowStyles.Add(New RowStyle(SizeType.Absolute, 26F))
+        TableLayoutPanel1.RowStyles.Add(New RowStyle(SizeType.Absolute, 26.0F))
+        TableLayoutPanel1.RowStyles.Add(New RowStyle(SizeType.Absolute, 26.0F))
+        TableLayoutPanel1.RowStyles.Add(New RowStyle(SizeType.Absolute, 26.0F))
         TableLayoutPanel1.RowStyles.Add(New RowStyle())
         TableLayoutPanel1.Size = New Size(698, 83)
         TableLayoutPanel1.TabIndex = 4
@@ -330,6 +332,7 @@ Partial Class Editor_Form
         RenderCheckVertexColors.Size = New Size(168, 20)
         RenderCheckVertexColors.TabIndex = 13
         RenderCheckVertexColors.Text = "Vertex colors"
+        ToolTip1.SetToolTip(RenderCheckVertexColors, "Display vertex colors in preview.")
         RenderCheckVertexColors.UseVisualStyleBackColor = True
         ' 
         ' RenderCheckHide
@@ -341,6 +344,7 @@ Partial Class Editor_Form
         RenderCheckHide.Size = New Size(170, 20)
         RenderCheckHide.TabIndex = 12
         RenderCheckHide.Text = "Hide"
+        ToolTip1.SetToolTip(RenderCheckHide, "Hide the current shape in preview.")
         RenderCheckHide.UseVisualStyleBackColor = True
         ' 
         ' RenderCheckcolors
@@ -353,6 +357,7 @@ Partial Class Editor_Form
         RenderCheckcolors.Size = New Size(168, 20)
         RenderCheckcolors.TabIndex = 10
         RenderCheckcolors.Text = "Has Vertex Colors"
+        ToolTip1.SetToolTip(RenderCheckcolors, "Indicate whether the shape contains vertex colors.")
         RenderCheckcolors.UseVisualStyleBackColor = True
         ' 
         ' RenderCheckWeights
@@ -364,6 +369,7 @@ Partial Class Editor_Form
         RenderCheckWeights.Size = New Size(168, 20)
         RenderCheckWeights.TabIndex = 9
         RenderCheckWeights.Text = "Weights"
+        ToolTip1.SetToolTip(RenderCheckWeights, "Show vertex weights in preview.")
         RenderCheckWeights.UseVisualStyleBackColor = True
         ' 
         ' RenderCheckZap
@@ -375,6 +381,7 @@ Partial Class Editor_Form
         RenderCheckZap.Size = New Size(170, 20)
         RenderCheckZap.TabIndex = 8
         RenderCheckZap.Text = "Zaps"
+        ToolTip1.SetToolTip(RenderCheckZap, "Apply zaps and fixes in preview.")
         RenderCheckZap.UseVisualStyleBackColor = True
         ' 
         ' RenderCheckMasks
@@ -386,6 +393,7 @@ Partial Class Editor_Form
         RenderCheckMasks.Size = New Size(168, 20)
         RenderCheckMasks.TabIndex = 7
         RenderCheckMasks.Text = "Mask"
+        ToolTip1.SetToolTip(RenderCheckMasks, "Show the current vertex mask overlay.")
         RenderCheckMasks.UseVisualStyleBackColor = True
         ' 
         ' RenderCheckWireframe
@@ -397,6 +405,7 @@ Partial Class Editor_Form
         RenderCheckWireframe.Size = New Size(168, 20)
         RenderCheckWireframe.TabIndex = 6
         RenderCheckWireframe.Text = "Wireframe"
+        ToolTip1.SetToolTip(RenderCheckWireframe, "Show the current shape as wireframe.")
         RenderCheckWireframe.UseVisualStyleBackColor = True
         ' 
         ' RenderCheckTexture
@@ -408,6 +417,7 @@ Partial Class Editor_Form
         RenderCheckTexture.Size = New Size(168, 20)
         RenderCheckTexture.TabIndex = 5
         RenderCheckTexture.Text = "Texture"
+        ToolTip1.SetToolTip(RenderCheckTexture, "Show textured rendering for the current shape.")
         RenderCheckTexture.UseVisualStyleBackColor = True
         ' 
         ' Label16
@@ -430,6 +440,7 @@ Partial Class Editor_Form
         TrackBar1.Size = New Size(170, 20)
         TrackBar1.TabIndex = 16
         TrackBar1.TickFrequency = 25
+        ToolTip1.SetToolTip(TrackBar1, "Adjust wireframe opacity.")
         TrackBar1.Value = 50
         ' 
         ' ColorComboBox1
@@ -439,12 +450,13 @@ Partial Class Editor_Form
         ColorComboBox1.DrawMode = DrawMode.OwnerDrawFixed
         ColorComboBox1.DropDownStyle = ComboBoxStyle.DropDownList
         ColorComboBox1.FormattingEnabled = True
-        ColorComboBox1.Items.AddRange(New Object() {"None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", KnownColor.ActiveBorder, KnownColor.ActiveCaption, KnownColor.ActiveCaptionText, KnownColor.AppWorkspace, KnownColor.Control, KnownColor.ControlDark, KnownColor.ControlDarkDark, KnownColor.ControlLight, KnownColor.ControlLightLight, KnownColor.ControlText, KnownColor.Desktop, KnownColor.GrayText, KnownColor.Highlight, KnownColor.HighlightText, KnownColor.HotTrack, KnownColor.InactiveBorder, KnownColor.InactiveCaption, KnownColor.InactiveCaptionText, KnownColor.Info, KnownColor.InfoText, KnownColor.Menu, KnownColor.MenuText, KnownColor.ScrollBar, KnownColor.Window, KnownColor.WindowFrame, KnownColor.WindowText, KnownColor.Transparent, KnownColor.AliceBlue, KnownColor.AntiqueWhite, KnownColor.Aqua, KnownColor.Aquamarine, KnownColor.Azure, KnownColor.Beige, KnownColor.Bisque, KnownColor.Black, KnownColor.BlanchedAlmond, KnownColor.Blue, KnownColor.BlueViolet, KnownColor.Brown, KnownColor.BurlyWood, KnownColor.CadetBlue, KnownColor.Chartreuse, KnownColor.Chocolate, KnownColor.Coral, KnownColor.CornflowerBlue, KnownColor.Cornsilk, KnownColor.Crimson, KnownColor.Cyan, KnownColor.DarkBlue, KnownColor.DarkCyan, KnownColor.DarkGoldenrod, KnownColor.DarkGray, KnownColor.DarkGreen, KnownColor.DarkKhaki, KnownColor.DarkMagenta, KnownColor.DarkOliveGreen, KnownColor.DarkOrange, KnownColor.DarkOrchid, KnownColor.DarkRed, KnownColor.DarkSalmon, KnownColor.DarkSeaGreen, KnownColor.DarkSlateBlue, KnownColor.DarkSlateGray, KnownColor.DarkTurquoise, KnownColor.DarkViolet, KnownColor.DeepPink, KnownColor.DeepSkyBlue, KnownColor.DimGray, KnownColor.DodgerBlue, KnownColor.Firebrick, KnownColor.FloralWhite, KnownColor.ForestGreen, KnownColor.Fuchsia, KnownColor.Gainsboro, KnownColor.GhostWhite, KnownColor.Gold, KnownColor.Goldenrod, KnownColor.Gray, KnownColor.Green, KnownColor.GreenYellow, KnownColor.Honeydew, KnownColor.HotPink, KnownColor.IndianRed, KnownColor.Indigo, KnownColor.Ivory, KnownColor.Khaki, KnownColor.Lavender, KnownColor.LavenderBlush, KnownColor.LawnGreen, KnownColor.LemonChiffon, KnownColor.LightBlue, KnownColor.LightCoral, KnownColor.LightCyan, KnownColor.LightGoldenrodYellow, KnownColor.LightGray, KnownColor.LightGreen, KnownColor.LightPink, KnownColor.LightSalmon, KnownColor.LightSeaGreen, KnownColor.LightSkyBlue, KnownColor.LightSlateGray, KnownColor.LightSteelBlue, KnownColor.LightYellow, KnownColor.Lime, KnownColor.LimeGreen, KnownColor.Linen, KnownColor.Magenta, KnownColor.Maroon, KnownColor.MediumAquamarine, KnownColor.MediumBlue, KnownColor.MediumOrchid, KnownColor.MediumPurple, KnownColor.MediumSeaGreen, KnownColor.MediumSlateBlue, KnownColor.MediumSpringGreen, KnownColor.MediumTurquoise, KnownColor.MediumVioletRed, KnownColor.MidnightBlue, KnownColor.MintCream, KnownColor.MistyRose, KnownColor.Moccasin, KnownColor.NavajoWhite, KnownColor.Navy, KnownColor.OldLace, KnownColor.Olive, KnownColor.OliveDrab, KnownColor.Orange, KnownColor.OrangeRed, KnownColor.Orchid, KnownColor.PaleGoldenrod, KnownColor.PaleGreen, KnownColor.PaleTurquoise, KnownColor.PaleVioletRed, KnownColor.PapayaWhip, KnownColor.PeachPuff, KnownColor.Peru, KnownColor.Pink, KnownColor.Plum, KnownColor.PowderBlue, KnownColor.Purple, KnownColor.Red, KnownColor.RosyBrown, KnownColor.RoyalBlue, KnownColor.SaddleBrown, KnownColor.Salmon, KnownColor.SandyBrown, KnownColor.SeaGreen, KnownColor.SeaShell, KnownColor.Sienna, KnownColor.Silver, KnownColor.SkyBlue, KnownColor.SlateBlue, KnownColor.SlateGray, KnownColor.Snow, KnownColor.SpringGreen, KnownColor.SteelBlue, KnownColor.Tan, KnownColor.Teal, KnownColor.Thistle, KnownColor.Tomato, KnownColor.Turquoise, KnownColor.Violet, KnownColor.Wheat, KnownColor.White, KnownColor.WhiteSmoke, KnownColor.Yellow, KnownColor.YellowGreen, KnownColor.ButtonFace, KnownColor.ButtonHighlight, KnownColor.ButtonShadow, KnownColor.GradientActiveCaption, KnownColor.GradientInactiveCaption, KnownColor.MenuBar, KnownColor.MenuHighlight, KnownColor.RebeccaPurple, "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None"})
+        ColorComboBox1.Items.AddRange(New Object() {"None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", KnownColor.ActiveBorder, KnownColor.ActiveCaption, KnownColor.ActiveCaptionText, KnownColor.AppWorkspace, KnownColor.Control, KnownColor.ControlDark, KnownColor.ControlDarkDark, KnownColor.ControlLight, KnownColor.ControlLightLight, KnownColor.ControlText, KnownColor.Desktop, KnownColor.GrayText, KnownColor.Highlight, KnownColor.HighlightText, KnownColor.HotTrack, KnownColor.InactiveBorder, KnownColor.InactiveCaption, KnownColor.InactiveCaptionText, KnownColor.Info, KnownColor.InfoText, KnownColor.Menu, KnownColor.MenuText, KnownColor.ScrollBar, KnownColor.Window, KnownColor.WindowFrame, KnownColor.WindowText, KnownColor.Transparent, KnownColor.AliceBlue, KnownColor.AntiqueWhite, KnownColor.Aqua, KnownColor.Aquamarine, KnownColor.Azure, KnownColor.Beige, KnownColor.Bisque, KnownColor.Black, KnownColor.BlanchedAlmond, KnownColor.Blue, KnownColor.BlueViolet, KnownColor.Brown, KnownColor.BurlyWood, KnownColor.CadetBlue, KnownColor.Chartreuse, KnownColor.Chocolate, KnownColor.Coral, KnownColor.CornflowerBlue, KnownColor.Cornsilk, KnownColor.Crimson, KnownColor.Cyan, KnownColor.DarkBlue, KnownColor.DarkCyan, KnownColor.DarkGoldenrod, KnownColor.DarkGray, KnownColor.DarkGreen, KnownColor.DarkKhaki, KnownColor.DarkMagenta, KnownColor.DarkOliveGreen, KnownColor.DarkOrange, KnownColor.DarkOrchid, KnownColor.DarkRed, KnownColor.DarkSalmon, KnownColor.DarkSeaGreen, KnownColor.DarkSlateBlue, KnownColor.DarkSlateGray, KnownColor.DarkTurquoise, KnownColor.DarkViolet, KnownColor.DeepPink, KnownColor.DeepSkyBlue, KnownColor.DimGray, KnownColor.DodgerBlue, KnownColor.Firebrick, KnownColor.FloralWhite, KnownColor.ForestGreen, KnownColor.Fuchsia, KnownColor.Gainsboro, KnownColor.GhostWhite, KnownColor.Gold, KnownColor.Goldenrod, KnownColor.Gray, KnownColor.Green, KnownColor.GreenYellow, KnownColor.Honeydew, KnownColor.HotPink, KnownColor.IndianRed, KnownColor.Indigo, KnownColor.Ivory, KnownColor.Khaki, KnownColor.Lavender, KnownColor.LavenderBlush, KnownColor.LawnGreen, KnownColor.LemonChiffon, KnownColor.LightBlue, KnownColor.LightCoral, KnownColor.LightCyan, KnownColor.LightGoldenrodYellow, KnownColor.LightGray, KnownColor.LightGreen, KnownColor.LightPink, KnownColor.LightSalmon, KnownColor.LightSeaGreen, KnownColor.LightSkyBlue, KnownColor.LightSlateGray, KnownColor.LightSteelBlue, KnownColor.LightYellow, KnownColor.Lime, KnownColor.LimeGreen, KnownColor.Linen, KnownColor.Magenta, KnownColor.Maroon, KnownColor.MediumAquamarine, KnownColor.MediumBlue, KnownColor.MediumOrchid, KnownColor.MediumPurple, KnownColor.MediumSeaGreen, KnownColor.MediumSlateBlue, KnownColor.MediumSpringGreen, KnownColor.MediumTurquoise, KnownColor.MediumVioletRed, KnownColor.MidnightBlue, KnownColor.MintCream, KnownColor.MistyRose, KnownColor.Moccasin, KnownColor.NavajoWhite, KnownColor.Navy, KnownColor.OldLace, KnownColor.Olive, KnownColor.OliveDrab, KnownColor.Orange, KnownColor.OrangeRed, KnownColor.Orchid, KnownColor.PaleGoldenrod, KnownColor.PaleGreen, KnownColor.PaleTurquoise, KnownColor.PaleVioletRed, KnownColor.PapayaWhip, KnownColor.PeachPuff, KnownColor.Peru, KnownColor.Pink, KnownColor.Plum, KnownColor.PowderBlue, KnownColor.Purple, KnownColor.Red, KnownColor.RosyBrown, KnownColor.RoyalBlue, KnownColor.SaddleBrown, KnownColor.Salmon, KnownColor.SandyBrown, KnownColor.SeaGreen, KnownColor.SeaShell, KnownColor.Sienna, KnownColor.Silver, KnownColor.SkyBlue, KnownColor.SlateBlue, KnownColor.SlateGray, KnownColor.Snow, KnownColor.SpringGreen, KnownColor.SteelBlue, KnownColor.Tan, KnownColor.Teal, KnownColor.Thistle, KnownColor.Tomato, KnownColor.Turquoise, KnownColor.Violet, KnownColor.Wheat, KnownColor.White, KnownColor.WhiteSmoke, KnownColor.Yellow, KnownColor.YellowGreen, KnownColor.ButtonFace, KnownColor.ButtonHighlight, KnownColor.ButtonShadow, KnownColor.GradientActiveCaption, KnownColor.GradientInactiveCaption, KnownColor.MenuBar, KnownColor.MenuHighlight, KnownColor.RebeccaPurple, "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None"})
         ColorComboBox1.Location = New Point(177, 55)
         ColorComboBox1.Name = "ColorComboBox1"
         ColorComboBox1.SelectedColor = Color.Black
         ColorComboBox1.Size = New Size(168, 24)
         ColorComboBox1.TabIndex = 17
+        ToolTip1.SetToolTip(ColorComboBox1, "Set the wireframe color for the current shape.")
         ' 
         ' ComboBoxShapes
         ' 
@@ -455,6 +467,7 @@ Partial Class Editor_Form
         ComboBoxShapes.Name = "ComboBoxShapes"
         ComboBoxShapes.Size = New Size(480, 23)
         ComboBoxShapes.TabIndex = 3
+        ToolTip1.SetToolTip(ComboBoxShapes, "Select the shape to edit.")
         ' 
         ' Label11
         ' 
@@ -478,6 +491,7 @@ Partial Class Editor_Form
         GrayScaleTrackbar1.Size = New Size(498, 23)
         GrayScaleTrackbar1.TabIndex = 12
         GrayScaleTrackbar1.TabStop = False
+        ToolTip1.SetToolTip(GrayScaleTrackbar1, "Adjust grayscale palette preview for the selected material.")
         GrayScaleTrackbar1.Value = 50
         ' 
         ' Label14
@@ -497,6 +511,7 @@ Partial Class Editor_Form
         CheckBox2.Size = New Size(207, 19)
         CheckBox2.TabIndex = 9
         CheckBox2.Text = "Advance material edit (be carefull)"
+        ToolTip1.SetToolTip(CheckBox2, "Enable advanced material editing. Use with care.")
         CheckBox2.UseVisualStyleBackColor = True
         ' 
         ' PropertyGrid1
@@ -509,6 +524,7 @@ Partial Class Editor_Form
         PropertyGrid1.Size = New Size(688, 441)
         PropertyGrid1.TabIndex = 8
         PropertyGrid1.ToolbarVisible = False
+        ToolTip1.SetToolTip(PropertyGrid1, "Edit material properties for the current shape.")
         ' 
         ' Label13
         ' 
@@ -527,6 +543,7 @@ Partial Class Editor_Form
         MaterialPathTextbox.ReadOnly = True
         MaterialPathTextbox.Size = New Size(498, 23)
         MaterialPathTextbox.TabIndex = 6
+        ToolTip1.SetToolTip(MaterialPathTextbox, "Shows the folder of the current material.")
         ' 
         ' ComboBoxMaterials
         ' 
@@ -537,6 +554,7 @@ Partial Class Editor_Form
         ComboBoxMaterials.Name = "ComboBoxMaterials"
         ComboBoxMaterials.Size = New Size(498, 23)
         ComboBoxMaterials.TabIndex = 5
+        ToolTip1.SetToolTip(ComboBoxMaterials, "Select the material assigned to the current shape.")
         ' 
         ' Label12
         ' 
@@ -575,6 +593,7 @@ Partial Class Editor_Form
         CheckBoxGenweight.Size = New Size(117, 19)
         CheckBoxGenweight.TabIndex = 21
         CheckBoxGenweight.Text = "Generate weights"
+        ToolTip1.SetToolTip(CheckBoxGenweight, "Enable weight generation for this slider set.")
         CheckBoxGenweight.UseVisualStyleBackColor = True
         ' 
         ' CheckBoxPreventMorph
@@ -585,6 +604,7 @@ Partial Class Editor_Form
         CheckBoxPreventMorph.Size = New Size(124, 19)
         CheckBoxPreventMorph.TabIndex = 20
         CheckBoxPreventMorph.Text = "Prevent morph file"
+        ToolTip1.SetToolTip(CheckBoxPreventMorph, "Set or clear the PreventMorphFile project flag.")
         CheckBoxPreventMorph.UseVisualStyleBackColor = True
         ' 
         ' CheckBoxZappedShapes
@@ -595,11 +615,12 @@ Partial Class Editor_Form
         CheckBoxZappedShapes.Size = New Size(135, 19)
         CheckBoxZappedShapes.TabIndex = 19
         CheckBoxZappedShapes.Text = "Keep Zapped Shapes"
+        ToolTip1.SetToolTip(CheckBoxZappedShapes, "Keep shapes even when they are fully zapped.")
         CheckBoxZappedShapes.UseVisualStyleBackColor = True
         ' 
         ' Button7
         ' 
-        Button7.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Button7.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Button7.ImageIndex = 0
         Button7.Location = New Point(652, 19)
         Button7.Name = "Button7"
@@ -611,7 +632,7 @@ Partial Class Editor_Form
         ' 
         ' ButtonRemovePhysics
         ' 
-        ButtonRemovePhysics.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonRemovePhysics.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonRemovePhysics.ImageIndex = 0
         ButtonRemovePhysics.Location = New Point(251, 75)
         ButtonRemovePhysics.Name = "ButtonRemovePhysics"
@@ -619,6 +640,7 @@ Partial Class Editor_Form
         ButtonRemovePhysics.TabIndex = 6
         ButtonRemovePhysics.Text = "Remove physics"
         ButtonRemovePhysics.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ButtonRemovePhysics, "Remove all cloth physics from the current project. This cannot be undone.")
         ButtonRemovePhysics.UseVisualStyleBackColor = True
         ' 
         ' Label10
@@ -639,6 +661,7 @@ Partial Class Editor_Form
         HHNumericUpDown.Size = New Size(109, 23)
         HHNumericUpDown.TabIndex = 4
         HHNumericUpDown.TextAlign = HorizontalAlignment.Right
+        ToolTip1.SetToolTip(HHNumericUpDown, "Set the High Heels offset stored with the project.")
         ' 
         ' Label9
         ' 
@@ -656,6 +679,7 @@ Partial Class Editor_Form
         OutFilTextbox.Name = "OutFilTextbox"
         OutFilTextbox.Size = New Size(413, 23)
         OutFilTextbox.TabIndex = 2
+        ToolTip1.SetToolTip(OutFilTextbox, "Set the project output file name.")
         ' 
         ' Label8
         ' 
@@ -673,6 +697,7 @@ Partial Class Editor_Form
         OutDirTextbox.Name = "OutDirTextbox"
         OutDirTextbox.Size = New Size(509, 23)
         OutDirTextbox.TabIndex = 0
+        ToolTip1.SetToolTip(OutDirTextbox, "Set the project output directory.")
         ' 
         ' GroupBox1
         ' 
@@ -700,7 +725,7 @@ Partial Class Editor_Form
         ' 
         ' Label34
         ' 
-        Label34.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label34.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Label34.ForeColor = Color.Red
         Label34.Location = New Point(260, 106)
         Label34.Name = "Label34"
@@ -711,7 +736,7 @@ Partial Class Editor_Form
         ' 
         ' ButonMatBackToOriginal
         ' 
-        ButonMatBackToOriginal.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButonMatBackToOriginal.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButonMatBackToOriginal.ImageIndex = 0
         ButonMatBackToOriginal.Location = New Point(640, 21)
         ButonMatBackToOriginal.Name = "ButonMatBackToOriginal"
@@ -719,11 +744,12 @@ Partial Class Editor_Form
         ButonMatBackToOriginal.TabIndex = 17
         ButonMatBackToOriginal.Text = "Orig."
         ButonMatBackToOriginal.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ButonMatBackToOriginal, "Restore the original material path for the current shape.")
         ButonMatBackToOriginal.UseVisualStyleBackColor = True
         ' 
         ' ButtonMakeGradient
         ' 
-        ButtonMakeGradient.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonMakeGradient.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonMakeGradient.ImageIndex = 0
         ButtonMakeGradient.Location = New Point(641, 80)
         ButtonMakeGradient.Name = "ButtonMakeGradient"
@@ -731,11 +757,12 @@ Partial Class Editor_Form
         ButtonMakeGradient.TabIndex = 16
         ButtonMakeGradient.Text = "Add"
         ButtonMakeGradient.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ButtonMakeGradient, "Assign the default Wardrobe Manager grayscale gradient material settings.")
         ButtonMakeGradient.UseVisualStyleBackColor = True
         ' 
         ' Label6
         ' 
-        Label6.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label6.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Label6.ForeColor = Color.Blue
         Label6.Location = New Point(81, 51)
         Label6.Name = "Label6"
@@ -746,7 +773,7 @@ Partial Class Editor_Form
         ' 
         ' ButtonCopyPath
         ' 
-        ButtonCopyPath.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonCopyPath.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonCopyPath.ImageIndex = 0
         ButtonCopyPath.Location = New Point(641, 51)
         ButtonCopyPath.Name = "ButtonCopyPath"
@@ -754,16 +781,17 @@ Partial Class Editor_Form
         ButtonCopyPath.TabIndex = 14
         ButtonCopyPath.Text = "Path"
         ButtonCopyPath.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ButtonCopyPath, "Copy the current material path to the clipboard.")
         ButtonCopyPath.UseVisualStyleBackColor = True
         ' 
         ' TableLayoutPanel3
         ' 
         TableLayoutPanel3.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
         TableLayoutPanel3.ColumnCount = 4
-        TableLayoutPanel3.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
-        TableLayoutPanel3.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
-        TableLayoutPanel3.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
-        TableLayoutPanel3.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
+        TableLayoutPanel3.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
+        TableLayoutPanel3.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
+        TableLayoutPanel3.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
+        TableLayoutPanel3.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
         TableLayoutPanel3.Controls.Add(ButtonMatCancel, 3, 0)
         TableLayoutPanel3.Controls.Add(ButtonMatSaveAs, 2, 0)
         TableLayoutPanel3.Controls.Add(ButtonMatSave, 1, 0)
@@ -771,15 +799,15 @@ Partial Class Editor_Form
         TableLayoutPanel3.Location = New Point(3, 581)
         TableLayoutPanel3.Name = "TableLayoutPanel3"
         TableLayoutPanel3.RowCount = 1
-        TableLayoutPanel3.RowStyles.Add(New RowStyle(SizeType.Percent, 100F))
-        TableLayoutPanel3.RowStyles.Add(New RowStyle(SizeType.Absolute, 20F))
+        TableLayoutPanel3.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+        TableLayoutPanel3.RowStyles.Add(New RowStyle(SizeType.Absolute, 20.0F))
         TableLayoutPanel3.Size = New Size(688, 31)
         TableLayoutPanel3.TabIndex = 13
         ' 
         ' ButtonMatCancel
         ' 
         ButtonMatCancel.Dock = DockStyle.Fill
-        ButtonMatCancel.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonMatCancel.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonMatCancel.ImageIndex = 5
         ButtonMatCancel.ImageList = ImageList1
         ButtonMatCancel.Location = New Point(519, 3)
@@ -788,6 +816,7 @@ Partial Class Editor_Form
         ButtonMatCancel.TabIndex = 12
         ButtonMatCancel.Text = "Cancel"
         ButtonMatCancel.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ButtonMatCancel, "Discard unsaved material edits and reload the current material from disk.")
         ButtonMatCancel.UseVisualStyleBackColor = True
         ' 
         ' ImageList1
@@ -817,7 +846,7 @@ Partial Class Editor_Form
         ' ButtonMatSaveAs
         ' 
         ButtonMatSaveAs.Dock = DockStyle.Fill
-        ButtonMatSaveAs.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonMatSaveAs.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonMatSaveAs.ImageIndex = 4
         ButtonMatSaveAs.ImageList = ImageList1
         ButtonMatSaveAs.Location = New Point(347, 3)
@@ -826,12 +855,13 @@ Partial Class Editor_Form
         ButtonMatSaveAs.TabIndex = 11
         ButtonMatSaveAs.Text = "Save as..."
         ButtonMatSaveAs.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ButtonMatSaveAs, "Save the current material to a new file and assign it to the shape.")
         ButtonMatSaveAs.UseVisualStyleBackColor = True
         ' 
         ' ButtonMatSave
         ' 
         ButtonMatSave.Dock = DockStyle.Fill
-        ButtonMatSave.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonMatSave.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonMatSave.ImageIndex = 3
         ButtonMatSave.ImageList = ImageList1
         ButtonMatSave.Location = New Point(175, 3)
@@ -840,12 +870,13 @@ Partial Class Editor_Form
         ButtonMatSave.TabIndex = 10
         ButtonMatSave.Text = "Save"
         ButtonMatSave.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ButtonMatSave, "Save the current material back to its existing loose file.")
         ButtonMatSave.UseVisualStyleBackColor = True
         ' 
         ' ButtonMatLoad
         ' 
         ButtonMatLoad.Dock = DockStyle.Fill
-        ButtonMatLoad.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonMatLoad.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonMatLoad.ImageKey = "fileopen.ico"
         ButtonMatLoad.ImageList = ImageList1
         ButtonMatLoad.Location = New Point(3, 3)
@@ -854,6 +885,7 @@ Partial Class Editor_Form
         ButtonMatLoad.TabIndex = 9
         ButtonMatLoad.Text = "Load"
         ButtonMatLoad.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ButtonMatLoad, "Load and assign a different material file.")
         ButtonMatLoad.UseVisualStyleBackColor = True
         ' 
         ' GroupBox2
@@ -870,7 +902,7 @@ Partial Class Editor_Form
         ' TableLayoutPanel2
         ' 
         TableLayoutPanel2.ColumnCount = 2
-        TableLayoutPanel2.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50F))
+        TableLayoutPanel2.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
         TableLayoutPanel2.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0000076F))
         TableLayoutPanel2.Controls.Add(ButtonSave, 0, 0)
         TableLayoutPanel2.Controls.Add(ButtonCancel, 1, 0)
@@ -878,14 +910,14 @@ Partial Class Editor_Form
         TableLayoutPanel2.Location = New Point(3, 19)
         TableLayoutPanel2.Name = "TableLayoutPanel2"
         TableLayoutPanel2.RowCount = 1
-        TableLayoutPanel2.RowStyles.Add(New RowStyle(SizeType.Percent, 100F))
+        TableLayoutPanel2.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
         TableLayoutPanel2.Size = New Size(705, 38)
         TableLayoutPanel2.TabIndex = 0
         ' 
         ' ButtonSave
         ' 
         ButtonSave.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        ButtonSave.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonSave.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonSave.ImageIndex = 3
         ButtonSave.ImageList = ImageList1
         ButtonSave.Location = New Point(3, 3)
@@ -894,12 +926,13 @@ Partial Class Editor_Form
         ButtonSave.TabIndex = 8
         ButtonSave.Text = "Save to target"
         ButtonSave.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ButtonSave, "Save all project edits to the target project files.")
         ButtonSave.UseVisualStyleBackColor = True
         ' 
         ' ButtonCancel
         ' 
         ButtonCancel.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        ButtonCancel.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonCancel.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonCancel.ImageIndex = 5
         ButtonCancel.ImageList = ImageList1
         ButtonCancel.Location = New Point(355, 3)
@@ -908,6 +941,7 @@ Partial Class Editor_Form
         ButtonCancel.TabIndex = 9
         ButtonCancel.Text = "Cancel all editions"
         ButtonCancel.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ButtonCancel, "Close the editor and discard unsaved project edits.")
         ButtonCancel.UseVisualStyleBackColor = True
         ' 
         ' Panel1
@@ -920,7 +954,7 @@ Partial Class Editor_Form
         ' 
         ' Label7
         ' 
-        Label7.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label7.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Label7.Location = New Point(8, 14)
         Label7.Name = "Label7"
         Label7.Size = New Size(135, 29)
@@ -932,12 +966,13 @@ Partial Class Editor_Form
         ' 
         ComboBoxPresets.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
         ComboBoxPresets.DropDownStyle = ComboBoxStyle.DropDownList
-        ComboBoxPresets.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ComboBoxPresets.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ComboBoxPresets.FormattingEnabled = True
         ComboBoxPresets.Location = New Point(145, 14)
         ComboBoxPresets.Name = "ComboBoxPresets"
         ComboBoxPresets.Size = New Size(622, 29)
         ComboBoxPresets.TabIndex = 38
+        ToolTip1.SetToolTip(ComboBoxPresets, "Select the preset sliders applied to preview and baking.")
         ' 
         ' TabControl1
         ' 
@@ -1016,7 +1051,7 @@ Partial Class Editor_Form
         ' Button8
         ' 
         Button8.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        Button8.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Button8.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Button8.ImageIndex = 17
         Button8.ImageList = ImageList1
         Button8.Location = New Point(216, 355)
@@ -1025,12 +1060,13 @@ Partial Class Editor_Form
         Button8.TabIndex = 18
         Button8.Text = "Shrink mask from adjacent"
         Button8.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(Button8, "Shrink the current mask by removing the outer adjacent ring.")
         Button8.UseVisualStyleBackColor = True
         ' 
         ' ButtonClearZap
         ' 
         ButtonClearZap.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        ButtonClearZap.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonClearZap.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonClearZap.ImageKey = "button_cancel.ico"
         ButtonClearZap.ImageList = ImageList1
         ButtonClearZap.Location = New Point(216, 200)
@@ -1039,12 +1075,13 @@ Partial Class Editor_Form
         ButtonClearZap.TabIndex = 17
         ButtonClearZap.Text = "Clear all data from selected"
         ButtonClearZap.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ButtonClearZap, "Clear all vertex data from the selected zap or fix slider.")
         ButtonClearZap.UseVisualStyleBackColor = True
         ' 
         ' DeleteZap
         ' 
         DeleteZap.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        DeleteZap.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        DeleteZap.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         DeleteZap.ImageIndex = 5
         DeleteZap.ImageList = ImageList1
         DeleteZap.Location = New Point(4, 410)
@@ -1053,12 +1090,13 @@ Partial Class Editor_Form
         DeleteZap.TabIndex = 14
         DeleteZap.Text = "Delete selected slider"
         DeleteZap.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(DeleteZap, "Delete the selected zap or fix slider.")
         DeleteZap.UseVisualStyleBackColor = True
         ' 
         ' ButtonGrowMask
         ' 
         ButtonGrowMask.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        ButtonGrowMask.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonGrowMask.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonGrowMask.ImageIndex = 16
         ButtonGrowMask.ImageList = ImageList1
         ButtonGrowMask.Location = New Point(216, 326)
@@ -1067,6 +1105,7 @@ Partial Class Editor_Form
         ButtonGrowMask.TabIndex = 17
         ButtonGrowMask.Text = "Grow mask from adjacent"
         ButtonGrowMask.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ButtonGrowMask, "Expand the current mask to adjacent vertices.")
         ButtonGrowMask.UseVisualStyleBackColor = True
         ' 
         ' GroupBoxZaps
@@ -1094,6 +1133,7 @@ Partial Class Editor_Form
         CheckBoxInflate.Size = New Size(95, 19)
         CheckBoxInflate.TabIndex = 18
         CheckBoxInflate.Text = "Inflate (beta)"
+        ToolTip1.SetToolTip(CheckBoxInflate, "Project fix offsets outward from the mesh center. Experimental.")
         CheckBoxInflate.UseVisualStyleBackColor = True
         ' 
         ' Label5
@@ -1133,6 +1173,7 @@ Partial Class Editor_Form
         IncrementalCheck.Size = New Size(95, 19)
         IncrementalCheck.TabIndex = 14
         IncrementalCheck.Text = "Incremental"
+        ToolTip1.SetToolTip(IncrementalCheck, "Add fix values on top of existing fix data instead of replacing them.")
         IncrementalCheck.UseVisualStyleBackColor = True
         ' 
         ' Fix_Z
@@ -1145,6 +1186,7 @@ Partial Class Editor_Form
         Fix_Z.Size = New Size(65, 23)
         Fix_Z.TabIndex = 4
         Fix_Z.TextAlign = HorizontalAlignment.Right
+        ToolTip1.SetToolTip(Fix_Z, "Z offset used when writing fix data.")
         Fix_Z.Value = New Decimal(New Integer() {1, 0, 0, 0})
         ' 
         ' Fix_Y
@@ -1157,6 +1199,7 @@ Partial Class Editor_Form
         Fix_Y.Size = New Size(65, 23)
         Fix_Y.TabIndex = 5
         Fix_Y.TextAlign = HorizontalAlignment.Right
+        ToolTip1.SetToolTip(Fix_Y, "Y offset used when writing fix data.")
         Fix_Y.Value = New Decimal(New Integer() {1, 0, 0, 0})
         ' 
         ' Fix_X
@@ -1169,6 +1212,7 @@ Partial Class Editor_Form
         Fix_X.Size = New Size(65, 23)
         Fix_X.TabIndex = 3
         Fix_X.TextAlign = HorizontalAlignment.Right
+        ToolTip1.SetToolTip(Fix_X, "X offset used when writing fix data.")
         Fix_X.Value = New Decimal(New Integer() {1, 0, 0, 0})
         ' 
         ' Zap_Fix
@@ -1179,6 +1223,7 @@ Partial Class Editor_Form
         Zap_Fix.Size = New Size(39, 19)
         Zap_Fix.TabIndex = 15
         Zap_Fix.Text = "Fix"
+        ToolTip1.SetToolTip(Zap_Fix, "Mark the selected slider as a Wardrobe Manager fix slider.")
         Zap_Fix.UseVisualStyleBackColor = True
         ' 
         ' Zap_Zap
@@ -1191,6 +1236,7 @@ Partial Class Editor_Form
         Zap_Zap.TabIndex = 14
         Zap_Zap.TabStop = True
         Zap_Zap.Text = "Zap"
+        ToolTip1.SetToolTip(Zap_Zap, "Mark the selected slider as a standard zap.")
         Zap_Zap.UseVisualStyleBackColor = True
         ' 
         ' ZapInverted
@@ -1201,12 +1247,13 @@ Partial Class Editor_Form
         ZapInverted.Size = New Size(69, 19)
         ZapInverted.TabIndex = 13
         ZapInverted.Text = "Inverted"
+        ToolTip1.SetToolTip(ZapInverted, "Invert the selected zap slider.")
         ZapInverted.UseVisualStyleBackColor = True
         ' 
         ' ZapCreate
         ' 
         ZapCreate.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        ZapCreate.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ZapCreate.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ZapCreate.ImageIndex = 3
         ZapCreate.ImageList = ImageList1
         ZapCreate.Location = New Point(4, 381)
@@ -1215,12 +1262,13 @@ Partial Class Editor_Form
         ZapCreate.TabIndex = 12
         ZapCreate.Text = "Create new slider"
         ZapCreate.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ZapCreate, "Create a new zap or fix slider.")
         ZapCreate.UseVisualStyleBackColor = True
         ' 
         ' ZapExclude
         ' 
         ZapExclude.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        ZapExclude.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ZapExclude.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ZapExclude.ImageKey = "edit_remove.ico"
         ZapExclude.ImageList = ImageList1
         ZapExclude.Location = New Point(216, 277)
@@ -1229,12 +1277,13 @@ Partial Class Editor_Form
         ZapExclude.TabIndex = 11
         ZapExclude.Text = "Excludes masked to selected"
         ZapExclude.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ZapExclude, "Remove the currently masked vertices from the selected zap or fix.")
         ZapExclude.UseVisualStyleBackColor = True
         ' 
         ' ZapInclude
         ' 
         ZapInclude.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        ZapInclude.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ZapInclude.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ZapInclude.ImageIndex = 10
         ZapInclude.ImageList = ImageList1
         ZapInclude.Location = New Point(216, 248)
@@ -1243,12 +1292,13 @@ Partial Class Editor_Form
         ZapInclude.TabIndex = 10
         ZapInclude.Text = "Includes masked to selected"
         ZapInclude.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ZapInclude, "Add the currently masked vertices to the selected zap or fix.")
         ZapInclude.UseVisualStyleBackColor = True
         ' 
         ' ZapLoad
         ' 
         ZapLoad.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        ZapLoad.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ZapLoad.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ZapLoad.ImageKey = "compfile.ico"
         ZapLoad.ImageList = ImageList1
         ZapLoad.Location = New Point(216, 171)
@@ -1257,6 +1307,7 @@ Partial Class Editor_Form
         ZapLoad.TabIndex = 9
         ZapLoad.Text = "Load Mask from selected"
         ZapLoad.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ZapLoad, "Load the selected zap or fix vertices into the current mask.")
         ZapLoad.UseVisualStyleBackColor = True
         ' 
         ' ListView2
@@ -1268,6 +1319,7 @@ Partial Class Editor_Form
         ListView2.Name = "ListView2"
         ListView2.Size = New Size(204, 353)
         ListView2.TabIndex = 0
+        ToolTip1.SetToolTip(ListView2, "List of zaps and fix sliders for the current project.")
         ListView2.UseCompatibleStateImageBehavior = False
         ListView2.View = View.Details
         ' 
@@ -1299,7 +1351,7 @@ Partial Class Editor_Form
         ' ButtonClickAll
         ' 
         ButtonClickAll.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        ButtonClickAll.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonClickAll.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonClickAll.ImageIndex = 13
         ButtonClickAll.ImageList = ImageList1
         ButtonClickAll.Location = New Point(246, 43)
@@ -1308,6 +1360,7 @@ Partial Class Editor_Form
         ButtonClickAll.TabIndex = 18
         ButtonClickAll.Text = "Click all"
         ButtonClickAll.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ButtonClickAll, "Extend the current mask or unmask operation to all vertices in the selected direction.")
         ButtonClickAll.UseVisualStyleBackColor = True
         ' 
         ' ComboBoxAllXYZ
@@ -1320,6 +1373,7 @@ Partial Class Editor_Form
         ComboBoxAllXYZ.Name = "ComboBoxAllXYZ"
         ComboBoxAllXYZ.Size = New Size(91, 23)
         ComboBoxAllXYZ.TabIndex = 17
+        ToolTip1.SetToolTip(ComboBoxAllXYZ, "Select a direction for the Click All mask expansion.")
         ' 
         ' RadioButton2
         ' 
@@ -1330,6 +1384,7 @@ Partial Class Editor_Form
         RadioButton2.TabIndex = 16
         RadioButton2.TabStop = True
         RadioButton2.Text = "Ctrl+Click Unmask"
+        ToolTip1.SetToolTip(RadioButton2, "Ctrl+Click in the preview removes vertices from the mask.")
         RadioButton2.UseVisualStyleBackColor = True
         ' 
         ' RadioButton1
@@ -1342,12 +1397,13 @@ Partial Class Editor_Form
         RadioButton1.TabIndex = 15
         RadioButton1.TabStop = True
         RadioButton1.Text = "Ctrl+Click Mask"
+        ToolTip1.SetToolTip(RadioButton1, "Ctrl+Click in the preview adds vertices to the mask.")
         RadioButton1.UseVisualStyleBackColor = True
         ' 
         ' Button6
         ' 
         Button6.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        Button6.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Button6.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Button6.ImageIndex = 6
         Button6.ImageList = ImageList1
         Button6.Location = New Point(304, 15)
@@ -1356,12 +1412,13 @@ Partial Class Editor_Form
         Button6.TabIndex = 14
         Button6.Text = "Invert mask"
         Button6.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(Button6, "Invert the current vertex mask.")
         Button6.UseVisualStyleBackColor = True
         ' 
         ' Button5
         ' 
         Button5.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        Button5.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Button5.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Button5.ImageIndex = 12
         Button5.ImageList = ImageList1
         Button5.Location = New Point(155, 15)
@@ -1370,12 +1427,13 @@ Partial Class Editor_Form
         Button5.TabIndex = 13
         Button5.Text = "Unmask all"
         Button5.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(Button5, "Clear the current vertex mask.")
         Button5.UseVisualStyleBackColor = True
         ' 
         ' Button4
         ' 
         Button4.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        Button4.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Button4.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Button4.ImageIndex = 13
         Button4.ImageList = ImageList1
         Button4.Location = New Point(4, 15)
@@ -1384,6 +1442,7 @@ Partial Class Editor_Form
         Button4.TabIndex = 11
         Button4.Text = "Mask all"
         Button4.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(Button4, "Mask all vertices of the current shape.")
         Button4.UseVisualStyleBackColor = True
         ' 
         ' GroupBox4
@@ -1421,12 +1480,13 @@ Partial Class Editor_Form
         NumericUpDown2.Size = New Size(50, 23)
         NumericUpDown2.TabIndex = 2
         NumericUpDown2.TextAlign = HorizontalAlignment.Right
+        ToolTip1.SetToolTip(NumericUpDown2, "Maximum bone weight threshold.")
         NumericUpDown2.Value = New Decimal(New Integer() {1, 0, 0, 0})
         ' 
         ' Button3
         ' 
         Button3.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        Button3.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Button3.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Button3.ImageIndex = 12
         Button3.ImageList = ImageList1
         Button3.Location = New Point(350, 22)
@@ -1435,12 +1495,13 @@ Partial Class Editor_Form
         Button3.TabIndex = 9
         Button3.Text = "Unmask"
         Button3.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(Button3, "Unmask vertices influenced by the selected bones and weight range.")
         Button3.UseVisualStyleBackColor = True
         ' 
         ' Button2
         ' 
         Button2.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        Button2.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Button2.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Button2.ImageIndex = 13
         Button2.ImageList = ImageList1
         Button2.Location = New Point(261, 22)
@@ -1449,6 +1510,7 @@ Partial Class Editor_Form
         Button2.TabIndex = 8
         Button2.Text = "Mask"
         Button2.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(Button2, "Mask vertices influenced by the selected bones and weight range.")
         Button2.UseVisualStyleBackColor = True
         ' 
         ' Label1
@@ -1470,6 +1532,7 @@ Partial Class Editor_Form
         NumericUpDown1.Size = New Size(50, 23)
         NumericUpDown1.TabIndex = 0
         NumericUpDown1.TextAlign = HorizontalAlignment.Right
+        ToolTip1.SetToolTip(NumericUpDown1, "Minimum bone weight threshold.")
         ' 
         ' ListView1
         ' 
@@ -1479,6 +1542,7 @@ Partial Class Editor_Form
         ListView1.Name = "ListView1"
         ListView1.Size = New Size(239, 590)
         ListView1.TabIndex = 0
+        ToolTip1.SetToolTip(ListView1, "Select bones to mask vertices by weight range.")
         ListView1.UseCompatibleStateImageBehavior = False
         ListView1.View = View.Details
         ' 
@@ -1547,18 +1611,18 @@ Partial Class Editor_Form
         TableLayoutPanel4.Location = New Point(0, 0)
         TableLayoutPanel4.Name = "TableLayoutPanel4"
         TableLayoutPanel4.RowCount = 1
-        TableLayoutPanel4.RowStyles.Add(New RowStyle(SizeType.Absolute, 20F))
-        TableLayoutPanel4.RowStyles.Add(New RowStyle(SizeType.Absolute, 20F))
+        TableLayoutPanel4.RowStyles.Add(New RowStyle(SizeType.Absolute, 20.0F))
+        TableLayoutPanel4.RowStyles.Add(New RowStyle(SizeType.Absolute, 20.0F))
         TableLayoutPanel4.Size = New Size(701, 20)
         TableLayoutPanel4.TabIndex = 0
         ' 
         ' TableLayoutPanel5
         ' 
         TableLayoutPanel5.ColumnCount = 4
-        TableLayoutPanel5.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
-        TableLayoutPanel5.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
-        TableLayoutPanel5.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
-        TableLayoutPanel5.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
+        TableLayoutPanel5.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
+        TableLayoutPanel5.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
+        TableLayoutPanel5.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
+        TableLayoutPanel5.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
         TableLayoutPanel5.Controls.Add(CheckBoxIncGroups, 2, 0)
         TableLayoutPanel5.Controls.Add(CheckBoxIncNIF, 1, 0)
         TableLayoutPanel5.Controls.Add(ButtonCancelPreset, 2, 1)
@@ -1570,8 +1634,8 @@ Partial Class Editor_Form
         TableLayoutPanel5.Location = New Point(0, 0)
         TableLayoutPanel5.Name = "TableLayoutPanel5"
         TableLayoutPanel5.RowCount = 2
-        TableLayoutPanel5.RowStyles.Add(New RowStyle(SizeType.Absolute, 24F))
-        TableLayoutPanel5.RowStyles.Add(New RowStyle(SizeType.Absolute, 31F))
+        TableLayoutPanel5.RowStyles.Add(New RowStyle(SizeType.Absolute, 24.0F))
+        TableLayoutPanel5.RowStyles.Add(New RowStyle(SizeType.Absolute, 31.0F))
         TableLayoutPanel5.Size = New Size(701, 53)
         TableLayoutPanel5.TabIndex = 14
         ' 
@@ -1586,6 +1650,7 @@ Partial Class Editor_Form
         CheckBoxIncGroups.Size = New Size(169, 18)
         CheckBoxIncGroups.TabIndex = 15
         CheckBoxIncGroups.Text = "Include groups"
+        ToolTip1.SetToolTip(CheckBoxIncGroups, "Include slider groups when saving a preset.")
         CheckBoxIncGroups.UseVisualStyleBackColor = True
         ' 
         ' CheckBoxIncNIF
@@ -1597,12 +1662,13 @@ Partial Class Editor_Form
         CheckBoxIncNIF.Size = New Size(169, 18)
         CheckBoxIncNIF.TabIndex = 14
         CheckBoxIncNIF.Text = "Include NIF sliders"
+        ToolTip1.SetToolTip(CheckBoxIncNIF, "Include current NIF sliders when saving a preset.")
         CheckBoxIncNIF.UseVisualStyleBackColor = True
         ' 
         ' ButtonCancelPreset
         ' 
         ButtonCancelPreset.Dock = DockStyle.Fill
-        ButtonCancelPreset.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonCancelPreset.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonCancelPreset.ImageIndex = 5
         ButtonCancelPreset.ImageList = ImageList1
         ButtonCancelPreset.Location = New Point(353, 27)
@@ -1611,12 +1677,13 @@ Partial Class Editor_Form
         ButtonCancelPreset.TabIndex = 12
         ButtonCancelPreset.Text = "Cancel"
         ButtonCancelPreset.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ButtonCancelPreset, "Discard preview preset changes and reload the selected preset.")
         ButtonCancelPreset.UseVisualStyleBackColor = True
         ' 
         ' ButtonSaveAsPreset
         ' 
         ButtonSaveAsPreset.Dock = DockStyle.Fill
-        ButtonSaveAsPreset.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonSaveAsPreset.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonSaveAsPreset.ImageIndex = 4
         ButtonSaveAsPreset.ImageList = ImageList1
         ButtonSaveAsPreset.Location = New Point(178, 27)
@@ -1625,12 +1692,13 @@ Partial Class Editor_Form
         ButtonSaveAsPreset.TabIndex = 11
         ButtonSaveAsPreset.Text = "Save as..."
         ButtonSaveAsPreset.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ButtonSaveAsPreset, "Save the current slider values as a new preset.")
         ButtonSaveAsPreset.UseVisualStyleBackColor = True
         ' 
         ' ButtonSavePreset
         ' 
         ButtonSavePreset.Dock = DockStyle.Fill
-        ButtonSavePreset.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonSavePreset.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonSavePreset.ImageIndex = 3
         ButtonSavePreset.ImageList = ImageList1
         ButtonSavePreset.Location = New Point(3, 27)
@@ -1639,6 +1707,7 @@ Partial Class Editor_Form
         ButtonSavePreset.TabIndex = 10
         ButtonSavePreset.Text = "Save"
         ButtonSavePreset.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ButtonSavePreset, "Overwrite the selected preset file.")
         ButtonSavePreset.UseVisualStyleBackColor = True
         ' 
         ' CheckBoxIncSlid
@@ -1652,12 +1721,13 @@ Partial Class Editor_Form
         CheckBoxIncSlid.Size = New Size(169, 18)
         CheckBoxIncSlid.TabIndex = 13
         CheckBoxIncSlid.Text = "Include preset sliders"
+        ToolTip1.SetToolTip(CheckBoxIncSlid, "Include current preset sliders when saving a preset.")
         CheckBoxIncSlid.UseVisualStyleBackColor = True
         ' 
         ' ButtondelPreset
         ' 
         ButtondelPreset.Dock = DockStyle.Fill
-        ButtondelPreset.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtondelPreset.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtondelPreset.ImageIndex = 14
         ButtondelPreset.ImageList = ImageList1
         ButtondelPreset.Location = New Point(528, 27)
@@ -1666,6 +1736,7 @@ Partial Class Editor_Form
         ButtondelPreset.TabIndex = 16
         ButtondelPreset.Text = "Delete"
         ButtondelPreset.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ButtondelPreset, "Delete the selected preset from its source file.")
         ButtondelPreset.UseVisualStyleBackColor = True
         ' 
         ' TabPage4
@@ -1698,7 +1769,7 @@ Partial Class Editor_Form
         ' 
         ' ButtonReloadBonePose
         ' 
-        ButtonReloadBonePose.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonReloadBonePose.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonReloadBonePose.ImageIndex = 9
         ButtonReloadBonePose.ImageList = ImageList1
         ButtonReloadBonePose.Location = New Point(264, 422)
@@ -1708,11 +1779,12 @@ Partial Class Editor_Form
         ButtonReloadBonePose.Text = "Reload bone transforms"
         ButtonReloadBonePose.TextAlign = ContentAlignment.MiddleLeft
         ButtonReloadBonePose.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ButtonReloadBonePose, "Reload the selected bone transform from the selected saved pose.")
         ButtonReloadBonePose.UseVisualStyleBackColor = True
         ' 
         ' ButtonClearPoseTransforms
         ' 
-        ButtonClearPoseTransforms.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonClearPoseTransforms.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonClearPoseTransforms.ImageIndex = 5
         ButtonClearPoseTransforms.ImageList = ImageList1
         ButtonClearPoseTransforms.Location = New Point(480, 391)
@@ -1722,11 +1794,12 @@ Partial Class Editor_Form
         ButtonClearPoseTransforms.Text = "Delete pose transforms"
         ButtonClearPoseTransforms.TextAlign = ContentAlignment.MiddleLeft
         ButtonClearPoseTransforms.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ButtonClearPoseTransforms, "Delete all custom transforms from the working pose.")
         ButtonClearPoseTransforms.UseVisualStyleBackColor = True
         ' 
         ' ButtonClearBoneTransform
         ' 
-        ButtonClearBoneTransform.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonClearBoneTransform.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonClearBoneTransform.ImageIndex = 11
         ButtonClearBoneTransform.ImageList = ImageList1
         ButtonClearBoneTransform.Location = New Point(480, 422)
@@ -1736,11 +1809,12 @@ Partial Class Editor_Form
         ButtonClearBoneTransform.Text = "Clear bone transforms"
         ButtonClearBoneTransform.TextAlign = ContentAlignment.MiddleLeft
         ButtonClearBoneTransform.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ButtonClearBoneTransform, "Clear the custom transform of the selected bone.")
         ButtonClearBoneTransform.UseVisualStyleBackColor = True
         ' 
         ' ButtonReloadPose
         ' 
-        ButtonReloadPose.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonReloadPose.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonReloadPose.ImageIndex = 7
         ButtonReloadPose.ImageList = ImageList1
         ButtonReloadPose.Location = New Point(265, 391)
@@ -1750,15 +1824,16 @@ Partial Class Editor_Form
         ButtonReloadPose.Text = "Reset to selected pose"
         ButtonReloadPose.TextAlign = ContentAlignment.MiddleLeft
         ButtonReloadPose.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ButtonReloadPose, "Reset the working pose to the currently selected saved pose.")
         ButtonReloadPose.UseVisualStyleBackColor = True
         ' 
         ' TableLayoutPanel6
         ' 
         TableLayoutPanel6.ColumnCount = 4
-        TableLayoutPanel6.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
-        TableLayoutPanel6.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
-        TableLayoutPanel6.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
-        TableLayoutPanel6.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
+        TableLayoutPanel6.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
+        TableLayoutPanel6.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
+        TableLayoutPanel6.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
+        TableLayoutPanel6.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
         TableLayoutPanel6.Controls.Add(PoseUnBakeShapeButton, 3, 1)
         TableLayoutPanel6.Controls.Add(PoseBakeShapeButton, 2, 1)
         TableLayoutPanel6.Controls.Add(CheckBoxSaveSAF, 3, 0)
@@ -1771,16 +1846,16 @@ Partial Class Editor_Form
         TableLayoutPanel6.Location = New Point(3, 550)
         TableLayoutPanel6.Name = "TableLayoutPanel6"
         TableLayoutPanel6.RowCount = 2
-        TableLayoutPanel6.RowStyles.Add(New RowStyle(SizeType.Absolute, 31F))
-        TableLayoutPanel6.RowStyles.Add(New RowStyle(SizeType.Absolute, 31F))
-        TableLayoutPanel6.RowStyles.Add(New RowStyle(SizeType.Absolute, 20F))
+        TableLayoutPanel6.RowStyles.Add(New RowStyle(SizeType.Absolute, 31.0F))
+        TableLayoutPanel6.RowStyles.Add(New RowStyle(SizeType.Absolute, 31.0F))
+        TableLayoutPanel6.RowStyles.Add(New RowStyle(SizeType.Absolute, 20.0F))
         TableLayoutPanel6.Size = New Size(690, 65)
         TableLayoutPanel6.TabIndex = 15
         ' 
         ' PoseUnBakeShapeButton
         ' 
         PoseUnBakeShapeButton.Dock = DockStyle.Fill
-        PoseUnBakeShapeButton.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        PoseUnBakeShapeButton.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         PoseUnBakeShapeButton.ImageIndex = 6
         PoseUnBakeShapeButton.ImageList = ImageList1
         PoseUnBakeShapeButton.Location = New Point(519, 34)
@@ -1790,12 +1865,13 @@ Partial Class Editor_Form
         PoseUnBakeShapeButton.Text = "Un-Bake in shape"
         PoseUnBakeShapeButton.TextAlign = ContentAlignment.MiddleLeft
         PoseUnBakeShapeButton.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(PoseUnBakeShapeButton, "Invert a previously baked pose only on the selected shape.")
         PoseUnBakeShapeButton.UseVisualStyleBackColor = True
         ' 
         ' PoseBakeShapeButton
         ' 
         PoseBakeShapeButton.Dock = DockStyle.Fill
-        PoseBakeShapeButton.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        PoseBakeShapeButton.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         PoseBakeShapeButton.ImageIndex = 8
         PoseBakeShapeButton.ImageList = ImageList1
         PoseBakeShapeButton.Location = New Point(347, 34)
@@ -1804,6 +1880,7 @@ Partial Class Editor_Form
         PoseBakeShapeButton.TabIndex = 25
         PoseBakeShapeButton.Text = "Bake in shape"
         PoseBakeShapeButton.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(PoseBakeShapeButton, "Bake the current pose only into the selected shape.")
         PoseBakeShapeButton.UseVisualStyleBackColor = True
         ' 
         ' CheckBoxSaveSAF
@@ -1817,12 +1894,13 @@ Partial Class Editor_Form
         CheckBoxSaveSAF.Size = New Size(168, 25)
         CheckBoxSaveSAF.TabIndex = 24
         CheckBoxSaveSAF.Text = "Save for screen archer also"
+        ToolTip1.SetToolTip(CheckBoxSaveSAF, "Also export the pose for Screen Archer / SAM-compatible output.")
         CheckBoxSaveSAF.UseVisualStyleBackColor = True
         ' 
         ' PoseUnBakeButton
         ' 
         PoseUnBakeButton.Dock = DockStyle.Fill
-        PoseUnBakeButton.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        PoseUnBakeButton.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         PoseUnBakeButton.ImageIndex = 6
         PoseUnBakeButton.ImageList = ImageList1
         PoseUnBakeButton.Location = New Point(175, 34)
@@ -1832,12 +1910,13 @@ Partial Class Editor_Form
         PoseUnBakeButton.Text = "Un-Bake in mesh"
         PoseUnBakeButton.TextAlign = ContentAlignment.MiddleLeft
         PoseUnBakeButton.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(PoseUnBakeButton, "Invert a previously baked pose on the full mesh.")
         PoseUnBakeButton.UseVisualStyleBackColor = True
         ' 
         ' PoseBakeButton
         ' 
         PoseBakeButton.Dock = DockStyle.Fill
-        PoseBakeButton.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        PoseBakeButton.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         PoseBakeButton.ImageIndex = 8
         PoseBakeButton.ImageList = ImageList1
         PoseBakeButton.Location = New Point(3, 34)
@@ -1846,12 +1925,13 @@ Partial Class Editor_Form
         PoseBakeButton.TabIndex = 12
         PoseBakeButton.Text = "Bake in mesh"
         PoseBakeButton.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(PoseBakeButton, "Bake the current pose into all mesh vertex positions.")
         PoseBakeButton.UseVisualStyleBackColor = True
         ' 
         ' PoseSaveAsButton
         ' 
         PoseSaveAsButton.Dock = DockStyle.Fill
-        PoseSaveAsButton.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        PoseSaveAsButton.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         PoseSaveAsButton.ImageIndex = 4
         PoseSaveAsButton.ImageList = ImageList1
         PoseSaveAsButton.Location = New Point(175, 3)
@@ -1860,12 +1940,13 @@ Partial Class Editor_Form
         PoseSaveAsButton.TabIndex = 11
         PoseSaveAsButton.Text = "Save as..."
         PoseSaveAsButton.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(PoseSaveAsButton, "Save the current pose as a new pose.")
         PoseSaveAsButton.UseVisualStyleBackColor = True
         ' 
         ' PoseSaveButton
         ' 
         PoseSaveButton.Dock = DockStyle.Fill
-        PoseSaveButton.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        PoseSaveButton.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         PoseSaveButton.ImageIndex = 3
         PoseSaveButton.ImageList = ImageList1
         PoseSaveButton.Location = New Point(3, 3)
@@ -1874,12 +1955,13 @@ Partial Class Editor_Form
         PoseSaveButton.TabIndex = 10
         PoseSaveButton.Text = "Save"
         PoseSaveButton.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(PoseSaveButton, "Save the current pose over the selected pose entry.")
         PoseSaveButton.UseVisualStyleBackColor = True
         ' 
         ' PoseDeleteButton
         ' 
         PoseDeleteButton.Dock = DockStyle.Fill
-        PoseDeleteButton.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        PoseDeleteButton.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         PoseDeleteButton.ImageIndex = 14
         PoseDeleteButton.ImageList = ImageList1
         PoseDeleteButton.Location = New Point(347, 3)
@@ -1888,6 +1970,7 @@ Partial Class Editor_Form
         PoseDeleteButton.TabIndex = 16
         PoseDeleteButton.Text = "Delete"
         PoseDeleteButton.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(PoseDeleteButton, "Delete the selected pose from its source file.")
         PoseDeleteButton.UseVisualStyleBackColor = True
         ' 
         ' GroupBox10
@@ -1947,6 +2030,7 @@ Partial Class Editor_Form
         NumericUpDownScale.Size = New Size(100, 23)
         NumericUpDownScale.TabIndex = 54
         NumericUpDownScale.TextAlign = HorizontalAlignment.Right
+        ToolTip1.SetToolTip(NumericUpDownScale, "Scale for the selected bone transform.")
         ' 
         ' Label30
         ' 
@@ -1984,6 +2068,7 @@ Partial Class Editor_Form
         NumericUpDownRotZ.Size = New Size(100, 23)
         NumericUpDownRotZ.TabIndex = 50
         NumericUpDownRotZ.TextAlign = HorizontalAlignment.Right
+        ToolTip1.SetToolTip(NumericUpDownRotZ, "Rotation Z for the selected bone transform.")
         ' 
         ' NumericUpDownRotY
         ' 
@@ -1994,6 +2079,7 @@ Partial Class Editor_Form
         NumericUpDownRotY.Size = New Size(100, 23)
         NumericUpDownRotY.TabIndex = 49
         NumericUpDownRotY.TextAlign = HorizontalAlignment.Right
+        ToolTip1.SetToolTip(NumericUpDownRotY, "Rotation Y for the selected bone transform.")
         ' 
         ' NumericUpDownRotX
         ' 
@@ -2004,6 +2090,7 @@ Partial Class Editor_Form
         NumericUpDownRotX.Size = New Size(100, 23)
         NumericUpDownRotX.TabIndex = 48
         NumericUpDownRotX.TextAlign = HorizontalAlignment.Right
+        ToolTip1.SetToolTip(NumericUpDownRotX, "Rotation X for the selected bone transform.")
         ' 
         ' Label29
         ' 
@@ -2041,6 +2128,7 @@ Partial Class Editor_Form
         NumericUpDownTrasZ.Size = New Size(100, 23)
         NumericUpDownTrasZ.TabIndex = 21
         NumericUpDownTrasZ.TextAlign = HorizontalAlignment.Right
+        ToolTip1.SetToolTip(NumericUpDownTrasZ, "Translation Z for the selected bone transform.")
         ' 
         ' NumericUpDownTrasY
         ' 
@@ -2051,6 +2139,7 @@ Partial Class Editor_Form
         NumericUpDownTrasY.Size = New Size(100, 23)
         NumericUpDownTrasY.TabIndex = 20
         NumericUpDownTrasY.TextAlign = HorizontalAlignment.Right
+        ToolTip1.SetToolTip(NumericUpDownTrasY, "Translation Y for the selected bone transform.")
         ' 
         ' NumericUpDownTrasX
         ' 
@@ -2061,6 +2150,7 @@ Partial Class Editor_Form
         NumericUpDownTrasX.Size = New Size(100, 23)
         NumericUpDownTrasX.TabIndex = 19
         NumericUpDownTrasX.TextAlign = HorizontalAlignment.Right
+        ToolTip1.SetToolTip(NumericUpDownTrasX, "Translation X for the selected bone transform.")
         ' 
         ' TrackBar8
         ' 
@@ -2071,6 +2161,7 @@ Partial Class Editor_Form
         TrackBar8.Size = New Size(302, 21)
         TrackBar8.TabIndex = 13
         TrackBar8.TickFrequency = 10
+        ToolTip1.SetToolTip(TrackBar8, "Adjust scale for the selected bone.")
         TrackBar8.Value = 10
         ' 
         ' TrackBar7
@@ -2083,6 +2174,7 @@ Partial Class Editor_Form
         TrackBar7.Size = New Size(302, 21)
         TrackBar7.TabIndex = 12
         TrackBar7.TickFrequency = 10
+        ToolTip1.SetToolTip(TrackBar7, "Adjust rotation Z for the selected bone.")
         ' 
         ' TrackBar6
         ' 
@@ -2094,6 +2186,7 @@ Partial Class Editor_Form
         TrackBar6.Size = New Size(302, 21)
         TrackBar6.TabIndex = 11
         TrackBar6.TickFrequency = 10
+        ToolTip1.SetToolTip(TrackBar6, "Adjust rotation Y for the selected bone.")
         ' 
         ' TrackBar5
         ' 
@@ -2105,6 +2198,7 @@ Partial Class Editor_Form
         TrackBar5.Size = New Size(302, 21)
         TrackBar5.TabIndex = 10
         TrackBar5.TickFrequency = 10
+        ToolTip1.SetToolTip(TrackBar5, "Adjust rotation X for the selected bone.")
         ' 
         ' TrackBar4
         ' 
@@ -2116,10 +2210,11 @@ Partial Class Editor_Form
         TrackBar4.Size = New Size(302, 21)
         TrackBar4.TabIndex = 9
         TrackBar4.TickFrequency = 10
+        ToolTip1.SetToolTip(TrackBar4, "Adjust translation Z for the selected bone.")
         ' 
         ' LabelORotation
         ' 
-        LabelORotation.Font = New Font("Segoe UI", 9F, FontStyle.Bold)
+        LabelORotation.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold)
         LabelORotation.Location = New Point(229, 219)
         LabelORotation.Name = "LabelORotation"
         LabelORotation.Size = New Size(177, 21)
@@ -2137,10 +2232,11 @@ Partial Class Editor_Form
         TrackBar3.Size = New Size(302, 21)
         TrackBar3.TabIndex = 8
         TrackBar3.TickFrequency = 10
+        ToolTip1.SetToolTip(TrackBar3, "Adjust translation Y for the selected bone.")
         ' 
         ' LabelOTranslation
         ' 
-        LabelOTranslation.Font = New Font("Segoe UI", 9F, FontStyle.Bold)
+        LabelOTranslation.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold)
         LabelOTranslation.Location = New Point(6, 219)
         LabelOTranslation.Name = "LabelOTranslation"
         LabelOTranslation.Size = New Size(177, 21)
@@ -2158,6 +2254,7 @@ Partial Class Editor_Form
         TrackBar2.Size = New Size(302, 21)
         TrackBar2.TabIndex = 7
         TrackBar2.TickFrequency = 10
+        ToolTip1.SetToolTip(TrackBar2, "Adjust translation X for the selected bone.")
         ' 
         ' Label25
         ' 
@@ -2229,6 +2326,7 @@ Partial Class Editor_Form
         TreeViewSkeleton.Name = "TreeViewSkeleton"
         TreeViewSkeleton.Size = New Size(255, 522)
         TreeViewSkeleton.TabIndex = 0
+        ToolTip1.SetToolTip(TreeViewSkeleton, "Browse skeleton bones for pose editing.")
         ' 
         ' SingleBoneCheck
         ' 
@@ -2238,6 +2336,7 @@ Partial Class Editor_Form
         SingleBoneCheck.Size = New Size(136, 19)
         SingleBoneCheck.TabIndex = 41
         SingleBoneCheck.Text = "Single bone skinning"
+        ToolTip1.SetToolTip(SingleBoneCheck, "Use single-bone skinning in preview. Faster, more resilient to complex physics, but posing support is not compatible.")
         SingleBoneCheck.UseVisualStyleBackColor = True
         ' 
         ' NumericMaskRadius
@@ -2248,6 +2347,7 @@ Partial Class Editor_Form
         NumericMaskRadius.Size = New Size(69, 23)
         NumericMaskRadius.TabIndex = 7
         NumericMaskRadius.TextAlign = HorizontalAlignment.Right
+        ToolTip1.SetToolTip(NumericMaskRadius, "Brush radius used for Ctrl+Click masking in the preview.")
         NumericMaskRadius.Value = New Decimal(New Integer() {1, 0, 0, 0})
         ' 
         ' Label17
@@ -2267,11 +2367,12 @@ Partial Class Editor_Form
         RecalculateNormalsCheck.Size = New Size(132, 19)
         RecalculateNormalsCheck.TabIndex = 45
         RecalculateNormalsCheck.Text = "Recalculate normals"
+        ToolTip1.SetToolTip(RecalculateNormalsCheck, "Recalculate normals in preview and baking using the current normal reconstruction settings.")
         RecalculateNormalsCheck.UseVisualStyleBackColor = True
         ' 
         ' Label15
         ' 
-        Label15.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label15.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Label15.Location = New Point(8, 49)
         Label15.Name = "Label15"
         Label15.Size = New Size(135, 29)
@@ -2283,12 +2384,13 @@ Partial Class Editor_Form
         ' 
         ComboBoxPoses.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
         ComboBoxPoses.DropDownStyle = ComboBoxStyle.DropDownList
-        ComboBoxPoses.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ComboBoxPoses.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ComboBoxPoses.FormattingEnabled = True
         ComboBoxPoses.Location = New Point(145, 49)
         ComboBoxPoses.Name = "ComboBoxPoses"
         ComboBoxPoses.Size = New Size(622, 29)
         ComboBoxPoses.TabIndex = 46
+        ToolTip1.SetToolTip(ComboBoxPoses, "Select the active pose.")
         ' 
         ' GroupBox11
         ' 
@@ -2311,6 +2413,7 @@ Partial Class Editor_Form
         Button9.Size = New Size(153, 24)
         Button9.TabIndex = 46
         Button9.Text = "Reset camera"
+        ToolTip1.SetToolTip(Button9, "Reset the preview camera.")
         Button9.UseVisualStyleBackColor = True
         ' 
         ' GroupBox12
@@ -2340,6 +2443,7 @@ Partial Class Editor_Form
         TextBox2.Name = "TextBox2"
         TextBox2.Size = New Size(735, 23)
         TextBox2.TabIndex = 0
+        ToolTip1.SetToolTip(TextBox2, "Edit the project description.")
         ' 
         ' GroupBox13
         ' 
@@ -2370,23 +2474,25 @@ Partial Class Editor_Form
         ButtonRenderScreenshot.TabIndex = 49
         ButtonRenderScreenshot.Text = "Screenshot"
         ButtonRenderScreenshot.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ButtonRenderScreenshot, "Save a PNG screenshot of the current render preview.")
         ButtonRenderScreenshot.UseVisualStyleBackColor = True
         ' 
         ' ComboBoxSize
         ' 
         ComboBoxSize.Anchor = AnchorStyles.Top Or AnchorStyles.Right
         ComboBoxSize.DropDownStyle = ComboBoxStyle.DropDownList
-        ComboBoxSize.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ComboBoxSize.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ComboBoxSize.FormattingEnabled = True
         ComboBoxSize.Items.AddRange(New Object() {"Default", "Big", "Small"})
         ComboBoxSize.Location = New Point(773, 14)
         ComboBoxSize.Name = "ComboBoxSize"
         ComboBoxSize.Size = New Size(98, 29)
         ComboBoxSize.TabIndex = 48
+        ToolTip1.SetToolTip(ComboBoxSize, "Select the body size variant used for preview and build operations. (SkyrimSSE Big and Small support)")
         ' 
         ' Editor_Form
         ' 
-        AutoScaleDimensions = New SizeF(7F, 15F)
+        AutoScaleDimensions = New SizeF(7.0F, 15.0F)
         AutoScaleMode = AutoScaleMode.Font
         ClientSize = New Size(1618, 954)
         Controls.Add(GroupBox13)
@@ -2643,9 +2749,9 @@ Partial Class Editor_Form
     Friend WithEvents ButtonRenderScreenshot As Button
     Friend WithEvents Label34 As Label
     Friend WithEvents ComboBox1 As ComboBox
-    Friend WithEvents Button10 As Button
     Friend WithEvents ComboBoxAllXYZ As ComboBox
     Friend WithEvents ButtonClickAll As Button
+    Friend WithEvents ToolTip1 As ToolTip
 
 End Class
 

@@ -23,6 +23,7 @@ Partial Class LightRigForm
     'No lo modifique con el editor de código.
     <System.Diagnostics.DebuggerStepThrough()>
     Private Sub InitializeComponent()
+        components = New ComponentModel.Container()
         grpKey = New GroupBox()
         lblKeyStrength = New Label()
         tbKey = New TrackBar()
@@ -87,6 +88,7 @@ Partial Class LightRigForm
         GroupBox1 = New GroupBox()
         lblambient = New Label()
         tambient = New TrackBar()
+        ToolTip1 = New ToolTip(components)
         grpKey.SuspendLayout()
         CType(tbKey, ComponentModel.ISupportInitialize).BeginInit()
         CType(nudK_F, ComponentModel.ISupportInitialize).BeginInit()
@@ -818,7 +820,7 @@ Partial Class LightRigForm
         lblambient.Name = "lblambient"
         lblambient.Size = New Size(71, 15)
         lblambient.TabIndex = 1
-        lblambient.Text = "Ambient 0.0"
+        lblambient.Text = "Srength 0.0"
         ' 
         ' tambient
         ' 
@@ -829,6 +831,43 @@ Partial Class LightRigForm
         tambient.TabIndex = 0
         tambient.TickFrequency = 10
         ' 
+        ' Tooltip
+        ' 
+        ' 
+        ToolTip1.SetToolTip(tbKey, "Adjust frontal light strength.")
+        ToolTip1.SetToolTip(nudK_F, "Move frontal light forward or backward.")
+        ToolTip1.SetToolTip(nudK_R, "Move frontal light right or left.")
+        ToolTip1.SetToolTip(nudK_U, "Move frontal light up or down.")
+        ToolTip1.SetToolTip(nudK_B, "Move frontal light toward the back direction.")
+        ToolTip1.SetToolTip(nudK_L, "Move frontal light toward the left direction.")
+        ToolTip1.SetToolTip(nudK_D, "Move frontal light downward.")
+
+        ToolTip1.SetToolTip(tbFillL, "Adjust left light strength.")
+        ToolTip1.SetToolTip(nudL_F, "Move left light forward or backward.")
+        ToolTip1.SetToolTip(nudL_R, "Move left light right or left.")
+        ToolTip1.SetToolTip(nudL_U, "Move left light up or down.")
+        ToolTip1.SetToolTip(nudL_B, "Move left light toward the back direction.")
+        ToolTip1.SetToolTip(nudL_L, "Move left light toward the left direction.")
+        ToolTip1.SetToolTip(nudL_D, "Move left light downward.")
+
+        ToolTip1.SetToolTip(tbFillR, "Adjust right light strength.")
+        ToolTip1.SetToolTip(nudR_F, "Move right light forward or backward.")
+        ToolTip1.SetToolTip(nudR_R, "Move right light right or left.")
+        ToolTip1.SetToolTip(nudR_U, "Move right light up or down.")
+        ToolTip1.SetToolTip(nudR_B, "Move right light toward the back direction.")
+        ToolTip1.SetToolTip(nudR_L, "Move right light toward the left direction.")
+        ToolTip1.SetToolTip(nudR_D, "Move right light downward.")
+
+        ToolTip1.SetToolTip(tbBack, "Adjust back light strength.")
+        ToolTip1.SetToolTip(nudB_F, "Move back light forward or backward.")
+        ToolTip1.SetToolTip(nudB_R, "Move back light right or left.")
+        ToolTip1.SetToolTip(nudB_U, "Move back light up or down.")
+        ToolTip1.SetToolTip(nudB_B, "Move back light toward the back direction.")
+        ToolTip1.SetToolTip(nudB_L, "Move back light toward the left direction.")
+        ToolTip1.SetToolTip(nudB_D, "Move back light downward.")
+
+        ToolTip1.SetToolTip(tambient, "Adjust ambient light intensity.")
+        ToolTip1.SetToolTip(btnReset, "Restore the default light rig values.")
         ' LightRigForm
         ' 
         AutoScaleDimensions = New SizeF(7.0F, 15.0F)
@@ -953,5 +992,6 @@ Partial Class LightRigForm
     Friend WithEvents GroupBox1 As GroupBox
     Friend WithEvents lblambient As Label
     Friend WithEvents tambient As TrackBar
+    Friend WithEvents ToolTip1 As ToolTip
 End Class
 

@@ -22,6 +22,7 @@ Partial Class DictionaryPicker_Control
     'No lo modifiques con el editor de código.
     <System.Diagnostics.DebuggerStepThrough()>
     Private Sub InitializeComponent()
+        components = New ComponentModel.Container()
         lblRoot = New Label()
         splitMain = New SplitContainer()
         tvDirs = New TreeView()
@@ -34,6 +35,7 @@ Partial Class DictionaryPicker_Control
         txtPath = New TextBox()
         btnOk = New Button()
         btnCancel = New Button()
+        ToolTip1 = New ToolTip(components)
         CType(splitMain, ComponentModel.ISupportInitialize).BeginInit()
         splitMain.Panel1.SuspendLayout()
         splitMain.Panel2.SuspendLayout()
@@ -163,7 +165,16 @@ Partial Class DictionaryPicker_Control
         ' 
         ' DictionaryPicker_Control
         ' 
-        AutoScaleDimensions = New SizeF(7F, 15F)
+        ToolTip1.SetToolTip(tvDirs, "Browse dictionary folders.")
+        ToolTip1.SetToolTip(lvFiles, "Select a file from the current dictionary folder.")
+        ToolTip1.SetToolTip(txtPath, "Shows the currently selected file path or current folder.")
+        ToolTip1.SetToolTip(btnOk, "Accept the current file selection.")
+        ToolTip1.SetToolTip(btnCancel, "Cancel without selecting a file.")
+        ToolTip1.SetToolTip(ButtonClone, "Clone the selected dictionary file to a loose file on disk.")
+        ' 
+        ' DictionaryPicker_Control
+        ' 
+        AutoScaleDimensions = New SizeF(7.0F, 15.0F)
         AutoScaleMode = AutoScaleMode.Font
         Controls.Add(splitMain)
         Controls.Add(panelBottom)
@@ -193,5 +204,6 @@ Partial Class DictionaryPicker_Control
     Friend WithEvents btnOk As Button
     Friend WithEvents btnCancel As Button
     Friend WithEvents ButtonClone As Button
+    Friend WithEvents ToolTip1 As ToolTip
 
 End Class
