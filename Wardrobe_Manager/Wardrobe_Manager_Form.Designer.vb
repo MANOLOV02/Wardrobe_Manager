@@ -168,7 +168,7 @@ Partial Class Wardrobe_Manager_Form
         ' 
         ComboboxPacks.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
         ComboboxPacks.DropDownStyle = ComboBoxStyle.DropDownList
-        ComboboxPacks.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ComboboxPacks.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ComboboxPacks.FormattingEnabled = True
         ComboboxPacks.Location = New Point(154, 34)
         ComboboxPacks.Name = "ComboboxPacks"
@@ -178,7 +178,7 @@ Partial Class Wardrobe_Manager_Form
         ' 
         ' Label1
         ' 
-        Label1.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label1.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Label1.Location = New Point(6, 34)
         Label1.Name = "Label1"
         Label1.Size = New Size(132, 29)
@@ -188,7 +188,7 @@ Partial Class Wardrobe_Manager_Form
         ' 
         ' Label2
         ' 
-        Label2.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label2.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Label2.Location = New Point(0, 4)
         Label2.Name = "Label2"
         Label2.Size = New Size(138, 28)
@@ -199,7 +199,7 @@ Partial Class Wardrobe_Manager_Form
         ' TextBox_SourceName
         ' 
         TextBox_SourceName.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        TextBox_SourceName.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        TextBox_SourceName.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         TextBox_SourceName.Location = New Point(139, 3)
         TextBox_SourceName.Name = "TextBox_SourceName"
         TextBox_SourceName.Size = New Size(451, 29)
@@ -289,7 +289,7 @@ Partial Class Wardrobe_Manager_Form
         ' NewPackButton
         ' 
         NewPackButton.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        NewPackButton.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        NewPackButton.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         NewPackButton.Location = New Point(576, 36)
         NewPackButton.Name = "NewPackButton"
         NewPackButton.Size = New Size(64, 29)
@@ -399,21 +399,21 @@ Partial Class Wardrobe_Manager_Form
         Physics_Label.TextAlign = ContentAlignment.MiddleLeft
         Physics_Label.Visible = False
         ' 
-        ' Button3
+        ' ButtonDataSheetSelected
         ' 
         ButtonDataSheetSelected.Location = New Point(83, 46)
-        ButtonDataSheetSelected.Name = "Button3"
+        ButtonDataSheetSelected.Name = "ButtonDataSheetSelected"
         ButtonDataSheetSelected.Size = New Size(72, 22)
         ButtonDataSheetSelected.TabIndex = 38
         ButtonDataSheetSelected.Text = "Data"
         ToolTip1.SetToolTip(ButtonDataSheetSelected, "Show project data instead of the 3D preview.")
         ButtonDataSheetSelected.UseVisualStyleBackColor = True
         ' 
-        ' Button2
+        ' ButtonPreviewSelected
         ' 
         ButtonPreviewSelected.FlatStyle = FlatStyle.Flat
         ButtonPreviewSelected.Location = New Point(5, 46)
-        ButtonPreviewSelected.Name = "Button2"
+        ButtonPreviewSelected.Name = "ButtonPreviewSelected"
         ButtonPreviewSelected.Size = New Size(72, 22)
         ButtonPreviewSelected.TabIndex = 37
         ButtonPreviewSelected.Text = "Preview"
@@ -488,7 +488,7 @@ Partial Class Wardrobe_Manager_Form
         TableLayoutPanel1.RowStyles.Add(New RowStyle(SizeType.Percent, 33.3333321F))
         TableLayoutPanel1.RowStyles.Add(New RowStyle(SizeType.Percent, 33.3333321F))
         TableLayoutPanel1.RowStyles.Add(New RowStyle(SizeType.Percent, 33.3333321F))
-        TableLayoutPanel1.RowStyles.Add(New RowStyle(SizeType.Absolute, 20.0F))
+        TableLayoutPanel1.RowStyles.Add(New RowStyle(SizeType.Absolute, 20F))
         TableLayoutPanel1.Size = New Size(586, 103)
         TableLayoutPanel1.TabIndex = 41
         ' 
@@ -518,7 +518,7 @@ Partial Class Wardrobe_Manager_Form
         ToolTip1.SetToolTip(SingleBoneCheck, "Use single-bone skinning in preview. Faster, more resilient to complex physics, but posing support is not compatible.")
         SingleBoneCheck.UseVisualStyleBackColor = True
         ' 
-        ' Button4
+        ' ButtonOpenConfig
         ' 
         ButtonOpenConfig.Dock = DockStyle.Fill
         ButtonOpenConfig.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
@@ -526,7 +526,7 @@ Partial Class Wardrobe_Manager_Form
         ButtonOpenConfig.ImageIndex = 12
         ButtonOpenConfig.ImageList = ImageList1
         ButtonOpenConfig.Location = New Point(3, 71)
-        ButtonOpenConfig.Name = "Button4"
+        ButtonOpenConfig.Name = "ButtonOpenConfig"
         ButtonOpenConfig.Size = New Size(189, 29)
         ButtonOpenConfig.TabIndex = 7
         ButtonOpenConfig.Text = "Settings"
@@ -579,7 +579,7 @@ Partial Class Wardrobe_Manager_Form
         ' TextBox_TargetName
         ' 
         TextBox_TargetName.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        TextBox_TargetName.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        TextBox_TargetName.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         TextBox_TargetName.Location = New Point(154, 3)
         TextBox_TargetName.Name = "TextBox_TargetName"
         TextBox_TargetName.Size = New Size(486, 29)
@@ -588,7 +588,7 @@ Partial Class Wardrobe_Manager_Form
         ' 
         ' Label3
         ' 
-        Label3.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label3.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Label3.Location = New Point(6, 3)
         Label3.Name = "Label3"
         Label3.Size = New Size(132, 29)
@@ -768,7 +768,7 @@ Partial Class Wardrobe_Manager_Form
         ' 
         ' Label7
         ' 
-        Label7.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label7.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Label7.Location = New Point(0, 36)
         Label7.Name = "Label7"
         Label7.Size = New Size(141, 27)
@@ -780,7 +780,7 @@ Partial Class Wardrobe_Manager_Form
         ' 
         ComboBoxPresets.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
         ComboBoxPresets.DropDownStyle = ComboBoxStyle.DropDownList
-        ComboBoxPresets.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ComboBoxPresets.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ComboBoxPresets.FormattingEnabled = True
         ComboBoxPresets.Location = New Point(138, 34)
         ComboBoxPresets.Name = "ComboBoxPresets"
@@ -864,7 +864,7 @@ Partial Class Wardrobe_Manager_Form
         ' TextBox2
         ' 
         TextBox2.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        TextBox2.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold)
+        TextBox2.Font = New Font("Segoe UI", 12F, FontStyle.Bold)
         TextBox2.Location = New Point(170, 9)
         TextBox2.Name = "TextBox2"
         TextBox2.Size = New Size(468, 29)
@@ -897,7 +897,7 @@ Partial Class Wardrobe_Manager_Form
         ' RefreshButton
         ' 
         RefreshButton.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        RefreshButton.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        RefreshButton.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         RefreshButton.Location = New Point(286, 44)
         RefreshButton.Name = "RefreshButton"
         RefreshButton.Size = New Size(228, 29)
@@ -908,7 +908,7 @@ Partial Class Wardrobe_Manager_Form
         ' 
         ' Label5
         ' 
-        Label5.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label5.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Label5.Location = New Point(3, 10)
         Label5.Name = "Label5"
         Label5.Size = New Size(164, 28)
@@ -1020,7 +1020,7 @@ Partial Class Wardrobe_Manager_Form
         TableLayoutPanel3.Size = New Size(638, 103)
         TableLayoutPanel3.TabIndex = 5
         ' 
-        ' Button1
+        ' ButtonCreateFromNif
         ' 
         ButtonCreateFromNif.Dock = DockStyle.Fill
         ButtonCreateFromNif.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
@@ -1028,7 +1028,7 @@ Partial Class Wardrobe_Manager_Form
         ButtonCreateFromNif.ImageIndex = 8
         ButtonCreateFromNif.ImageList = ImageList1
         ButtonCreateFromNif.Location = New Point(427, 71)
-        ButtonCreateFromNif.Name = "Button1"
+        ButtonCreateFromNif.Name = "ButtonCreateFromNif"
         ButtonCreateFromNif.Size = New Size(208, 29)
         ButtonCreateFromNif.TabIndex = 10
         ButtonCreateFromNif.Text = "Create from NIF"
@@ -1260,7 +1260,7 @@ Partial Class Wardrobe_Manager_Form
         ' 
         ComboBoxSize.Anchor = AnchorStyles.Top Or AnchorStyles.Right
         ComboBoxSize.DropDownStyle = ComboBoxStyle.DropDownList
-        ComboBoxSize.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ComboBoxSize.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ComboBoxSize.FormattingEnabled = True
         ComboBoxSize.Items.AddRange(New Object() {"Default", "Big", "Small"})
         ComboBoxSize.Location = New Point(491, 34)
@@ -1272,10 +1272,10 @@ Partial Class Wardrobe_Manager_Form
         ' TableLayoutPanel4
         ' 
         TableLayoutPanel4.ColumnCount = 4
-        TableLayoutPanel4.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
-        TableLayoutPanel4.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
-        TableLayoutPanel4.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
-        TableLayoutPanel4.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
+        TableLayoutPanel4.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
+        TableLayoutPanel4.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
+        TableLayoutPanel4.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
+        TableLayoutPanel4.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
         TableLayoutPanel4.Controls.Add(ButtonLightRigSettings, 2, 0)
         TableLayoutPanel4.Controls.Add(ButtonLeftPanel, 0, 0)
         TableLayoutPanel4.Controls.Add(ButtonRightPanel, 3, 0)
@@ -1284,11 +1284,11 @@ Partial Class Wardrobe_Manager_Form
         TableLayoutPanel4.Location = New Point(0, 114)
         TableLayoutPanel4.Name = "TableLayoutPanel4"
         TableLayoutPanel4.RowCount = 1
-        TableLayoutPanel4.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+        TableLayoutPanel4.RowStyles.Add(New RowStyle(SizeType.Percent, 100F))
         TableLayoutPanel4.Size = New Size(592, 34)
         TableLayoutPanel4.TabIndex = 45
         ' 
-        ' Button7
+        ' ButtonLightRigSettings
         ' 
         ButtonLightRigSettings.Dock = DockStyle.Fill
         ButtonLightRigSettings.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
@@ -1296,7 +1296,7 @@ Partial Class Wardrobe_Manager_Form
         ButtonLightRigSettings.ImageIndex = 16
         ButtonLightRigSettings.ImageList = ImageList1
         ButtonLightRigSettings.Location = New Point(299, 3)
-        ButtonLightRigSettings.Name = "Button7"
+        ButtonLightRigSettings.Name = "ButtonLightRigSettings"
         ButtonLightRigSettings.Size = New Size(142, 28)
         ButtonLightRigSettings.TabIndex = 46
         ButtonLightRigSettings.Text = "Lights"
@@ -1305,7 +1305,7 @@ Partial Class Wardrobe_Manager_Form
         ToolTip1.SetToolTip(ButtonLightRigSettings, "Open preview light rig settings.")
         ButtonLightRigSettings.UseVisualStyleBackColor = True
         ' 
-        ' Button6
+        ' ButtonLeftPanel
         ' 
         ButtonLeftPanel.Dock = DockStyle.Fill
         ButtonLeftPanel.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
@@ -1313,7 +1313,7 @@ Partial Class Wardrobe_Manager_Form
         ButtonLeftPanel.ImageIndex = 15
         ButtonLeftPanel.ImageList = ImageList1
         ButtonLeftPanel.Location = New Point(3, 3)
-        ButtonLeftPanel.Name = "Button6"
+        ButtonLeftPanel.Name = "ButtonLeftPanel"
         ButtonLeftPanel.Size = New Size(142, 28)
         ButtonLeftPanel.TabIndex = 43
         ButtonLeftPanel.Text = "Left panel"
@@ -1322,7 +1322,7 @@ Partial Class Wardrobe_Manager_Form
         ToolTip1.SetToolTip(ButtonLeftPanel, "Collapse or expand the left-side panel.")
         ButtonLeftPanel.UseVisualStyleBackColor = True
         ' 
-        ' Button5
+        ' ButtonRightPanel
         ' 
         ButtonRightPanel.Dock = DockStyle.Fill
         ButtonRightPanel.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
@@ -1330,7 +1330,7 @@ Partial Class Wardrobe_Manager_Form
         ButtonRightPanel.ImageIndex = 15
         ButtonRightPanel.ImageList = ImageList1
         ButtonRightPanel.Location = New Point(447, 3)
-        ButtonRightPanel.Name = "Button5"
+        ButtonRightPanel.Name = "ButtonRightPanel"
         ButtonRightPanel.Size = New Size(142, 28)
         ButtonRightPanel.TabIndex = 44
         ButtonRightPanel.Text = "Right panel"
@@ -1346,7 +1346,7 @@ Partial Class Wardrobe_Manager_Form
         ColorComboBox1.DrawMode = DrawMode.OwnerDrawFixed
         ColorComboBox1.DropDownStyle = ComboBoxStyle.DropDownList
         ColorComboBox1.FormattingEnabled = True
-        ColorComboBox1.Items.AddRange(New Object() {"None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None"})
+        ColorComboBox1.Items.AddRange(New Object() {"None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None"})
         ColorComboBox1.Location = New Point(151, 3)
         ColorComboBox1.Name = "ColorComboBox1"
         ColorComboBox1.SelectedColor = Color.Black
@@ -1364,7 +1364,7 @@ Partial Class Wardrobe_Manager_Form
         ' 
         ' Label4
         ' 
-        Label4.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label4.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Label4.Location = New Point(0, 67)
         Label4.Name = "Label4"
         Label4.Size = New Size(141, 28)
@@ -1392,7 +1392,7 @@ Partial Class Wardrobe_Manager_Form
         ' 
         ComboBoxPoses.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
         ComboBoxPoses.DropDownStyle = ComboBoxStyle.DropDownList
-        ComboBoxPoses.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ComboBoxPoses.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ComboBoxPoses.FormattingEnabled = True
         ComboBoxPoses.Location = New Point(139, 66)
         ComboBoxPoses.Name = "ComboBoxPoses"
@@ -1472,7 +1472,7 @@ Partial Class Wardrobe_Manager_Form
         ' 
         ' Wardrobe_Manager_Form
         ' 
-        AutoScaleDimensions = New SizeF(7.0F, 15.0F)
+        AutoScaleDimensions = New SizeF(7F, 15F)
         AutoScaleMode = AutoScaleMode.Font
         ClientSize = New Size(1904, 1041)
         Controls.Add(SplitPrincipal_1)
