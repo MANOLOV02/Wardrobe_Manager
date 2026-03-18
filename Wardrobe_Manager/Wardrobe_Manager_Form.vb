@@ -195,8 +195,8 @@ Public Class Wardrobe_Manager_Form
             ButtonSkeleton.ForeColor = Color.Red
         End If
     End Sub
-    Private Async Sub Lee_Listbox()
-        If firstime = True Then Exit Sub
+    Private Async Function Lee_Listbox() As Task
+        If firstime = True Then Return
         Habilita_deshabilita()
 
 
@@ -335,7 +335,7 @@ Public Class Wardrobe_Manager_Form
             MsgBox(ex.ToString)
         End Try
         Termina_Procesos()
-    End Sub
+    End Function
 
     Private Sub Lee_Listbox_Targets()
         Habilita_deshabilita()
@@ -867,8 +867,8 @@ Public Class Wardrobe_Manager_Form
         Return pr
     End Function
 
-    Private Sub RefreshButtoClick(sender As Object, e As EventArgs) Handles RefreshButton.Click
-        Lee_Listbox()
+    Private Async Sub RefreshButtoClick(sender As Object, e As EventArgs) Handles RefreshButton.Click
+        Await Lee_Listbox()
     End Sub
     Private Function Full_packs_Selected() As Boolean
         If ListViewSources.SelectedIndices.Count = 0 Then Return False
@@ -899,6 +899,7 @@ Public Class Wardrobe_Manager_Form
         Pone_checks()
         Dim xx = InicializarAsync()
         preview_Control.ApplyResize(True)
+
     End Sub
     Private Async Function InicializarAsync() As Task
         If firstime Then
@@ -908,7 +909,11 @@ Public Class Wardrobe_Manager_Form
             Application.DoEvents()
             Me.Enabled = True
             firstime = False
-            Lee_Listbox()
+            Await Lee_Listbox()
+
+            'Dim yy As New StikyNote
+            'yy.Show()
+
         End If
     End Function
     Public Async Function Diccionario() As Task
@@ -1005,7 +1010,7 @@ Public Class Wardrobe_Manager_Form
         Termina_Procesos()
     End Sub
 
-    Private Sub ExtractSingleButton_Click(sender As Object, e As EventArgs) Handles ExtractSingleButton.Click
+    Private Async Sub ExtractSingleButton_Click(sender As Object, e As EventArgs) Handles ExtractSingleButton.Click
         Empieza_Procesos(ListViewTargets.SelectedItems.Count)
         If MsgBox("Esta Seguro de extraer " + ListViewTargets.SelectedIndices.Count.ToString + " elementos ", vbYesNo) = MsgBoxResult.Yes Then
             Dim Origin_Pack As OSP_Project_Class = ComboboxPacks.Items(ComboboxPacks.SelectedIndex)
@@ -1024,7 +1029,7 @@ Public Class Wardrobe_Manager_Form
                 End If
                 ProgressBar1.Value += 1
             Next
-            Lee_Listbox()
+            Await Lee_Listbox()
         End If
         Termina_Procesos()
     End Sub
