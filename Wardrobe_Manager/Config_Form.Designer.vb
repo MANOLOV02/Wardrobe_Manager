@@ -4,7 +4,7 @@ Partial Class Config_Form
     Inherits System.Windows.Forms.Form
 
     'Form reemplaza a Dispose para limpiar la lista de componentes.
-    <System.Diagnostics.DebuggerNonUserCode()> _
+    <System.Diagnostics.DebuggerNonUserCode()>
     Protected Overrides Sub Dispose(ByVal disposing As Boolean)
         Try
             If disposing AndAlso components IsNot Nothing Then
@@ -19,9 +19,9 @@ Partial Class Config_Form
     Private components As System.ComponentModel.IContainer
 
     'NOTA: el Diseñador de Windows Forms necesita el siguiente procedimiento
-    'Se puede modificar usando el Diseñador de Windows Forms.  
+    'Se puede modificar usando el Diseñador de Windows Forms.
     'No lo modifique con el editor de código.
-    <System.Diagnostics.DebuggerStepThrough()> _
+    <System.Diagnostics.DebuggerStepThrough()>
     Private Sub InitializeComponent()
         components = New ComponentModel.Container()
         Dim resources As System.ComponentModel.ComponentResourceManager = New System.ComponentModel.ComponentResourceManager(GetType(Config_Form))
@@ -64,6 +64,14 @@ Partial Class Config_Form
         CheckBoxFreeze = New CheckBox()
         CheckBoxzoomreset = New CheckBox()
         CheckBoxanglereset = New CheckBox()
+        GroupBox4 = New GroupBox()
+        Label16 = New Label()
+        GridColor = New ColorComboBox()
+        CheckBoxRenderGrid = New CheckBox()
+        Label13 = New Label()
+        NumericUpDownRenderGridSize = New NumericUpDown()
+        Label14 = New Label()
+        NumericUpDownRenderGridStep = New NumericUpDown()
         Button6 = New Button()
         Button5 = New Button()
         GroupBox2 = New GroupBox()
@@ -102,6 +110,9 @@ Partial Class Config_Form
         TabPage1.SuspendLayout()
         TabPage2.SuspendLayout()
         GroupBox3.SuspendLayout()
+        GroupBox4.SuspendLayout()
+        CType(NumericUpDownRenderGridSize, ComponentModel.ISupportInitialize).BeginInit()
+        CType(NumericUpDownRenderGridStep, ComponentModel.ISupportInitialize).BeginInit()
         GroupBox2.SuspendLayout()
         CType(NumericUpDownWeldEpsUv, ComponentModel.ISupportInitialize).BeginInit()
         CType(NumericUpDownWeldEpspos, ComponentModel.ISupportInitialize).BeginInit()
@@ -117,6 +128,7 @@ Partial Class Config_Form
         TextBox1.ReadOnly = True
         TextBox1.Size = New Size(682, 23)
         TextBox1.TabIndex = 0
+        ToolTip1.SetToolTip(TextBox1, "Path to the game executable.")
         ' 
         ' Button1
         ' 
@@ -125,6 +137,7 @@ Partial Class Config_Form
         Button1.Size = New Size(53, 23)
         Button1.TabIndex = 1
         Button1.Text = "...."
+        ToolTip1.SetToolTip(Button1, "Browse for the game executable and auto-detect related tool paths when possible.")
         Button1.UseVisualStyleBackColor = True
         ' 
         ' Label1
@@ -169,6 +182,7 @@ Partial Class Config_Form
         TextBox2.ReadOnly = True
         TextBox2.Size = New Size(682, 23)
         TextBox2.TabIndex = 3
+        ToolTip1.SetToolTip(TextBox2, "Path to the BodySlide executable.")
         ' 
         ' Label3
         ' 
@@ -189,6 +203,7 @@ Partial Class Config_Form
         TextBox3.ReadOnly = True
         TextBox3.Size = New Size(682, 23)
         TextBox3.TabIndex = 5
+        ToolTip1.SetToolTip(TextBox3, "Path to the Outfit Studio executable.")
         ' 
         ' Button2
         ' 
@@ -197,6 +212,7 @@ Partial Class Config_Form
         Button2.Size = New Size(53, 23)
         Button2.TabIndex = 7
         Button2.Text = "...."
+        ToolTip1.SetToolTip(Button2, "Browse for the BodySlide executable.")
         Button2.UseVisualStyleBackColor = True
         ' 
         ' Button3
@@ -206,6 +222,7 @@ Partial Class Config_Form
         Button3.Size = New Size(53, 23)
         Button3.TabIndex = 8
         Button3.Text = "...."
+        ToolTip1.SetToolTip(Button3, "Browse for the Outfit Studio executable.")
         Button3.UseVisualStyleBackColor = True
         ' 
         ' ListView1
@@ -218,6 +235,7 @@ Partial Class Config_Form
         ListView1.Name = "ListView1"
         ListView1.Size = New Size(873, 248)
         ListView1.TabIndex = 9
+        ToolTip1.SetToolTip(ListView1, "List of BA2/BSA archives. Checked entries are allowed as clone sources for materials and textures.")
         ListView1.UseCompatibleStateImageBehavior = False
         ListView1.View = View.Details
         ' 
@@ -228,7 +246,7 @@ Partial Class Config_Form
         ' 
         ' Label4
         ' 
-        Label4.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label4.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Label4.ImageAlign = ContentAlignment.MiddleRight
         Label4.ImageIndex = 0
         Label4.Location = New Point(6, 165)
@@ -240,7 +258,7 @@ Partial Class Config_Form
         ' 
         ' Label5
         ' 
-        Label5.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label5.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Label5.ForeColor = Color.IndianRed
         Label5.ImageAlign = ContentAlignment.MiddleRight
         Label5.ImageIndex = 0
@@ -258,6 +276,7 @@ Partial Class Config_Form
         Button4.Size = New Size(53, 23)
         Button4.TabIndex = 14
         Button4.Text = "...."
+        ToolTip1.SetToolTip(Button4, "Browse for the skeleton NIF.")
         Button4.UseVisualStyleBackColor = True
         ' 
         ' Label6
@@ -279,6 +298,7 @@ Partial Class Config_Form
         TextBox4.ReadOnly = True
         TextBox4.Size = New Size(682, 23)
         TextBox4.TabIndex = 12
+        ToolTip1.SetToolTip(TextBox4, "Path to the skeleton NIF used for preview and posing.")
         ' 
         ' GroupBox1
         ' 
@@ -294,7 +314,7 @@ Partial Class Config_Form
         GroupBox1.Controls.Add(NumericUpDownPositionEps)
         GroupBox1.Location = New Point(3, 52)
         GroupBox1.Name = "GroupBox1"
-        GroupBox1.Size = New Size(935, 121)
+        GroupBox1.Size = New Size(935, 105)
         GroupBox1.TabIndex = 15
         GroupBox1.TabStop = False
         GroupBox1.Text = "Normals recalculation (smoothing)"
@@ -303,13 +323,14 @@ Partial Class Config_Form
         ' 
         NumericUpDownUVEps.DecimalPlaces = 12
         NumericUpDownUVEps.Increment = New Decimal(New Integer() {5, 0, 0, 786432})
-        NumericUpDownUVEps.Location = New Point(115, 92)
+        NumericUpDownUVEps.Location = New Point(383, 68)
         NumericUpDownUVEps.Maximum = New Decimal(New Integer() {1, 0, 0, 196608})
         NumericUpDownUVEps.Minimum = New Decimal(New Integer() {1, 0, 0, 786432})
         NumericUpDownUVEps.Name = "NumericUpDownUVEps"
         NumericUpDownUVEps.Size = New Size(128, 23)
         NumericUpDownUVEps.TabIndex = 25
         NumericUpDownUVEps.TextAlign = HorizontalAlignment.Right
+        ToolTip1.SetToolTip(NumericUpDownUVEps, "UV epsilon used by tangent-space and welding operations.")
         NumericUpDownUVEps.Value = New Decimal(New Integer() {1, 0, 0, 786432})
         ' 
         ' NormalsRepairNan
@@ -322,6 +343,7 @@ Partial Class Config_Form
         NormalsRepairNan.Size = New Size(86, 19)
         NormalsRepairNan.TabIndex = 24
         NormalsRepairNan.Text = "Repair NaN"
+        ToolTip1.SetToolTip(NormalsRepairNan, "Repair invalid NaN values found in recalculated tangent-space data.")
         NormalsRepairNan.UseVisualStyleBackColor = True
         ' 
         ' NormalsForceOrthogonal
@@ -334,6 +356,7 @@ Partial Class Config_Form
         NormalsForceOrthogonal.Size = New Size(171, 19)
         NormalsForceOrthogonal.TabIndex = 23
         NormalsForceOrthogonal.Text = "Force orthogonal bitangent"
+        ToolTip1.SetToolTip(NormalsForceOrthogonal, "Force orthogonal tangent space when recalculating normals.")
         NormalsForceOrthogonal.UseVisualStyleBackColor = True
         ' 
         ' NormalsNormalize
@@ -347,6 +370,7 @@ Partial Class Config_Form
         NormalsNormalize.Size = New Size(80, 19)
         NormalsNormalize.TabIndex = 22
         NormalsNormalize.Text = "Normalize"
+        ToolTip1.SetToolTip(NormalsNormalize, "Normalize recalculated tangent-space vectors.")
         NormalsNormalize.UseVisualStyleBackColor = True
         ' 
         ' RadioButtoncombined
@@ -359,6 +383,7 @@ Partial Class Config_Form
         RadioButtoncombined.TabIndex = 21
         RadioButtoncombined.TabStop = True
         RadioButtoncombined.Text = "Weight by area and angles"
+        ToolTip1.SetToolTip(RadioButtoncombined, "Weight normals by both triangle area and triangle angles.")
         RadioButtoncombined.UseVisualStyleBackColor = True
         ' 
         ' RadioButtonByangles
@@ -369,6 +394,7 @@ Partial Class Config_Form
         RadioButtonByangles.Size = New Size(116, 19)
         RadioButtonByangles.TabIndex = 20
         RadioButtonByangles.Text = "Weight by angles"
+        ToolTip1.SetToolTip(RadioButtonByangles, "Weight normals by triangle angles.")
         RadioButtonByangles.UseVisualStyleBackColor = True
         ' 
         ' RadioButtonByArea
@@ -379,12 +405,13 @@ Partial Class Config_Form
         RadioButtonByArea.Size = New Size(104, 19)
         RadioButtonByArea.TabIndex = 19
         RadioButtonByArea.Text = "Weight by area"
+        ToolTip1.SetToolTip(RadioButtonByArea, "Weight normals by triangle area.")
         RadioButtonByArea.UseVisualStyleBackColor = True
         ' 
         ' Label9
         ' 
         Label9.ImageAlign = ContentAlignment.MiddleRight
-        Label9.Location = New Point(6, 92)
+        Label9.Location = New Point(274, 68)
         Label9.Name = "Label9"
         Label9.Size = New Size(107, 23)
         Label9.TabIndex = 18
@@ -394,7 +421,7 @@ Partial Class Config_Form
         ' Label8
         ' 
         Label8.ImageAlign = ContentAlignment.MiddleRight
-        Label8.Location = New Point(6, 66)
+        Label8.Location = New Point(6, 68)
         Label8.Name = "Label8"
         Label8.Size = New Size(107, 23)
         Label8.TabIndex = 16
@@ -405,13 +432,14 @@ Partial Class Config_Form
         ' 
         NumericUpDownPositionEps.DecimalPlaces = 12
         NumericUpDownPositionEps.Increment = New Decimal(New Integer() {5, 0, 0, 786432})
-        NumericUpDownPositionEps.Location = New Point(115, 66)
+        NumericUpDownPositionEps.Location = New Point(115, 68)
         NumericUpDownPositionEps.Maximum = New Decimal(New Integer() {1, 0, 0, 196608})
         NumericUpDownPositionEps.Minimum = New Decimal(New Integer() {1, 0, 0, 786432})
         NumericUpDownPositionEps.Name = "NumericUpDownPositionEps"
         NumericUpDownPositionEps.Size = New Size(128, 23)
         NumericUpDownPositionEps.TabIndex = 15
         NumericUpDownPositionEps.TextAlign = HorizontalAlignment.Right
+        ToolTip1.SetToolTip(NumericUpDownPositionEps, "Position epsilon used by the normal recalculation and welding logic.")
         NumericUpDownPositionEps.Value = New Decimal(New Integer() {1, 0, 0, 786432})
         ' 
         ' SingleBoneCheck
@@ -422,6 +450,7 @@ Partial Class Config_Form
         SingleBoneCheck.Size = New Size(229, 19)
         SingleBoneCheck.TabIndex = 11
         SingleBoneCheck.Text = "Single bone skinning (Disables posing)"
+        ToolTip1.SetToolTip(SingleBoneCheck, "Use single-bone skinning in rendering and preview.")
         SingleBoneCheck.UseVisualStyleBackColor = True
         ' 
         ' RecalculateNormalsCheck
@@ -434,6 +463,7 @@ Partial Class Config_Form
         RecalculateNormalsCheck.Size = New Size(134, 19)
         RecalculateNormalsCheck.TabIndex = 10
         RecalculateNormalsCheck.Text = "Recalculate Normals"
+        ToolTip1.SetToolTip(RecalculateNormalsCheck, "Enable normal recalculation during preview and internal rendering.")
         RecalculateNormalsCheck.UseVisualStyleBackColor = True
         ' 
         ' TabControl1
@@ -463,8 +493,8 @@ Partial Class Config_Form
         TabPage1.Controls.Add(TextBox4)
         TabPage1.Controls.Add(TextBox2)
         TabPage1.Controls.Add(Label5)
-        TabPage1.Controls.Add(Label2)
         TabPage1.Controls.Add(Label4)
+        TabPage1.Controls.Add(Label2)
         TabPage1.Controls.Add(TextBox3)
         TabPage1.Controls.Add(ListView1)
         TabPage1.Controls.Add(Label3)
@@ -487,6 +517,7 @@ Partial Class Config_Form
         ComboBoxGame.Name = "ComboBoxGame"
         ComboBoxGame.Size = New Size(168, 23)
         ComboBoxGame.TabIndex = 16
+        ToolTip1.SetToolTip(ComboBoxGame, "Select the active target game. This affects paths, skeletons, and build logic.")
         ' 
         ' Label7
         ' 
@@ -502,6 +533,7 @@ Partial Class Config_Form
         ' TabPage2
         ' 
         TabPage2.Controls.Add(GroupBox3)
+        TabPage2.Controls.Add(GroupBox4)
         TabPage2.Controls.Add(Button6)
         TabPage2.Controls.Add(Button5)
         TabPage2.Controls.Add(GroupBox2)
@@ -523,21 +555,21 @@ Partial Class Config_Form
         GroupBox3.Controls.Add(CheckBoxFreeze)
         GroupBox3.Controls.Add(CheckBoxzoomreset)
         GroupBox3.Controls.Add(CheckBoxanglereset)
-        GroupBox3.Location = New Point(3, 312)
+        GroupBox3.Location = New Point(3, 360)
         GroupBox3.Name = "GroupBox3"
-        GroupBox3.Size = New Size(933, 50)
+        GroupBox3.Size = New Size(687, 82)
         GroupBox3.TabIndex = 30
         GroupBox3.TabStop = False
         GroupBox3.Text = "Camera"
         ' 
         ' CheckBoxFreeze
         ' 
-        CheckBoxFreeze.AutoSize = True
-        CheckBoxFreeze.Location = New Point(486, 22)
+        CheckBoxFreeze.Location = New Point(6, 58)
         CheckBoxFreeze.Name = "CheckBoxFreeze"
-        CheckBoxFreeze.Size = New Size(424, 19)
+        CheckBoxFreeze.Size = New Size(473, 23)
         CheckBoxFreeze.TabIndex = 33
         CheckBoxFreeze.Text = "Completely freeze camera on nif change (make sure to uncheck it after use)"
+        ToolTip1.SetToolTip(CheckBoxFreeze, "Keep the camera fully frozen when the loaded NIF changes (be sure to uncheck it for different size nifs).")
         CheckBoxFreeze.UseVisualStyleBackColor = True
         ' 
         ' CheckBoxzoomreset
@@ -545,11 +577,12 @@ Partial Class Config_Form
         CheckBoxzoomreset.AutoSize = True
         CheckBoxzoomreset.Checked = True
         CheckBoxzoomreset.CheckState = CheckState.Checked
-        CheckBoxzoomreset.Location = New Point(274, 22)
+        CheckBoxzoomreset.Location = New Point(6, 41)
         CheckBoxzoomreset.Name = "CheckBoxzoomreset"
         CheckBoxzoomreset.Size = New Size(145, 19)
         CheckBoxzoomreset.TabIndex = 32
         CheckBoxzoomreset.Text = "Reset to optimal zoom"
+        ToolTip1.SetToolTip(CheckBoxzoomreset, "Reset the camera zoom to an optimal distance when loading a new project.")
         CheckBoxzoomreset.UseVisualStyleBackColor = True
         ' 
         ' CheckBoxanglereset
@@ -557,35 +590,135 @@ Partial Class Config_Form
         CheckBoxanglereset.AutoSize = True
         CheckBoxanglereset.Checked = True
         CheckBoxanglereset.CheckState = CheckState.Checked
-        CheckBoxanglereset.Location = New Point(6, 22)
+        CheckBoxanglereset.Location = New Point(6, 20)
         CheckBoxanglereset.Name = "CheckBoxanglereset"
         CheckBoxanglereset.Size = New Size(99, 19)
         CheckBoxanglereset.TabIndex = 31
         CheckBoxanglereset.Text = "Reset rotation"
+        ToolTip1.SetToolTip(CheckBoxanglereset, "Reset camera rotation when loading a new project.")
         CheckBoxanglereset.UseVisualStyleBackColor = True
+        ' 
+        ' GroupBox4
+        ' 
+        GroupBox4.Controls.Add(Label16)
+        GroupBox4.Controls.Add(GridColor)
+        GroupBox4.Controls.Add(CheckBoxRenderGrid)
+        GroupBox4.Controls.Add(Label13)
+        GroupBox4.Controls.Add(NumericUpDownRenderGridSize)
+        GroupBox4.Controls.Add(Label14)
+        GroupBox4.Controls.Add(NumericUpDownRenderGridStep)
+        GroupBox4.Location = New Point(3, 276)
+        GroupBox4.Name = "GroupBox4"
+        GroupBox4.Size = New Size(935, 78)
+        GroupBox4.TabIndex = 31
+        GroupBox4.TabStop = False
+        GroupBox4.Text = "Render floor"
+        ' 
+        ' Label16
+        ' 
+        Label16.Location = New Point(383, 46)
+        Label16.Name = "Label16"
+        Label16.Size = New Size(82, 23)
+        Label16.TabIndex = 8
+        Label16.Text = "Grid color"
+        Label16.TextAlign = ContentAlignment.MiddleLeft
+        ' 
+        ' GridColor
+        ' 
+        GridColor.Dibuja = False
+        GridColor.DrawMode = DrawMode.OwnerDrawFixed
+        GridColor.DropDownStyle = ComboBoxStyle.DropDownList
+        GridColor.Enabled = False
+        GridColor.FormattingEnabled = True
+        GridColor.Items.AddRange(New Object() {"None"})
+        GridColor.Location = New Point(471, 45)
+        GridColor.Name = "GridColor"
+        GridColor.SelectedColor = Color.Black
+        GridColor.Size = New Size(179, 24)
+        GridColor.TabIndex = 7
+        ToolTip1.SetToolTip(GridColor, "Color of the grid lines.")
+        ' 
+        ' CheckBoxRenderGrid
+        ' 
+        CheckBoxRenderGrid.AutoSize = True
+        CheckBoxRenderGrid.Location = New Point(6, 22)
+        CheckBoxRenderGrid.Name = "CheckBoxRenderGrid"
+        CheckBoxRenderGrid.Size = New Size(119, 19)
+        CheckBoxRenderGrid.TabIndex = 0
+        CheckBoxRenderGrid.Text = "Enable render flor"
+        ToolTip1.SetToolTip(CheckBoxRenderGrid, "Show the render grid in preview.")
+        CheckBoxRenderGrid.UseVisualStyleBackColor = True
+        ' 
+        ' Label13
+        ' 
+        Label13.Location = New Point(6, 46)
+        Label13.Name = "Label13"
+        Label13.Size = New Size(58, 23)
+        Label13.TabIndex = 1
+        Label13.Text = "Size"
+        Label13.TextAlign = ContentAlignment.MiddleLeft
+        ' 
+        ' NumericUpDownRenderGridSize
+        ' 
+        NumericUpDownRenderGridSize.DecimalPlaces = 3
+        NumericUpDownRenderGridSize.Enabled = False
+        NumericUpDownRenderGridSize.Location = New Point(70, 46)
+        NumericUpDownRenderGridSize.Maximum = New Decimal(New Integer() {100000, 0, 0, 0})
+        NumericUpDownRenderGridSize.Minimum = New Decimal(New Integer() {1, 0, 0, 0})
+        NumericUpDownRenderGridSize.Name = "NumericUpDownRenderGridSize"
+        NumericUpDownRenderGridSize.Size = New Size(100, 23)
+        NumericUpDownRenderGridSize.TabIndex = 2
+        NumericUpDownRenderGridSize.TextAlign = HorizontalAlignment.Right
+        ToolTip1.SetToolTip(NumericUpDownRenderGridSize, "Total grid size.")
+        NumericUpDownRenderGridSize.Value = New Decimal(New Integer() {400, 0, 0, 0})
+        ' 
+        ' Label14
+        ' 
+        Label14.Location = New Point(202, 46)
+        Label14.Name = "Label14"
+        Label14.Size = New Size(39, 23)
+        Label14.TabIndex = 3
+        Label14.Text = "Step"
+        Label14.TextAlign = ContentAlignment.MiddleLeft
+        ' 
+        ' NumericUpDownRenderGridStep
+        ' 
+        NumericUpDownRenderGridStep.DecimalPlaces = 3
+        NumericUpDownRenderGridStep.Enabled = False
+        NumericUpDownRenderGridStep.Location = New Point(245, 46)
+        NumericUpDownRenderGridStep.Maximum = New Decimal(New Integer() {100000, 0, 0, 0})
+        NumericUpDownRenderGridStep.Minimum = New Decimal(New Integer() {1, 0, 0, 0})
+        NumericUpDownRenderGridStep.Name = "NumericUpDownRenderGridStep"
+        NumericUpDownRenderGridStep.Size = New Size(102, 23)
+        NumericUpDownRenderGridStep.TabIndex = 4
+        NumericUpDownRenderGridStep.TextAlign = HorizontalAlignment.Right
+        ToolTip1.SetToolTip(NumericUpDownRenderGridStep, "Distance between grid lines.")
+        NumericUpDownRenderGridStep.Value = New Decimal(New Integer() {10, 0, 0, 0})
         ' 
         ' Button6
         ' 
         Button6.ImageKey = "thumbnail.ico"
         Button6.ImageList = ImageList1
-        Button6.Location = New Point(3, 408)
+        Button6.Location = New Point(696, 408)
         Button6.Name = "Button6"
         Button6.Size = New Size(240, 34)
         Button6.TabIndex = 29
         Button6.Text = "Apply to rendered project"
         Button6.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(Button6, "Apply the current rendering settings to the project currently shown in the main preview.")
         Button6.UseVisualStyleBackColor = True
         ' 
         ' Button5
         ' 
         Button5.ImageKey = "agt_action_success.ico"
         Button5.ImageList = ImageList1
-        Button5.Location = New Point(3, 368)
+        Button5.Location = New Point(696, 368)
         Button5.Name = "Button5"
         Button5.Size = New Size(240, 34)
         Button5.TabIndex = 28
         Button5.Text = "Reset all changes to defaults"
         Button5.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(Button5, "Reset rendering-related settings to defaults.")
         Button5.UseVisualStyleBackColor = True
         ' 
         ' GroupBox2
@@ -596,9 +729,9 @@ Partial Class Config_Form
         GroupBox2.Controls.Add(Label10)
         GroupBox2.Controls.Add(Label11)
         GroupBox2.Controls.Add(NumericUpDownWeldEpspos)
-        GroupBox2.Location = New Point(3, 204)
+        GroupBox2.Location = New Point(3, 186)
         GroupBox2.Name = "GroupBox2"
-        GroupBox2.Size = New Size(933, 102)
+        GroupBox2.Size = New Size(935, 84)
         GroupBox2.TabIndex = 27
         GroupBox2.TabStop = False
         GroupBox2.Text = "Welding"
@@ -607,13 +740,14 @@ Partial Class Config_Form
         ' 
         NumericUpDownWeldEpsUv.DecimalPlaces = 12
         NumericUpDownWeldEpsUv.Increment = New Decimal(New Integer() {5, 0, 0, 786432})
-        NumericUpDownWeldEpsUv.Location = New Point(115, 72)
+        NumericUpDownWeldEpsUv.Location = New Point(383, 48)
         NumericUpDownWeldEpsUv.Maximum = New Decimal(New Integer() {1, 0, 0, 196608})
         NumericUpDownWeldEpsUv.Minimum = New Decimal(New Integer() {1, 0, 0, 786432})
         NumericUpDownWeldEpsUv.Name = "NumericUpDownWeldEpsUv"
         NumericUpDownWeldEpsUv.Size = New Size(128, 23)
         NumericUpDownWeldEpsUv.TabIndex = 25
         NumericUpDownWeldEpsUv.TextAlign = HorizontalAlignment.Right
+        ToolTip1.SetToolTip(NumericUpDownWeldEpsUv, "UV epsilon used when welding vertices.")
         NumericUpDownWeldEpsUv.Value = New Decimal(New Integer() {1, 0, 0, 786432})
         ' 
         ' RadioButtonWeldboth
@@ -626,6 +760,7 @@ Partial Class Config_Form
         RadioButtonWeldboth.TabIndex = 20
         RadioButtonWeldboth.TabStop = True
         RadioButtonWeldboth.Text = "By position and UVs"
+        ToolTip1.SetToolTip(RadioButtonWeldboth, "Weld vertices only when both position and UVs match.")
         RadioButtonWeldboth.UseVisualStyleBackColor = True
         ' 
         ' RadioButtonWeldpsonly
@@ -636,12 +771,13 @@ Partial Class Config_Form
         RadioButtonWeldpsonly.Size = New Size(110, 19)
         RadioButtonWeldpsonly.TabIndex = 19
         RadioButtonWeldpsonly.Text = "By position only"
+        ToolTip1.SetToolTip(RadioButtonWeldpsonly, "Weld vertices using position only.")
         RadioButtonWeldpsonly.UseVisualStyleBackColor = True
         ' 
         ' Label10
         ' 
         Label10.ImageAlign = ContentAlignment.MiddleRight
-        Label10.Location = New Point(6, 72)
+        Label10.Location = New Point(274, 48)
         Label10.Name = "Label10"
         Label10.Size = New Size(107, 23)
         Label10.TabIndex = 18
@@ -651,24 +787,25 @@ Partial Class Config_Form
         ' Label11
         ' 
         Label11.ImageAlign = ContentAlignment.MiddleRight
-        Label11.Location = New Point(6, 47)
+        Label11.Location = New Point(6, 48)
         Label11.Name = "Label11"
         Label11.Size = New Size(107, 23)
         Label11.TabIndex = 16
-        Label11.Text = "Mesh Scale factor"
+        Label11.Text = "Position Epsilon"
         Label11.TextAlign = ContentAlignment.MiddleLeft
         ' 
         ' NumericUpDownWeldEpspos
         ' 
         NumericUpDownWeldEpspos.DecimalPlaces = 12
         NumericUpDownWeldEpspos.Increment = New Decimal(New Integer() {5, 0, 0, 786432})
-        NumericUpDownWeldEpspos.Location = New Point(115, 47)
+        NumericUpDownWeldEpspos.Location = New Point(115, 48)
         NumericUpDownWeldEpspos.Maximum = New Decimal(New Integer() {1, 0, 0, 196608})
         NumericUpDownWeldEpspos.Minimum = New Decimal(New Integer() {1, 0, 0, 786432})
         NumericUpDownWeldEpspos.Name = "NumericUpDownWeldEpspos"
         NumericUpDownWeldEpspos.Size = New Size(128, 23)
         NumericUpDownWeldEpspos.TabIndex = 15
         NumericUpDownWeldEpspos.TextAlign = HorizontalAlignment.Right
+        ToolTip1.SetToolTip(NumericUpDownWeldEpspos, "Position epsilon used when welding vertices.")
         NumericUpDownWeldEpspos.Value = New Decimal(New Integer() {1, 0, 0, 786432})
         ' 
         ' CheckBoxWelding
@@ -676,11 +813,12 @@ Partial Class Config_Form
         CheckBoxWelding.AutoSize = True
         CheckBoxWelding.Checked = True
         CheckBoxWelding.CheckState = CheckState.Checked
-        CheckBoxWelding.Location = New Point(3, 179)
+        CheckBoxWelding.Location = New Point(3, 161)
         CheckBoxWelding.Name = "CheckBoxWelding"
         CheckBoxWelding.Size = New Size(160, 19)
         CheckBoxWelding.TabIndex = 26
         CheckBoxWelding.Text = "Weld Vertices for normals"
+        ToolTip1.SetToolTip(CheckBoxWelding, "Temporarily weld matching vertices before recalculating normals.")
         CheckBoxWelding.UseVisualStyleBackColor = True
         ' 
         ' TabPage3
@@ -727,6 +865,7 @@ Partial Class Config_Form
         RadioButtonAllwaysWeight.TabIndex = 30
         RadioButtonAllwaysWeight.TabStop = True
         RadioButtonAllwaysWeight.Text = "Allways build weights"
+        ToolTip1.SetToolTip(RadioButtonAllwaysWeight, "Always build weight output regardless of project settings.")
         RadioButtonAllwaysWeight.UseVisualStyleBackColor = True
         ' 
         ' RadioButtonNeverWeights
@@ -737,6 +876,7 @@ Partial Class Config_Form
         RadioButtonNeverWeights.Size = New Size(130, 19)
         RadioButtonNeverWeights.TabIndex = 31
         RadioButtonNeverWeights.Text = "Never build weights"
+        ToolTip1.SetToolTip(RadioButtonNeverWeights, "Never build weight output regardless of project settings.")
         RadioButtonNeverWeights.UseVisualStyleBackColor = True
         ' 
         ' CheckBoxweightignore
@@ -747,6 +887,7 @@ Partial Class Config_Form
         CheckBoxweightignore.Size = New Size(151, 19)
         CheckBoxweightignore.TabIndex = 29
         CheckBoxweightignore.Text = "Ignore  project property"
+        ToolTip1.SetToolTip(CheckBoxweightignore, "Ignore the project-level weight generation setting and use the option selected here.")
         CheckBoxweightignore.UseVisualStyleBackColor = True
         ' 
         ' CheckBoxBuildInPose
@@ -757,6 +898,7 @@ Partial Class Config_Form
         CheckBoxBuildInPose.Size = New Size(287, 19)
         CheckBoxBuildInPose.TabIndex = 32
         CheckBoxBuildInPose.Text = "Build in pose (not recommended for player/npcs)"
+        ToolTip1.SetToolTip(CheckBoxBuildInPose, "Build meshes in the currently selected pose (be carefull, it will have unexpected results on animated game assets).")
         CheckBoxBuildInPose.UseVisualStyleBackColor = True
         ' 
         ' CheckBoxIgnorePrevent
@@ -767,6 +909,7 @@ Partial Class Config_Form
         CheckBoxIgnorePrevent.Size = New Size(319, 19)
         CheckBoxIgnorePrevent.TabIndex = 31
         CheckBoxIgnorePrevent.Text = "Ignore prevent morph file attribute (not recommended)"
+        ToolTip1.SetToolTip(CheckBoxIgnorePrevent, "Ignore the PreventMorphFile project flag during build.")
         CheckBoxIgnorePrevent.UseVisualStyleBackColor = True
         ' 
         ' Button8
@@ -779,6 +922,7 @@ Partial Class Config_Form
         Button8.TabIndex = 30
         Button8.Text = "Delete saved additional sliders"
         Button8.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(Button8, "Delete the saved additional LooksMenu sliders file.")
         Button8.UseVisualStyleBackColor = True
         ' 
         ' Button7
@@ -791,6 +935,7 @@ Partial Class Config_Form
         Button7.TabIndex = 29
         Button7.Text = "Reset all changes to defaults"
         Button7.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(Button7, "Reset build settings to defaults.")
         Button7.UseVisualStyleBackColor = True
         ' 
         ' GroupBoxLooksmenu
@@ -815,6 +960,7 @@ Partial Class Config_Form
         CheckBoxLMASkipManoloFixes.Size = New Size(216, 19)
         CheckBoxLMASkipManoloFixes.TabIndex = 31
         CheckBoxLMASkipManoloFixes.Text = "Skip Wardrobe manager ""Fix"" sliders"
+        ToolTip1.SetToolTip(CheckBoxLMASkipManoloFixes, "Skip Wardrobe Manager Fix sliders when exporting additional LooksMenu sliders.")
         CheckBoxLMASkipManoloFixes.UseVisualStyleBackColor = True
         ' 
         ' CheckBoxLMReseteachBuild
@@ -827,6 +973,7 @@ Partial Class Config_Form
         CheckBoxLMReseteachBuild.Size = New Size(221, 19)
         CheckBoxLMReseteachBuild.TabIndex = 30
         CheckBoxLMReseteachBuild.Text = "Reset additional sliders on each build"
+        ToolTip1.SetToolTip(CheckBoxLMReseteachBuild, "Reset additional sliders on each build.")
         CheckBoxLMReseteachBuild.UseVisualStyleBackColor = True
         ' 
         ' CheckBoxLMAddAditionals
@@ -839,6 +986,7 @@ Partial Class Config_Form
         CheckBoxLMAddAditionals.Size = New Size(140, 19)
         CheckBoxLMAddAditionals.TabIndex = 29
         CheckBoxLMAddAditionals.Text = "Add additional sliders"
+        ToolTip1.SetToolTip(CheckBoxLMAddAditionals, "Export additional sliders for LooksMenu integration.")
         CheckBoxLMAddAditionals.UseVisualStyleBackColor = True
         ' 
         ' CheckBoxDeletewithProject
@@ -851,6 +999,7 @@ Partial Class Config_Form
         CheckBoxDeletewithProject.Size = New Size(235, 19)
         CheckBoxDeletewithProject.TabIndex = 26
         CheckBoxDeletewithProject.Text = "Delete built files when project is deleted"
+        ToolTip1.SetToolTip(CheckBoxDeletewithProject, "Delete built files when the related project is deleted.")
         CheckBoxDeletewithProject.UseVisualStyleBackColor = True
         ' 
         ' CheckBoxDeleteBefore
@@ -863,6 +1012,7 @@ Partial Class Config_Form
         CheckBoxDeleteBefore.Size = New Size(295, 19)
         CheckBoxDeleteBefore.TabIndex = 25
         CheckBoxDeleteBefore.Text = "Delete files  if exist before building (recommended)"
+        ToolTip1.SetToolTip(CheckBoxDeleteBefore, "Delete existing built files before building new output.")
         CheckBoxDeleteBefore.UseVisualStyleBackColor = True
         ' 
         ' CheckBoxBuildTri
@@ -875,6 +1025,7 @@ Partial Class Config_Form
         CheckBoxBuildTri.Size = New Size(127, 19)
         CheckBoxBuildTri.TabIndex = 24
         CheckBoxBuildTri.Text = "Build Tri Morph file"
+        ToolTip1.SetToolTip(CheckBoxBuildTri, "Build TRI morph files when supported.")
         CheckBoxBuildTri.UseVisualStyleBackColor = True
         ' 
         ' RadioButtonBSEngine
@@ -885,6 +1036,7 @@ Partial Class Config_Form
         RadioButtonBSEngine.Size = New Size(116, 19)
         RadioButtonBSEngine.TabIndex = 19
         RadioButtonBSEngine.Text = "BodySlide engine"
+        ToolTip1.SetToolTip(RadioButtonBSEngine, "Use external BodySlide to build final output.")
         RadioButtonBSEngine.UseVisualStyleBackColor = True
         ' 
         ' CheckBoxBuildHH
@@ -897,6 +1049,7 @@ Partial Class Config_Form
         CheckBoxBuildHH.Size = New Size(138, 19)
         CheckBoxBuildHH.TabIndex = 23
         CheckBoxBuildHH.Text = "Build High Heels files"
+        ToolTip1.SetToolTip(CheckBoxBuildHH, "Build High Heels output files.")
         CheckBoxBuildHH.UseVisualStyleBackColor = True
         ' 
         ' RadioButtonWMEngine
@@ -909,11 +1062,12 @@ Partial Class Config_Form
         RadioButtonWMEngine.TabIndex = 20
         RadioButtonWMEngine.TabStop = True
         RadioButtonWMEngine.Text = "Wardrobe Manager Engine "
+        ToolTip1.SetToolTip(RadioButtonWMEngine, "Use Wardrobe Manager's internal build engine.")
         RadioButtonWMEngine.UseVisualStyleBackColor = True
         ' 
         ' Label12
         ' 
-        Label12.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label12.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Label12.ImageAlign = ContentAlignment.MiddleRight
         Label12.Location = New Point(8, 11)
         Label12.Name = "Label12"
@@ -922,58 +1076,9 @@ Partial Class Config_Form
         Label12.Text = "Build engine:"
         Label12.TextAlign = ContentAlignment.MiddleLeft
         ' 
-        ' Tooltips
-        ' 
-        ToolTip1.SetToolTip(TextBox1, "Path to the game executable.")
-        ToolTip1.SetToolTip(Button1, "Browse for the game executable and auto-detect related tool paths when possible.")
-        ToolTip1.SetToolTip(TextBox2, "Path to the BodySlide executable.")
-        ToolTip1.SetToolTip(Button2, "Browse for the BodySlide executable.")
-        ToolTip1.SetToolTip(TextBox3, "Path to the Outfit Studio executable.")
-        ToolTip1.SetToolTip(Button3, "Browse for the Outfit Studio executable.")
-        ToolTip1.SetToolTip(ListView1, "List of BA2/BSA archives. Checked entries are allowed as clone sources for materials and textures.")
-        ToolTip1.SetToolTip(TextBox4, "Path to the skeleton NIF used for preview and posing.")
-        ToolTip1.SetToolTip(Button4, "Browse for the skeleton NIF.")
-        ToolTip1.SetToolTip(RecalculateNormalsCheck, "Enable normal recalculation during preview and internal rendering.")
-        ToolTip1.SetToolTip(NumericUpDownPositionEps, "Position epsilon used by the normal recalculation and welding logic.")
-        ToolTip1.SetToolTip(SingleBoneCheck, "Use single-bone skinning in rendering and preview.")
-        ToolTip1.SetToolTip(RadioButtonByArea, "Weight normals by triangle area.")
-        ToolTip1.SetToolTip(RadioButtoncombined, "Weight normals by both triangle area and triangle angles.")
-        ToolTip1.SetToolTip(RadioButtonByangles, "Weight normals by triangle angles.")
-        ToolTip1.SetToolTip(NormalsNormalize, "Normalize recalculated tangent-space vectors.")
-        ToolTip1.SetToolTip(NormalsRepairNan, "Repair invalid NaN values found in recalculated tangent-space data.")
-        ToolTip1.SetToolTip(NormalsForceOrthogonal, "Force orthogonal tangent space when recalculating normals.")
-        ToolTip1.SetToolTip(NumericUpDownUVEps, "UV epsilon used by tangent-space and welding operations.")
-        ToolTip1.SetToolTip(CheckBoxWelding, "Temporarily weld matching vertices before recalculating normals.")
-        ToolTip1.SetToolTip(NumericUpDownWeldEpsUv, "UV epsilon used when welding vertices.")
-        ToolTip1.SetToolTip(RadioButtonWeldboth, "Weld vertices only when both position and UVs match.")
-        ToolTip1.SetToolTip(RadioButtonWeldpsonly, "Weld vertices using position only.")
-        ToolTip1.SetToolTip(NumericUpDownWeldEpspos, "Position epsilon used when welding vertices.")
-        ToolTip1.SetToolTip(Button5, "Reset rendering-related settings to defaults.")
-        ToolTip1.SetToolTip(Button6, "Apply the current rendering settings to the project currently shown in the main preview.")
-        ToolTip1.SetToolTip(CheckBoxzoomreset, "Reset the camera zoom to an optimal distance when loading a new project.")
-        ToolTip1.SetToolTip(CheckBoxanglereset, "Reset camera rotation when loading a new project.")
-        ToolTip1.SetToolTip(CheckBoxDeletewithProject, "Delete built files when the related project is deleted.")
-        ToolTip1.SetToolTip(CheckBoxDeleteBefore, "Delete existing built files before building new output.")
-        ToolTip1.SetToolTip(CheckBoxBuildTri, "Build TRI morph files when supported.")
-        ToolTip1.SetToolTip(RadioButtonBSEngine, "Use external BodySlide to build final output.")
-        ToolTip1.SetToolTip(CheckBoxBuildHH, "Build High Heels output files.")
-        ToolTip1.SetToolTip(RadioButtonWMEngine, "Use Wardrobe Manager's internal build engine.")
-        ToolTip1.SetToolTip(Button8, "Delete the saved additional LooksMenu sliders file.")
-        ToolTip1.SetToolTip(Button7, "Reset build settings to defaults.")
-        ToolTip1.SetToolTip(CheckBoxLMASkipManoloFixes, "Skip Wardrobe Manager Fix sliders when exporting additional LooksMenu sliders.")
-        ToolTip1.SetToolTip(CheckBoxLMReseteachBuild, "Reset additional sliders on each build.")
-        ToolTip1.SetToolTip(CheckBoxLMAddAditionals, "Export additional sliders for LooksMenu integration.")
-        ToolTip1.SetToolTip(CheckBoxIgnorePrevent, "Ignore the PreventMorphFile project flag during build.")
-        ToolTip1.SetToolTip(CheckBoxBuildInPose, "Build meshes in the currently selected pose (be carefull, it will have unexpected results on animated game assets).")
-        ToolTip1.SetToolTip(CheckBoxFreeze, "Keep the camera fully frozen when the loaded NIF changes (be sure to uncheck it for different size nifs).")
-        ToolTip1.SetToolTip(ComboBoxGame, "Select the active target game. This affects paths, skeletons, and build logic.")
-        ToolTip1.SetToolTip(RadioButtonAllwaysWeight, "Always build weight output regardless of project settings.")
-        ToolTip1.SetToolTip(RadioButtonNeverWeights, "Never build weight output regardless of project settings.")
-        ToolTip1.SetToolTip(CheckBoxweightignore, "Ignore the project-level weight generation setting and use the option selected here.")
-        ' 
         ' Config_Form
         ' 
-        AutoScaleDimensions = New SizeF(7F, 15F)
+        AutoScaleDimensions = New SizeF(7.0F, 15.0F)
         AutoScaleMode = AutoScaleMode.Font
         ClientSize = New Size(952, 480)
         Controls.Add(TabControl1)
@@ -994,6 +1099,10 @@ Partial Class Config_Form
         TabPage2.PerformLayout()
         GroupBox3.ResumeLayout(False)
         GroupBox3.PerformLayout()
+        GroupBox4.ResumeLayout(False)
+        GroupBox4.PerformLayout()
+        CType(NumericUpDownRenderGridSize, ComponentModel.ISupportInitialize).EndInit()
+        CType(NumericUpDownRenderGridStep, ComponentModel.ISupportInitialize).EndInit()
         GroupBox2.ResumeLayout(False)
         GroupBox2.PerformLayout()
         CType(NumericUpDownWeldEpsUv, ComponentModel.ISupportInitialize).EndInit()
@@ -1077,4 +1186,12 @@ Partial Class Config_Form
     Friend WithEvents RadioButtonNeverWeights As RadioButton
     Friend WithEvents CheckBoxweightignore As CheckBox
     Friend WithEvents ToolTip1 As ToolTip
+    Friend WithEvents GroupBox4 As GroupBox
+    Friend WithEvents CheckBoxRenderGrid As CheckBox
+    Friend WithEvents Label13 As Label
+    Friend WithEvents NumericUpDownRenderGridSize As NumericUpDown
+    Friend WithEvents Label14 As Label
+    Friend WithEvents NumericUpDownRenderGridStep As NumericUpDown
+    Friend WithEvents Label16 As Label
+    Friend WithEvents GridColor As ColorComboBox
 End Class

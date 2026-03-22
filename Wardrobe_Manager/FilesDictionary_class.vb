@@ -278,6 +278,8 @@ Public Class FilesDictionary_class
 
         If Original.BA2File.StartsWith("ccBGSFO4038", StringComparison.OrdinalIgnoreCase) And Nueva.BA2File.StartsWith("ccBGSFO4044", StringComparison.OrdinalIgnoreCase) Then Return False
         If Original.BA2File.StartsWith("ccBGSFO4044", StringComparison.OrdinalIgnoreCase) And Nueva.BA2File.StartsWith("ccBGSFO4038", StringComparison.OrdinalIgnoreCase) Then Return True
+        If Original.BA2File.StartsWith("Alternative Satellite World Maps - Textures", StringComparison.OrdinalIgnoreCase) And Nueva.BA2File.StartsWith("DLC", StringComparison.OrdinalIgnoreCase) Then Return True
+        If Original.BA2File.StartsWith("DLC", StringComparison.OrdinalIgnoreCase) And Nueva.BA2File.StartsWith("Alternative Satellite World Maps - Textures", StringComparison.OrdinalIgnoreCase) Then Return False
 
         If Original.BA2File.Contains(".bsa") = False Then
             Debugger.Break()

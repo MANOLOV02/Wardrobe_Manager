@@ -396,6 +396,7 @@ Public Class PreviewControl
         If Me.Disposing = True Or Me.IsDisposed Then Exit Sub
 
         If Visible = False Then Exit Sub
+        If Not IsNothing(seleccionado) Then Model.FloorOffset = -seleccionado.HighHeelHeight Else Model.FloorOffset = 0
         If IsNothing(seleccionado) OrElse seleccionado.Unreadable_Project OrElse seleccionado.Unreadable_NIF Then
             If IsNothing(seleccionado) Then
                 Model.Processing_Status_GL("Select project")
@@ -811,6 +812,10 @@ Public Class PreviewControl
         If _Model IsNot Nothing Then
             _Model.Clean(True)
             _Model.CleanTextures()
+            If _Model.Floor IsNot Nothing Then
+                _Model.Floor.Dispose()
+                _Model.Floor = Nothing
+            End If
             _Model = Nothing
         End If
         If SharedActiveShader IsNot Nothing Then
@@ -838,6 +843,7 @@ Public Class PreviewModel
     Public Can_Render As Boolean = False
     Public meshes As New List(Of RenderableMesh)
     Private ReadOnly ParentControl As PreviewControl
+    Public Floor As New FloorRenderer
     Public Property Last_rendered As SliderSet_Class
     Public Property Last_Pose As Poses_class = Nothing
     Public Property Last_size As Config_App.SliderSize = Config_App.SliderSize.Default
@@ -1750,6 +1756,7 @@ Public Class PreviewModel
     Public Sub Setup_GL()
         Process_Indices_GL()
         Process_Textures_GL()
+        If Floor Is Nothing Then Floor = New FloorRenderer()
         ParentControl.RenderTimer.Start()
         ParentControl.UpdateProjection(True)  ' ? ya hay meshes/bounds; ajusta frustum
         Can_Render = True
@@ -1793,7 +1800,24 @@ Public Class PreviewModel
         Textures_Dictionary.Clear()
         Last_Loaded_Textures.Clear()
     End Sub
-
+    Public Sub CleanSingleTexture(Cual As String)
+        Try
+            Cual = FO4UnifiedMaterial_Class.CorrectTexturePath(Cual)
+            ' — Eliminar texturas cargadas —
+            Dim seen As New HashSet(Of UInteger)
+            For Each texID In Textures_Dictionary.Values.Where(Function(pf) pf.Path.Equals(Cual, StringComparison.OrdinalIgnoreCase)).Select(Function(pf) pf.Texture_ID)
+                If texID > 0 AndAlso Not seen.Contains(texID) Then
+                    GL.DeleteTexture(texID)
+                    seen.Add(texID)
+                End If
+            Next
+            ' Limpia diccionario
+            Textures_Dictionary.Remove(Cual)
+            Last_Loaded_Textures.Remove(Cual)
+        Catch ex As Exception
+            Debugger.Break()
+        End Try
+    End Sub
     Public Sub Clean(ShowText As Boolean)
         Cleaned = True
         Can_Render = False
@@ -1808,6 +1832,7 @@ Public Class PreviewModel
         ' Borra Meshes
         meshes.Clear()
 
+
         Dim i = 0
         While GL.GetError() <> ErrorCode.NoError
             i += 1
@@ -1818,7 +1843,10 @@ Public Class PreviewModel
         Public Mesh As RenderableMesh
         Public Depth As Single
     End Structure
+    Public Property FloorOffset As Double = -0.00F
     Public Sub RenderAll(projection As Matrix4, camera As OrbitCamera)
+        If Floor IsNot Nothing AndAlso Floor.Enabled = True Then Floor.Render(projection, camera, FloorOffset)
+
         ' Clasificación por tipo de alpha
         Dim cutout = meshes.Where(Function(m) Not m.MeshData.Material?.HasAlphaBlend AndAlso m.MeshData.Material?.HasAlphaTest AndAlso Not m.MeshData.Shape.Wireframe).OrderBy(Function(pf) pf.MeshData.Idx)
         Dim opaque = meshes.Where(Function(m) Not m.MeshData.Material?.HasAlphaBlend AndAlso Not m.MeshData.Material?.HasAlphaTest AndAlso Not m.MeshData.Shape.Wireframe).OrderBy(Function(pf) pf.MeshData.Idx)
@@ -1845,8 +1873,183 @@ Public Class PreviewModel
         Next
     End Sub
 End Class
+Public Class FloorRenderer
+    Implements IDisposable
 
-Public Class OrbitCamera
+    Private vao As Integer
+        Private vbo As Integer
+        Private shaderProgram As Integer
+        Private vertexCount As Integer
+
+    Public Property Enabled As Boolean = False
+    Public Property Size As Single = 400.0F
+    Public Property StepSize As Single = 10.0F
+    Public Property Color As Color = Color.FromKnownColor(KnownColor.ControlLight)
+
+    Public Sub New()
+            CreateShader()
+            CreateGeometry()
+        End Sub
+
+        Private Sub CreateGeometry()
+            If vao > 0 Then GL.DeleteVertexArray(vao) : vao = 0
+            If vbo > 0 Then GL.DeleteBuffer(vbo) : vbo = 0
+
+            If StepSize <= 0 Then StepSize = 10.0F
+            If Size <= 0 Then Size = 100.0F
+
+            Dim halfSize As Single = Size * 0.5F
+            Dim lineCountPerAxis As Integer = CInt(Math.Floor(Size / StepSize)) + 1
+
+            Dim verts As New List(Of Single)
+
+            Dim startPos As Single = -halfSize
+            Dim endPos As Single = halfSize
+
+            For i As Integer = 0 To lineCountPerAxis - 1
+                Dim p As Single = startPos + (i * StepSize)
+
+                If p > endPos Then Exit For
+
+                ' línea paralela al eje Y, en X = p
+                verts.Add(p) : verts.Add(startPos) : verts.Add(0.0F)
+                verts.Add(p) : verts.Add(endPos) : verts.Add(0.0F)
+
+                ' línea paralela al eje X, en Y = p
+                verts.Add(startPos) : verts.Add(p) : verts.Add(0.0F)
+                verts.Add(endPos) : verts.Add(p) : verts.Add(0.0F)
+            Next
+
+            ' asegurar borde final si no cayó exacto
+            If Math.Abs(endPos - (startPos + ((lineCountPerAxis - 1) * StepSize))) > 0.0001F Then
+                Dim p As Single = endPos
+
+                verts.Add(p) : verts.Add(startPos) : verts.Add(0.0F)
+                verts.Add(p) : verts.Add(endPos) : verts.Add(0.0F)
+
+                verts.Add(startPos) : verts.Add(p) : verts.Add(0.0F)
+                verts.Add(endPos) : verts.Add(p) : verts.Add(0.0F)
+            End If
+
+            Dim vertices As Single() = verts.ToArray()
+            vertexCount = vertices.Length \ 3
+
+            vao = GL.GenVertexArray()
+            vbo = GL.GenBuffer()
+
+            GL.BindVertexArray(vao)
+
+            GL.BindBuffer(BufferTarget.ArrayBuffer, vbo)
+            GL.BufferData(BufferTarget.ArrayBuffer, vertices.Length * 4, vertices, BufferUsageHint.StaticDraw)
+
+            GL.EnableVertexAttribArray(0)
+            GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, False, 12, 0)
+
+            GL.BindBuffer(BufferTarget.ArrayBuffer, 0)
+            GL.BindVertexArray(0)
+        End Sub
+
+        Private Sub CreateShader()
+            Dim vertexSrc As String =
+"#version 440
+layout(location = 0) in vec3 vertexPosition;
+
+uniform mat4 matProjection;
+uniform mat4 matView;
+uniform mat4 matModel;
+
+void main()
+{
+    gl_Position = matProjection * matView * matModel * vec4(vertexPosition, 1.0);
+}"
+
+            Dim fragmentSrc As String =
+"#version 440
+uniform vec3 gridColor;
+out vec4 FragColor;
+
+void main()
+{
+    FragColor = vec4(gridColor, 1.0);
+}"
+
+            Dim vs = GL.CreateShader(ShaderType.VertexShader)
+            GL.ShaderSource(vs, vertexSrc)
+            GL.CompileShader(vs)
+
+            Dim vsStatus As Integer
+            GL.GetShader(vs, ShaderParameter.CompileStatus, vsStatus)
+            If vsStatus = 0 Then
+                Throw New Exception("Grid vertex shader error: " & GL.GetShaderInfoLog(vs))
+            End If
+
+            Dim fs = GL.CreateShader(ShaderType.FragmentShader)
+            GL.ShaderSource(fs, fragmentSrc)
+            GL.CompileShader(fs)
+
+            Dim fsStatus As Integer
+            GL.GetShader(fs, ShaderParameter.CompileStatus, fsStatus)
+            If fsStatus = 0 Then
+                Throw New Exception("Grid fragment shader error: " & GL.GetShaderInfoLog(fs))
+            End If
+
+            shaderProgram = GL.CreateProgram()
+            GL.AttachShader(shaderProgram, vs)
+            GL.AttachShader(shaderProgram, fs)
+            GL.LinkProgram(shaderProgram)
+
+            Dim linkStatus As Integer
+            GL.GetProgram(shaderProgram, GetProgramParameterName.LinkStatus, linkStatus)
+            If linkStatus = 0 Then
+                Throw New Exception("Grid shader link error: " & GL.GetProgramInfoLog(shaderProgram))
+            End If
+
+            GL.DetachShader(shaderProgram, vs)
+            GL.DetachShader(shaderProgram, fs)
+            GL.DeleteShader(vs)
+            GL.DeleteShader(fs)
+        End Sub
+
+        Public Sub Render(projection As Matrix4, camera As OrbitCamera, offsetZ As Double)
+            If Not Enabled Then Exit Sub
+            If shaderProgram = 0 OrElse vao = 0 OrElse vertexCount <= 0 Then Exit Sub
+
+            GL.UseProgram(shaderProgram)
+
+            GL.Disable(EnableCap.Blend)
+            GL.Enable(EnableCap.DepthTest)
+            GL.DepthMask(True)
+            GL.Disable(EnableCap.CullFace)
+
+            Dim view As Matrix4 = camera.GetViewMatrix()
+        Dim model As Matrix4 = Matrix4.CreateTranslation(0.0F, 0.0F, CSng(offsetZ) + 0.01F)
+
+        GL.UniformMatrix4(GL.GetUniformLocation(shaderProgram, "matProjection"), False, projection)
+            GL.UniformMatrix4(GL.GetUniformLocation(shaderProgram, "matView"), False, view)
+            GL.UniformMatrix4(GL.GetUniformLocation(shaderProgram, "matModel"), False, model)
+
+            Dim colorLoc = GL.GetUniformLocation(shaderProgram, "gridColor")
+        GL.Uniform3(colorLoc, Color.R / 255.0F, Color.G / 255.0F, Color.B / 255.0F)
+
+        GL.BindVertexArray(vao)
+            GL.DrawArrays(PrimitiveType.Lines, 0, vertexCount)
+            GL.BindVertexArray(0)
+
+            GL.UseProgram(0)
+        End Sub
+
+        Public Sub Rebuild()
+            CreateGeometry()
+        End Sub
+
+        Public Sub Dispose() Implements IDisposable.Dispose
+            If vao > 0 Then GL.DeleteVertexArray(vao) : vao = 0
+            If vbo > 0 Then GL.DeleteBuffer(vbo) : vbo = 0
+            If shaderProgram > 0 Then GL.DeleteProgram(shaderProgram) : shaderProgram = 0
+        End Sub
+    End Class
+
+    Public Class OrbitCamera
     ' Para modo orbit
     Friend angleX As Single
     Friend angleY As Single

@@ -6,15 +6,7 @@ Public Class Config_Form
     Public Sub New()
         ' Esta llamada es exigida por el diseñador.
         InitializeComponent()
-        'ThemeManager.SetTheme(Config_App.Current.theme, Me)
-        TextBox1.Text = Config_App.Current.FO4ExePath
-        TextBox2.Text = Config_App.Current.BSExePath
-        TextBox3.Text = Config_App.Current.OSExePath
-        TextBox4.Text = Config_App.Current.SkeletonPath
-        ComboBoxGame.SelectedIndex = Config_App.Current.Game
-        initialgame = Config_App.Current.Game
-        Setea_Render_Options()
-        Button8.Enabled = IO.File.Exists(Wardrobe_Manager_Form.Directorios.LooksMenuWMSliders)
+
         ' Agregue cualquier inicialización después de la llamada a InitializeComponent().
     End Sub
     Private Sub Setea_Render_Options()
@@ -55,6 +47,13 @@ Public Class Config_Form
             RadioButtonNeverWeights.Enabled = Config_App.Current.Settings_Build.IgnoreWeightsFlags AndAlso Config_App.Current.Settings_Build.OwnEngine
             RadioButtonAllwaysWeight.Enabled = Config_App.Current.Settings_Build.IgnoreWeightsFlags AndAlso Config_App.Current.Settings_Build.OwnEngine
             CheckBoxweightignore.Enabled = Config_App.Current.Settings_Build.OwnEngine = True
+
+            ' GRID
+            CheckBoxRenderGrid.Checked = Config_App.Current.Settings_RenderGrid.Enabled
+            NumericUpDownRenderGridSize.Value = CDec(Config_App.Current.Settings_RenderGrid.Size)
+            NumericUpDownRenderGridStep.Value = CDec(Config_App.Current.Settings_RenderGrid.StepSize)
+            GridColor.SelectedColor = Config_App.Current.RenderGridColor
+
         Catch ex As Exception
             'MsgBox("Render options error", vbCritical, "Reset render options")
         End Try
@@ -88,8 +87,16 @@ Public Class Config_Form
             .IgnoreWeightsFlags = CheckBoxweightignore.Checked,
          .ForceWeights = RadioButtonAllwaysWeight.Checked
                     }
+
+        Config_App.Current.Settings_RenderGrid = New Config_App.RenderGridSettings With {
+    .Enabled = CheckBoxRenderGrid.Checked,
+    .Size = CDbl(NumericUpDownRenderGridSize.Value),
+    .StepSize = CDbl(NumericUpDownRenderGridStep.Value)
+    }
+
         Dim cam = New Config_App.CameraSettings With {.ResetAngles = CheckBoxanglereset.Checked, .ResetZoom = CheckBoxzoomreset.Checked, .FreezeCamera = CheckBoxFreeze.Checked}
         Config_App.Current.Settings_Camara = cam
+        Config_App.Current.Setting_RenderGridColor = GridColor.SelectedColor.Name
         Config_App.Current.Settings_Build = buildSet
         Config_App.Current.Setting_TBN = opts
         Config_App.Current.Setting_RecalculateNormals = RecalculateNormalsCheck.Checked
@@ -97,6 +104,17 @@ Public Class Config_Form
     End Sub
 
     Private Sub Config_Form_Load(sender As Object, e As EventArgs) Handles MyBase.Load
+        'ThemeManager.SetTheme(Config_App.Current.theme, Me)
+        TextBox1.Text = Config_App.Current.FO4ExePath
+        TextBox2.Text = Config_App.Current.BSExePath
+        TextBox3.Text = Config_App.Current.OSExePath
+        TextBox4.Text = Config_App.Current.SkeletonPath
+        ComboBoxGame.SelectedIndex = Config_App.Current.Game
+        initialgame = Config_App.Current.Game
+        Setea_Render_Options()
+        Button8.Enabled = IO.File.Exists(Wardrobe_Manager_Form.Directorios.LooksMenuWMSliders)
+        GridColor.Rellena()
+        GridColor.SelectedColor = Config_App.Current.RenderGridColor
         Check_Folders()
     End Sub
 
@@ -252,6 +270,8 @@ Public Class Config_Form
         Config_App.Current.Setting_RecalculateNormals = True
         Config_App.Current.Setting_TBN = RecalcTBN.DefaultTBNOptions
         Config_App.Current.Settings_Camara = Config_App.Default_CameraSettings
+        Config_App.Current.Settings_RenderGrid = Config_App.Default_RenderGrid_Settings
+        Config_App.Current.Setting_RenderGridColor = Color.FromKnownColor(KnownColor.LightGray).Name
         Setea_Render_Options()
     End Sub
 
@@ -263,11 +283,19 @@ Public Class Config_Form
                 CType(Owner, Wardrobe_Manager_Form).preview_Control.Model.Clean(False)
                 CType(Owner, Wardrobe_Manager_Form).preview_Control.Model.RecalculateNormals = RecalculateNormalsCheck.Checked
                 CType(Owner, Wardrobe_Manager_Form).preview_Control.Model.SingleBoneSkinning = SingleBoneCheck.Checked
+                CType(Owner, Wardrobe_Manager_Form).preview_Control.Model.Floor.Enabled = CheckBoxRenderGrid.Checked
+                CType(Owner, Wardrobe_Manager_Form).preview_Control.Model.Floor.Size = NumericUpDownRenderGridSize.Value
+                CType(Owner, Wardrobe_Manager_Form).preview_Control.Model.Floor.StepSize = NumericUpDownRenderGridStep.Value
+                CType(Owner, Wardrobe_Manager_Form).preview_Control.Model.Floor.Color = GridColor.SelectedColor
+                CType(Owner, Wardrobe_Manager_Form).preview_Control.Model.Floor.Rebuild()
                 CType(Owner, Wardrobe_Manager_Form).preview_Control.Update_Render_LastLoaded(True)
+
             End If
         End If
     End Sub
-
+    Private Sub CheckBoxRenderGrid_CheckedChanged(sender As Object, e As EventArgs) Handles CheckBoxRenderGrid.CheckedChanged
+        Update_RenderGrid_Controls()
+    End Sub
     Private Sub Button7_Click(sender As Object, e As EventArgs) Handles Button7.Click
         Config_App.Current.Settings_Build = Config_App.Default_Build_Settings
         Setea_Render_Options()
@@ -332,4 +360,11 @@ Public Class Config_Form
         RadioButtonAllwaysWeight.Enabled = CheckBoxweightignore.Checked AndAlso RadioButtonWMEngine.Checked
 
     End Sub
+    Private Sub Update_RenderGrid_Controls()
+        Dim enabled As Boolean = CheckBoxRenderGrid.Checked
+        NumericUpDownRenderGridSize.Enabled = enabled
+        NumericUpDownRenderGridStep.Enabled = enabled
+        GridColor.Enabled = enabled
+    End Sub
+
 End Class

@@ -247,7 +247,8 @@ Public Module DirectXDDSLoader
                     .Cubemap = tex.IsCubemap,
                     .DGXFormat_Original = tex.DxgiCodeOriginal,
                     .DGXFormat_Final = tex.DxgiCodeFinal,
-                    .Loaded = tex.Loaded
+                    .Loaded = tex.Loaded,
+                    .Path = fullpaths(i)
                     }
             Else
                 Dim id = CreateOpenGL_FromTextureLoaded_PBO(tex)
@@ -258,7 +259,8 @@ Public Module DirectXDDSLoader
                     .Cubemap = tex.IsCubemap,
                     .DGXFormat_Original = tex.DxgiCodeOriginal,
                     .DGXFormat_Final = tex.DxgiCodeFinal,
-                    .Loaded = tex.Loaded
+                    .Loaded = tex.Loaded,
+                    .Path = fullpaths(i)
                     }
             End If
 

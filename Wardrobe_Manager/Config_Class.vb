@@ -1,5 +1,6 @@
 ﻿' Version Uploaded of Wardrobe 2.1.3
 Imports System.IO
+Imports System.Numerics
 Imports System.Text.Json
 Imports Wardrobe_Manager.RecalcTBN
 Public Class Config_App
@@ -72,6 +73,11 @@ Public Class Config_App
         Public Property IgnoreWeightsFlags As Boolean
         Public Property ForceWeights As Boolean
     End Structure
+    Public Structure RenderGridSettings
+        Public Property Size As Single
+        Public Property Enabled As Boolean
+        Public Property StepSize As Single
+    End Structure
 
     Public Property FO4ExePath As String = ""
     Public ReadOnly Property FO4EDataPath As String
@@ -120,10 +126,24 @@ Public Class Config_App
 
     Public Property Setting_Lightrig As LightsRig_struct = Default_Lights()
     Private _color As Color = Color.DarkGray
+    Private _colorGrod As Color = Color.LightGray
+
     Public Function Setting_BackColor() As Color
         If IsNothing(_color) Then _color = Color.FromName(Setting_BackColorName)
         Return _color
     End Function
+    Public Function RenderGridColor() As Color
+        If IsNothing(_colorGrod) Then _colorGrod = Color.FromName(Setting_RenderGridColor)
+        Return _colorGrod
+    End Function
+    Public Property Setting_RenderGridColor As String
+        Get
+            Return _colorGrod.Name
+        End Get
+        Set(value As String)
+            _colorGrod = Color.FromName(value)
+        End Set
+    End Property
     Public Property Setting_BackColorName As String
         Get
             Return _color.Name
@@ -135,7 +155,10 @@ Public Class Config_App
 
     Public Property Settings_Camara As CameraSettings = Default_CameraSettings()
     Public Property Settings_Build As BuildSettings = Default_Build_Settings()
-
+    Public Property Settings_RenderGrid As RenderGridSettings = Default_RenderGrid_Settings()
+    Public Shared Function Default_RenderGrid_Settings() As RenderGridSettings
+        Return New RenderGridSettings With {.Enabled = False, .Size = 400, .StepSize = 10}
+    End Function
     Public Shared Function Default_Build_Settings() As BuildSettings
         Return New BuildSettings With {.DeleteUnbuilt = True, .DeleteWithProject = True, .SaveHHS = True, .SaveTri = False, .OwnEngine = True, .AddAddintionalSliders = True, .ResetSlidersEachBuild = False, .SkipManoloFixMorphs = True, .IgnorePreventri = False, .BuildInPose = False, .ForceWeights = True, .IgnoreWeightsFlags = False}
     End Function
