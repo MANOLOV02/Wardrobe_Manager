@@ -51,6 +51,7 @@ Partial Class Editor_Form
         ComboBoxMaterials = New ComboBox()
         Label12 = New Label()
         GroupBox5 = New GroupBox()
+        Button10 = New Button()
         CheckBoxGenweight = New CheckBox()
         CheckBoxPreventMorph = New CheckBox()
         CheckBoxZappedShapes = New CheckBox()
@@ -193,6 +194,7 @@ Partial Class Editor_Form
         Label15 = New Label()
         ComboBoxPoses = New ComboBox()
         GroupBox11 = New GroupBox()
+        CheckBoxRenderFloor = New CheckBox()
         Button9 = New Button()
         GroupBox12 = New GroupBox()
         Label28 = New Label()
@@ -450,7 +452,7 @@ Partial Class Editor_Form
         ColorComboBox1.DrawMode = DrawMode.OwnerDrawFixed
         ColorComboBox1.DropDownStyle = ComboBoxStyle.DropDownList
         ColorComboBox1.FormattingEnabled = True
-        ColorComboBox1.Items.AddRange(New Object() {"None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", KnownColor.ActiveBorder, KnownColor.ActiveCaption, KnownColor.ActiveCaptionText, KnownColor.AppWorkspace, KnownColor.Control, KnownColor.ControlDark, KnownColor.ControlDarkDark, KnownColor.ControlLight, KnownColor.ControlLightLight, KnownColor.ControlText, KnownColor.Desktop, KnownColor.GrayText, KnownColor.Highlight, KnownColor.HighlightText, KnownColor.HotTrack, KnownColor.InactiveBorder, KnownColor.InactiveCaption, KnownColor.InactiveCaptionText, KnownColor.Info, KnownColor.InfoText, KnownColor.Menu, KnownColor.MenuText, KnownColor.ScrollBar, KnownColor.Window, KnownColor.WindowFrame, KnownColor.WindowText, KnownColor.Transparent, KnownColor.AliceBlue, KnownColor.AntiqueWhite, KnownColor.Aqua, KnownColor.Aquamarine, KnownColor.Azure, KnownColor.Beige, KnownColor.Bisque, KnownColor.Black, KnownColor.BlanchedAlmond, KnownColor.Blue, KnownColor.BlueViolet, KnownColor.Brown, KnownColor.BurlyWood, KnownColor.CadetBlue, KnownColor.Chartreuse, KnownColor.Chocolate, KnownColor.Coral, KnownColor.CornflowerBlue, KnownColor.Cornsilk, KnownColor.Crimson, KnownColor.Cyan, KnownColor.DarkBlue, KnownColor.DarkCyan, KnownColor.DarkGoldenrod, KnownColor.DarkGray, KnownColor.DarkGreen, KnownColor.DarkKhaki, KnownColor.DarkMagenta, KnownColor.DarkOliveGreen, KnownColor.DarkOrange, KnownColor.DarkOrchid, KnownColor.DarkRed, KnownColor.DarkSalmon, KnownColor.DarkSeaGreen, KnownColor.DarkSlateBlue, KnownColor.DarkSlateGray, KnownColor.DarkTurquoise, KnownColor.DarkViolet, KnownColor.DeepPink, KnownColor.DeepSkyBlue, KnownColor.DimGray, KnownColor.DodgerBlue, KnownColor.Firebrick, KnownColor.FloralWhite, KnownColor.ForestGreen, KnownColor.Fuchsia, KnownColor.Gainsboro, KnownColor.GhostWhite, KnownColor.Gold, KnownColor.Goldenrod, KnownColor.Gray, KnownColor.Green, KnownColor.GreenYellow, KnownColor.Honeydew, KnownColor.HotPink, KnownColor.IndianRed, KnownColor.Indigo, KnownColor.Ivory, KnownColor.Khaki, KnownColor.Lavender, KnownColor.LavenderBlush, KnownColor.LawnGreen, KnownColor.LemonChiffon, KnownColor.LightBlue, KnownColor.LightCoral, KnownColor.LightCyan, KnownColor.LightGoldenrodYellow, KnownColor.LightGray, KnownColor.LightGreen, KnownColor.LightPink, KnownColor.LightSalmon, KnownColor.LightSeaGreen, KnownColor.LightSkyBlue, KnownColor.LightSlateGray, KnownColor.LightSteelBlue, KnownColor.LightYellow, KnownColor.Lime, KnownColor.LimeGreen, KnownColor.Linen, KnownColor.Magenta, KnownColor.Maroon, KnownColor.MediumAquamarine, KnownColor.MediumBlue, KnownColor.MediumOrchid, KnownColor.MediumPurple, KnownColor.MediumSeaGreen, KnownColor.MediumSlateBlue, KnownColor.MediumSpringGreen, KnownColor.MediumTurquoise, KnownColor.MediumVioletRed, KnownColor.MidnightBlue, KnownColor.MintCream, KnownColor.MistyRose, KnownColor.Moccasin, KnownColor.NavajoWhite, KnownColor.Navy, KnownColor.OldLace, KnownColor.Olive, KnownColor.OliveDrab, KnownColor.Orange, KnownColor.OrangeRed, KnownColor.Orchid, KnownColor.PaleGoldenrod, KnownColor.PaleGreen, KnownColor.PaleTurquoise, KnownColor.PaleVioletRed, KnownColor.PapayaWhip, KnownColor.PeachPuff, KnownColor.Peru, KnownColor.Pink, KnownColor.Plum, KnownColor.PowderBlue, KnownColor.Purple, KnownColor.Red, KnownColor.RosyBrown, KnownColor.RoyalBlue, KnownColor.SaddleBrown, KnownColor.Salmon, KnownColor.SandyBrown, KnownColor.SeaGreen, KnownColor.SeaShell, KnownColor.Sienna, KnownColor.Silver, KnownColor.SkyBlue, KnownColor.SlateBlue, KnownColor.SlateGray, KnownColor.Snow, KnownColor.SpringGreen, KnownColor.SteelBlue, KnownColor.Tan, KnownColor.Teal, KnownColor.Thistle, KnownColor.Tomato, KnownColor.Turquoise, KnownColor.Violet, KnownColor.Wheat, KnownColor.White, KnownColor.WhiteSmoke, KnownColor.Yellow, KnownColor.YellowGreen, KnownColor.ButtonFace, KnownColor.ButtonHighlight, KnownColor.ButtonShadow, KnownColor.GradientActiveCaption, KnownColor.GradientInactiveCaption, KnownColor.MenuBar, KnownColor.MenuHighlight, KnownColor.RebeccaPurple, "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None", "None"})
+        ColorComboBox1.Items.AddRange(New Object() {"None"})
         ColorComboBox1.Location = New Point(177, 55)
         ColorComboBox1.Name = "ColorComboBox1"
         ColorComboBox1.SelectedColor = Color.Black
@@ -568,6 +570,7 @@ Partial Class Editor_Form
         ' GroupBox5
         ' 
         GroupBox5.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
+        GroupBox5.Controls.Add(Button10)
         GroupBox5.Controls.Add(CheckBoxGenweight)
         GroupBox5.Controls.Add(CheckBoxPreventMorph)
         GroupBox5.Controls.Add(CheckBoxZappedShapes)
@@ -584,6 +587,20 @@ Partial Class Editor_Form
         GroupBox5.Size = New Size(711, 103)
         GroupBox5.TabIndex = 2
         GroupBox5.TabStop = False
+        ' 
+        ' Button10
+        ' 
+        Button10.Anchor = AnchorStyles.Top Or AnchorStyles.Right
+        Button10.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Button10.ImageIndex = 0
+        Button10.Location = New Point(123, 74)
+        Button10.Name = "Button10"
+        Button10.Size = New Size(55, 24)
+        Button10.TabIndex = 51
+        Button10.Text = "auto"
+        Button10.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(Button10, "Remove the currently selected shape from the project.")
+        Button10.UseVisualStyleBackColor = True
         ' 
         ' CheckBoxGenweight
         ' 
@@ -647,7 +664,7 @@ Partial Class Editor_Form
         ' 
         Label10.Location = New Point(7, 75)
         Label10.Name = "Label10"
-        Label10.Size = New Size(124, 23)
+        Label10.Size = New Size(111, 23)
         Label10.TabIndex = 5
         Label10.Text = "High heels offset"
         Label10.TextAlign = ContentAlignment.MiddleLeft
@@ -656,9 +673,9 @@ Partial Class Editor_Form
         ' 
         HHNumericUpDown.DecimalPlaces = 2
         HHNumericUpDown.Increment = New Decimal(New Integer() {5, 0, 0, 65536})
-        HHNumericUpDown.Location = New Point(136, 75)
+        HHNumericUpDown.Location = New Point(184, 74)
         HHNumericUpDown.Name = "HHNumericUpDown"
-        HHNumericUpDown.Size = New Size(109, 23)
+        HHNumericUpDown.Size = New Size(61, 23)
         HHNumericUpDown.TabIndex = 4
         HHNumericUpDown.TextAlign = HorizontalAlignment.Right
         ToolTip1.SetToolTip(HHNumericUpDown, "Set the High Heels offset stored with the project.")
@@ -667,7 +684,7 @@ Partial Class Editor_Form
         ' 
         Label9.Location = New Point(6, 46)
         Label9.Name = "Label9"
-        Label9.Size = New Size(124, 23)
+        Label9.Size = New Size(111, 23)
         Label9.TabIndex = 3
         Label9.Text = "Output file"
         Label9.TextAlign = ContentAlignment.MiddleLeft
@@ -675,9 +692,9 @@ Partial Class Editor_Form
         ' OutFilTextbox
         ' 
         OutFilTextbox.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        OutFilTextbox.Location = New Point(136, 46)
+        OutFilTextbox.Location = New Point(123, 46)
         OutFilTextbox.Name = "OutFilTextbox"
-        OutFilTextbox.Size = New Size(413, 23)
+        OutFilTextbox.Size = New Size(426, 23)
         OutFilTextbox.TabIndex = 2
         ToolTip1.SetToolTip(OutFilTextbox, "Set the project output file name.")
         ' 
@@ -685,7 +702,7 @@ Partial Class Editor_Form
         ' 
         Label8.Location = New Point(6, 19)
         Label8.Name = "Label8"
-        Label8.Size = New Size(124, 23)
+        Label8.Size = New Size(111, 23)
         Label8.TabIndex = 1
         Label8.Text = "Output directory"
         Label8.TextAlign = ContentAlignment.MiddleLeft
@@ -693,9 +710,9 @@ Partial Class Editor_Form
         ' OutDirTextbox
         ' 
         OutDirTextbox.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        OutDirTextbox.Location = New Point(136, 19)
+        OutDirTextbox.Location = New Point(123, 19)
         OutDirTextbox.Name = "OutDirTextbox"
-        OutDirTextbox.Size = New Size(509, 23)
+        OutDirTextbox.Size = New Size(522, 23)
         OutDirTextbox.TabIndex = 0
         ToolTip1.SetToolTip(OutDirTextbox, "Set the project output directory.")
         ' 
@@ -2394,6 +2411,7 @@ Partial Class Editor_Form
         ' 
         ' GroupBox11
         ' 
+        GroupBox11.Controls.Add(CheckBoxRenderFloor)
         GroupBox11.Controls.Add(Button9)
         GroupBox11.Controls.Add(SingleBoneCheck)
         GroupBox11.Controls.Add(RecalculateNormalsCheck)
@@ -2405,6 +2423,17 @@ Partial Class Editor_Form
         GroupBox11.TabIndex = 48
         GroupBox11.TabStop = False
         GroupBox11.Text = "Redering and masking"
+        ' 
+        ' CheckBoxRenderFloor
+        ' 
+        CheckBoxRenderFloor.AutoSize = True
+        CheckBoxRenderFloor.Location = New Point(576, 19)
+        CheckBoxRenderFloor.Name = "CheckBoxRenderFloor"
+        CheckBoxRenderFloor.Size = New Size(91, 19)
+        CheckBoxRenderFloor.TabIndex = 47
+        CheckBoxRenderFloor.Text = "Render floor"
+        ToolTip1.SetToolTip(CheckBoxRenderFloor, "Recalculate normals in preview and baking using the current normal reconstruction settings.")
+        CheckBoxRenderFloor.UseVisualStyleBackColor = True
         ' 
         ' Button9
         ' 
@@ -2752,6 +2781,8 @@ Partial Class Editor_Form
     Friend WithEvents ComboBoxAllXYZ As ComboBox
     Friend WithEvents ButtonClickAll As Button
     Friend WithEvents ToolTip1 As ToolTip
+    Friend WithEvents CheckBoxRenderFloor As CheckBox
+    Friend WithEvents Button10 As Button
 
 End Class
 

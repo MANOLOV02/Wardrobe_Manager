@@ -839,13 +839,15 @@ Public Class OSP_Project_Class
             End If
         End If
 
-        Sliderset_Target.HighHeelHeight = Sliderset_Source.HighHeelHeight
 
         Dim Old_Nif = IO.Path.Combine(IO.Path.Combine(Directorios.ShapedataRoot, Sliderset_Source.DataFolderValue), Sliderset_Source.SourceFileValue)
         Dim Old_Osd = Old_Nif.Replace(".nif", ".osd", StringComparison.OrdinalIgnoreCase)
 
         ' Procesa los cambios de nombre
         Sliderset_Target.Update_Names(Nombre_Proyecto, Me.Nombre)
+
+        ' Define High Heels
+        Sliderset_Target.HighHeelHeight = Sliderset_Source.HighHeelHeight
 
         ' Exclude reference
         If ExcludeReference = True AndAlso Sliderset_Target.Shapes.Where(Function(pf) pf.IsReference).Any Then
@@ -886,7 +888,6 @@ Public Class OSP_Project_Class
         Dim Sliderset_Target = New SliderSet_Class(Sliderset_Madre.ParentOSP.xml.ImportNode(Sliderset_Source.Nodo.Clone, True), Sliderset_Madre.ParentOSP)
         If OSP_Project_Class.Load_and_CHeck_Project(Sliderset_Target, True, True) = False Then Return Nothing
 
-        If Sliderset_Source.HighHeelHeight <> 0 Then If Sliderset_Madre.IsHighHeel = 0 Or Sliderset_Madre.HighHeelHeight = Sliderset_Source.HighHeelHeight Then Sliderset_Madre.HighHeelHeight = Sliderset_Source.HighHeelHeight Else Sliderset_Madre.HighHeelHeight = Math.Max(Sliderset_Madre.HighHeelHeight, Sliderset_Source.HighHeelHeight) : MsgBox("Different High Heels setup. Higher assumed", vbInformation, "Warning")
 
         Dim Old_Nif = IO.Path.Combine(IO.Path.Combine(Directorios.ShapedataRoot, Sliderset_Target.DataFolderValue), Sliderset_Target.SourceFileValue)
         Dim Old_Osd = Old_Nif.Replace(".nif", ".osd", StringComparison.OrdinalIgnoreCase)
@@ -894,6 +895,8 @@ Public Class OSP_Project_Class
         ' Procesa los cambios de nombre
         Sliderset_Target.Update_Names(Sliderset_Madre.Nombre, Sliderset_Madre.ParentOSP.Nombre)
 
+        ' Define HighHeels
+        If Sliderset_Source.HighHeelHeight <> 0 Then If Sliderset_Madre.IsHighHeel = 0 Or Sliderset_Madre.HighHeelHeight = Sliderset_Source.HighHeelHeight Then Sliderset_Madre.HighHeelHeight = Sliderset_Source.HighHeelHeight Else Sliderset_Madre.HighHeelHeight = Math.Max(Sliderset_Madre.HighHeelHeight, Sliderset_Source.HighHeelHeight) : MsgBox("Different High Heels setup. Higher assumed", vbInformation, "Warning")
 
         ' Agrega Sliders Faltantes
 

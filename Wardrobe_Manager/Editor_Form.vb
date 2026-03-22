@@ -438,6 +438,10 @@ Public Class Editor_Form
         End If
     End Sub
     Private Sub PropertyGrid1_PropertyValueChanged(s As Object, e As PropertyValueChangedEventArgs) Handles PropertyGrid1.PropertyValueChanged
+        If e.OldValue.GetType Is GetType(String) Then
+            EditPreviewControl.Model.CleanSingleTexture(e.OldValue)
+            EditPreviewControl.Model.CleanSingleTexture(e.ChangedItem.Value)
+        End If
         Update_Grayscale()
         Iniciado_Edit()
         Render_Changes(False)
@@ -670,6 +674,7 @@ Public Class Editor_Form
         If IsNothing(Selected_Slider) Then Exit Sub
         Selected_Slider.HighHeelHeight = HHNumericUpDown.Value
         Iniciado_Edit()
+        Process_render_Changes(False)
     End Sub
 
     Private Sub OutDirTextbox_TextChanged(sender As Object, e As EventArgs) Handles OutDirTextbox.Leave
@@ -690,6 +695,11 @@ Public Class Editor_Form
         EditPreviewControl.Model.SingleBoneSkinning = Config_App.Current.Setting_SingleBoneSkinning
         EditPreviewControl.AllowMask = True
         NumericMaskRadius.Value = EditPreviewControl.BrushRadiusPx
+        EditPreviewControl.Model.Floor.Enabled = Config_App.Current.Settings_RenderGrid.Enabled
+        EditPreviewControl.Model.Floor.Color = Config_App.Current.RenderGridColor
+        EditPreviewControl.Model.Floor.Size = Config_App.Current.Settings_RenderGrid.Size
+        EditPreviewControl.Model.Floor.StepSize = Config_App.Current.Settings_RenderGrid.StepSize
+        EditPreviewControl.Model.Floor.Rebuild()
         Process_render_Changes(True)
     End Sub
 
@@ -1771,6 +1781,7 @@ Public Class Editor_Form
         ' Esta llamada es exigida por el diseñador.
         InitializeComponent()
         CheckBoxSaveSAF.Checked = Config_App.Current.Setting_ExportSam
+        CheckBoxRenderFloor.Checked = Config_App.Current.Settings_RenderGrid.Enabled
         'ThemeManager.SetTheme(Config_App.Current.theme, Me)
         ' Agregue cualquier inicialización después de la llamada a InitializeComponent().
 
@@ -1910,6 +1921,7 @@ Public Class Editor_Form
         Process_render_Changes(True)
     End Sub
     Private Sub Process_render_Changes(Force As Boolean)
+        EditPreviewControl.Model.Floor.Enabled = CheckBoxRenderFloor.Checked
         EditPreviewControl.Update_Render(Selected_Slider, Force, Selected_Preset, Selected_Pose, ComboBoxSize.SelectedIndex)
     End Sub
 
@@ -2180,4 +2192,31 @@ Public Class Editor_Form
 
         Return result
     End Function
+
+    Private Sub CheckBox1_CheckedChanged_2(sender As Object, e As EventArgs) Handles CheckBoxRenderFloor.CheckedChanged
+        If Not IsNothing(EditPreviewControl) Then Process_render_Changes(False)
+    End Sub
+
+    Private Sub Button10_Click_1(sender As Object, e As EventArgs) Handles Button10.Click
+        Try
+            If IsNothing(Selected_Slider) Then Exit Sub
+            Dim min = 0
+
+            For Each mesha In EditPreviewControl.Model.meshes
+                Dim minz = mesha.MeshData.Meshgeometry.BaseVertices.Min(Function(pf) pf.Z)
+                If -minz > min Then min = -minz
+            Next
+            min = Math.Max(0, Math.Round(min, 2))
+            If min <> HHNumericUpDown.Value Then
+                If MsgBox("Auto High Heel figure is " + min.ToString + " change the value?", vbYesNo, "Auto High Heel determination") = MsgBoxResult.Yes Then
+                    HHNumericUpDown.Value = CDec(min)
+                End If
+            Else
+                MsgBox("Auto High Heel matches current value.", vbOKOnly, "Auto High Heel determination")
+            End If
+        Catch ex As Exception
+            MsgBox("Auto High Heel Could not be completed.", vbOKOnly + vbCritical, "Auto High Heel determination")
+        End Try
+
+    End Sub
 End Class

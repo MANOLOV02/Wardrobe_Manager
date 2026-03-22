@@ -130,6 +130,7 @@ Public Class Wardrobe_Manager_Form
 
     Public OSP_Files As New List(Of OSP_Project_Class)
     Private Last_List_focused As System.Windows.Forms.ListView = ListViewSources
+    Private Default_Pack_Name As String = "WM Default Pack"
     Private Sub Habilita_deshabilita()
         Dim fullpack As Boolean = Full_packs_Selected()
         Dim normalUi As Boolean = Me.Enabled
@@ -283,13 +284,7 @@ Public Class Wardrobe_Manager_Form
 
             ' Si no existe ningún pack, crear uno por defecto automáticamente
             If ComboboxPacks.Items.Count = 0 Then
-                Dim defaultPackPath = Path.Combine(Directorios.SliderSetsRoot, "(WM Default Pack).osp")
-                Dim defaultPack = OSP_Project_Class.Create_New(defaultPackPath, False, True)
-
-                If Not IsNothing(defaultPack) Then
-                    OSP_Files.Add(defaultPack)
-                    ComboboxPacks.Items.Add(defaultPack)
-                End If
+                Create_Default_Pack
             End If
 
             ' 4) Construir la lista de ListViewItem con el filtro original
@@ -336,7 +331,15 @@ Public Class Wardrobe_Manager_Form
         End Try
         Termina_Procesos()
     End Function
+    Private Sub Create_Default_Pack()
+        Dim defaultPackPath = Path.Combine(Directorios.SliderSetsRoot, Default_Pack_Name + ".osp")
+        Dim defaultPack = OSP_Project_Class.Create_New(defaultPackPath, False, True)
 
+        If Not IsNothing(defaultPack) Then
+            OSP_Files.Add(defaultPack)
+            ComboboxPacks.Items.Add(defaultPack)
+        End If
+    End Sub
     Private Sub Lee_Listbox_Targets()
         Habilita_deshabilita()
         Dim sel_slider As SliderSet_Class = Nothing
@@ -563,11 +566,22 @@ Public Class Wardrobe_Manager_Form
                 ProgressBar1.Value += 1
                 sliderset_target.ParentOSP.RemoveProject(sliderset_target)
                 ListViewTargets.Items.Remove(it)
+                If sliderset_target.ParentOSP.SliderSets.Count = 0 Then Remove_Empty_Pack(sliderset_target)
             Next
         End If
+
         Termina_Procesos()
     End Sub
-
+    Private Sub Remove_Empty_Pack(sliderset_target As SliderSet_Class)
+        If MsgBox("The pack is empty, do you want to delete it?", vbYesNo, "Delete pack") = MsgBoxResult.Yes Then
+            IO.File.Delete(sliderset_target.ParentOSP.Filename)
+            Dim oldselected As OSP_Project_Class = Nothing
+            If Not IsNothing(ComboboxPacks.SelectedItem) Then oldselected = ComboboxPacks.SelectedItem
+            ComboboxPacks.Items.Remove(sliderset_target.ParentOSP)
+            If ComboboxPacks.Items.Count = 0 Then Create_Default_Pack()
+            If sliderset_target.ParentOSP Is oldselected Then ComboboxPacks.SelectedIndex = 0
+        End If
+    End Sub
     Private Sub EditButton_Click(sender As Object, e As EventArgs) Handles EditButton.Click
         If ListViewSources.FocusedItem Is Nothing Then Exit Sub
         Dim Selected_Source As SliderSet_Class = ListViewSources.FocusedItem.Tag
@@ -879,9 +893,8 @@ Public Class Wardrobe_Manager_Form
 
     Private Sub NewPackButton_Click(sender As Object, e As EventArgs) Handles NewPackButton.Click
         Dim nombre = InputBox("Pack name", "New pack", "")
+        nombre = nombre.Trim
         If nombre = "" Then Exit Sub
-        If nombre.StartsWith("("c) = False Then nombre = "(" + nombre
-        If nombre.EndsWith(")"c) = False Then nombre += ")"
         Dim selected_pàck = OSP_Project_Class.Create_New(Path.Combine(Directorios.SliderSetsRoot, nombre + ".osp"), False, True)
         If Not IsNothing(selected_pàck) Then
             ComboboxPacks.Items.Add(selected_pàck)
@@ -899,7 +912,11 @@ Public Class Wardrobe_Manager_Form
         Pone_checks()
         Dim xx = InicializarAsync()
         preview_Control.ApplyResize(True)
-
+        preview_Control.Model.Floor.Enabled = Config_App.Current.Settings_RenderGrid.Enabled
+        preview_Control.Model.Floor.Color = Config_App.Current.RenderGridColor
+        preview_Control.Model.Floor.Size = Config_App.Current.Settings_RenderGrid.Size
+        preview_Control.Model.Floor.StepSize = Config_App.Current.Settings_RenderGrid.StepSize
+        preview_Control.Model.Floor.Rebuild()
     End Sub
     Private Async Function InicializarAsync() As Task
         If firstime Then
@@ -1096,6 +1113,7 @@ Public Class Wardrobe_Manager_Form
         ColorComboBox1.Rellena()
         ColorComboBox1.SelectedColor = Config_App.Current.Setting_BackColor
         ComboBoxSize.SelectedIndex = CInt(Config_App.Current.Bodytipe)
+
     End Sub
 
     Private Sub Save_Shared()
@@ -1335,6 +1353,11 @@ Public Class Wardrobe_Manager_Form
         'If Config_App.Current.theme <> Oldtheme Then ThemeManager.SetTheme(Config_App.Current.theme, Me)
         SingleBoneCheck.Checked = Config_App.Current.Setting_SingleBoneSkinning
         RecalculateNormalsCheck.Checked = Config_App.Current.Setting_RecalculateNormals
+        preview_Control.Model.Floor.Enabled = Config_App.Current.Settings_RenderGrid.Enabled
+        preview_Control.Model.Floor.Color = Config_App.Current.RenderGridColor
+        preview_Control.Model.Floor.Size = Config_App.Current.Settings_RenderGrid.Size
+        preview_Control.Model.Floor.StepSize = Config_App.Current.Settings_RenderGrid.StepSize
+        preview_Control.Model.Floor.Rebuild()
         RefreshButton.PerformClick()
     End Sub
 
@@ -1347,8 +1370,12 @@ Public Class Wardrobe_Manager_Form
                 Dim sliderset_Source As SliderSet_Class = it.Tag
                 ProgressBar1.Value += 1
                 sliderset_Source.ParentOSP.RemoveProject(sliderset_Source)
-                If sliderset_Source.ParentOSP.SliderSets.Count = 0 AndAlso sliderset_Source.ParentOSP.IsManoloPack = False Then
-                    IO.File.Delete(sliderset_Source.ParentOSP.Filename)
+                If sliderset_Source.ParentOSP.SliderSets.Count = 0 Then
+                    If sliderset_Source.ParentOSP.IsManoloPack = False Then
+                        IO.File.Delete(sliderset_Source.ParentOSP.Filename)
+                    Else
+                        Remove_Empty_Pack(sliderset_Source)
+                    End If
                 End If
                 ListViewSources.Items.Remove(it)
             Next
@@ -1407,6 +1434,7 @@ Public Class Wardrobe_Manager_Form
         ShowCollectionsCheck.Checked = Config_App.Current.Setting_ShowCollections
         ShowCBBECheck.Checked = Config_App.Current.Setting_ShowCBBE
         CheckShowpacks.Checked = Config_App.Current.Setting_Showpacks
+
     End Sub
 
     Private Sub CheckShowpacks_CheckedChanged(sender As Object, e As EventArgs) Handles CheckShowpacks.CheckedChanged
@@ -1600,6 +1628,8 @@ Public Class Wardrobe_Manager_Form
         End If
         Lee_shapes()
     End Sub
+
+
 End Class
 
 
