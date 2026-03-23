@@ -130,7 +130,10 @@ Public Class Wardrobe_Manager_Form
 
     Public OSP_Files As New List(Of OSP_Project_Class)
     Private Last_List_focused As System.Windows.Forms.ListView = ListViewSources
+    Private _LastLeeShapesRequestKey As String = ""
+    Private _LeeShapesPending As Boolean = False
     Private Default_Pack_Name As String = "WM Default Pack"
+    Private _RefreshingTargetsFromDisk As Boolean = False
     Private Sub Habilita_deshabilita()
         Dim fullpack As Boolean = Full_packs_Selected()
         Dim normalUi As Boolean = Me.Enabled
@@ -196,10 +199,212 @@ Public Class Wardrobe_Manager_Form
             ButtonSkeleton.ForeColor = Color.Red
         End If
     End Sub
+    Private Function GetCurrentSourceSelectionKey() As String
+        If Not IsNothing(ListViewSources.FocusedItem) Then
+            Return ListViewSources.FocusedItem.Name
+        End If
+
+        If ListViewSources.SelectedItems.Count > 0 Then
+            Return ListViewSources.SelectedItems(0).Name
+        End If
+
+        Return ""
+    End Function
+
+    Private Function GetCurrentPackFilename() As String
+        If ComboboxPacks.SelectedIndex <> -1 Then
+            Dim selectedPack As OSP_Project_Class = TryCast(ComboboxPacks.SelectedItem, OSP_Project_Class)
+            If Not IsNothing(selectedPack) Then
+                Return selectedPack.Filename
+            End If
+        End If
+
+        Return ""
+    End Function
+
+    Private Sub Rebuild_Packs_Combo(Optional selectedPackFilename As String = "")
+        ComboboxPacks.Items.Clear()
+
+        For Each osp In OSP_Files.OrderBy(Function(pf) pf.Nombre)
+            If osp.IsManoloPack Then
+                ComboboxPacks.Items.Add(osp)
+            End If
+        Next
+
+        If ComboboxPacks.Items.Count = 0 Then
+            Create_Default_Pack()
+        End If
+
+        If selectedPackFilename <> "" Then
+            For i = 0 To ComboboxPacks.Items.Count - 1
+                Dim pack = CType(ComboboxPacks.Items(i), OSP_Project_Class)
+                If pack.Filename.Equals(selectedPackFilename, StringComparison.OrdinalIgnoreCase) Then
+                    ComboboxPacks.SelectedIndex = i
+                    Exit Sub
+                End If
+            Next
+        End If
+
+        If ComboboxPacks.Items.Count > 0 Then
+            ComboboxPacks.SelectedIndex = 0
+        End If
+    End Sub
+
+    Private Sub Rebuild_Source_List(Optional selectionKey As String = "")
+        If String.IsNullOrEmpty(selectionKey) Then
+            selectionKey = GetCurrentSourceSelectionKey()
+        End If
+        Dim totalSteps As Integer = OSP_Files.Count
+        ProgressBar1.Minimum = 0
+        ProgressBar1.Maximum = Math.Max(totalSteps, 1)
+        ProgressBar1.Value = 0
+
+        Dim tmp As New List(Of ListViewItem)
+
+        For Each osp In OSP_Files.OrderBy(Function(pf) pf.Nombre)
+            If ShowCBBECheck.Checked OrElse osp.Nombre.StartsWith("CBBE") = False Then
+                For Each sliderSet In osp.SliderSets.OrderBy(Function(pf) pf.Nombre)
+                    If (Not osp.IsManoloPack OrElse CheckShowpacks.Checked) AndAlso
+                   (String.IsNullOrEmpty(TextBox2.Text) OrElse
+                    sliderSet.Nombre.Contains(TextBox2.Text, StringComparison.OrdinalIgnoreCase) OrElse
+                    sliderSet.DescriptionValue.Contains(TextBox2.Text, StringComparison.OrdinalIgnoreCase) OrElse
+                    osp.Filename_WithoutPath.Contains(TextBox2.Text, StringComparison.OrdinalIgnoreCase) OrElse
+                    sliderSet.OutputPathValue.Contains(TextBox2.Text, StringComparison.OrdinalIgnoreCase) OrElse
+                    sliderSet.OutputFileValue.Contains(TextBox2.Text, StringComparison.OrdinalIgnoreCase)) Then
+
+                        If osp.SliderSets.Count = 1 OrElse
+                       (ShowCollectionsCheck.Checked AndAlso Not osp.IsManoloPack) OrElse
+                       (CheckShowpacks.Checked AndAlso osp.IsManoloPack) Then
+
+                            Dim lvi = New ListViewItem({sliderSet.Nombre, sliderSet.DescriptionValue, osp.Filename_WithoutPath}) With {
+                                .Tag = sliderSet,
+                                .Name = sliderSet.Nombre + sliderSet.ParentOSP.Nombre
+                            }
+                            tmp.Add(lvi)
+
+                        End If
+                    End If
+                Next
+            End If
+            ProgressBar1.Value = Math.Min(ProgressBar1.Value + 1, ProgressBar1.Maximum)
+        Next
+
+        ListViewSources.BeginUpdate()
+        ListViewSources.Items.Clear()
+
+        If tmp.Count > 0 Then
+            ListViewSources.Items.AddRange(tmp.ToArray())
+        End If
+
+        If selectionKey <> "" Then
+            Dim choosedSource As ListViewItem = ListViewSources.Items.Find(selectionKey, False).FirstOrDefault
+            If Not IsNothing(choosedSource) Then
+                ListViewSources.FocusedItem = choosedSource
+                choosedSource.Selected = True
+            End If
+        End If
+
+        ListViewSources.EndUpdate()
+    End Sub
+    Private ReadOnly OSP_FileWriteTicks As New Dictionary(Of String, Long)(StringComparer.OrdinalIgnoreCase)
+    Private Async Function Refresh_OSP_Files_From_Disk() As Task
+        If firstime Then Exit Function
+
+        Habilita_deshabilita()
+        _LastLeeShapesRequestKey = ""
+
+        Try
+            Empieza_Procesos(0)
+
+            Dim oldSourceKey As String = GetCurrentSourceSelectionKey()
+            Dim oldPackFilename As String = GetCurrentPackFilename()
+
+            Dim diskFiles = FilesDictionary_class.EnumerateFilesWithSymlinkSupport(Directorios.SliderSetsRoot, "*.osp", False).ToList()
+
+            Dim diskTicks As New Dictionary(Of String, Long)(StringComparer.OrdinalIgnoreCase)
+            For Each path In diskFiles
+                diskTicks(path) = IO.File.GetLastWriteTimeUtc(path).Ticks
+            Next
+
+            Dim currentByPath As New Dictionary(Of String, OSP_Project_Class)(StringComparer.OrdinalIgnoreCase)
+
+
+            For Each osp In OSP_Files
+                currentByPath(osp.Filename) = osp
+            Next
+
+            Dim removedPaths = currentByPath.Keys.Except(diskTicks.Keys, StringComparer.OrdinalIgnoreCase).OrderBy(Function(p) p).ToList()
+            Dim addedPaths = diskTicks.Keys.Except(currentByPath.Keys, StringComparer.OrdinalIgnoreCase).OrderBy(Function(p) p).ToList()
+            Dim changedPaths = diskTicks.
+            Where(Function(kvp) currentByPath.ContainsKey(kvp.Key) AndAlso
+                                (Not OSP_FileWriteTicks.ContainsKey(kvp.Key) OrElse OSP_FileWriteTicks(kvp.Key) <> kvp.Value)).
+            Select(Function(kvp) kvp.Key).
+            OrderBy(Function(p) p).
+            ToList()
+
+            Dim totalSteps As Integer = removedPaths.Count + addedPaths.Count + changedPaths.Count
+            ProgressBar1.Minimum = 0
+            ProgressBar1.Maximum = Math.Max(totalSteps, 1)
+            ProgressBar1.Value = 0
+
+            For Each removedPath In removedPaths
+                Dim ospToRemove = currentByPath(removedPath)
+                OSP_Files.Remove(ospToRemove)
+                OSP_FileWriteTicks.Remove(removedPath)
+                ProgressBar1.Value = Math.Min(ProgressBar1.Value + 1, ProgressBar1.Maximum)
+            Next
+
+            For Each changedPath In changedPaths
+                Dim oldOsp = currentByPath(changedPath)
+                Dim newOsp = Await Task.Run(Function() New OSP_Project_Class(changedPath, DeepAnalize_check.Checked))
+
+                If DeepAnalize_check.Checked Then
+                    For Each slider In newOsp.SliderSets
+                        slider.UnloadShapeData(False)
+                    Next
+                End If
+
+                Dim idx = OSP_Files.IndexOf(oldOsp)
+                If idx >= 0 Then
+                    OSP_Files(idx) = newOsp
+                Else
+                    OSP_Files.Add(newOsp)
+                End If
+
+                OSP_FileWriteTicks(changedPath) = diskTicks(changedPath)
+                ProgressBar1.Value = Math.Min(ProgressBar1.Value + 1, ProgressBar1.Maximum)
+            Next
+
+            For Each addedPath In addedPaths
+                Dim newOsp = Await Task.Run(Function() New OSP_Project_Class(addedPath, DeepAnalize_check.Checked))
+
+                If DeepAnalize_check.Checked Then
+                    For Each slider In newOsp.SliderSets
+                        slider.UnloadShapeData(False)
+                    Next
+                End If
+
+                OSP_Files.Add(newOsp)
+                OSP_FileWriteTicks(addedPath) = diskTicks(addedPath)
+                ProgressBar1.Value = Math.Min(ProgressBar1.Value + 1, ProgressBar1.Maximum)
+            Next
+
+            Rebuild_Packs_Combo(oldPackFilename)
+            Rebuild_Source_List(oldSourceKey)
+            Lee_Listbox_Targets()
+            Relee_Poses()
+            Relee_Presets()
+
+        Catch ex As Exception
+            MsgBox(ex.ToString)
+        End Try
+
+        Termina_Procesos()
+    End Function
     Private Async Function Lee_Listbox() As Task
         If firstime = True Then Return
         Habilita_deshabilita()
-
+        _LastLeeShapesRequestKey = ""
 
         Try
             If CheckBoxReloadDict.Checked Then
@@ -224,7 +429,7 @@ Public Class Wardrobe_Manager_Form
                 oldList_Target = oldt.Nombre + oldt.ParentOSP.Nombre
             End If
 
-            Dim oldCombo = ComboboxPacks.SelectedIndex
+            Dim oldPackFilename As String = GetCurrentPackFilename()
             ' Limpiar UI
             ListViewSources.Items.Clear()
             ComboboxPacks.Items.Clear()
@@ -237,6 +442,7 @@ Public Class Wardrobe_Manager_Form
             Skeleton_Class.LoadSkeleton(False, False)
 
             OSP_Files.Clear()
+            OSP_FileWriteTicks.Clear()
 
             ' 0) Presets
             Dim filesPresets = FilesDictionary_class.EnumerateFilesWithSymlinkSupport(Directorios.SliderPresetsRoot, "*.xml", False).ToList
@@ -265,9 +471,7 @@ Public Class Wardrobe_Manager_Form
                                                            ' Reportar progreso (invoke para UI thread)
                                                            If DeepAnalize_check.Checked Then
                                                                For Each slider In osp.SliderSets
-                                                                   slider.NIFContent = New Nifcontent_Class_Manolo(slider)
-                                                                   slider.OSDContent_External = New OSD_Class(slider)
-                                                                   slider.OSDContent_Local = New OSD_Class(slider)
+                                                                   slider.UnloadShapeData(False)
                                                                Next
                                                            End If
                                                            Me.Invoke(Sub() ProgressBar1.Value += 1)
@@ -277,48 +481,14 @@ Public Class Wardrobe_Manager_Form
             ' 3) Ya en UI thread: llenar ComboBox y OSP_Files
             For Each osp In allOSPs.OrderBy(Function(pf) pf.Nombre)
                 OSP_Files.Add(osp)
-                If osp.IsManoloPack Then
-                    ComboboxPacks.Items.Add(osp)
-                End If
+                OSP_FileWriteTicks(osp.Filename) = IO.File.GetLastWriteTimeUtc(osp.Filename).Ticks
             Next
-
-            ' Si no existe ningún pack, crear uno por defecto automáticamente
-            If ComboboxPacks.Items.Count = 0 Then
-                Create_Default_Pack
-            End If
 
             ' 4) Construir la lista de ListViewItem con el filtro original
-            Dim tmp As New List(Of ListViewItem)()
-            For Each osp In allOSPs.OrderBy(Function(pf) pf.Nombre)
-                If ShowCBBECheck.Checked OrElse osp.Nombre.StartsWith("CBBE") = False Then
-                    For Each sliderSet In osp.SliderSets.OrderBy(Function(pf) pf.Nombre)
-                        If (Not osp.IsManoloPack OrElse CheckShowpacks.Checked) AndAlso
-                   (String.IsNullOrEmpty(TextBox2.Text) OrElse
-                    sliderSet.Nombre.Contains(TextBox2.Text, StringComparison.OrdinalIgnoreCase) OrElse
-                    sliderSet.DescriptionValue.Contains(TextBox2.Text, StringComparison.OrdinalIgnoreCase) OrElse
-                    osp.Filename_WithoutPath.Contains(TextBox2.Text, StringComparison.OrdinalIgnoreCase) OrElse sliderSet.OutputPathValue.Contains(TextBox2.Text, StringComparison.OrdinalIgnoreCase) OrElse sliderSet.OutputFileValue.Contains(TextBox2.Text, StringComparison.OrdinalIgnoreCase)) Then
-                            If osp.SliderSets.Count = 1 OrElse
-                       (ShowCollectionsCheck.Checked AndAlso Not osp.IsManoloPack) OrElse
-                       (CheckShowpacks.Checked AndAlso osp.IsManoloPack) Then
-                                Dim lvi = New ListViewItem({sliderSet.Nombre, sliderSet.DescriptionValue, osp.Filename_WithoutPath}) With {
-                            .Tag = sliderSet
-                        }
-                                tmp.Add(lvi)
-                                lvi.Name = sliderSet.Nombre + sliderSet.ParentOSP.Nombre
-                            End If
-                        End If
-                    Next
-                End If
-            Next
-            ListViewSources.Items.AddRange(tmp.ToArray())
+            Rebuild_Packs_Combo(oldPackFilename)
+            Rebuild_Source_List(oldList_Source)
 
             ' 5) Restaurar selección
-            If oldCombo >= 0 AndAlso oldCombo < ComboboxPacks.Items.Count Then
-                ComboboxPacks.SelectedIndex = oldCombo
-            ElseIf ComboboxPacks.Items.Count > 0 Then
-                ComboboxPacks.SelectedIndex = 0
-            End If
-
             Dim Choosed_Source As ListViewItem = ListViewSources.Items.Find(oldList_Source, False).FirstOrDefault
             Dim Choosed_Target As ListViewItem = ListViewTargets.Items.Find(oldList_Target, False).FirstOrDefault
             If Not IsNothing(Choosed_Source) Then ListViewSources.FocusedItem = Choosed_Source : Choosed_Source.Selected = True
@@ -333,34 +503,191 @@ Public Class Wardrobe_Manager_Form
     End Function
     Private Sub Create_Default_Pack()
         Dim defaultPackPath = Path.Combine(Directorios.SliderSetsRoot, Default_Pack_Name + ".osp")
+        If IO.File.Exists(defaultPackPath) Then Exit Sub
         Dim defaultPack = OSP_Project_Class.Create_New(defaultPackPath, False, True)
+        OSP_FileWriteTicks(defaultPack.Filename) = IO.File.GetLastWriteTimeUtc(defaultPack.Filename).Ticks
 
         If Not IsNothing(defaultPack) Then
             OSP_Files.Add(defaultPack)
             ComboboxPacks.Items.Add(defaultPack)
         End If
     End Sub
+
     Private Sub Lee_Listbox_Targets()
         Habilita_deshabilita()
-        Dim sel_slider As SliderSet_Class = Nothing
-        Dim item As ListViewItem
-        Dim oldSel = ""
-        If Not IsNothing(ListViewTargets.FocusedItem) Then
-            oldSel = CType(ListViewTargets.FocusedItem.Tag, SliderSet_Class).Nombre
-        End If
 
-        ListViewTargets.Items.Clear()
-        If ComboboxPacks.SelectedIndex = -1 Then Exit Sub
-        Dim Selected_Pack As OSP_Project_Class = ComboboxPacks.SelectedItem
-        For Each SliderSet As SliderSet_Class In Selected_Pack.SliderSets.OrderBy(Function(pf) pf.Nombre)
-            item = New ListViewItem({SliderSet.Nombre, SliderSet.DescriptionValue, SliderSet.ParentOSP.Filename_WithoutPath}) With {.Tag = SliderSet, .Name = SliderSet.Nombre + SliderSet.ParentOSP.Nombre}
-            ListViewTargets.Items.Add(item)
-            If sel_slider Is SliderSet Then item.Selected = True
-        Next
+        Dim oldSel As String = GetCurrentTargetSelectionKey()
+
+        Refresh_Selected_Pack_From_Disk()
+        Rebuild_Target_List(oldSel)
+
         Habilita_deshabilita()
     End Sub
+    Private Function GetCurrentTargetSelectionKey() As String
+        If Not IsNothing(ListViewTargets.FocusedItem) Then
+            Return ListViewTargets.FocusedItem.Name
+        End If
 
-    Private Sub Lee_shapes()
+        If ListViewTargets.SelectedItems.Count > 0 Then
+            Return ListViewTargets.SelectedItems(0).Name
+        End If
+
+        Return ""
+    End Function
+
+    Private Sub Rebuild_Target_List(Optional selectionKey As String = "")
+        If String.IsNullOrEmpty(selectionKey) Then
+            selectionKey = GetCurrentTargetSelectionKey()
+        End If
+
+        ListViewTargets.BeginUpdate()
+        ListViewTargets.Items.Clear()
+
+        If ComboboxPacks.SelectedIndex = -1 Then
+            ListViewTargets.EndUpdate()
+            Exit Sub
+        End If
+
+        Dim selectedPack As OSP_Project_Class = TryCast(ComboboxPacks.SelectedItem, OSP_Project_Class)
+        If IsNothing(selectedPack) Then
+            ListViewTargets.EndUpdate()
+            Exit Sub
+        End If
+
+        Dim tmp As New List(Of ListViewItem)
+
+        For Each sliderSet As SliderSet_Class In selectedPack.SliderSets.OrderBy(Function(pf) pf.Nombre)
+            Dim item = New ListViewItem({sliderSet.Nombre, sliderSet.DescriptionValue, sliderSet.ParentOSP.Filename_WithoutPath}) With {
+            .Tag = sliderSet,
+            .Name = sliderSet.Nombre + sliderSet.ParentOSP.Nombre
+        }
+            tmp.Add(item)
+        Next
+
+        If tmp.Count > 0 Then
+            ListViewTargets.Items.AddRange(tmp.ToArray())
+        End If
+
+        If selectionKey <> "" Then
+            Dim choosedTarget As ListViewItem = ListViewTargets.Items.Find(selectionKey, False).FirstOrDefault
+            If Not IsNothing(choosedTarget) Then
+                ListViewTargets.FocusedItem = choosedTarget
+                choosedTarget.Selected = True
+            End If
+        End If
+
+        ListViewTargets.EndUpdate()
+    End Sub
+
+    Private Sub Refresh_Selected_Pack_From_Disk()
+        If _RefreshingTargetsFromDisk Then Exit Sub
+        If ComboboxPacks.SelectedIndex = -1 Then Exit Sub
+
+        Dim selectedPack As OSP_Project_Class = TryCast(ComboboxPacks.SelectedItem, OSP_Project_Class)
+        If IsNothing(selectedPack) Then Exit Sub
+
+        Dim selectedPackPath As String = selectedPack.Filename
+        If String.IsNullOrWhiteSpace(selectedPackPath) Then Exit Sub
+
+        _RefreshingTargetsFromDisk = True
+
+        Try
+            If IO.File.Exists(selectedPackPath) = False Then
+                OSP_Files.Remove(selectedPack)
+                OSP_FileWriteTicks.Remove(selectedPackPath)
+                Rebuild_Packs_Combo("")
+                Exit Sub
+            End If
+
+            Dim diskTick As Long = IO.File.GetLastWriteTimeUtc(selectedPackPath).Ticks
+            Dim needsReload As Boolean =
+            (Not OSP_FileWriteTicks.ContainsKey(selectedPackPath)) OrElse
+            (OSP_FileWriteTicks(selectedPackPath) <> diskTick)
+
+            If needsReload = False Then Exit Sub
+
+            Dim newPack As New OSP_Project_Class(selectedPackPath, DeepAnalize_check.Checked)
+
+            If DeepAnalize_check.Checked Then
+                For Each slider In newPack.SliderSets
+                    slider.UnloadShapeData(False)
+                Next
+            End If
+
+            Dim idx = OSP_Files.IndexOf(selectedPack)
+            If idx >= 0 Then
+                OSP_Files(idx) = newPack
+            Else
+                OSP_Files.Add(newPack)
+            End If
+
+            OSP_FileWriteTicks(selectedPackPath) = diskTick
+            Rebuild_Packs_Combo(selectedPackPath)
+
+        Finally
+            _RefreshingTargetsFromDisk = False
+        End Try
+    End Sub
+    Private Function BuildLeeShapesRequestKey() As String
+        Dim selectedSourceName As String = ""
+        Dim selectedTargetName As String = ""
+        Dim focusedListName As String = ""
+        Dim presetName As String = ""
+        Dim poseName As String = ""
+
+        If ListViewSources.SelectedItems.Count > 0 Then
+            Dim src = TryCast(ListViewSources.SelectedItems(0).Tag, SliderSet_Class)
+            If Not IsNothing(src) Then selectedSourceName = src.ParentOSP.Filename & "|" & src.Nombre
+        End If
+
+        If ListViewTargets.SelectedItems.Count > 0 Then
+            Dim trg = TryCast(ListViewTargets.SelectedItems(0).Tag, SliderSet_Class)
+            If Not IsNothing(trg) Then selectedTargetName = trg.ParentOSP.Filename & "|" & trg.Nombre
+        End If
+
+        If Not IsNothing(Last_List_focused) Then focusedListName = Last_List_focused.Name
+        If ComboBoxPresets.SelectedIndex <> -1 Then presetName = ComboBoxPresets.SelectedItem.ToString
+        If ComboBoxPoses.SelectedIndex <> -1 Then poseName = ComboBoxPoses.SelectedItem.ToString
+
+        Return String.Join("||", {
+        RadioButton1.Checked.ToString,
+        RadioButton2.Checked.ToString,
+        RadioButton3.Checked.ToString,
+        focusedListName,
+        selectedSourceName,
+        selectedTargetName,
+        presetName,
+        poseName,
+        ComboBoxSize.SelectedIndex.ToString(Global.System.Globalization.CultureInfo.InvariantCulture),
+        SingleBoneCheck.Checked.ToString,
+        RecalculateNormalsCheck.Checked.ToString,
+        preview_Control?.Visible.ToString,
+        ListView2.Visible.ToString})
+    End Function
+
+    Private Sub RequestLeeShapes(Optional force As Boolean = False)
+        If _Procesando Then Exit Sub
+        If _LeeShapesPending Then Exit Sub
+
+        Dim key = BuildLeeShapesRequestKey()
+        If force = False AndAlso String.Equals(_LastLeeShapesRequestKey, key, StringComparison.Ordinal) Then Exit Sub
+
+        _LeeShapesPending = True
+        BeginInvoke(Sub()
+                        Try
+                            _LeeShapesPending = False
+                            Dim currentKey = BuildLeeShapesRequestKey()
+                            If force = False AndAlso String.Equals(_LastLeeShapesRequestKey, currentKey, StringComparison.Ordinal) Then Exit Sub
+                            _LastLeeShapesRequestKey = currentKey
+                            Lee_Shapes()
+                        Catch
+                            _LeeShapesPending = False
+                        End Try
+                    End Sub)
+    End Sub
+
+
+    Private Sub Lee_Shapes()
         If _Procesando = True Then Exit Sub
         Dim Seleccionado As SliderSet_Class = Nothing
         If RadioButton1.Checked OrElse (RadioButton3.Checked AndAlso Last_List_focused Is ListViewSources) Then
@@ -391,7 +718,7 @@ Public Class Wardrobe_Manager_Form
         If Seleccionado.HasPhysics Then
             Physics_Label.Visible = True
         End If
-        Seleccionado.ReadhighHeel()
+
         it = New ListViewItem({Seleccionado.OutputFileValue, "Output", Seleccionado.HighHeelHeight.ToString("F2"), Seleccionado.OutputPathValue}) With {
             .Tag = Nothing,
             .BackColor = Color.FromKnownColor(KnownColor.Control)
@@ -421,7 +748,7 @@ Public Class Wardrobe_Manager_Form
 
 
         preview_Control.Update_Render(Seleccionado, False, Selected_Combo_Preset, Selected_Combo_Pose, ComboBoxSize.SelectedIndex)
-
+        _LastLeeShapesRequestKey = BuildLeeShapesRequestKey()
     End Sub
 
 
@@ -548,6 +875,7 @@ Public Class Wardrobe_Manager_Form
     End Sub
     Private Sub MergeButton_Click(sender As Object, e As EventArgs) Handles MergeButton.Click
         Empieza_Procesos(ListViewSources.SelectedItems.Count)
+        OSP_Project_Class.Default_Memory_Pause = True
         If MsgBox("Esta Seguro de fusionar " + ListViewSources.SelectedIndices.Count.ToString + " elementos en la categoría " + ComboboxPacks.Items(ComboboxPacks.SelectedIndex).ToString, vbYesNo) = MsgBoxResult.No Then
             Termina_Procesos()
             Exit Sub
@@ -555,6 +883,7 @@ Public Class Wardrobe_Manager_Form
         Dim Selected_Pack As OSP_Project_Class = ComboboxPacks.SelectedItem
         Merge_Singles(Selected_Pack, Selected_Pack.Filename)
         Termina_Procesos()
+        OSP_Project_Class.Default_Memory_Pause = False
     End Sub
     Private Sub ButtonDelete_Click_1(sender As Object, e As EventArgs) Handles ButtonDelete.Click
         Empieza_Procesos(ListViewTargets.SelectedItems.Count * 2)
@@ -600,7 +929,7 @@ Public Class Wardrobe_Manager_Form
     Private _ExternalEditProcess As Process = Nothing
     Private _ExternalEditLastOspWrite As Date = Date.MinValue
     Private _ExternalEditReloading As Boolean = False
-    Private WithEvents _ExternalEditTimer As New Timer With {.Interval = 700}
+    Private WithEvents ExternalEditTimer As New Timer With {.Interval = 700}
 
     Private Sub Empieza_Procesos(cantidad)
         Try
@@ -623,8 +952,9 @@ Public Class Wardrobe_Manager_Form
         ProgressBar1.Value = 0
         _Procesando = False
         Cursor.Current = Cursors.Default
-        Lee_shapes()
+        RequestLeeShapes()
         Habilita_deshabilita()
+        _LastLeeShapesRequestKey = ""
     End Sub
     Private Sub Procesa_Singles(Pack As OSP_Project_Class, Filename As String)
         Dim Nombre As String
@@ -636,8 +966,8 @@ Public Class Wardrobe_Manager_Form
             If Not varios Then Nombre = TextBox_SourceName.Text Else Nombre = Calcula_nombre(ind.Tag)
             resultado = Pack.Agrega_Proyecto(ind.Tag, Nombre, Filename, Exclude_Reference_Checkbox.Checked, Ovewrite_DataFiles.Checked, CloneMaterialsCheck.Checked, PhysicsCheckbox.Checked, OutputDirChangeCheck.Checked)
             If Not IsNothing(resultado) AndAlso Auto_Move_Check.Checked Then Mueve_Singles(ind, Directorios.SliderSets_Processed, fullpack)
-            Lee_Listbox_Targets()
         Next
+        Lee_Listbox_Targets()
     End Sub
     Private Sub Rename_Clone_Target(original As SliderSet_Class, pack As OSP_Project_Class, Nombre As String, DeleteAfter As Boolean)
         Dim resultado As SliderSet_Class
@@ -675,6 +1005,7 @@ Public Class Wardrobe_Manager_Form
                 If Not IsNothing(resultado) AndAlso Mueve Then Mueve_Singles(ind, Directorios.SliderSets_Processed, False)
             End If
         Next
+
     End Sub
 
     Private Sub Mueve_Singles(ind As ListViewItem, Directorio As String, Mueve_Pack As Boolean)
@@ -704,7 +1035,7 @@ Public Class Wardrobe_Manager_Form
                 preview_Control.Model.Clean(False)
                 preview_Control.Model.CleanTextures()
             End If
-            Lee_shapes()
+            RequestLeeShapes(True)
             _ExternalEditReloading = Not (Not _ExternalEditSlider.Unreadable_NIF And Not _ExternalEditSlider.Unreadable_Project)
         Catch ex As Exception
             MsgBox("External edit reload failed: " & ex.Message, MsgBoxStyle.Exclamation, "Error")
@@ -715,7 +1046,7 @@ Public Class Wardrobe_Manager_Form
     Private Sub EndExternalEditSession(doFinalReload As Boolean)
         Dim lockedSlider = _ExternalEditSlider
 
-        _ExternalEditTimer.Stop()
+        ExternalEditTimer.Stop()
 
         _ExternalEditActive = False
         _ExternalEditProcess = Nothing
@@ -731,7 +1062,7 @@ Public Class Wardrobe_Manager_Form
                     preview_Control.Model.Clean(False)
                     preview_Control.Model.CleanTextures()
                 End If
-                Lee_shapes()
+                RequestLeeShapes(True)
             Catch ex As Exception
                 MsgBox("Final external edit reload failed: " & ex.Message, MsgBoxStyle.Exclamation, "Error")
             End Try
@@ -775,7 +1106,7 @@ Public Class Wardrobe_Manager_Form
 
     Private Function GetLatestExternalEditWriteTime(sliderset As SliderSet_Class) As Date
         Dim latest As Date = Date.MinValue
-
+        If IsNothing(sliderset) Then Return latest
         For Each f In GetExistingExternalEditFiles(sliderset)
             Try
                 Dim dt = IO.File.GetLastWriteTime(f)
@@ -817,13 +1148,13 @@ Public Class Wardrobe_Manager_Form
 
 
         _ExternalEditActive = True
-        _ExternalEditTimer.Start()
+        ExternalEditTimer.Start()
         Habilita_deshabilita()
     End Sub
 
-    Private Sub _ExternalEditTimer_Tick(sender As Object, e As EventArgs) Handles _ExternalEditTimer.Tick
+    Private Sub ExternalEditTimer_Tick(sender As Object, e As EventArgs) Handles ExternalEditTimer.Tick
         If Not _ExternalEditActive Then
-            _ExternalEditTimer.Stop()
+            ExternalEditTimer.Stop()
             Exit Sub
         End If
 
@@ -882,7 +1213,11 @@ Public Class Wardrobe_Manager_Form
     End Function
 
     Private Async Sub RefreshButtoClick(sender As Object, e As EventArgs) Handles RefreshButton.Click
-        Await Lee_Listbox()
+        If CheckBoxReloadDict.Checked Then
+            Await Lee_Listbox()
+        Else
+            Await Refresh_OSP_Files_From_Disk()
+        End If
     End Sub
     Private Function Full_packs_Selected() As Boolean
         If ListViewSources.SelectedIndices.Count = 0 Then Return False
@@ -950,7 +1285,7 @@ Public Class Wardrobe_Manager_Form
     End Function
 
     Private Sub RadioButton1_CheckedChanged(sender As Object, e As EventArgs) Handles RadioButton1.CheckedChanged
-        Lee_shapes()
+        RequestLeeShapes()
     End Sub
 
 
@@ -959,36 +1294,37 @@ Public Class Wardrobe_Manager_Form
         ButtonDataSheetSelected.FlatStyle = FlatStyle.Standard
         ListView2.Visible = False
         preview_Control.Visible = True
-        Lee_shapes()
+        RequestLeeShapes()
     End Sub
     Private Sub Button3_Click(sender As Object, e As EventArgs) Handles ButtonDataSheetSelected.Click
         ButtonPreviewSelected.FlatStyle = FlatStyle.Standard
         ButtonDataSheetSelected.FlatStyle = FlatStyle.Flat
         ListView2.Visible = True
         preview_Control.Visible = False
+        RequestLeeShapes()
     End Sub
 
     Private Sub ComboBoxPresets_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBoxPresets.SelectedIndexChanged
         If ComboBoxPresets.SelectedIndex <> -1 Then
             Config_App.Current.Default_Preset = ComboBoxPresets.SelectedItem.ToString
         End If
-        Lee_shapes()
+        RequestLeeShapes()
     End Sub
     Private Sub ComboBox1_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboboxPacks.SelectedIndexChanged
         Lee_Listbox_Targets()
-        Lee_shapes()
+        RequestLeeShapes()
         Habilita_deshabilita()
     End Sub
 
     Private Sub ListViewTargets_GotFocus(sender As Object, e As EventArgs) Handles ListViewTargets.GotFocus
         Last_List_focused = ListViewTargets
-        Lee_shapes()
+        RequestLeeShapes()
         Habilita_deshabilita()
     End Sub
 
     Private Sub ListViewSources_GotFocus(sender As Object, e As EventArgs) Handles ListViewSources.GotFocus
         Last_List_focused = ListViewSources
-        Lee_shapes()
+        RequestLeeShapes()
         Habilita_deshabilita()
     End Sub
 
@@ -1004,12 +1340,12 @@ Public Class Wardrobe_Manager_Form
 
 
     Private Sub ListViewSources_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ListViewSources.SelectedIndexChanged
-        Lee_shapes()
+        RequestLeeShapes()
         Habilita_deshabilita()
     End Sub
 
     Private Sub ListViewTargets_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ListViewTargets.SelectedIndexChanged
-        Lee_shapes()
+        RequestLeeShapes()
         Habilita_deshabilita()
     End Sub
 
@@ -1046,13 +1382,14 @@ Public Class Wardrobe_Manager_Form
                 End If
                 ProgressBar1.Value += 1
             Next
-            Await Lee_Listbox()
+            Await Refresh_OSP_Files_From_Disk()
         End If
         Termina_Procesos()
     End Sub
 
     Private Sub MergeIntoTargetButton_Click(sender As Object, e As EventArgs) Handles MergeIntoTargetButton.Click
         Empieza_Procesos(ListViewSources.SelectedItems.Count * ListViewTargets.SelectedItems.Count)
+        OSP_Project_Class.Default_Memory_Pause = True
         If MsgBox("Esta Seguro de fusionar " + ListViewSources.SelectedIndices.Count.ToString + " elementos en " + ListViewTargets.SelectedIndices.Count.ToString + " elementos de la categoría " + ComboboxPacks.Items(ComboboxPacks.SelectedIndex).ToString, vbYesNo) = MsgBoxResult.Yes Then
             Dim selected_target As SliderSet_Class = Determina_Seleccionado_y_CambiaNombres(1)
             For Each it In ListViewTargets.SelectedItems
@@ -1063,9 +1400,10 @@ Public Class Wardrobe_Manager_Form
             selected_target.Reload(DeepAnalize_check.Checked)
             If preview_Control.Model.Last_rendered Is selected_target Then
                 preview_Control.Model.Last_rendered = Nothing
-                Lee_shapes()
+                RequestLeeShapes()
             End If
         End If
+        OSP_Project_Class.Default_Memory_Pause = False
         Termina_Procesos()
     End Sub
 
@@ -1301,13 +1639,21 @@ Public Class Wardrobe_Manager_Form
         Empieza_Procesos(1)
         Dim Editor As New Editor_Form
         Dim sliderset_Source = Determina_Seleccionado_y_CambiaNombres(0)
-        If sliderset_Source.Unreadable_NIF Or sliderset_Source.Unreadable_Project Then Exit Sub
+        If sliderset_Source.Unreadable_NIF Or sliderset_Source.Unreadable_Project Then
+            MsgBox("The project is unreadable.", vbOKOnly + vbCritical, "Error")
+            Termina_Procesos()
+            Exit Sub
+        End If
         Open_Editor(sliderset_Source, False)
     End Sub
     Private Sub ButtonEditInternally_Click(sender As Object, e As EventArgs) Handles ButtonEditInternally.Click
         Empieza_Procesos(1)
         Dim sliderset_target = Determina_Seleccionado_y_CambiaNombres(1)
-        If sliderset_target.Unreadable_NIF Or sliderset_target.Unreadable_Project Then Exit Sub
+        If sliderset_target.Unreadable_NIF Or sliderset_target.Unreadable_Project Then
+            MsgBox("The project is unreadable.", vbOKOnly + vbCritical, "Error")
+            Termina_Procesos()
+            Exit Sub
+        End If
         Open_Editor(sliderset_target, True)
     End Sub
     Private Sub Open_Editor(selected As SliderSet_Class, Grabable As Boolean)
@@ -1323,8 +1669,8 @@ Public Class Wardrobe_Manager_Form
         selected.Reload(DeepAnalize_check.Checked)
         Relee_Presets()
         Relee_Poses()
-        Lee_shapes()
         Termina_Procesos()
+        RequestLeeShapes(True)
     End Sub
     Private Sub ListViewTargets_DoubleClick(sender As Object, e As EventArgs) Handles ListViewTargets.DoubleClick
         If ListViewTargets.SelectedIndices.Count = 1 Then ButtonEditInternally.PerformClick()
@@ -1389,7 +1735,7 @@ Public Class Wardrobe_Manager_Form
         Config_App.Current.Setting_SingleBoneSkinning = SingleBoneCheck.Checked
         ComboBoxPoses.Enabled = Not SingleBoneCheck.Checked
         preview_Control.Model.Clean(True)
-        Lee_shapes()
+        RequestLeeShapes()
     End Sub
 
     Private Sub Exclude_Reference_Checkbox_CheckedChanged(sender As Object, e As EventArgs) Handles Exclude_Reference_Checkbox.CheckedChanged
@@ -1454,9 +1800,7 @@ Public Class Wardrobe_Manager_Form
 
     Private Sub Button1_Click_2(sender As Object, e As EventArgs) Handles ButtonCreateFromNif.Click
         Dim dict_used As FilesDictionary_class.DictionaryFilePickerConfig = FilesDictionary_class.ALLMeshesDictionary_Filter
-        Dim dictProvider = dict_used.DictionaryProvider
-        Dim dict = dictProvider.Invoke()
-        Dim filtered = dict.Keys.Where(Function(k) FilesDictionary_class.DictionaryFilePickerConfig.PathStartsWithRoot(k, dict_used.RootPrefix) And dict_used.ExtensionAllowed(k)).Order.ToList()
+        Dim filtered = FilesDictionary_class.GetFilteredKeys(dict_used)
         Dim initialKey As String = ""
 
         Using frm As New Create_from_Nif_Form(filtered, dict_used.RootPrefix, dict_used.AllowedExtensions, initialKey)
@@ -1467,21 +1811,19 @@ Public Class Wardrobe_Manager_Form
     End Sub
 
     Private Sub ComboBoxPoses_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBoxPoses.SelectedIndexChanged
-        Lee_shapes()
+        RequestLeeShapes()
     End Sub
 
     Private Sub ButtonSkeleton_Click(sender As Object, e As EventArgs) Handles ButtonSkeleton.Click
         Dim dict_used As FilesDictionary_class.DictionaryFilePickerConfig = FilesDictionary_class.ALLMeshesDictionary_Filter
-        Dim dictProvider = dict_used.DictionaryProvider
-        Dim dict = dictProvider.Invoke()
-        Dim filtered = dict.Keys.Where(Function(k) FilesDictionary_class.DictionaryFilePickerConfig.PathStartsWithRoot(k, dict_used.RootPrefix) And dict_used.ExtensionAllowed(k)).Order.ToList()
+        Dim filtered = FilesDictionary_class.GetFilteredKeys(dict_used)
         Dim initialKey As String = IO.Path.GetRelativePath(Directorios.Fallout4data, Directorios.SkeletonPath)
         Using frm As New DictionaryFilePicker_Form(filtered, dict_used.RootPrefix, dict_used.AllowedExtensions, initialKey)
             If frm.ShowDialog() = DialogResult.OK Then
                 Config_App.Current.SkeletonPath = IO.Path.Combine(Directorios.Fallout4data, frm.DictionaryPicker_Control1.SelectedKey)
                 Skeleton_Class.LoadSkeleton(True, True)
                 Habilita_deshabilita()
-                Lee_shapes()
+                RequestLeeShapes()
                 RefreshButton.PerformClick()
             End If
         End Using
@@ -1496,7 +1838,7 @@ Public Class Wardrobe_Manager_Form
         preview_Control.Model.RecalculateNormals = RecalculateNormalsCheck.Checked
         Config_App.Current.Setting_RecalculateNormals = RecalculateNormalsCheck.Checked
         preview_Control.Model.Clean(True)
-        Lee_shapes()
+        RequestLeeShapes()
     End Sub
 
     Private Sub Wardrobe_Manager_Form_KeyDown(sender As Object, e As KeyEventArgs) Handles Me.KeyDown
@@ -1626,7 +1968,7 @@ Public Class Wardrobe_Manager_Form
         If ComboBoxPresets.SelectedIndex <> -1 Then
             Config_App.Current.Bodytipe = ComboBoxSize.SelectedIndex
         End If
-        Lee_shapes()
+        RequestLeeShapes()
     End Sub
 
 

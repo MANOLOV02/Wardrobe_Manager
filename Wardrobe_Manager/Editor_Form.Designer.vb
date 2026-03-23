@@ -274,7 +274,7 @@ Partial Class Editor_Form
         ' Button1
         ' 
         Button1.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        Button1.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Button1.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         Button1.ImageIndex = 0
         Button1.Location = New Point(622, 19)
         Button1.Name = "Button1"
@@ -591,7 +591,6 @@ Partial Class Editor_Form
         ' Button10
         ' 
         Button10.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        Button10.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Button10.ImageIndex = 0
         Button10.Location = New Point(123, 74)
         Button10.Name = "Button10"
@@ -637,7 +636,7 @@ Partial Class Editor_Form
         ' 
         ' Button7
         ' 
-        Button7.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Button7.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         Button7.ImageIndex = 0
         Button7.Location = New Point(652, 19)
         Button7.Name = "Button7"
@@ -649,7 +648,7 @@ Partial Class Editor_Form
         ' 
         ' ButtonRemovePhysics
         ' 
-        ButtonRemovePhysics.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonRemovePhysics.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         ButtonRemovePhysics.ImageIndex = 0
         ButtonRemovePhysics.Location = New Point(251, 75)
         ButtonRemovePhysics.Name = "ButtonRemovePhysics"
@@ -742,7 +741,7 @@ Partial Class Editor_Form
         ' 
         ' Label34
         ' 
-        Label34.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label34.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         Label34.ForeColor = Color.Red
         Label34.Location = New Point(260, 106)
         Label34.Name = "Label34"
@@ -753,7 +752,7 @@ Partial Class Editor_Form
         ' 
         ' ButonMatBackToOriginal
         ' 
-        ButonMatBackToOriginal.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButonMatBackToOriginal.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         ButonMatBackToOriginal.ImageIndex = 0
         ButonMatBackToOriginal.Location = New Point(640, 21)
         ButonMatBackToOriginal.Name = "ButonMatBackToOriginal"
@@ -766,7 +765,7 @@ Partial Class Editor_Form
         ' 
         ' ButtonMakeGradient
         ' 
-        ButtonMakeGradient.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonMakeGradient.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         ButtonMakeGradient.ImageIndex = 0
         ButtonMakeGradient.Location = New Point(641, 80)
         ButtonMakeGradient.Name = "ButtonMakeGradient"
@@ -779,7 +778,7 @@ Partial Class Editor_Form
         ' 
         ' Label6
         ' 
-        Label6.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label6.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         Label6.ForeColor = Color.Blue
         Label6.Location = New Point(81, 51)
         Label6.Name = "Label6"
@@ -790,7 +789,7 @@ Partial Class Editor_Form
         ' 
         ' ButtonCopyPath
         ' 
-        ButtonCopyPath.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonCopyPath.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         ButtonCopyPath.ImageIndex = 0
         ButtonCopyPath.Location = New Point(641, 51)
         ButtonCopyPath.Name = "ButtonCopyPath"
@@ -824,7 +823,7 @@ Partial Class Editor_Form
         ' ButtonMatCancel
         ' 
         ButtonMatCancel.Dock = DockStyle.Fill
-        ButtonMatCancel.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonMatCancel.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         ButtonMatCancel.ImageIndex = 5
         ButtonMatCancel.ImageList = ImageList1
         ButtonMatCancel.Location = New Point(519, 3)
@@ -863,7 +862,7 @@ Partial Class Editor_Form
         ' ButtonMatSaveAs
         ' 
         ButtonMatSaveAs.Dock = DockStyle.Fill
-        ButtonMatSaveAs.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonMatSaveAs.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         ButtonMatSaveAs.ImageIndex = 4
         ButtonMatSaveAs.ImageList = ImageList1
         ButtonMatSaveAs.Location = New Point(347, 3)
@@ -878,7 +877,7 @@ Partial Class Editor_Form
         ' ButtonMatSave
         ' 
         ButtonMatSave.Dock = DockStyle.Fill
-        ButtonMatSave.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonMatSave.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         ButtonMatSave.ImageIndex = 3
         ButtonMatSave.ImageList = ImageList1
         ButtonMatSave.Location = New Point(175, 3)
@@ -893,7 +892,7 @@ Partial Class Editor_Form
         ' ButtonMatLoad
         ' 
         ButtonMatLoad.Dock = DockStyle.Fill
-        ButtonMatLoad.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonMatLoad.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         ButtonMatLoad.ImageKey = "fileopen.ico"
         ButtonMatLoad.ImageList = ImageList1
         ButtonMatLoad.Location = New Point(3, 3)
@@ -934,7 +933,7 @@ Partial Class Editor_Form
         ' ButtonSave
         ' 
         ButtonSave.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        ButtonSave.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonSave.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         ButtonSave.ImageIndex = 3
         ButtonSave.ImageList = ImageList1
         ButtonSave.Location = New Point(3, 3)
@@ -949,7 +948,7 @@ Partial Class Editor_Form
         ' ButtonCancel
         ' 
         ButtonCancel.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        ButtonCancel.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonCancel.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         ButtonCancel.ImageIndex = 5
         ButtonCancel.ImageList = ImageList1
         ButtonCancel.Location = New Point(355, 3)
@@ -971,7 +970,7 @@ Partial Class Editor_Form
         ' 
         ' Label7
         ' 
-        Label7.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label7.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         Label7.Location = New Point(8, 14)
         Label7.Name = "Label7"
         Label7.Size = New Size(135, 29)
@@ -983,7 +982,7 @@ Partial Class Editor_Form
         ' 
         ComboBoxPresets.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
         ComboBoxPresets.DropDownStyle = ComboBoxStyle.DropDownList
-        ComboBoxPresets.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ComboBoxPresets.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         ComboBoxPresets.FormattingEnabled = True
         ComboBoxPresets.Location = New Point(145, 14)
         ComboBoxPresets.Name = "ComboBoxPresets"
@@ -1068,7 +1067,7 @@ Partial Class Editor_Form
         ' Button8
         ' 
         Button8.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        Button8.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Button8.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         Button8.ImageIndex = 17
         Button8.ImageList = ImageList1
         Button8.Location = New Point(216, 355)
@@ -1083,7 +1082,7 @@ Partial Class Editor_Form
         ' ButtonClearZap
         ' 
         ButtonClearZap.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        ButtonClearZap.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonClearZap.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         ButtonClearZap.ImageKey = "button_cancel.ico"
         ButtonClearZap.ImageList = ImageList1
         ButtonClearZap.Location = New Point(216, 200)
@@ -1098,7 +1097,7 @@ Partial Class Editor_Form
         ' DeleteZap
         ' 
         DeleteZap.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        DeleteZap.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        DeleteZap.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         DeleteZap.ImageIndex = 5
         DeleteZap.ImageList = ImageList1
         DeleteZap.Location = New Point(4, 410)
@@ -1113,7 +1112,7 @@ Partial Class Editor_Form
         ' ButtonGrowMask
         ' 
         ButtonGrowMask.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        ButtonGrowMask.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonGrowMask.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         ButtonGrowMask.ImageIndex = 16
         ButtonGrowMask.ImageList = ImageList1
         ButtonGrowMask.Location = New Point(216, 326)
@@ -1270,7 +1269,7 @@ Partial Class Editor_Form
         ' ZapCreate
         ' 
         ZapCreate.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        ZapCreate.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ZapCreate.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         ZapCreate.ImageIndex = 3
         ZapCreate.ImageList = ImageList1
         ZapCreate.Location = New Point(4, 381)
@@ -1285,7 +1284,7 @@ Partial Class Editor_Form
         ' ZapExclude
         ' 
         ZapExclude.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        ZapExclude.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ZapExclude.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         ZapExclude.ImageKey = "edit_remove.ico"
         ZapExclude.ImageList = ImageList1
         ZapExclude.Location = New Point(216, 277)
@@ -1300,7 +1299,7 @@ Partial Class Editor_Form
         ' ZapInclude
         ' 
         ZapInclude.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        ZapInclude.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ZapInclude.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         ZapInclude.ImageIndex = 10
         ZapInclude.ImageList = ImageList1
         ZapInclude.Location = New Point(216, 248)
@@ -1315,7 +1314,7 @@ Partial Class Editor_Form
         ' ZapLoad
         ' 
         ZapLoad.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        ZapLoad.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ZapLoad.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         ZapLoad.ImageKey = "compfile.ico"
         ZapLoad.ImageList = ImageList1
         ZapLoad.Location = New Point(216, 171)
@@ -1368,7 +1367,7 @@ Partial Class Editor_Form
         ' ButtonClickAll
         ' 
         ButtonClickAll.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        ButtonClickAll.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonClickAll.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         ButtonClickAll.ImageIndex = 13
         ButtonClickAll.ImageList = ImageList1
         ButtonClickAll.Location = New Point(246, 43)
@@ -1420,7 +1419,7 @@ Partial Class Editor_Form
         ' Button6
         ' 
         Button6.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        Button6.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Button6.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         Button6.ImageIndex = 6
         Button6.ImageList = ImageList1
         Button6.Location = New Point(304, 15)
@@ -1435,7 +1434,7 @@ Partial Class Editor_Form
         ' Button5
         ' 
         Button5.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        Button5.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Button5.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         Button5.ImageIndex = 12
         Button5.ImageList = ImageList1
         Button5.Location = New Point(155, 15)
@@ -1450,7 +1449,7 @@ Partial Class Editor_Form
         ' Button4
         ' 
         Button4.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        Button4.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Button4.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         Button4.ImageIndex = 13
         Button4.ImageList = ImageList1
         Button4.Location = New Point(4, 15)
@@ -1503,7 +1502,7 @@ Partial Class Editor_Form
         ' Button3
         ' 
         Button3.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        Button3.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Button3.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         Button3.ImageIndex = 12
         Button3.ImageList = ImageList1
         Button3.Location = New Point(350, 22)
@@ -1518,7 +1517,7 @@ Partial Class Editor_Form
         ' Button2
         ' 
         Button2.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        Button2.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Button2.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         Button2.ImageIndex = 13
         Button2.ImageList = ImageList1
         Button2.Location = New Point(261, 22)
@@ -1685,7 +1684,7 @@ Partial Class Editor_Form
         ' ButtonCancelPreset
         ' 
         ButtonCancelPreset.Dock = DockStyle.Fill
-        ButtonCancelPreset.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonCancelPreset.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         ButtonCancelPreset.ImageIndex = 5
         ButtonCancelPreset.ImageList = ImageList1
         ButtonCancelPreset.Location = New Point(353, 27)
@@ -1700,7 +1699,7 @@ Partial Class Editor_Form
         ' ButtonSaveAsPreset
         ' 
         ButtonSaveAsPreset.Dock = DockStyle.Fill
-        ButtonSaveAsPreset.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonSaveAsPreset.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         ButtonSaveAsPreset.ImageIndex = 4
         ButtonSaveAsPreset.ImageList = ImageList1
         ButtonSaveAsPreset.Location = New Point(178, 27)
@@ -1715,7 +1714,7 @@ Partial Class Editor_Form
         ' ButtonSavePreset
         ' 
         ButtonSavePreset.Dock = DockStyle.Fill
-        ButtonSavePreset.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonSavePreset.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         ButtonSavePreset.ImageIndex = 3
         ButtonSavePreset.ImageList = ImageList1
         ButtonSavePreset.Location = New Point(3, 27)
@@ -1744,7 +1743,7 @@ Partial Class Editor_Form
         ' ButtondelPreset
         ' 
         ButtondelPreset.Dock = DockStyle.Fill
-        ButtondelPreset.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtondelPreset.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         ButtondelPreset.ImageIndex = 14
         ButtondelPreset.ImageList = ImageList1
         ButtondelPreset.Location = New Point(528, 27)
@@ -1786,7 +1785,7 @@ Partial Class Editor_Form
         ' 
         ' ButtonReloadBonePose
         ' 
-        ButtonReloadBonePose.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonReloadBonePose.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         ButtonReloadBonePose.ImageIndex = 9
         ButtonReloadBonePose.ImageList = ImageList1
         ButtonReloadBonePose.Location = New Point(264, 422)
@@ -1801,7 +1800,7 @@ Partial Class Editor_Form
         ' 
         ' ButtonClearPoseTransforms
         ' 
-        ButtonClearPoseTransforms.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonClearPoseTransforms.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         ButtonClearPoseTransforms.ImageIndex = 5
         ButtonClearPoseTransforms.ImageList = ImageList1
         ButtonClearPoseTransforms.Location = New Point(480, 391)
@@ -1816,7 +1815,7 @@ Partial Class Editor_Form
         ' 
         ' ButtonClearBoneTransform
         ' 
-        ButtonClearBoneTransform.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonClearBoneTransform.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         ButtonClearBoneTransform.ImageIndex = 11
         ButtonClearBoneTransform.ImageList = ImageList1
         ButtonClearBoneTransform.Location = New Point(480, 422)
@@ -1831,7 +1830,7 @@ Partial Class Editor_Form
         ' 
         ' ButtonReloadPose
         ' 
-        ButtonReloadPose.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonReloadPose.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         ButtonReloadPose.ImageIndex = 7
         ButtonReloadPose.ImageList = ImageList1
         ButtonReloadPose.Location = New Point(265, 391)
@@ -1872,7 +1871,7 @@ Partial Class Editor_Form
         ' PoseUnBakeShapeButton
         ' 
         PoseUnBakeShapeButton.Dock = DockStyle.Fill
-        PoseUnBakeShapeButton.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        PoseUnBakeShapeButton.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         PoseUnBakeShapeButton.ImageIndex = 6
         PoseUnBakeShapeButton.ImageList = ImageList1
         PoseUnBakeShapeButton.Location = New Point(519, 34)
@@ -1888,7 +1887,7 @@ Partial Class Editor_Form
         ' PoseBakeShapeButton
         ' 
         PoseBakeShapeButton.Dock = DockStyle.Fill
-        PoseBakeShapeButton.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        PoseBakeShapeButton.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         PoseBakeShapeButton.ImageIndex = 8
         PoseBakeShapeButton.ImageList = ImageList1
         PoseBakeShapeButton.Location = New Point(347, 34)
@@ -1917,7 +1916,7 @@ Partial Class Editor_Form
         ' PoseUnBakeButton
         ' 
         PoseUnBakeButton.Dock = DockStyle.Fill
-        PoseUnBakeButton.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        PoseUnBakeButton.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         PoseUnBakeButton.ImageIndex = 6
         PoseUnBakeButton.ImageList = ImageList1
         PoseUnBakeButton.Location = New Point(175, 34)
@@ -1933,7 +1932,7 @@ Partial Class Editor_Form
         ' PoseBakeButton
         ' 
         PoseBakeButton.Dock = DockStyle.Fill
-        PoseBakeButton.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        PoseBakeButton.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         PoseBakeButton.ImageIndex = 8
         PoseBakeButton.ImageList = ImageList1
         PoseBakeButton.Location = New Point(3, 34)
@@ -1948,7 +1947,7 @@ Partial Class Editor_Form
         ' PoseSaveAsButton
         ' 
         PoseSaveAsButton.Dock = DockStyle.Fill
-        PoseSaveAsButton.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        PoseSaveAsButton.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         PoseSaveAsButton.ImageIndex = 4
         PoseSaveAsButton.ImageList = ImageList1
         PoseSaveAsButton.Location = New Point(175, 3)
@@ -1963,7 +1962,7 @@ Partial Class Editor_Form
         ' PoseSaveButton
         ' 
         PoseSaveButton.Dock = DockStyle.Fill
-        PoseSaveButton.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        PoseSaveButton.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         PoseSaveButton.ImageIndex = 3
         PoseSaveButton.ImageList = ImageList1
         PoseSaveButton.Location = New Point(3, 3)
@@ -1978,7 +1977,7 @@ Partial Class Editor_Form
         ' PoseDeleteButton
         ' 
         PoseDeleteButton.Dock = DockStyle.Fill
-        PoseDeleteButton.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        PoseDeleteButton.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         PoseDeleteButton.ImageIndex = 14
         PoseDeleteButton.ImageList = ImageList1
         PoseDeleteButton.Location = New Point(347, 3)
@@ -2389,7 +2388,7 @@ Partial Class Editor_Form
         ' 
         ' Label15
         ' 
-        Label15.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label15.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         Label15.Location = New Point(8, 49)
         Label15.Name = "Label15"
         Label15.Size = New Size(135, 29)
@@ -2401,7 +2400,7 @@ Partial Class Editor_Form
         ' 
         ComboBoxPoses.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
         ComboBoxPoses.DropDownStyle = ComboBoxStyle.DropDownList
-        ComboBoxPoses.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ComboBoxPoses.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         ComboBoxPoses.FormattingEnabled = True
         ComboBoxPoses.Location = New Point(145, 49)
         ComboBoxPoses.Name = "ComboBoxPoses"
@@ -2510,7 +2509,7 @@ Partial Class Editor_Form
         ' 
         ComboBoxSize.Anchor = AnchorStyles.Top Or AnchorStyles.Right
         ComboBoxSize.DropDownStyle = ComboBoxStyle.DropDownList
-        ComboBoxSize.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ComboBoxSize.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, 0)
         ComboBoxSize.FormattingEnabled = True
         ComboBoxSize.Items.AddRange(New Object() {"Default", "Big", "Small"})
         ComboBoxSize.Location = New Point(773, 14)
@@ -2521,7 +2520,7 @@ Partial Class Editor_Form
         ' 
         ' Editor_Form
         ' 
-        AutoScaleDimensions = New SizeF(7.0F, 15.0F)
+        AutoScaleDimensions = New SizeF(7F, 15F)
         AutoScaleMode = AutoScaleMode.Font
         ClientSize = New Size(1618, 954)
         Controls.Add(GroupBox13)

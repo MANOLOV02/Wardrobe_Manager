@@ -1984,8 +1984,7 @@ Public Class DictionaryFilePickerEditor
             Return value
         End If
 
-        Dim dict = dictProvider.Invoke()
-        Dim filtered = dict.Keys.Where(Function(k) FilesDictionary_class.DictionaryFilePickerConfig.PathStartsWithRoot(k, FilesDictionary_class.TexturesDictionary_Filter.RootPrefix) And FilesDictionary_class.TexturesDictionary_Filter.ExtensionAllowed(k)).Order.ToList()
+        Dim filtered = FilesDictionary_class.GetFilteredKeys(FilesDictionary_class.TexturesDictionary_Filter)
         Dim initialKey As String = TryCast(value, String).Correct_Path_Separator
         If Not initialKey.StartsWith("Textures\", StringComparison.OrdinalIgnoreCase) Then
             initialKey = "Textures\" + initialKey

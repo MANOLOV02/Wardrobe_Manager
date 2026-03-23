@@ -238,7 +238,6 @@ Public Class Nifcontent_Class_Manolo
             Dim fileBytes As Byte() = File.ReadAllBytes(Filename)
             Load_Manolo(fileBytes)
         Catch ex As Exception
-            Debugger.Break()
             Throw New Exception(ex.Message)
         End Try
     End Sub
@@ -489,8 +488,9 @@ Public Class Nifcontent_Class_Manolo
             destRoot.ExtraDataList.AddBlockRef(blockId)
 
             If IsNothing(destRoot.ExtraData) Then
-                destRoot.ExtraData = New NiBlockRef(Of NiExtraData)
-                destRoot.ExtraData.Index = blockId
+                destRoot.ExtraData = New NiBlockRef(Of NiExtraData) With {
+                    .Index = blockId
+                }
             End If
         Next
     End Sub
@@ -527,6 +527,7 @@ Public Class Nifcontent_Class_Manolo
             Debugger.Break()
         End If
         Return Me.CloneShape(srcShape, destShapeName, srcNif)
+
         '    ''Debugger.Break()
         '    If srcShape Is Nothing Then Return Nothing
         '    If srcNif Is Nothing Then srcNif = Me

@@ -57,10 +57,93 @@ Public Class Editor_Form
         End Get
     End Property
     Private ReadOnly bones_list As New Dictionary(Of String, Integer)(StringComparison.OrdinalIgnoreCase)
+    Private _LastBonesSignature As String = ""
+    Private _LastSliderLayoutSignature As String = ""
+    Private Function BuildBonesSignature() As String
+        If IsNothing(Selected_Slider) Then Return ""
 
+        Dim names = Selected_Slider.Shapes.
+        SelectMany(Function(shap) shap.RelatedBones.Select(Function(bon) bon.Name.String)).
+        Distinct(StringComparer.OrdinalIgnoreCase).
+        OrderBy(Function(n) n, StringComparer.OrdinalIgnoreCase)
+
+        Return String.Join("|", names)
+    End Function
+
+    Private Function BuildSliderLayoutSignature() As String
+        If IsNothing(Selected_Preset) Then Return ""
+
+        Dim layoutItems = Selected_Preset.Sliders.
+        Where(Function(pf) pf.Size = Selected_size).
+        OrderBy(Function(pf) pf.Category, StringComparer.OrdinalIgnoreCase).
+        ThenBy(Function(pf) pf.Name, StringComparer.OrdinalIgnoreCase).
+        Select(Function(pf) pf.Category & "|" & pf.Name & "|" & pf.DisplayName & "|" & CInt(pf.Size).ToString)
+
+        Return String.Join("||", layoutItems)
+    End Function
+
+    Private Sub UpdateExistingSliderControls()
+        For Each tb As TrackBar In TableLayoutPanel4.Controls.OfType(Of TrackBar)()
+            Dim sliderName As String = TryCast(tb.Tag, String)
+            If String.IsNullOrWhiteSpace(sliderName) Then Continue For
+
+            Dim presetItem As PresetSlider_Class =
+            Selected_Preset.Sliders.Find(Function(s) s.Name.Equals(sliderName, StringComparison.OrdinalIgnoreCase) AndAlso s.Size = Selected_size)
+
+            If IsNothing(presetItem) Then Continue For
+
+            Dim initValue As Integer = CInt(presetItem.Value)
+
+            tb.Minimum = Math.Min(0, initValue)
+            tb.Maximum = Math.Max(100, initValue)
+            tb.Value = Math.Max(tb.Minimum, Math.Min(tb.Maximum, initValue))
+
+            If tb.Minimum <> 0 Or tb.Maximum <> 100 Then
+                tb.BackColor = Color.LightYellow
+            Else
+                tb.BackColor = SystemColors.Control
+            End If
+        Next
+    End Sub
+
+    Private Sub DynamicPresetTrackBar_Scroll(sender As Object, e As EventArgs)
+        Dim tb = DirectCast(sender, TrackBar)
+        Dim sliderName As String = TryCast(tb.Tag, String)
+        If String.IsNullOrWhiteSpace(sliderName) Then Exit Sub
+
+        Dim presetItem As PresetSlider_Class =
+        Selected_Preset.Sliders.Find(Function(s) s.Name.Equals(sliderName, StringComparison.OrdinalIgnoreCase) AndAlso s.Size = Selected_size)
+
+        If IsNothing(presetItem) Then Exit Sub
+
+        presetItem.Value = tb.Value
+        pendingValuePreset = True
+        If Not PresetscrollTimer.Enabled Then PresetscrollTimer.Start()
+    End Sub
+
+    Private Sub DynamicPresetTrackBar_MouseUp(sender As Object, e As MouseEventArgs)
+        If pendingValuePreset Then
+            Habilita_Preset_Botones(True)
+            Process_render_Changes(False)
+            pendingValuePreset = False
+        End If
+
+        PresetscrollTimer.Stop()
+    End Sub
     Private Sub Lee_Bones()
+        Dim newSignature As String = BuildBonesSignature()
+
+        If newSignature = _LastBonesSignature AndAlso ListView1.Items.Count > 0 Then
+            Lee_Zaps()
+            If Not IsNothing(Selected_Shape) Then MarcaBones()
+            Exit Sub
+        End If
+
         bones_list.Clear()
+
+        ListView1.BeginUpdate()
         ListView1.Items.Clear()
+
         For Each shap In Selected_Slider.Shapes
             For Each bon In shap.RelatedBones
                 Dim idx = shap.ParentSliderSet.NIFContent.Blocks.IndexOf(bon)
@@ -72,6 +155,7 @@ Public Class Editor_Form
         TreeViewSkeleton.SuspendLayout()
         TreeViewSkeleton.BeginUpdate()
         TreeViewSkeleton.Nodes.Clear()
+
         If Skeleton_Class.HasSkeleton Then
             For Each it In Skeleton_Class.SkeletonStructure
                 Recurse(Nothing, it)
@@ -80,14 +164,22 @@ Public Class Editor_Form
 
         TreeViewSkeleton.Sort()
         TreeViewSkeleton.ExpandAll()
-
         TreeViewSkeleton.EndUpdate()
         TreeViewSkeleton.ResumeLayout()
 
-        ListView1.Items.AddRange(bones_list.Keys.Order.Select(Function(pf) New ListViewItem({pf, "0"}.ToArray) With {.Name = pf}).ToArray)
-        Lee_Zaps()
-    End Sub
+        ListView1.Items.AddRange(
+        bones_list.Keys.
+            OrderBy(Function(pf) pf, StringComparer.OrdinalIgnoreCase).
+            Select(Function(pf) New ListViewItem({pf, "0"}) With {.Name = pf}).
+            ToArray())
 
+        ListView1.EndUpdate()
+
+        _LastBonesSignature = newSignature
+
+        Lee_Zaps()
+        If Not IsNothing(Selected_Shape) Then MarcaBones()
+    End Sub
     Private Sub Recurse(Parentnode As TreeNode, sknode As Skeleton_Class.HierarchiBone_class)
         Dim node As TreeNode
         If IsNothing(Parentnode) Then
@@ -173,7 +265,7 @@ Public Class Editor_Form
         Habilita_Preset_Botones(False)
         Pone_SLiders()
     End Sub
-    Private Function define_cual_size(target As Config_App.SliderSize, nodefault As Boolean, nobig As Boolean, nosmall As Boolean) As Config_App.SliderSize
+    Private Function Define_cual_size(target As Config_App.SliderSize, nodefault As Boolean, nobig As Boolean, nosmall As Boolean) As Config_App.SliderSize
         Select Case target
             Case Config_App.SliderSize.Default
                 If nodefault = False Then Return Config_App.SliderSize.Default
@@ -201,9 +293,16 @@ Public Class Editor_Form
         ButtonCancelPreset.Enabled = Opcion
     End Sub
     Private Sub Pone_SLiders()
+        Dim newLayoutSignature As String = BuildSliderLayoutSignature()
+
+        If newLayoutSignature = _LastSliderLayoutSignature AndAlso TableLayoutPanel4.Controls.Count > 0 Then
+            UpdateExistingSliderControls()
+            Exit Sub
+        End If
+
         TableLayoutPanel4.SuspendLayout()
         TableLayoutPanel4.Parent.SuspendLayout()
-        ' Configura TableLayoutPanel
+
         Dim tlp As TableLayoutPanel = Me.TableLayoutPanel4
         tlp.Controls.Clear()
         tlp.RowStyles.Clear()
@@ -216,15 +315,20 @@ Public Class Editor_Form
         tlp.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
         tlp.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100))
 
-        ' Recorre cada categoría y cada slider definido en XML
-        For Each kvp In Selected_Preset.Sliders.Select(Function(pf) pf.Category).Order.Distinct
-            Dim catName As String = kvp
-            Dim sliderNames As List(Of PresetSlider_Class) = Selected_Preset.Sliders.Where(Function(pf) pf.Category = catName AndAlso pf.Size = Selected_size).ToList
+        Dim visibleSliders = Selected_Preset.Sliders.
+        Where(Function(pf) pf.Size = Selected_size).
+        OrderBy(Function(pf) pf.Category, StringComparer.OrdinalIgnoreCase).
+        ThenBy(Function(pf) pf.Name, StringComparer.OrdinalIgnoreCase).
+        ToList()
 
-            ' Fila de encabezado (20px)
+        For Each catName In visibleSliders.Select(Function(pf) pf.Category).Distinct(StringComparer.OrdinalIgnoreCase)
+            Dim sliderNames As List(Of PresetSlider_Class) =
+            visibleSliders.Where(Function(pf) pf.Category.Equals(catName, StringComparison.OrdinalIgnoreCase)).ToList()
+
             Dim hdrRow As Integer = tlp.RowCount
             tlp.RowCount += 1
             tlp.RowStyles.Add(New RowStyle(SizeType.Absolute, 20))
+
             Dim lblCat As New Label With {
             .Text = catName,
             .Font = New Font(tlp.Font, FontStyle.Bold),
@@ -234,19 +338,20 @@ Public Class Editor_Form
             .TextAlign = ContentAlignment.MiddleLeft,
             .Margin = New Padding(0)
         }
+
             tlp.Controls.Add(lblCat, 0, hdrRow)
             tlp.SetColumnSpan(lblCat, 2)
 
-            ' Filas de sliders (20px cada una)
             For Each slideName In sliderNames
-                Dim presetItem As PresetSlider_Class = Selected_Preset.Sliders.Find(Function(s) s.Name = slideName.Name And s.Size = Selected_size)
+                Dim presetItem As PresetSlider_Class =
+                Selected_Preset.Sliders.Find(Function(s) s.Name.Equals(slideName.Name, StringComparison.OrdinalIgnoreCase) AndAlso s.Size = Selected_size)
+
                 Dim initValue As Integer = If(presetItem IsNot Nothing, CInt(presetItem.Value), 0)
 
                 Dim row As Integer = tlp.RowCount
                 tlp.RowCount += 1
                 tlp.RowStyles.Add(New RowStyle(SizeType.Absolute, 20))
 
-                ' Label con el nombre del slider
                 Dim lbl As New Label With {
                 .Text = slideName.DisplayName,
                 .AutoSize = False,
@@ -257,7 +362,6 @@ Public Class Editor_Form
             }
                 tlp.Controls.Add(lbl, 0, row)
 
-                ' TrackBar con valor inicial
                 Dim tb As New TrackBar With {
                 .Minimum = Math.Min(0, initValue),
                 .Maximum = Math.Max(100, initValue),
@@ -266,34 +370,27 @@ Public Class Editor_Form
                 .AutoSize = False,
                 .Height = 20,
                 .Dock = DockStyle.Fill,
-                .Margin = New Padding(0)
+                .Margin = New Padding(0),
+                .Tag = slideName.Name
             }
+
                 If tb.Minimum <> 0 Or tb.Maximum <> 100 Then
                     tb.BackColor = Color.LightYellow
                 End If
-                tlp.Controls.Add(tb, 1, row)
 
-                ' Solo sincroniza si el preset existe
-                If presetItem IsNot Nothing Then
-                    AddHandler tb.Scroll, Sub()
-                                              presetItem.Value = tb.Value
-                                              pendingValuePreset = True
-                                              If Not PresetscrollTimer.Enabled Then PresetscrollTimer.Start()
-                                          End Sub
-                    AddHandler tb.MouseUp, Sub()
-                                               If pendingValuePreset Then
-                                                   Habilita_Preset_Botones(True)
-                                                   Process_render_Changes(False)
-                                                   pendingValuePreset = False
-                                               End If
-                                               PresetscrollTimer.Stop()
-                                           End Sub
-                End If
+                AddHandler tb.Scroll, AddressOf DynamicPresetTrackBar_Scroll
+                AddHandler tb.MouseUp, AddressOf DynamicPresetTrackBar_MouseUp
+
+                tlp.Controls.Add(tb, 1, row)
             Next
         Next
+
         TableLayoutPanel4.ResumeLayout()
         TableLayoutPanel4.Parent.ResumeLayout()
+
+        _LastSliderLayoutSignature = newLayoutSignature
     End Sub
+
     Private WithEvents PresetscrollTimer As New Timer() With {.Interval = 500, .Enabled = False}
     Private pendingValuePreset As Boolean = False
     Private Sub PresetscrollTimer_Tick(sender As Object, e As EventArgs) Handles PresetscrollTimer.Tick
@@ -414,7 +511,7 @@ Public Class Editor_Form
         MarcaBones()
     End Sub
     Private Sub Lee_Materials()
-        Dim idx As Integer = -1
+        Dim idx As Integer
         Dim prefix = "materials\"
         ComboBoxMaterials.Items.Clear()
         If Not IsNothing(Selected_Shape) Then
@@ -426,7 +523,7 @@ Public Class Editor_Form
             Dim pathtxt = prefix + path
             If pathtxt.EndsWith("\"c) Then pathtxt = pathtxt.Substring(0, pathtxt.Length - 1)
             MaterialPathTextbox.Text = pathtxt
-            If fil <> "" Then ComboBoxMaterials.Items.AddRange(FilesDictionary_class.Dictionary.Keys.Where(Function(pf) IO.Path.GetDirectoryName(pf).Correct_Path_Separator.Equals(pathtxt, StringComparison.OrdinalIgnoreCase) AndAlso pf.EndsWith(ext, StringComparison.OrdinalIgnoreCase)).Select(Function(pf) IO.Path.GetFileName(pf)).Order.ToArray)
+            If fil <> "" Then ComboBoxMaterials.Items.AddRange(FilesDictionary_class.GetFileNamesInDirectory(pathtxt, New String() {ext}))
             idx = ComboBoxMaterials.FindStringExact(fil)
             If idx <> -1 Then ComboBoxMaterials.SelectedIndex = idx Else If ComboBoxMaterials.Items.Count > 0 Then ComboBoxMaterials.SelectedIndex = 0
             If Selected_Shape.RelatedMaterial.path = "" OrElse idx = -1 Then
@@ -595,6 +692,7 @@ Public Class Editor_Form
     Private Sub ButtonRemovePhysics_Click(sender As Object, e As EventArgs) Handles ButtonRemovePhysics.Click
         If MsgBox("This cant be undone, do you want to delete all physics", vbYesNo, "Remove Physics") = MsgBoxResult.Yes Then
             Selected_Slider.NIFContent.RemoveBlocksOfType(Of BSClothExtraData)()
+            Selected_Slider.InvalidateAllLookupCaches()
             Render_Changes(True)
             Lee_Bones()
             ButtonRemovePhysics.Enabled = False
@@ -604,13 +702,31 @@ Public Class Editor_Form
 
 
     Private Sub Button1_Click(sender As Object, e As EventArgs) Handles Button1.Click
+        Dim removedIndex As Integer = ComboBoxShapes.SelectedIndex
+
         Selected_Slider.RemoveShape(Selected_Shape)
-        ComboBoxShapes.Items.RemoveAt(ComboBoxShapes.SelectedIndex)
+
+        If removedIndex >= 0 AndAlso removedIndex < ComboBoxShapes.Items.Count Then
+            ComboBoxShapes.Items.RemoveAt(removedIndex)
+        End If
+
+        Selected_Slider.InvalidateAllLookupCaches()
+        _LastBonesSignature = ""
+        _LastSliderLayoutSignature = ""
+
+        Actualiza_Preset()
+        Lee_Bones()
         Render_Changes(True)
-        ComboBoxShapes.SelectedIndex = 0
+
+        If ComboBoxShapes.Items.Count > 0 Then
+            ComboBoxShapes.SelectedIndex = Math.Min(removedIndex, ComboBoxShapes.Items.Count - 1)
+        Else
+            Selected_Shape = Nothing
+            ComboBoxMaterials.Items.Clear()
+        End If
+
         Iniciado_Edit()
     End Sub
-
     Private Sub Button4_Click(sender As Object, e As EventArgs) Handles ButtonCancel.Click
         Finalizado_Edit()
         Me.Close()
@@ -803,7 +919,7 @@ Public Class Editor_Form
             If fullpath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) Then fullpath = fullpath.Substring(prefix.Length)
             Selected_Shape.RelatedMaterial.path = fullpath
             Dim Location As New FilesDictionary_class.File_Location With {.BA2File = "", .Index = -1, .FullPath = prefix + Selected_Shape.RelatedMaterial.path}
-            FilesDictionary_class.Dictionary.TryAdd((prefix + Selected_Shape.RelatedMaterial.path).Correct_Path_Separator, Location)
+            FilesDictionary_class.TryAddDictionaryEntry((prefix + Selected_Shape.RelatedMaterial.path).Correct_Path_Separator, Location)
             MaterialPathTextbox.Text = prefix + Path.GetDirectoryName(Selected_Shape.RelatedMaterial.path)
             ComboBoxMaterials.SelectedIndex = ComboBoxMaterials.Items.Add(Path.GetFileName(Selected_Shape.RelatedMaterial.path))
         End If
@@ -820,9 +936,7 @@ Public Class Editor_Form
             dict_used = FilesDictionary_class.MaterialsDictionary_BGEM_Filter
         End If
 
-        Dim dictProvider = dict_used.DictionaryProvider
-        Dim dict = dictProvider.Invoke()
-        Dim filtered = dict.Keys.Where(Function(k) FilesDictionary_class.DictionaryFilePickerConfig.PathStartsWithRoot(k, dict_used.RootPrefix) And dict_used.ExtensionAllowed(k)).Order.ToList()
+        Dim filtered = FilesDictionary_class.GetFilteredKeys(dict_used)
         Dim initialKey As String = TryCast(fil, String)
         Using frm As New DictionaryFilePicker_Form(filtered, dict_used.RootPrefix, dict_used.AllowedExtensions, initialKey)
             If frm.ShowDialog() = DialogResult.OK Then
@@ -954,6 +1068,9 @@ Public Class Editor_Form
             Dim slid As New Slider_class(el, Selected_Slider)
             Selected_Slider.Nodo.AppendChild(el)
             Selected_Slider.Sliders.Add(slid)
+            Selected_Slider.InvalidateAllLookupCaches()
+            _LastSliderLayoutSignature = ""
+            Actualiza_Preset()
             Lee_Zaps()
         End If
 
@@ -997,6 +1114,7 @@ Public Class Editor_Form
             Dim blockRoot = Selected_Slider.OSDContent_Local
             block = New OSD_Block_Class(blockRoot) With {.BlockName = Selected_Shape.Target + SelectedZap.Nombre}
             blockRoot.Blocks.Add(block)
+            Selected_Slider.InvalidateAllLookupCaches()
         Else
             If SelectedZap.Datas.Where(Function(pf) pf.RelatedShape Is Selected_Shape And pf.Islocal).Count > 1 Then Throw New Exception
             dat = SelectedZap.Datas.Where(Function(pf) pf.RelatedShape Is Selected_Shape And pf.Islocal).First
@@ -1139,6 +1257,10 @@ Public Class Editor_Form
             Selected_Slider.Nodo.RemoveChild(SelectedZap.Nodo)
             Selected_Slider.Sliders.Remove(SelectedZap)
             SelectedZap = Nothing
+            Selected_Slider.InvalidateAllLookupCaches()
+            _LastSliderLayoutSignature = ""
+            Actualiza_Preset()
+
             Lee_Zaps()
         End If
         Habiliza_Zap_Buttons()
@@ -2200,10 +2322,10 @@ Public Class Editor_Form
     Private Sub Button10_Click_1(sender As Object, e As EventArgs) Handles Button10.Click
         Try
             If IsNothing(Selected_Slider) Then Exit Sub
-            Dim min = 0
+            Dim min As Double = 0
 
             For Each mesha In EditPreviewControl.Model.meshes
-                Dim minz = mesha.MeshData.Meshgeometry.BaseVertices.Min(Function(pf) pf.Z)
+                Dim minz = mesha.MeshData.Meshgeometry.Minv.Z
                 If -minz > min Then min = -minz
             Next
             min = Math.Max(0, Math.Round(min, 2))
@@ -2219,4 +2341,6 @@ Public Class Editor_Form
         End Try
 
     End Sub
+
+
 End Class

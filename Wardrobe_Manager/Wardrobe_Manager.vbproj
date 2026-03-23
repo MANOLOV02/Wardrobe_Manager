@@ -50,6 +50,10 @@
 	  <None Remove="Shaders\**" />
 	</ItemGroup>
 	<ItemGroup>
+	  <None Remove="SRC.zip" />
+	  <None Remove="src2.zip" />
+	</ItemGroup>
+	<ItemGroup>
 	  <Content Include="Tif-Image.ICO" />
 	</ItemGroup>
 

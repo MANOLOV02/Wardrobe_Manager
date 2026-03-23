@@ -417,6 +417,7 @@ Public Class OSD_Class
                 End SyncLock
             End If
         Next
+        If Not IsNothing(ParentSlider) Then ParentSlider.InvalidateShapeDataLookupCache()
     End Sub
 
     Public Sub Clone_block(source As OSD_Block_Class)
@@ -425,6 +426,8 @@ Public Class OSD_Class
             nuewblock.DataDiff.Add(New OSD_DataDiff_Class() With {.Index = dat.Index, .X = dat.X, .Y = dat.Y, .Z = dat.Z})
         Next
         Me.Blocks.Add(nuewblock)
+        If Not IsNothing(ParentSlider) Then ParentSlider.InvalidateShapeDataLookupCache()
+
     End Sub
 
     Public Sub Save_As(Filename As String, Overwrite As Boolean)
@@ -483,6 +486,39 @@ End Class
 Public Class OSP_Project_Class
     Public Property SliderSets As New List(Of SliderSet_Class)
     Public xml As New XmlDocument
+    Private Shared ReadOnly LoadedShapeDataSlots As New List(Of SliderSet_Class)
+    Private Shared ReadOnly LoadedShapeDataSlotsSync As New Object()
+
+    Public Shared Sub ForgetLoadedShapeDataSlot(slider As SliderSet_Class)
+        If IsNothing(slider) Then Exit Sub
+
+        SyncLock LoadedShapeDataSlotsSync
+            LoadedShapeDataSlots.Remove(slider)
+        End SyncLock
+    End Sub
+    Public Shared Property Default_Memory As Integer = 2
+    Public Shared Property Default_Memory_Pause As Boolean = False
+    Public Shared Sub RememberLoadedShapeDataSlot(slider As SliderSet_Class)
+        If IsNothing(slider) Then Exit Sub
+
+        Dim evicted As SliderSet_Class
+
+        SyncLock LoadedShapeDataSlotsSync
+            LoadedShapeDataSlots.Remove(slider)
+            LoadedShapeDataSlots.Add(slider)
+            If Not Default_Memory_Pause Then
+                While LoadedShapeDataSlots.Count > Default_Memory
+                    evicted = LoadedShapeDataSlots(0)
+                    LoadedShapeDataSlots.RemoveAt(0)
+                    If Not IsNothing(evicted) AndAlso Not Object.ReferenceEquals(evicted, slider) Then
+                        evicted.UnloadShapeData(False)
+                    End If
+                End While
+            End If
+        End SyncLock
+
+
+    End Sub
 
     Private YaEstan As New List(Of SliderSet_Class)
 
@@ -550,9 +586,13 @@ Public Class OSP_Project_Class
         If IO.File.Exists(Filename) AndAlso Overwrite = False Then Throw New Exception("OSP File already exists")
         Save_Pack_As(Me.Filename, Overwrite)
     End Sub
+
     Public Sub Save_Pack_As(NewFilename As String, Overwrite As Boolean)
         If IO.File.Exists(Filename) AndAlso Overwrite = False Then Throw New Exception("OSP File already exists")
         Me.xml.Save(NewFilename)
+        For Each slider In Me.SliderSets
+            slider.LastProjectFileSignature = slider.GetProjectFileSignature()
+        Next
     End Sub
     Public Shared Function Clone_Material_Sub(shad As INiShader, Overwrite As Boolean) As String
         Dim mate As String
@@ -573,7 +613,7 @@ Public Class OSP_Project_Class
         If Not FilesDictionary_class.Dictionary(Fil_original).IsLosseFile AndAlso Not Config_App.Allowed_To_Clone(FilesDictionary_class.Dictionary(Fil_original).BA2File) Then Return mate
         Dim Dire As String = IO.Path.GetDirectoryName(Fil_original).Correct_Path_Separator
         Dim regreso As String = Fil_original
-        For Each Fil In FilesDictionary_class.Dictionary.Keys.Where(Function(pf) IO.Path.GetDirectoryName(pf).Correct_Path_Separator.Equals(IO.Path.GetDirectoryName(prefix + mate), StringComparison.OrdinalIgnoreCase) AndAlso (pf.EndsWith(".bgsm", StringComparison.OrdinalIgnoreCase) Or pf.EndsWith(".bgem", StringComparison.OrdinalIgnoreCase))).Select(Function(pf) pf)
+        For Each Fil In FilesDictionary_class.GetFilesInDirectory(IO.Path.GetDirectoryName(prefix + mate), allowedExtensions)
             If FilesDictionary_class.Dictionary(Fil).IsLosseFile OrElse Config_App.Allowed_To_Clone(FilesDictionary_class.Dictionary(Fil).BA2File) Then
                 Dim relative As String = IO.Path.GetRelativePath(prefix, Dire + "\")
                 Dim source As String = Dire + "\" + IO.Path.GetFileName(Fil)
@@ -642,7 +682,7 @@ Public Class OSP_Project_Class
                 material.Save(writer)
                 writer.Close()
                 Dim Location As New FilesDictionary_class.File_Location With {.BA2File = "", .Index = -1, .FullPath = prefix + fullpath}
-                If FilesDictionary_class.Dictionary.TryAdd((prefix + fullpath).Correct_Path_Separator, Location) = False Then
+                If FilesDictionary_class.TryAddDictionaryEntry((prefix + fullpath).Correct_Path_Separator, Location) = False Then
                     If Location.FullPath.Contains("ManoloCloned\") = False AndAlso Location.FullPath.Contains("ManoloMods\") = False Then
                         Debugger.Break()
                         Throw New Exception
@@ -691,7 +731,7 @@ Public Class OSP_Project_Class
                 writer.Close()
                 Dim fullpath2 As String = (prefix + fullpath)
                 Dim Location As New FilesDictionary_class.File_Location With {.BA2File = "", .Index = -1, .FullPath = fullpath2.Correct_Path_Separator}
-                If FilesDictionary_class.Dictionary.TryAdd(fullpath2.Correct_Path_Separator, Location) = False Then
+                If FilesDictionary_class.TryAddDictionaryEntry(fullpath2.Correct_Path_Separator, Location) = False Then
                     If Location.FullPath.Contains("ManoloCloned\") = False AndAlso Location.FullPath.Contains("ManoloMods\") = False Then
                         Debugger.Break()
                         Throw New Exception
@@ -733,7 +773,7 @@ Public Class OSP_Project_Class
             System.IO.File.WriteAllBytes(newfile, FilesDictionary_class.Dictionary(oldfile).GetBytes)
             Dim fullpath As String = (prefix + newfilename)
             Dim Location As New FilesDictionary_class.File_Location With {.BA2File = "", .Index = -1, .FullPath = fullpath.Correct_Path_Separator}
-            If FilesDictionary_class.Dictionary.TryAdd(fullpath.Correct_Path_Separator, Location) = False Then
+            If FilesDictionary_class.TryAddDictionaryEntry(fullpath.Correct_Path_Separator, Location) = False Then
                 If Location.FullPath.Contains("ManoloCloned\") = False AndAlso Location.FullPath.Contains("ManoloMods\") = False Then
                     Debugger.Break()
                     Throw New Exception
@@ -751,27 +791,100 @@ Public Class OSP_Project_Class
         End Get
     End Property
     Public Shared Function Load_and_Check_Shapedata(ByRef Sliderset_Target As SliderSet_Class, verbose As Boolean) As Boolean
-        Try
-            If Sliderset_Target.Unreadable_NIF Then Return False
+        Dim currentProjectSignature As String = ""
+        Dim currentShapeDataSignature As String = ""
 
-            If Sliderset_Target.OsdLocalFullPath.Count >= 2 Then Throw New Exception("More than one osd Local file")
-            If Sliderset_Target.OsdLocalFullPath.Any Then Sliderset_Target.OSDContent_Local.Load(Sliderset_Target.OsdLocalFullPath.ToArray)
-            If Sliderset_Target.OsdExternalFullPath.Any Then Sliderset_Target.OSDContent_External.Load(Sliderset_Target.OsdExternalFullPath.ToArray)
+        Try
+            currentProjectSignature = Sliderset_Target.GetProjectFileSignature()
+
+            If Sliderset_Target.LastProjectFileSignature <> "" AndAlso
+           Not String.Equals(Sliderset_Target.LastProjectFileSignature, currentProjectSignature, StringComparison.Ordinal) Then
+
+                Sliderset_Target.Unreadable_Project = False
+                Sliderset_Target.Unreadable_NIF = False
+
+                Sliderset_Target.ParentOSP.Reload(False)
+
+                If Sliderset_Target.ParentOSP.SliderSets.Contains(Sliderset_Target) = False Then
+                    Sliderset_Target.Unreadable_Project = True
+                    If verbose Then
+                        MsgBox("Project changed on disk and the selected sliderset no longer exists. Refresh the list.", vbCritical + vbOK, "Error")
+                    End If
+                    Return False
+                End If
+
+                currentProjectSignature = Sliderset_Target.GetProjectFileSignature()
+            End If
+
+            If Sliderset_Target.Unreadable_Project Then Return False
+
+            currentShapeDataSignature = Sliderset_Target.GetShapeDataSignature()
+
+            If Sliderset_Target.ShapeDataLoaded AndAlso
+           String.Equals(Sliderset_Target.LastShapeDataSignature, currentShapeDataSignature, StringComparison.Ordinal) Then
+
+                Sliderset_Target.LastShapeDataAccessUtc = Date.UtcNow
+                RememberLoadedShapeDataSlot(Sliderset_Target)
+                Return True
+            End If
+
+            If Sliderset_Target.Unreadable_NIF AndAlso
+           String.Equals(Sliderset_Target.LastShapeDataSignature, currentShapeDataSignature, StringComparison.Ordinal) Then
+                Return False
+            End If
+
+            If Sliderset_Target.ShapeDataLoaded Then
+                Sliderset_Target.UnloadShapeData(False)
+            End If
+
+            Sliderset_Target.Unreadable_NIF = False
+            Sliderset_Target.InvalidateShapeDataLookupCache()
+
+            Dim localOsdPaths = Sliderset_Target.OsdLocalFullPath _
+            .Select(Function(pf) Correct_Path_Separator(pf)) _
+            .Distinct(StringComparer.OrdinalIgnoreCase) _
+            .ToArray()
+
+            Dim externalOsdPaths = Sliderset_Target.OsdExternalFullPath _
+            .Select(Function(pf) Correct_Path_Separator(pf)) _
+            .Distinct(StringComparer.OrdinalIgnoreCase) _
+            .ToArray()
+
+            If localOsdPaths.Length >= 2 Then Throw New Exception("More than one osd Local file")
+            If localOsdPaths.Length <> 0 Then Sliderset_Target.OSDContent_Local.Load(localOsdPaths)
+            If externalOsdPaths.Length <> 0 Then Sliderset_Target.OSDContent_External.Load(externalOsdPaths)
 
             Sliderset_Target.NIFContent.Load_Manolo(Sliderset_Target.SourceFileFullPath)
             Sliderset_Target.ReadhighHeel()
 
+            Sliderset_Target.ShapeDataLoaded = True
+            Sliderset_Target.InvalidateShapeDataLookupCache()
+            Sliderset_Target.RebuildShapeDataLookupCache()
+
             If Sliderset_Target.Shapes.Where(Function(pf) pf.RelatedNifShape Is Nothing).Any Then Throw New Exception("Shape without Nif Shapes different")
             If Sliderset_Target.Sliders.SelectMany(Function(pf) pf.Datas).Where(Function(pq) pq.RelatedOSDBlocks.Any).Count > Sliderset_Target.Sliders.SelectMany(Function(pf) pf.Datas).Count Then Throw New Exception("Datas and OSD blocks different")
             If Sliderset_Target.Sliders.SelectMany(Function(pf) pf.Datas).Select(Function(pf) (pf.Nombre.ToLower + pf.ParentSlider.Nombre.ToLower)).GroupBy(Function(key) key).Any(Function(g) g.Count() > 1) Then Throw New Exception("Duplicated Slider Data")
+
+            Sliderset_Target.LastProjectFileSignature = currentProjectSignature
+            Sliderset_Target.LastShapeDataSignature = currentShapeDataSignature
+            Sliderset_Target.LastShapeDataAccessUtc = Date.UtcNow
+
+            RememberLoadedShapeDataSlot(Sliderset_Target)
+
         Catch ex As Exception
-            Sliderset_Target.Unreadable_NIF = True
+            Sliderset_Target.UnloadShapeData(False)
+            Sliderset_Target.ShapeDataLoaded = False
+            If Sliderset_Target.Unreadable_Project = False Then
+                Sliderset_Target.Unreadable_NIF = True
+            End If
+            Sliderset_Target.LastProjectFileSignature = currentProjectSignature
+            Sliderset_Target.LastShapeDataSignature = currentShapeDataSignature
             If verbose Then MsgBox("Error reading shapedata from project: " + Sliderset_Target.Nombre + " " + ex.Message.ToString, vbCritical + vbOK, "Error")
             Return False
         End Try
+
         Return True
     End Function
-
 
     Public Shared Function Load_and_CHeck_Project(ByRef Sliderset_Target As SliderSet_Class, Deep_Analize As Boolean, verbose As Boolean) As Boolean
         Dim nombre As String = "(Sin Nombre)"
@@ -798,6 +911,7 @@ Public Class OSP_Project_Class
         If Deep_Analize Then Return OSP_Project_Class.Load_and_Check_Shapedata(Sliderset_Target, verbose)
         Return True
     End Function
+
     Public Sub Lee_Slidersets(Deep_Analize As Boolean)
         SliderSets.Clear()
         Try
@@ -875,7 +989,9 @@ Public Class OSP_Project_Class
         ' Saca Physics
         If Not Keep_Physics Then Sliderset_Target.NIFContent.RemoveBlocksOfType(Of BSClothExtraData)()
 
-
+        ' Make Local Sliders
+        Make_Sliders_Local(Sliderset_Target)
+        Sliderset_Target.InvalidateAllLookupCaches()
         Sliderset_Target.Save_Shapedatas(OverwriteShapeFiles)
 
         ' Graba el proyecto
@@ -888,6 +1004,10 @@ Public Class OSP_Project_Class
         Dim Sliderset_Target = New SliderSet_Class(Sliderset_Madre.ParentOSP.xml.ImportNode(Sliderset_Source.Nodo.Clone, True), Sliderset_Madre.ParentOSP)
         If OSP_Project_Class.Load_and_CHeck_Project(Sliderset_Target, True, True) = False Then Return Nothing
 
+        ' Define HighHeels
+        If Sliderset_Target.HighHeelHeight <> 0 Then
+            If Sliderset_Madre.IsHighHeel = 0 Or Sliderset_Madre.HighHeelHeight = Sliderset_Target.HighHeelHeight Then Sliderset_Madre.HighHeelHeight = Sliderset_Target.HighHeelHeight Else Sliderset_Madre.HighHeelHeight = Math.Max(Sliderset_Madre.HighHeelHeight, Sliderset_Target.HighHeelHeight) : MsgBox("Different High Heels setup. Higher assumed", vbInformation, "Warning")
+        End If
 
         Dim Old_Nif = IO.Path.Combine(IO.Path.Combine(Directorios.ShapedataRoot, Sliderset_Target.DataFolderValue), Sliderset_Target.SourceFileValue)
         Dim Old_Osd = Old_Nif.Replace(".nif", ".osd", StringComparison.OrdinalIgnoreCase)
@@ -895,11 +1015,7 @@ Public Class OSP_Project_Class
         ' Procesa los cambios de nombre
         Sliderset_Target.Update_Names(Sliderset_Madre.Nombre, Sliderset_Madre.ParentOSP.Nombre)
 
-        ' Define HighHeels
-        If Sliderset_Source.HighHeelHeight <> 0 Then If Sliderset_Madre.IsHighHeel = 0 Or Sliderset_Madre.HighHeelHeight = Sliderset_Source.HighHeelHeight Then Sliderset_Madre.HighHeelHeight = Sliderset_Source.HighHeelHeight Else Sliderset_Madre.HighHeelHeight = Math.Max(Sliderset_Madre.HighHeelHeight, Sliderset_Source.HighHeelHeight) : MsgBox("Different High Heels setup. Higher assumed", vbInformation, "Warning")
-
         ' Agrega Sliders Faltantes
-
         For Each slid In Sliderset_Target.Sliders
             If Sliderset_Madre.Sliders.Where(Function(pf) pf.Nombre.Equals(slid.Nombre, StringComparison.OrdinalIgnoreCase)).Any = False Then
                 Dim nodo = Sliderset_Madre.Nodo.AppendChild(Sliderset_Madre.ParentOSP.xml.ImportNode(slid.Nodo.Clone, True))
@@ -910,6 +1026,12 @@ Public Class OSP_Project_Class
                 Sliderset_Madre.Sliders.Add(new_slider)
             End If
         Next
+        Sliderset_Target.InvalidateAllLookupCaches()
+
+        ' Exclude reference for the source
+        If ExcludeReference = True AndAlso Sliderset_Target.Shapes.Where(Function(pf) pf.IsReference).Any Then
+            Sliderset_Target.RemoveShape(Sliderset_Target.Shapes.Where(Function(pf) pf.IsReference).First)
+        End If
 
         ' Reference
         If Sliderset_Madre.Shapes.Where(Function(pf) pf.IsReference).Any Then
@@ -922,9 +1044,8 @@ Public Class OSP_Project_Class
                     End If
                     dat.Islocal = True
                     dat.TargetOsd = IO.Path.GetFileName(Sliderset_Madre.OsdLocalFullPath.First)
-
                 Next
-                extsh.Datafolder = stringArray.ToList
+                extsh.Datafolder = ClearReferenceStringArray.ToList
             Next
         End If
 
@@ -949,14 +1070,14 @@ Public Class OSP_Project_Class
                 End If
                 Shap.Target = nombre_Nuevo
                 Shap.Nombre = nombre_Nuevo
+                Sliderset_Target.InvalidateAllLookupCaches()
             End If
-
 
             ' Agrega shape
             Dim pointer As XmlNode = Sliderset_Madre.Nodo.SelectNodes("Shape").Item(Sliderset_Madre.Nodo.SelectNodes("Shape").Count - 1)
             Dim new_Shape As New Shape_class(Sliderset_Madre.Nodo.InsertAfter(Sliderset_Madre.ParentOSP.xml.ImportNode(Shap.Nodo.Clone, True), pointer), Sliderset_Madre)
             Sliderset_Madre.Shapes.Add(new_Shape)
-
+            Sliderset_Madre.InvalidateAllLookupCaches()
 
             ' Agrega dat
             For Each dat In Shap.Related_Slider_data.ToList
@@ -969,6 +1090,7 @@ Public Class OSP_Project_Class
                     Next
                     dat.TargetSlider = dat_Nuevo
                     dat.Nombre = dat_Nuevo
+                    Sliderset_Target.InvalidateAllLookupCaches()
                 End If
 
                 For Each block In dat.RelatedLocalOSDBlocks
@@ -980,25 +1102,18 @@ Public Class OSP_Project_Class
                 Dim slid As Slider_class = Sliderset_Madre.Sliders.Where(Function(pf) pf.Nombre.Equals(dat.ParentSlider.Nombre, StringComparison.OrdinalIgnoreCase)).First
                 Dim new_dat As New Slider_Data_class(slid.Nodo.AppendChild(Sliderset_Madre.ParentOSP.xml.ImportNode(dat.Nodo.Clone, True)), slid)
                 slid.Datas.Add(new_dat)
+                Sliderset_Madre.InvalidateAllLookupCaches()
             Next
 
         Next
 
-        ' Merge Nifs
-
-
-        ' Exclude reference for the source
-        If ExcludeReference = True AndAlso Sliderset_Target.Shapes.Where(Function(pf) pf.IsReference).Any Then
-            Sliderset_Target.RemoveShape(Sliderset_Target.Shapes.Where(Function(pf) pf.IsReference).First)
-        End If
-
 
         Nifcontent_Class_Manolo.Merge_Shapes_Original(Sliderset_Madre.NIFContent, Sliderset_Target.NIFContent, Keep_Physics)
-
-        ' Exclude reference
-        If ExcludeReference = True AndAlso Sliderset_Madre.Shapes.Where(Function(pf) pf.IsReference).Any Then
-            Sliderset_Madre.RemoveShape(Sliderset_Madre.Shapes.Where(Function(pf) pf.IsReference).First)
-        End If
+        Sliderset_Madre.InvalidateAllLookupCaches()
+        '' Exclude reference
+        'If ExcludeReference = True AndAlso Sliderset_Madre.Shapes.Where(Function(pf) pf.IsReference).Any Then
+        '    Sliderset_Madre.RemoveShape(Sliderset_Madre.Shapes.Where(Function(pf) pf.IsReference).First)
+        'End If
 
 
         ' Clona Material en el proyecto
@@ -1019,6 +1134,9 @@ Public Class OSP_Project_Class
             Next
         End If
 
+        ' Make Local Sliders
+        Make_Sliders_Local(Sliderset_Madre)
+
         ' Graba OSD y NIF
         Sliderset_Madre.Save_Shapedatas(True)
 
@@ -1027,7 +1145,23 @@ Public Class OSP_Project_Class
         Return Sliderset_Madre
     End Function
 
-
+    Private Shared Sub Make_Sliders_Local(Sliderset_Target As SliderSet_Class, Optional KeepSafeReferences As Boolean = True)
+        For Each extsh In Sliderset_Target.Shapes.Where(Function(pf) pf.IsExternal)
+            If extsh.IsSafeReference = False OrElse KeepSafeReferences = False Then
+                For Each dat In extsh.Related_Slider_data.ToList
+                    If dat.Islocal = False Then
+                        For Each block In dat.RelatedOSDBlocks.ToList
+                            Sliderset_Target.OSDContent_Local.Clone_block(block)
+                        Next
+                    End If
+                    dat.Islocal = True
+                    dat.TargetOsd = IO.Path.GetFileName(Sliderset_Target.OsdLocalFullPath.First)
+                Next
+                extsh.Datafolder = OldReferenceStringArray.ToList
+            End If
+        Next
+        Sliderset_Target.InvalidateAllLookupCaches()
+    End Sub
     Public Overrides Function ToString() As String
         Return Nombre
     End Function
@@ -1049,7 +1183,9 @@ Public Class OSP_Project_Class
         End Get
     End Property
 
-    Private Shared ReadOnly stringArray As String() = {""}
+    Private Shared ReadOnly OldReferenceStringArray As String() = {"Old Reference"}
+    Private Shared ReadOnly ClearReferenceStringArray As String() = {""}
+    Private Shared ReadOnly allowedExtensions As String() = New String() {".bgsm", ".bgem"}
 
 End Class
 Public Class SliderSet_Class
@@ -1063,7 +1199,220 @@ Public Class SliderSet_Class
     Public Property Shapes As New List(Of Shape_class)
     Public Property Sliders As New List(Of Slider_class)
     Public Property HighHeelHeight As Double = 0
+    Public Property ShapeDataLoaded As Boolean = False
+    Public Property LastShapeDataSignature As String = ""
+    Public Property LastShapeDataAccessUtc As Date = Date.MinValue
+    Public Property LastProjectFileSignature As String = ""
+    Private _MetadataLookupCacheValid As Boolean = False
+    Private _ShapeDataLookupCacheValid As Boolean = False
 
+    Private _ShapeByTargetCache As New Dictionary(Of String, Shape_class)(StringComparer.OrdinalIgnoreCase)
+    Private _ShapeHasLocalCache As New Dictionary(Of String, Boolean)(StringComparer.OrdinalIgnoreCase)
+    Private _ShapeHasExternalCache As New Dictionary(Of String, Boolean)(StringComparer.OrdinalIgnoreCase)
+
+    Private _NifShapeByNameCache As New Dictionary(Of String, BSTriShape)(StringComparer.OrdinalIgnoreCase)
+    Private _LocalOsdBlocksByNameCache As New Dictionary(Of String, List(Of OSD_Block_Class))(StringComparer.OrdinalIgnoreCase)
+    Private _ExternalOsdBlocksByNameCache As New Dictionary(Of String, List(Of OSD_Block_Class))(StringComparer.OrdinalIgnoreCase)
+    Public Property BypassDiskShapeDataLoad As Boolean = False
+
+    Public Sub InvalidateMetadataLookupCache()
+        _MetadataLookupCacheValid = False
+    End Sub
+
+    Public Sub InvalidateShapeDataLookupCache()
+        _ShapeDataLookupCacheValid = False
+    End Sub
+    Public Sub RebuildShapeDataLookupCache()
+        _ShapeDataLookupCacheValid = False
+        EnsureShapeDataLookupCache()
+    End Sub
+    Public Sub InvalidateAllLookupCaches()
+        _MetadataLookupCacheValid = False
+        _ShapeDataLookupCacheValid = False
+    End Sub
+
+    Private Sub EnsureMetadataLookupCache()
+        If _MetadataLookupCacheValid Then Exit Sub
+
+        _ShapeByTargetCache = New Dictionary(Of String, Shape_class)(StringComparer.OrdinalIgnoreCase)
+        _ShapeHasLocalCache = New Dictionary(Of String, Boolean)(StringComparer.OrdinalIgnoreCase)
+        _ShapeHasExternalCache = New Dictionary(Of String, Boolean)(StringComparer.OrdinalIgnoreCase)
+
+        For Each shap In Shapes
+            _ShapeByTargetCache.TryAdd(shap.Target, shap)
+            _ShapeHasLocalCache.TryAdd(shap.Target, False)
+            _ShapeHasExternalCache.TryAdd(shap.Target, False)
+        Next
+
+        For Each slid In Sliders
+            For Each dat In slid.Datas
+                If String.IsNullOrWhiteSpace(dat.Target) Then Continue For
+
+                If dat.Islocal Then
+                    If _ShapeHasLocalCache.ContainsKey(dat.Target) Then _ShapeHasLocalCache(dat.Target) = True
+                Else
+                    If _ShapeHasExternalCache.ContainsKey(dat.Target) Then _ShapeHasExternalCache(dat.Target) = True
+                End If
+            Next
+        Next
+
+        _MetadataLookupCacheValid = True
+    End Sub
+
+    Private Sub EnsureShapeDataLookupCache()
+        If _ShapeDataLookupCacheValid Then Exit Sub
+
+        _NifShapeByNameCache = New Dictionary(Of String, BSTriShape)(StringComparer.OrdinalIgnoreCase)
+        _LocalOsdBlocksByNameCache = New Dictionary(Of String, List(Of OSD_Block_Class))(StringComparer.OrdinalIgnoreCase)
+        _ExternalOsdBlocksByNameCache = New Dictionary(Of String, List(Of OSD_Block_Class))(StringComparer.OrdinalIgnoreCase)
+
+        If ShapeDataLoaded = False Then Exit Sub
+
+        If Not IsNothing(NIFContent) AndAlso Not IsNothing(NIFContent.NifShapes) Then
+            For Each nifShape In NIFContent.NifShapes
+                Dim tri = TryCast(nifShape, BSTriShape)
+                If IsNothing(tri) Then Continue For
+                If IsNothing(tri.Name) OrElse String.IsNullOrWhiteSpace(tri.Name.String) Then Continue For
+
+                _NifShapeByNameCache.TryAdd(tri.Name.String, tri)
+            Next
+        End If
+
+        If Not IsNothing(OSDContent_Local) AndAlso Not IsNothing(OSDContent_Local.Blocks) Then
+            For Each block In OSDContent_Local.Blocks
+                If IsNothing(block) OrElse String.IsNullOrWhiteSpace(block.BlockName) Then Continue For
+
+                Dim value As List(Of OSD_Block_Class) = Nothing
+                If Not _LocalOsdBlocksByNameCache.TryGetValue(block.BlockName, value) Then
+                    value = New List(Of OSD_Block_Class)
+                    _LocalOsdBlocksByNameCache.Add(block.BlockName, value)
+                End If
+
+                value.Add(block)
+            Next
+        End If
+
+        If Not IsNothing(OSDContent_External) AndAlso Not IsNothing(OSDContent_External.Blocks) Then
+            For Each block In OSDContent_External.Blocks
+                If IsNothing(block) OrElse String.IsNullOrWhiteSpace(block.BlockName) Then Continue For
+
+                Dim value As List(Of OSD_Block_Class) = Nothing
+                If Not _ExternalOsdBlocksByNameCache.TryGetValue(block.BlockName, value) Then
+                    value = New List(Of OSD_Block_Class)
+                    _ExternalOsdBlocksByNameCache.Add(block.BlockName, value)
+                End If
+
+                value.Add(block)
+            Next
+        End If
+
+        _ShapeDataLookupCacheValid = True
+    End Sub
+    Friend Function GetShapeByTargetCached(target As String) As Shape_class
+        EnsureMetadataLookupCache()
+        Dim result As Shape_class = Nothing
+        If _ShapeByTargetCache.TryGetValue(target, result) Then Return result
+        Return Nothing
+    End Function
+
+    Friend Function GetNifShapeByNameCached(name As String) As BSTriShape
+        EnsureShapeDataLookupCache()
+        Dim result As BSTriShape = Nothing
+        If _NifShapeByNameCache.TryGetValue(name, result) Then Return result
+        Return Nothing
+    End Function
+
+    Friend Function GetLocalOsdBlocksByNameCached(name As String) As IEnumerable(Of OSD_Block_Class)
+        EnsureShapeDataLookupCache()
+        Dim result As List(Of OSD_Block_Class) = Nothing
+        If _LocalOsdBlocksByNameCache.TryGetValue(name, result) Then Return result
+        Return Enumerable.Empty(Of OSD_Block_Class)()
+    End Function
+
+Friend Function GetExternalOsdBlocksByNameCached(name As String) As IEnumerable(Of OSD_Block_Class)
+    EnsureShapeDataLookupCache()
+    Dim result As List(Of OSD_Block_Class) = Nothing
+    If _ExternalOsdBlocksByNameCache.TryGetValue(name, result) Then Return result
+    Return Enumerable.Empty(Of OSD_Block_Class)()
+End Function
+
+    Friend Function GetShapeHasLocalCached(target As String) As Boolean
+        EnsureMetadataLookupCache()
+        Dim result As Boolean = False
+        If _ShapeHasLocalCache.TryGetValue(target, result) Then Return result
+        Return False
+    End Function
+
+    Friend Function GetShapeHasExternalCached(target As String) As Boolean
+        EnsureMetadataLookupCache()
+        Dim result As Boolean = False
+        If _ShapeHasExternalCache.TryGetValue(target, result) Then Return result
+        Return False
+    End Function
+    Private Shared Function BuildFileStateSignature(fullPath As String) As String
+        Dim normalized As String = ""
+        If Not String.IsNullOrWhiteSpace(fullPath) Then normalized = Correct_Path_Separator(fullPath)
+
+        If String.IsNullOrWhiteSpace(normalized) Then Return "|0|-1|0"
+        If IO.File.Exists(normalized) = False Then Return normalized & "|0|-1|0"
+
+        Dim info As New IO.FileInfo(normalized)
+        Return normalized & "|1|" &
+           info.Length.ToString(Global.System.Globalization.CultureInfo.InvariantCulture) & "|" &
+           info.LastWriteTimeUtc.Ticks.ToString(Global.System.Globalization.CultureInfo.InvariantCulture)
+    End Function
+
+    Public Function GetProjectFileSignature() As String
+        If IsNothing(ParentOSP) Then Return ""
+        Return BuildFileStateSignature(ParentOSP.Filename)
+    End Function
+
+    Public Function GetShapeDataSignature() As String
+        Dim files As New List(Of String) From {SourceFileFullPath}
+
+        files.AddRange(OsdLocalFullPath)
+        files.AddRange(OsdExternalFullPath)
+
+        Select Case Config_App.Current.Game
+            Case Config_App.Game_Enum.Fallout4
+                files.Add(IO.Path.Combine(IO.Path.Combine(Directorios.ShapedataRoot, Me.ParentOSP.Nombre), Me.Nombre + ".hht"))
+                files.Add(IO.Path.Combine(IO.Path.Combine(IO.Path.Combine(Directorios.Fallout4data, Me.OutputPathValue)), Me.OutputFileValue + ".txt"))
+            Case Config_App.Game_Enum.Skyrim
+                files.Add(IO.Path.Combine(IO.Path.Combine(Directorios.ShapedataRoot, Me.ParentOSP.Nombre), Me.Nombre + ".hht"))
+        End Select
+
+        Return String.Join(vbLf,
+        files _
+        .Where(Function(pf) Not String.IsNullOrWhiteSpace(pf)) _
+        .Select(Function(pf) Correct_Path_Separator(pf)) _
+        .Distinct(StringComparer.OrdinalIgnoreCase) _
+        .OrderBy(Function(pf) pf.ToUpperInvariant()) _
+        .Select(Function(pf) BuildFileStateSignature(pf)))
+    End Function
+
+    Public Sub MarkShapeDataAsLoaded()
+        LastShapeDataSignature = GetShapeDataSignature()
+        ShapeDataLoaded = True
+        LastShapeDataAccessUtc = Date.UtcNow
+        OSP_Project_Class.RememberLoadedShapeDataSlot(Me)
+    End Sub
+
+    Public Sub UnloadShapeData(Optional clearFileSignatures As Boolean = False)
+        OSP_Project_Class.ForgetLoadedShapeDataSlot(Me)
+        InvalidateShapeDataLookupCache()
+
+        OSDContent_Local = New OSD_Class(Me)
+        OSDContent_External = New OSD_Class(Me)
+        NIFContent = New Nifcontent_Class_Manolo(Me)
+        HighHeelHeight = 0
+        ShapeDataLoaded = False
+        InvalidateAllLookupCaches()
+
+        If clearFileSignatures Then
+            LastShapeDataSignature = ""
+            Unreadable_NIF = False
+        End If
+    End Sub
 
     Public ReadOnly Property IsHighHeel As Boolean
         Get
@@ -1163,19 +1512,19 @@ Public Class SliderSet_Class
         Lee_SlidersAndShapes()
     End Sub
     Sub Clear()
+        UnloadShapeData(True)
         Shapes.Clear()
         Sliders.Clear()
-        NIFContent.Clear()
-        HighHeelHeight = 0
+        InvalidateAllLookupCaches()
     End Sub
 
     Public Sub Lee_SlidersAndShapes()
-        ' Replace your loops with these two one-liners:
         Shapes = Nodo.SelectNodes("Shape").Cast(Of XmlNode)().Select(Function(shap) New Shape_class(shap, Me)).ToList
         Sliders = Nodo.SelectNodes("Slider").Cast(Of XmlNode)().Select(Function(slid) New Slider_class(slid, Me)).ToList
+        LastProjectFileSignature = GetProjectFileSignature()
+        InvalidateMetadataLookupCache()
     End Sub
-
-    Public Function ReadHighHeelTXT(archivoName As String) As Double
+    Public Shared Function ReadHighHeelTXT(archivoName As String) As Double
         Dim archivo = New StreamReader(archivoName)
         Dim lin As String = archivo.ReadLine
         archivo.Close()
@@ -1255,7 +1604,7 @@ Public Class SliderSet_Class
                         writer.Close()
                     End If
                 End If
-                    Case Config_App.Game_Enum.Skyrim
+            Case Config_App.Game_Enum.Skyrim
                 For sizecount = 0 To IIf(Multisize, 1, 0)
                     Dim fil = IO.Path.Combine(IO.Path.Combine(Directorios.Fallout4data, OutputPathValue), OutputFileValue) + IIf(Multisize, "_" + sizecount.ToString, "") + ".nif"
                     Dim NIF As New Nifcontent_Class_Manolo
@@ -1343,6 +1692,7 @@ Public Class SliderSet_Class
                 End If
             Next
         Next
+        InvalidateMetadataLookupCache()
     End Sub
 
     Public Function Check_Unique_Shapename(Prueba As String) As String
@@ -1584,13 +1934,7 @@ Public Class SliderSet_Class
             End If
         End If
     End Sub
-    Public Sub Save_Shapedatas(OverwriteShapeFiles As Boolean)
-        Dim New_Nif = SourceFileFullPath
-        Dim New_Osd = New_Nif.Replace(".nif", ".osd", StringComparison.OrdinalIgnoreCase)
-        OSDContent_Local.Save_As(New_Osd, OverwriteShapeFiles)
-        NIFContent.Save_As_Manolo(New_Nif, OverwriteShapeFiles)
-        SaveHighHeel(New_Nif.Replace(".nif", ".hht"), OverwriteShapeFiles)
-    End Sub
+
 
     Public Sub RemoveShape(Shape As Shape_class)
         If Not IsNothing(Shape.RelatedNifShape) Then NIFContent.RemoveShape_Manolo(Shape.RelatedNifShape)
@@ -1607,7 +1951,21 @@ Public Class SliderSet_Class
         Next
         Nodo.RemoveChild(Shape.Nodo)
         Shapes.Remove(Shape)
+        InvalidateAllLookupCaches()
     End Sub
+    Public Sub Save_Shapedatas(OverwriteShapeFiles As Boolean)
+        Dim New_Nif = SourceFileFullPath
+        Dim New_Osd = New_Nif.Replace(".nif", ".osd", StringComparison.OrdinalIgnoreCase)
+
+        OSDContent_Local.Save_As(New_Osd, OverwriteShapeFiles)
+        NIFContent.Save_As_Manolo(New_Nif, OverwriteShapeFiles)
+        SaveHighHeel(New_Nif.Replace(".nif", ".hht"), OverwriteShapeFiles)
+
+        ShapeDataLoaded = False
+        LastShapeDataSignature = ""
+        Unreadable_NIF = False
+    End Sub
+
 End Class
 Public Class Shape_class
     Public Property Nodo As XmlNode
@@ -1659,9 +2017,17 @@ Public Class Shape_class
             Return (Datafolder.Count > 1 OrElse (Datafolder(0) <> ""))
         End Get
     End Property
+
+    Public ReadOnly Property IsSafeReference As Boolean
+        Get
+            If Datafolder.First.Equals("CBBE", StringComparison.OrdinalIgnoreCase) Then Return True
+            If Datafolder.First.Equals("Body - References", StringComparison.OrdinalIgnoreCase) Then Return True
+            Return False
+        End Get
+    End Property
     Public ReadOnly Property IsReference As Boolean
         Get
-            If IsExternal And ParentSliderSet.Shapes.Where(Function(pf) pf.IsExternal).Count = 1 Then Return True
+            If IsExternal AndAlso ParentSliderSet.Shapes.Where(Function(pf) pf.IsExternal).Count = 1 Then Return True
             Return IsExternal And HasExternalSliders
         End Get
     End Property
@@ -1675,13 +2041,9 @@ Public Class Shape_class
 
     Public ReadOnly Property RelatedNifShape As BSTriShape
         Get
-            If Me.ParentSliderSet.NIFContent.NifShapes.Where(Function(pf) pf.Name.String.Equals(Me.Nombre, StringComparison.OrdinalIgnoreCase)).Any = False Then Return Nothing
-            Dim finder = Me.ParentSliderSet.NIFContent.NifShapes.Where(Function(pf) pf.Name.String.Equals(Me.Nombre, StringComparison.OrdinalIgnoreCase)).FirstOrDefault
-            If IsNothing(finder) Then Return finder
-            Return TryCast(finder, BSTriShape)
+            Return Me.ParentSliderSet.GetNifShapeByNameCached(Me.Nombre)
         End Get
     End Property
-
 
 
 
@@ -1701,6 +2063,7 @@ Public Class Shape_class
         Get
             If IsNothing(RelatedNifShape) Then Return Nothing
             Return Me.ParentSliderSet.NIFContent.BaseMaterials(RelatedNifShape.Name.String)
+
         End Get
     End Property
 
@@ -1769,12 +2132,12 @@ Public Class Shape_class
 
     Public ReadOnly Property HasExternalSliders As Boolean
         Get
-            Return Me.ParentSliderSet.Sliders.SelectMany(Function(pf) pf.Datas).Where(Function(pf) pf.RelatedShape Is Me And pf.Islocal = False).Any
+            Return Me.ParentSliderSet.GetShapeHasExternalCached(Me.Target)
         End Get
     End Property
     Public ReadOnly Property HasLocalSliders As Boolean
         Get
-            Return Me.ParentSliderSet.Sliders.SelectMany(Function(pf) pf.Datas).Where(Function(pf) pf.RelatedShape Is Me And pf.Islocal = True).Any
+            Return Me.ParentSliderSet.GetShapeHasLocalCached(Me.Target)
         End Get
     End Property
     Public ReadOnly Property HasMixedSliders As Boolean
@@ -2103,8 +2466,7 @@ Public Class Slider_Data_class
     End Property
     Public ReadOnly Property RelatedShape As Shape_class
         Get
-            If ParentSlider.ParentSliderSet.Shapes.Where(Function(pq) pq.Target = Target).Any = 0 Then Return Nothing
-            Return ParentSlider.ParentSliderSet.Shapes.Where(Function(pq) pq.Target.Equals(Target, StringComparison.OrdinalIgnoreCase)).First
+            Return ParentSlider.ParentSliderSet.GetShapeByTargetCached(Target)
         End Get
     End Property
     Public ReadOnly Property RelatedOSDBlocks As IEnumerable(Of OSD_Block_Class)
@@ -2119,12 +2481,14 @@ Public Class Slider_Data_class
 
     Public ReadOnly Property RelatedLocalOSDBlocks As IEnumerable(Of OSD_Block_Class)
         Get
-            Return ParentSlider.ParentSliderSet.OSDContent_Local.Blocks.Where(Function(pf) pf.BlockName.Equals(Me.Nombre, StringComparison.OrdinalIgnoreCase) And Me.Islocal = True)
+            If Me.Islocal = False Then Return Enumerable.Empty(Of OSD_Block_Class)()
+            Return ParentSlider.ParentSliderSet.GetLocalOsdBlocksByNameCached(Me.Nombre)
         End Get
     End Property
     Public ReadOnly Property RelatedExternalOSDBlocks As IEnumerable(Of OSD_Block_Class)
         Get
-            Return ParentSlider.ParentSliderSet.OSDContent_External.Blocks.Where(Function(pf) pf.BlockName.Equals(Me.Nombre, StringComparison.OrdinalIgnoreCase) And Me.Islocal = False)
+            If Me.Islocal Then Return Enumerable.Empty(Of OSD_Block_Class)()
+            Return ParentSlider.ParentSliderSet.GetExternalOsdBlocksByNameCached(Me.Nombre)
         End Get
     End Property
 

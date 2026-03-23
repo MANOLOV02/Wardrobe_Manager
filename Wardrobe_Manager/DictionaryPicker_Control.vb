@@ -6,6 +6,8 @@ Imports NiflySharp.Blocks
 Public Class DictionaryPicker_Control
     ' Entradas (ya normalizadas/filtradas antes de crear el form)
     Private _allKeys As List(Of String)
+    Private _allKeysSet As HashSet(Of String)
+    Private _keysByDirectory As Dictionary(Of String, List(Of String))
     Private _rootPrefix As String
     Private _allowedExts As HashSet(Of String)
     ' Control de repoblado y selección diferida
@@ -32,22 +34,45 @@ Public Class DictionaryPicker_Control
     Public Sub Initialize(keys As List(Of String), rootPrefix As String, allowedExts As HashSet(Of String))
         ArgumentNullException.ThrowIfNull(keys)
         ArgumentNullException.ThrowIfNull(allowedExts)
+
         _allKeys = keys
+        _allKeysSet = New HashSet(Of String)(_allKeys, StringComparer.OrdinalIgnoreCase)
         _rootPrefix = rootPrefix
         _allowedExts = allowedExts
-        ' Estado inicial UI
+
+        BuildDirectoryIndex()
+
         btnOk.Enabled = False
         lblRoot.Text = If(String.IsNullOrEmpty(_rootPrefix), "Filtered: (all)", "Filtered: " & _rootPrefix)
-        ' Eventos (code-behind)
+
         AddHandler tvDirs.AfterSelect, AddressOf TvDirs_AfterSelect
         AddHandler lvFiles.SelectedIndexChanged, AddressOf LvFiles_SelectedIndexChanged
         AddHandler lvFiles.DoubleClick, AddressOf LvFiles_DoubleClick
         AddHandler btnOk.Click, AddressOf BtnOk_Click
         AddHandler panelBottom.Resize, AddressOf PanelBottom_Resize
         AddHandler Me.ParentForm.Shown, AddressOf DictionaryFilePickerForm_Shown
+
         BuildTree()
     End Sub
+    Private Sub BuildDirectoryIndex()
+        _keysByDirectory = New Dictionary(Of String, List(Of String))(StringComparer.OrdinalIgnoreCase)
 
+        For Each k In _allKeys
+            Dim dirPath = GetDirectoryPath(k)
+            Dim bucket As List(Of String) = Nothing
+
+            If _keysByDirectory.TryGetValue(dirPath, bucket) = False Then
+                bucket = New List(Of String)
+                _keysByDirectory.Add(dirPath, bucket)
+            End If
+
+            bucket.Add(k)
+        Next
+
+        For Each bucket In _keysByDirectory.Values
+            bucket.Sort(StringComparer.OrdinalIgnoreCase)
+        Next
+    End Sub
     ' ----------------- API pública -----------------
 
     Public ReadOnly Property SelectedKey As String
@@ -75,8 +100,8 @@ Public Class DictionaryPicker_Control
         Dim norm = fullKey
 
         ' Buscar key coincidente dentro de las _allKeys (ya normalizadas y filtradas)
-        Dim match = _allKeys.FirstOrDefault(Function(k) k.Equals(norm, StringComparison.OrdinalIgnoreCase))
-        If match Is Nothing Then Return False
+        If IsNothing(_allKeysSet) OrElse _allKeysSet.Contains(norm) = False Then Return False
+        Dim match = norm
 
         ' Ir al directorio y poblar
         Dim dirPath = GetDirectoryPath(match)
@@ -115,17 +140,14 @@ Public Class DictionaryPicker_Control
         tvDirs.BeginUpdate()
         tvDirs.Nodes.Clear()
 
-        ' Nodo raíz virtual
         Dim rootNode As New TreeNode(RootStr)
         tvDirs.Nodes.Add(rootNode)
 
-        ' Índice case-insensitive de rutas de carpeta -> TreeNode
         Dim nodeIndex As New Dictionary(Of String, TreeNode)(StringComparer.OrdinalIgnoreCase) From {
-            {"", rootNode}
-        }
+        {"", rootNode}
+    }
 
-        For Each k In _allKeys
-            Dim dirPath As String = GetDirectoryPath(k) ' puede ser ""
+        For Each dirPath In _keysByDirectory.Keys.OrderBy(Function(p) p, StringComparer.OrdinalIgnoreCase)
             Dim segments As String() = If(String.IsNullOrEmpty(dirPath), Array.Empty(Of String)(), dirPath.Split(separator, StringSplitOptions.RemoveEmptyEntries))
             Dim currentPath As String = ""
             Dim parentNode As TreeNode = rootNode
@@ -147,7 +169,6 @@ Public Class DictionaryPicker_Control
         rootNode.Expand()
         tvDirs.EndUpdate()
 
-        ' Selección por defecto
         tvDirs.SelectedNode = rootNode
         PopulateFilesForNode(rootNode)
     End Sub
@@ -216,30 +237,32 @@ Public Class DictionaryPicker_Control
         lvFiles.Items.Clear()
 
         Dim currentPath As String = GetFullPathOfNode(node)
+        Dim keysInDirectory As List(Of String) = Nothing
 
-        For Each k In _allKeys
-            Dim dir = GetDirectoryPath(k)
-            If dir.Equals(currentPath, StringComparison.OrdinalIgnoreCase) Then
-                Dim fileName As String
-                If String.IsNullOrEmpty(dir) Then
-                    fileName = k
-                Else
-                    fileName = k.Substring(dir.Length + 1) ' quitar "dir\"
+        If _keysByDirectory.TryGetValue(currentPath, keysInDirectory) Then
+            For Each k In keysInDirectory
+                Dim location As FilesDictionary_class.File_Location = Nothing
+                If FilesDictionary_class.Dictionary.TryGetValue(k, location) = False OrElse IsNothing(location) Then
+                    Continue For
                 End If
 
-                Dim ext As String = IIf(FilesDictionary_class.Dictionary(k).IsLosseFile, "Loose", IO.Path.GetExtension(FilesDictionary_class.Dictionary(k).BA2File))
+                Dim fileName As String = IO.Path.GetFileName(k)
+                Dim ext As String = If(location.IsLosseFile, "Loose", IO.Path.GetExtension(location.BA2File))
                 Dim lvi As New ListViewItem(fileName)
+
                 lvi.SubItems.Add(ext)
-                lvi.SubItems.Add(If(String.IsNullOrEmpty(dir), RootStr, dir))
-                lvi.Tag = k ' key completa
-                If FilesDictionary_class.Dictionary(k).IsLosseFile Then
+                lvi.SubItems.Add(If(String.IsNullOrEmpty(currentPath), RootStr, currentPath))
+                lvi.Tag = k
+
+                If location.IsLosseFile Then
                     lvi.ForeColor = Color.Blue
                 Else
                     lvi.ForeColor = Color.Brown
                 End If
+
                 lvFiles.Items.Add(lvi)
-            End If
-        Next
+            Next
+        End If
 
         lvFiles.EndUpdate()
 

@@ -714,6 +714,7 @@ if (bHide)
 
     Private program As Integer
     ' Método público para liberar recursos.
+    Private ReadOnly UniformLocationCache As New Dictionary(Of String, Integer)
     Public Sub Dispose() Implements IDisposable.Dispose
         Dispose(disposing:=True)
         GC.SuppressFinalize(Me)
@@ -722,6 +723,7 @@ if (bHide)
     Protected Overridable Sub Dispose(disposing As Boolean)
         If Not disposedValue Then
             If program > 0 And disposing Then
+                UniformLocationCache.Clear()
                 GL.DeleteProgram(program)
                 program = 0
             End If
@@ -761,12 +763,21 @@ if (bHide)
     Public Sub Use()
         GL.UseProgram(program)
     End Sub
+    Private Function GetUniformLocationCached(name As String) As Integer
+        Dim loc As Integer
+        If UniformLocationCache.TryGetValue(name, loc) Then Return loc
+
+        loc = GL.GetUniformLocation(program, name)
+        UniformLocationCache(name) = loc
+        Return loc
+    End Function
+
     Public Debugmode As Integer = 0
     Public Shared Function Color_to_Vector(color As Color) As Vector3
         Return New Vector3(color.R / 255.0F, color.G / 255.0F, color.B / 255.0F)
     End Function
     Public Sub SetFloat(name As String, value As Single)
-        Dim loc As Integer = GL.GetUniformLocation(program, name)
+        Dim loc As Integer = GetUniformLocationCached(name)
         If loc <> -1 Then
             GL.Uniform1(loc, value)
             '#If DEBUG Then
@@ -780,7 +791,7 @@ if (bHide)
     End Sub
 
     Public Sub SetInt(name As String, value As Integer)
-        Dim loc As Integer = GL.GetUniformLocation(program, name)
+        Dim loc As Integer = GetUniformLocationCached(name)
         If loc <> -1 Then
             GL.Uniform1(loc, value)
             '#If DEBUG Then
@@ -798,7 +809,7 @@ if (bHide)
     End Sub
 
     Public Sub SetVector2(name As String, value As Vector2)
-        Dim loc As Integer = GL.GetUniformLocation(program, name)
+        Dim loc As Integer = GetUniformLocationCached(name)
         If loc <> -1 Then
             GL.Uniform2(loc, value.X, value.Y)
             '#If DEBUG Then
@@ -812,7 +823,7 @@ if (bHide)
     End Sub
 
     Public Sub SetVector3(name As String, value As Vector3)
-        Dim loc As Integer = GL.GetUniformLocation(program, name)
+        Dim loc As Integer = GetUniformLocationCached(name)
         If loc <> -1 Then
             GL.Uniform3(loc, value.X, value.Y, value.Z)
             '#If DEBUG Then
@@ -826,7 +837,7 @@ if (bHide)
     End Sub
 
     Public Sub SetMatrix3(name As String, value As Matrix3)
-        Dim loc As Integer = GL.GetUniformLocation(program, name)
+        Dim loc As Integer = GetUniformLocationCached(name)
         If loc <> -1 Then
             GL.UniformMatrix3(loc, False, value)
             '#If DEBUG Then
@@ -840,7 +851,7 @@ if (bHide)
     End Sub
 
     Public Sub SetMatrix4(name As String, value As Matrix4)
-        Dim loc As Integer = GL.GetUniformLocation(program, name)
+        Dim loc As Integer = GetUniformLocationCached(name)
         If loc <> -1 Then
             GL.UniformMatrix4(loc, False, value)
             '#If DEBUG Then

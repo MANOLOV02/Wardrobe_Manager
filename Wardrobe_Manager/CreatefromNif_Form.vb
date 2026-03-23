@@ -65,6 +65,11 @@ Public Class Create_from_Nif_Form
             selected_slider.DataFolderValue = TextBox1.Text
             selected_slider.SourceFileValue = TextBox1.Text + ".nif"
             Selected_OSP.Save_Pack_As(OSPFIle, False)
+            selected_slider.BypassDiskShapeDataLoad = False
+            selected_slider.ShapeDataLoaded = False
+            selected_slider.LastShapeDataSignature = ""
+            selected_slider.Unreadable_NIF = False
+            selected_slider.Unreadable_Project = False
             Me.HasSaved = True
             MsgBox("Project created", vbInformation, "Success")
 
@@ -95,8 +100,9 @@ Public Class Create_from_Nif_Form
         Dim fil As String = key
         Dim tri = fil.Replace(".nif", ".tri")
         selected_slider.ParentOSP.xml.DocumentElement.InnerText = ""
-        selected_slider = New SliderSet_Class(selected_slider.ParentOSP)
-
+        selected_slider = New SliderSet_Class(selected_slider.ParentOSP) With {
+            .BypassDiskShapeDataLoad = True
+        }
         CheckBox1.Enabled = FilesDictionary_class.Dictionary.ContainsKey(tri)
 
         Try
@@ -151,6 +157,9 @@ Public Class Create_from_Nif_Form
             End If
 
             selected_slider.Unreadable_NIF = False
+            selected_slider.ShapeDataLoaded = True
+            selected_slider.InvalidateShapeDataLookupCache()
+            selected_slider.RebuildShapeDataLookupCache()
 
         Catch ex As Exception
             Debugger.Break()

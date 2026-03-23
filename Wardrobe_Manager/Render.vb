@@ -12,6 +12,7 @@ Imports OpenTK.Graphics.OpenGL4
 Imports OpenTK.Mathematics
 Imports OpenTK.Windowing.Common
 Imports OpenTK.Windowing.Common.Input
+Imports Wardrobe_Manager.PreviewModel
 Imports Windows.Win32.System.Diagnostics
 
 
@@ -396,15 +397,27 @@ Public Class PreviewControl
         If Me.Disposing = True Or Me.IsDisposed Then Exit Sub
 
         If Visible = False Then Exit Sub
-        If Not IsNothing(seleccionado) Then Model.FloorOffset = -seleccionado.HighHeelHeight Else Model.FloorOffset = 0
-        If IsNothing(seleccionado) OrElse seleccionado.Unreadable_Project OrElse seleccionado.Unreadable_NIF Then
-            If IsNothing(seleccionado) Then
-                Model.Processing_Status_GL("Select project")
-            Else
-                Model.Processing_Status_GL("Unreadable...")
-            End If
+
+        If IsNothing(seleccionado) Then
+            Model.FloorOffset = 0
+            Model.Processing_Status_GL("Select project")
             Exit Sub
         End If
+
+        If seleccionado.Unreadable_Project Then
+            Model.FloorOffset = 0
+            Model.Processing_Status_GL("Unreadable...")
+            Exit Sub
+        End If
+        If seleccionado.BypassDiskShapeDataLoad = False Then
+            If OSP_Project_Class.Load_and_Check_Shapedata(seleccionado, False) = False Then
+                Model.FloorOffset = 0
+                Model.Processing_Status_GL("Unreadable...")
+                Exit Sub
+            End If
+        End If
+
+        Model.FloorOffset = -seleccionado.HighHeelHeight
         Cursor.Current = Cursors.WaitCursor
         seleccionado.SetPreset(Preset, weight)
         Model.Last_size = weight
@@ -415,6 +428,7 @@ Public Class PreviewControl
                 MorphingHelper.ApplyMorph_CPU(mesh.MeshData.Shape, mesh.MeshData.Meshgeometry, Model.RecalculateNormals, AllowMask)
                 mesh.UpdateSkinBuffers_GL()
             Next
+            Model.MarkRenderBucketsDirty()
             RefreshRender()
         Else
             Dim ResetCamerabool As Boolean = True
@@ -852,7 +866,48 @@ Public Class PreviewModel
     Public Property Cleaned As Boolean = True
     Public Property SingleBoneSkinning As Boolean = False
     Public Property RecalculateNormals As Boolean = True
+    Private ReadOnly OpaqueMeshes As New List(Of RenderableMesh)
+    Private ReadOnly CutoutMeshes As New List(Of RenderableMesh)
+    Private ReadOnly BlendedMeshes As New List(Of RenderableMesh)
+    Private ReadOnly BlendedDepthBuffer As New List(Of MeshDepth)
+    Private RenderBucketsDirty As Boolean = True
+    Private Shared Function CompareMeshIdx(x As RenderableMesh, y As RenderableMesh) As Integer
+        Return x.MeshData.Idx.CompareTo(y.MeshData.Idx)
+    End Function
 
+    Public Sub MarkRenderBucketsDirty()
+        RenderBucketsDirty = True
+    End Sub
+
+    Private Sub RebuildRenderBuckets()
+        OpaqueMeshes.Clear()
+        CutoutMeshes.Clear()
+        BlendedMeshes.Clear()
+        BlendedDepthBuffer.Clear()
+
+        For Each mesh In meshes
+            If IsNothing(mesh) OrElse IsNothing(mesh.MeshData) OrElse IsNothing(mesh.MeshData.Shape) Then Continue For
+
+            Dim isWireframe As Boolean = mesh.MeshData.Shape.Wireframe
+            Dim material = mesh.MeshData.Material
+            Dim hasAlphaBlend As Boolean = Not IsNothing(material) AndAlso material.HasAlphaBlend
+            Dim hasAlphaTest As Boolean = Not IsNothing(material) AndAlso material.HasAlphaTest
+
+            If isWireframe OrElse hasAlphaBlend Then
+                BlendedMeshes.Add(mesh)
+            ElseIf hasAlphaTest Then
+                CutoutMeshes.Add(mesh)
+            Else
+                OpaqueMeshes.Add(mesh)
+            End If
+        Next
+
+        OpaqueMeshes.Sort(AddressOf CompareMeshIdx)
+        CutoutMeshes.Sort(AddressOf CompareMeshIdx)
+        BlendedMeshes.Sort(AddressOf CompareMeshIdx)
+
+        RenderBucketsDirty = False
+    End Sub
     Public Class Texture_Loaded_Class
         Public Property Loaded As Boolean = False
         Public Property Cubemap As Boolean = False
@@ -1436,32 +1491,46 @@ Public Class PreviewModel
 
         Public Sub ApplyMaterial(material As PreviewModel.RenderableMesh.MaterialData)
 
+            Dim shader = Me.ParentModel.ParentControl.SharedActiveShader
+            Dim materialBase = material.MaterialBase
 
+            Dim diffuseTextureId = material.DiffuseTexture_ID
+            Dim normalTextureId = material.NormalTexture_ID
+            Dim envmapTextureId = material.EnvmapTexture_ID
+            Dim envmapMaskTextureId = material.EnvmapMaskTexture_ID
+            Dim smoothSpecTextureId = material.SmoothSpecTexture_ID
+            Dim greyscaleTextureId = material.GreyscaleTexture_ID
+            Dim glowTextureId = material.GlowTexture_ID
+
+            Dim hasCubemap = material.HasCubemap
+            Dim hasAlphaBlend = material.HasAlphaBlend
+            Dim hasAlphaTest = material.HasAlphaTest
+            Dim shape = Me.MeshData.Shape
+            Dim VtxColor As Boolean = shape.ShowVertexColor And shape.RelatedNifShape.HasVertexColors
 
             '===============================
             ' ?? PROPIEDADES DE COLOR BÁSICO
             '===============================
-            Me.ParentModel.ParentControl.SharedActiveShader.SetVector3("color", Shader_Class.Color_to_Vector(MeshData.Shape.Wirecolor))
-            Me.ParentModel.ParentControl.SharedActiveShader.SetFloat("WireAlpha", MeshData.Shape.WireAlpha)
+            shader.SetVector3("color", Shader_Class.Color_to_Vector(MeshData.Shape.Wirecolor))
+            shader.SetFloat("WireAlpha", MeshData.Shape.WireAlpha)
             'If MeshData.Material.MaterialBase.SkinTint Then
             '    MeshData.Shape.TintColor = MeshData.Material.MaterialBase.HairTintColor
             'Else
             '    MeshData.Shape.TintColor = Color.White
             'End If
-            Me.ParentModel.ParentControl.SharedActiveShader.SetVector3("subColor", Shader_Class.Color_to_Vector(MeshData.Shape.TintColor))
+            shader.SetVector3("subColor", Shader_Class.Color_to_Vector(MeshData.Shape.TintColor))
 
             '===============================
             ' ?? TOGGLES DE VISUALIZACIÓN
             '===============================
-            Me.ParentModel.ParentControl.SharedActiveShader.SetBool("bShowTexture", Me.MeshData.Shape.ShowTexture)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetBool("bShowMask", Me.MeshData.Shape.ShowMask)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetBool("bShowWeight", Me.MeshData.Shape.ShowWeight)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetBool("bShowVertexColor", Me.MeshData.Shape.ShowVertexColor And Me.MeshData.Shape.RelatedNifShape.HasVertexColors)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetBool("bShowVertexAlpha", Me.MeshData.Shape.ShowVertexColor And Me.MeshData.Shape.RelatedNifShape.HasVertexColors)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetBool("bApplyZap", Me.MeshData.Shape.ApplyZaps)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetBool("bWireframe", Me.MeshData.Shape.Wireframe)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetBool("bHide", Me.MeshData.Shape.RenderHide)
-
+            shader.SetBool("bShowTexture", shape.ShowTexture)
+            shader.SetBool("bShowMask", shape.ShowMask)
+            shader.SetBool("bShowWeight", shape.ShowWeight)
+            shader.SetBool("bShowVertexColor", VtxColor)
+            shader.SetBool("bShowVertexAlpha", VtxColor)
+            shader.SetBool("bApplyZap", shape.ApplyZaps)
+            shader.SetBool("bWireframe", shape.Wireframe)
+            shader.SetBool("bHide", shape.RenderHide)
 
             '===============================
             ' ?? ILUMINACIÓN PRINCIPAL
@@ -1471,118 +1540,117 @@ Public Class PreviewModel
             ' main “frontal” light
             Dim cam = ParentModel.ParentControl.camera
 
-            Me.ParentModel.ParentControl.SharedActiveShader.SetBool("bLightEnabled", True)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetFloat("ambient", Config_App.Current.Setting_Lightrig.Ambient)
+            shader.SetBool("bLightEnabled", True)
+            shader.SetFloat("ambient", Config_App.Current.Setting_Lightrig.Ambient)
 
-            Me.ParentModel.ParentControl.SharedActiveShader.SetVector3("frontal.diffuse", Config_App.Current.Setting_Lightrig.DirectL.GetDifuse)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetVector3("frontal.direction", Config_App.Current.Setting_Lightrig.DirectL.GetDirection(cam))
+            shader.SetVector3("frontal.diffuse", Config_App.Current.Setting_Lightrig.DirectL.GetDifuse)
+            shader.SetVector3("frontal.direction", Config_App.Current.Setting_Lightrig.DirectL.GetDirection(cam))
             ' Luz direccional 0
-            Me.ParentModel.ParentControl.SharedActiveShader.SetVector3("directional0.diffuse", Config_App.Current.Setting_Lightrig.FillLight_1.GetDifuse)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetVector3("directional0.direction", Config_App.Current.Setting_Lightrig.FillLight_1.GetDirection(cam))
+            shader.SetVector3("directional0.diffuse", Config_App.Current.Setting_Lightrig.FillLight_1.GetDifuse)
+            shader.SetVector3("directional0.direction", Config_App.Current.Setting_Lightrig.FillLight_1.GetDirection(cam))
 
             ' Luz direccional 1
-            Me.ParentModel.ParentControl.SharedActiveShader.SetVector3("directional1.diffuse", Config_App.Current.Setting_Lightrig.FillLight_2.GetDifuse)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetVector3("directional1.direction", Config_App.Current.Setting_Lightrig.FillLight_2.GetDirection(cam))
+            shader.SetVector3("directional1.diffuse", Config_App.Current.Setting_Lightrig.FillLight_2.GetDifuse)
+            shader.SetVector3("directional1.direction", Config_App.Current.Setting_Lightrig.FillLight_2.GetDirection(cam))
 
             ' Luz direccional 2
-            Me.ParentModel.ParentControl.SharedActiveShader.SetVector3("directional2.diffuse", Config_App.Current.Setting_Lightrig.BackLight.GetDifuse)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetVector3("directional2.direction", Config_App.Current.Setting_Lightrig.BackLight.GetDirection(cam))
+            shader.SetVector3("directional2.diffuse", Config_App.Current.Setting_Lightrig.BackLight.GetDifuse)
+            shader.SetVector3("directional2.direction", Config_App.Current.Setting_Lightrig.BackLight.GetDirection(cam))
 
             '===============================
             ' ?? TEXTURAS (Sample BINDs)
             '===============================
-            If material.DiffuseTexture_ID <> 0 Then
-                Me.ParentModel.ParentControl.SharedActiveShader.BindTexture("texDiffuse", material.DiffuseTexture_ID, TextureUnit.Texture0)
+            If diffuseTextureId <> 0 Then
+                shader.BindTexture("texDiffuse", diffuseTextureId, TextureUnit.Texture0)
             Else
-                Me.ParentModel.ParentControl.SharedActiveShader.BindTexture("texDiffuse", Me.ParentModel.ParentControl.defaultWhiteTex, TextureUnit.Texture0)
+                shader.BindTexture("texDiffuse", Me.ParentModel.ParentControl.defaultWhiteTex, TextureUnit.Texture0)
             End If
 
-            If material.NormalTexture_ID <> 0 Then
-                Me.ParentModel.ParentControl.SharedActiveShader.BindTexture("texNormal", material.NormalTexture_ID, TextureUnit.Texture1)
+            If normalTextureId <> 0 Then
+                shader.BindTexture("texNormal", normalTextureId, TextureUnit.Texture1)
             Else
-                Me.ParentModel.ParentControl.SharedActiveShader.BindTexture("texNormal", Me.ParentModel.ParentControl.defaultNormalTex, TextureUnit.Texture1)
+                shader.BindTexture("texNormal", Me.ParentModel.ParentControl.defaultNormalTex, TextureUnit.Texture1)
             End If
 
-            If material.EnvmapTexture_ID <> 0 AndAlso material.HasCubemap Then
-                Me.ParentModel.ParentControl.SharedActiveShader.BindCubeMap("texCubemap", material.EnvmapTexture_ID, TextureUnit.Texture2)
+            If envmapTextureId <> 0 AndAlso hasCubemap Then
+                shader.BindCubeMap("texCubemap", envmapTextureId, TextureUnit.Texture2)
             Else
-                Me.ParentModel.ParentControl.SharedActiveShader.BindCubeMap("texCubemap", Me.ParentModel.ParentControl.defaultCubeMap, TextureUnit.Texture2)
+                shader.BindCubeMap("texCubemap", Me.ParentModel.ParentControl.defaultCubeMap, TextureUnit.Texture2)
             End If
 
-            If material.EnvmapMaskTexture_ID <> 0 Then
-                Me.ParentModel.ParentControl.SharedActiveShader.BindTexture("texEnvMask", material.EnvmapMaskTexture_ID, TextureUnit.Texture3)
+            If envmapMaskTextureId <> 0 Then
+                shader.BindTexture("texEnvMask", envmapMaskTextureId, TextureUnit.Texture3)
             Else
-                Me.ParentModel.ParentControl.SharedActiveShader.BindTexture("texEnvMask", Me.ParentModel.ParentControl.defaultWhiteTex, TextureUnit.Texture3)
+                shader.BindTexture("texEnvMask", Me.ParentModel.ParentControl.defaultWhiteTex, TextureUnit.Texture3)
             End If
 
-            If material.SmoothSpecTexture_ID <> 0 Then
-                Me.ParentModel.ParentControl.SharedActiveShader.BindTexture("texSpecular", material.SmoothSpecTexture_ID, TextureUnit.Texture4)
+            If smoothSpecTextureId <> 0 Then
+                shader.BindTexture("texSpecular", smoothSpecTextureId, TextureUnit.Texture4)
             Else
-                Me.ParentModel.ParentControl.SharedActiveShader.BindTexture("texSpecular", Me.ParentModel.ParentControl.defaultWhiteTex, TextureUnit.Texture4)
+                shader.BindTexture("texSpecular", Me.ParentModel.ParentControl.defaultWhiteTex, TextureUnit.Texture4)
             End If
 
-            If material.GreyscaleTexture_ID <> 0 Then
-                Me.ParentModel.ParentControl.SharedActiveShader.BindTexture("texGreyscale", material.GreyscaleTexture_ID, TextureUnit.Texture5)
+            If greyscaleTextureId <> 0 Then
+                shader.BindTexture("texGreyscale", greyscaleTextureId, TextureUnit.Texture5)
             Else
-                Me.ParentModel.ParentControl.SharedActiveShader.BindTexture("texGreyscale", Me.ParentModel.ParentControl.defaultWhiteTex, TextureUnit.Texture5)
+                shader.BindTexture("texGreyscale", Me.ParentModel.ParentControl.defaultWhiteTex, TextureUnit.Texture5)
             End If
 
-            If material.GlowTexture_ID <> 0 Then
-                Me.ParentModel.ParentControl.SharedActiveShader.BindTexture("texGlowmap", material.GlowTexture_ID, TextureUnit.Texture6)
+            If glowTextureId <> 0 Then
+                shader.BindTexture("texGlowmap", glowTextureId, TextureUnit.Texture6)
             Else
-                Me.ParentModel.ParentControl.SharedActiveShader.BindTexture("texGlowmap", Me.ParentModel.ParentControl.defaultWhiteTex, TextureUnit.Texture6)
+                shader.BindTexture("texGlowmap", Me.ParentModel.ParentControl.defaultWhiteTex, TextureUnit.Texture6)
             End If
 
             '===============================
             ' ?? PROPIEDADES DEL MATERIAL
             '===============================
-            Me.ParentModel.ParentControl.SharedActiveShader.SetVector2("uvOffset", New Vector2(material.MaterialBase.UOffset, material.MaterialBase.VOffset))
-            Me.ParentModel.ParentControl.SharedActiveShader.SetVector2("uvScale", New Vector2(material.MaterialBase.UScale, material.MaterialBase.VScale))
+            shader.SetVector2("uvOffset", New Vector2(materialBase.UOffset, materialBase.VOffset))
+            shader.SetVector2("uvScale", New Vector2(materialBase.UScale, materialBase.VScale))
             ' Umbral de alpha (solo necesario si usás discard por transparencia)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetFloat("alphaThreshold", material.MaterialBase.AlphaTestRef / 255)
+            shader.SetFloat("alphaThreshold", materialBase.AlphaTestRef / 255)
 
             '===============================
             ' ?? TOGGLES DE EFECTOS Y SOMBREADO
             '===============================
-            Me.ParentModel.ParentControl.SharedActiveShader.SetBool("bCubemap", material.HasCubemap)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetBool("bAlphaTest", material.HasAlphaTest)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetBool("bEnvMask", material.EnvmapMaskTexture_ID <> 0)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetBool("bNormalMap", material.NormalTexture_ID <> 0)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetBool("bGreyscaleColor", material.MaterialBase.GrayscaleToPaletteColor AndAlso material.GreyscaleTexture_ID <> 0)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetBool("bSpecular", material.MaterialBase.SpecularEnabled AndAlso material.SmoothSpecTexture_ID <> 0)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetBool("bModelSpace", material.MaterialBase.ModelSpaceNormals)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetBool("bEmissive", material.MaterialBase.EmitEnabled)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetBool("bSoftlight", material.MaterialBase.SubsurfaceLighting)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetBool("bGlowmap", material.MaterialBase.Glowmap AndAlso material.GlowTexture_ID <> 0)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetFloat("shininess", material.MaterialBase.Smoothness)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetVector3("specularColor", Shader_Class.Color_to_Vector(material.MaterialBase.SpecularColor))
-            Me.ParentModel.ParentControl.SharedActiveShader.SetFloat("specularStrength", material.MaterialBase.SpecularMult)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetVector3("emissiveColor", Shader_Class.Color_to_Vector(material.MaterialBase.EmittanceColor))
-            Me.ParentModel.ParentControl.SharedActiveShader.SetFloat("emissiveMultiple", material.MaterialBase.EmittanceMult)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetFloat("fresnelPower", material.MaterialBase.FresnelPower)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetFloat("subsurfaceRolloff", material.MaterialBase.SubsurfaceLightingRolloff)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetFloat("paletteScale", material.MaterialBase.GrayscaleToPaletteScale)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetFloat("envReflection", material.MaterialBase.EnvironmentMappingMaskScale)
+            shader.SetBool("bCubemap", hasCubemap)
+            shader.SetBool("bAlphaTest", hasAlphaTest)
+            shader.SetBool("bEnvMask", envmapMaskTextureId <> 0)
+            shader.SetBool("bNormalMap", normalTextureId <> 0)
+            shader.SetBool("bGreyscaleColor", materialBase.GrayscaleToPaletteColor AndAlso greyscaleTextureId <> 0)
+            shader.SetBool("bSpecular", materialBase.SpecularEnabled AndAlso smoothSpecTextureId <> 0)
+            shader.SetBool("bModelSpace", materialBase.ModelSpaceNormals)
+            shader.SetBool("bEmissive", materialBase.EmitEnabled)
+            shader.SetBool("bSoftlight", materialBase.SubsurfaceLighting)
+            shader.SetBool("bGlowmap", materialBase.Glowmap AndAlso glowTextureId <> 0)
+            shader.SetFloat("shininess", materialBase.Smoothness)
+            shader.SetVector3("specularColor", Shader_Class.Color_to_Vector(materialBase.SpecularColor))
+            shader.SetFloat("specularStrength", materialBase.SpecularMult)
+            shader.SetVector3("emissiveColor", Shader_Class.Color_to_Vector(materialBase.EmittanceColor))
+            shader.SetFloat("emissiveMultiple", materialBase.EmittanceMult)
+            shader.SetFloat("fresnelPower", materialBase.FresnelPower)
+            shader.SetFloat("subsurfaceRolloff", materialBase.SubsurfaceLightingRolloff)
+            shader.SetFloat("paletteScale", materialBase.GrayscaleToPaletteScale)
+            shader.SetFloat("envReflection", materialBase.EnvironmentMappingMaskScale)
 
-            Me.ParentModel.ParentControl.SharedActiveShader.SetBool("bBacklight", material.MaterialBase.BackLighting)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetFloat("backlightPower", material.MaterialBase.BackLightPower)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetBool("bRimlight", material.MaterialBase.RimLighting)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetFloat("rimlightPower", material.MaterialBase.RimPower)
+            shader.SetBool("bBacklight", materialBase.BackLighting)
+            shader.SetFloat("backlightPower", materialBase.BackLightPower)
+            shader.SetBool("bRimlight", materialBase.RimLighting)
+            shader.SetFloat("rimlightPower", materialBase.RimPower)
 
             'SetVector3("softlightColor", New Vector3(1.0F, 1.0F, 1.0F))
             'SetFloat("softlightPower", 0.4F)
             'SetFloat("softlightDesaturation", 0.4F)
 
-
             ' === DebugMode ===
 
-            Me.ParentModel.ParentControl.SharedActiveShader.SetFloat("DebugMode", Me.ParentModel.ParentControl.SharedActiveShader.Debugmode)
+            shader.SetFloat("DebugMode", shader.Debugmode)
 
             ' Alpha global
-            Me.ParentModel.ParentControl.SharedActiveShader.SetFloat("alpha", material.MaterialBase.Alpha)
+            shader.SetFloat("alpha", materialBase.Alpha)
 
             ' === Depth Test ===
-            If material.MaterialBase.ZBufferTest OrElse (material.HasAlphaBlend = False) Then
+            If materialBase.ZBufferTest OrElse (hasAlphaBlend = False) Then
                 GL.Enable(EnableCap.DepthTest)
                 GL.DepthFunc(DepthFunction.Lequal)   ' o el que uses por defecto
             Else
@@ -1591,10 +1659,10 @@ Public Class PreviewModel
 
             ' === Depth Write ===
             Dim writeDepth As Boolean
-            If material.HasAlphaBlend Or MeshData.Shape.Wireframe Then
+            If hasAlphaBlend Or MeshData.Shape.Wireframe Then
                 writeDepth = False
             Else
-                writeDepth = material.MaterialBase.ZBufferWrite
+                writeDepth = materialBase.ZBufferWrite
             End If
             GL.DepthMask(writeDepth)
 
@@ -1604,13 +1672,13 @@ Public Class PreviewModel
                 GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Line)
                 GL.Enable(EnableCap.Blend)
                 GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha)
-            ElseIf material.HasAlphaBlend Then
+            ElseIf hasAlphaBlend Then
                 ' Blending estándar
                 GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Fill)
                 GL.Enable(EnableCap.Blend)
                 Dim blend = material.Calculate_Blending()
                 GL.BlendFunc(CType(blend(0), BlendingFactor), CType(blend(1), BlendingFactor))
-            ElseIf material.HasAlphaTest Then
+            ElseIf hasAlphaTest Then
                 ' Alpha test (recorte)
                 GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Fill)
                 GL.Disable(EnableCap.Blend)
@@ -1621,7 +1689,7 @@ Public Class PreviewModel
             End If
 
             ' === Culling ===
-            If material.MaterialBase.TwoSided Then
+            If materialBase.TwoSided Then
                 GL.Disable(EnableCap.CullFace)
             Else
                 GL.Enable(EnableCap.CullFace)
@@ -1710,6 +1778,7 @@ Public Class PreviewModel
                                      'Next
                                  End Sub)
         meshes.AddRange(result)
+        MarkRenderBucketsDirty()
     End Sub
 
     Public Sub BakeOrInvertPose(inverse As Boolean)
@@ -1831,7 +1900,11 @@ Public Class PreviewModel
         Next
         ' Borra Meshes
         meshes.Clear()
-
+        OpaqueMeshes.Clear()
+        CutoutMeshes.Clear()
+        BlendedMeshes.Clear()
+        BlendedDepthBuffer.Clear()
+        MarkRenderBucketsDirty()
 
         Dim i = 0
         While GL.GetError() <> ErrorCode.NoError
@@ -1839,6 +1912,7 @@ Public Class PreviewModel
             If i > 10 Then Debugger.Break() : Exit While
         End While
     End Sub
+
     Structure MeshDepth
         Public Mesh As RenderableMesh
         Public Depth As Single
@@ -1846,30 +1920,37 @@ Public Class PreviewModel
     Public Property FloorOffset As Double = -0.00F
     Public Sub RenderAll(projection As Matrix4, camera As OrbitCamera)
         If Floor IsNot Nothing AndAlso Floor.Enabled = True Then Floor.Render(projection, camera, FloorOffset)
+        If meshes.Count = 0 OrElse meshes(0).MeshData.Shape.ParentSliderSet.ShapeDataLoaded = False Then Exit Sub
 
-        ' Clasificación por tipo de alpha
-        Dim cutout = meshes.Where(Function(m) Not m.MeshData.Material?.HasAlphaBlend AndAlso m.MeshData.Material?.HasAlphaTest AndAlso Not m.MeshData.Shape.Wireframe).OrderBy(Function(pf) pf.MeshData.Idx)
-        Dim opaque = meshes.Where(Function(m) Not m.MeshData.Material?.HasAlphaBlend AndAlso Not m.MeshData.Material?.HasAlphaTest AndAlso Not m.MeshData.Shape.Wireframe).OrderBy(Function(pf) pf.MeshData.Idx)
-        Dim blended = meshes.Where(Function(m) m.MeshData.Material?.HasAlphaBlend OrElse m.MeshData.Shape.Wireframe).OrderBy(Function(pf) pf.MeshData.Idx)
+        If RenderBucketsDirty OrElse (OpaqueMeshes.Count + CutoutMeshes.Count + BlendedMeshes.Count) <> meshes.Count Then
+            RebuildRenderBuckets()
+        End If
 
         ' 1. OPAQUE — sin blending, depth write habilitado
-        For Each mesh In opaque
+        For Each mesh In OpaqueMeshes
             mesh.Render(projection, camera)
         Next
 
         ' 2. CUTOUT — alpha test, sin blending, depth write habilitado
-        For Each mesh In cutout
+        For Each mesh In CutoutMeshes
             mesh.Render(projection, camera)
         Next
 
+        If BlendedMeshes.Count = 0 Then Exit Sub
+
         ' 3. BLENDED — requiere ordenamiento por profundidad
         Dim viewMatrix = camera.GetViewMatrix()
-        Dim sorted = blended.Select(Function(m)
-                                        Dim viewPos = Vector3.TransformPosition(m.MeshData.Meshgeometry.Boundingcenter, viewMatrix)
-                                        Return New MeshDepth With {.Mesh = m, .Depth = -viewPos.Z}
-                                    End Function).OrderByDescending(Function(x) x.Depth).Select(Function(x) x.Mesh).ToList()
-        For Each mesh In sorted
-            mesh.Render(projection, camera)
+        BlendedDepthBuffer.Clear()
+
+        For Each mesh In BlendedMeshes
+            Dim viewPos = Vector3.TransformPosition(mesh.MeshData.Meshgeometry.Boundingcenter, viewMatrix)
+            BlendedDepthBuffer.Add(New MeshDepth With {.Mesh = mesh, .Depth = -viewPos.Z})
+        Next
+
+        BlendedDepthBuffer.Sort(Function(a, b) b.Depth.CompareTo(a.Depth))
+
+        For Each item In BlendedDepthBuffer
+            item.Mesh.Render(projection, camera)
         Next
     End Sub
 End Class
@@ -1881,15 +1962,15 @@ Public Class FloorRenderer
         Private shaderProgram As Integer
         Private vertexCount As Integer
 
+    Public Initialized As Boolean = False
     Public Property Enabled As Boolean = False
     Public Property Size As Single = 400.0F
     Public Property StepSize As Single = 10.0F
     Public Property Color As Color = Color.FromKnownColor(KnownColor.ControlLight)
 
     Public Sub New()
-            CreateShader()
-            CreateGeometry()
-        End Sub
+
+    End Sub
 
         Private Sub CreateGeometry()
             If vao > 0 Then GL.DeleteVertexArray(vao) : vao = 0
@@ -1972,16 +2053,15 @@ void main()
 {
     FragColor = vec4(gridColor, 1.0);
 }"
-
+        Try
             Dim vs = GL.CreateShader(ShaderType.VertexShader)
             GL.ShaderSource(vs, vertexSrc)
             GL.CompileShader(vs)
 
             Dim vsStatus As Integer
             GL.GetShader(vs, ShaderParameter.CompileStatus, vsStatus)
-            If vsStatus = 0 Then
-                Throw New Exception("Grid vertex shader error: " & GL.GetShaderInfoLog(vs))
-            End If
+            If vsStatus = 0 Then Throw New Exception("GetshaderFailed1")
+
 
             Dim fs = GL.CreateShader(ShaderType.FragmentShader)
             GL.ShaderSource(fs, fragmentSrc)
@@ -1989,9 +2069,7 @@ void main()
 
             Dim fsStatus As Integer
             GL.GetShader(fs, ShaderParameter.CompileStatus, fsStatus)
-            If fsStatus = 0 Then
-                Throw New Exception("Grid fragment shader error: " & GL.GetShaderInfoLog(fs))
-            End If
+            If fsStatus = 0 Then Throw New Exception("GetshaderFailed2")
 
             shaderProgram = GL.CreateProgram()
             GL.AttachShader(shaderProgram, vs)
@@ -2000,19 +2078,24 @@ void main()
 
             Dim linkStatus As Integer
             GL.GetProgram(shaderProgram, GetProgramParameterName.LinkStatus, linkStatus)
-            If linkStatus = 0 Then
-                Throw New Exception("Grid shader link error: " & GL.GetProgramInfoLog(shaderProgram))
-            End If
+            If linkStatus = 0 Then Throw New Exception("LinkFailed")
 
             GL.DetachShader(shaderProgram, vs)
             GL.DetachShader(shaderProgram, fs)
             GL.DeleteShader(vs)
             GL.DeleteShader(fs)
-        End Sub
+            Initialized = True
+        Catch ex As Exception
+            Debugger.Break()
+        End Try
+
+    End Sub
 
         Public Sub Render(projection As Matrix4, camera As OrbitCamera, offsetZ As Double)
-            If Not Enabled Then Exit Sub
-            If shaderProgram = 0 OrElse vao = 0 OrElse vertexCount <= 0 Then Exit Sub
+        If Not Enabled Then Exit Sub
+        If Not Initialized Then Rebuild()
+        If Not Initialized Then Exit Sub
+        If shaderProgram = 0 OrElse vao = 0 OrElse vertexCount <= 0 Then Exit Sub
 
             GL.UseProgram(shaderProgram)
 
@@ -2038,15 +2121,17 @@ void main()
             GL.UseProgram(0)
         End Sub
 
-        Public Sub Rebuild()
-            CreateGeometry()
-        End Sub
+    Public Sub Rebuild()
+        If Not Initialized Then CreateShader()
+        If Initialized Then CreateGeometry()
+    End Sub
 
-        Public Sub Dispose() Implements IDisposable.Dispose
+    Public Sub Dispose() Implements IDisposable.Dispose
             If vao > 0 Then GL.DeleteVertexArray(vao) : vao = 0
             If vbo > 0 Then GL.DeleteBuffer(vbo) : vbo = 0
-            If shaderProgram > 0 Then GL.DeleteProgram(shaderProgram) : shaderProgram = 0
-        End Sub
+        If shaderProgram > 0 Then GL.DeleteProgram(shaderProgram) : shaderProgram = 0
+        GC.SuppressFinalize(Me)
+    End Sub
     End Class
 
     Public Class OrbitCamera
