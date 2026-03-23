@@ -201,6 +201,9 @@ Public Class PreviewControl
     Inherits OpenTK.GLControl.GLControl
     Private overlay As TextOverlayRenderer
     Public SharedActiveShader As Shader_Class
+    Public SharedFloorShader As Floor_Shader_Class
+
+
     Public WithEvents RenderTimer As New System.Windows.Forms.Timer
     Private DebugProc As DebugProc
     Public Property AllowMask As Boolean = False
@@ -459,6 +462,8 @@ Public Class PreviewControl
         ApplyResize(True)
         GenerateDefaultTextures()
         SharedActiveShader = New Shader_Class
+        SharedFloorShader = New Floor_Shader_Class
+
         ' 1) Aseguramos que el contexto GL está activo
         Me.MakeCurrent()
 
@@ -832,9 +837,15 @@ Public Class PreviewControl
             End If
             _Model = Nothing
         End If
+
         If SharedActiveShader IsNot Nothing Then
-            SharedActiveShader.Dispose() ' Asegúrate que Shader_Class tenga este método
+            SharedActiveShader.Dispose()
             SharedActiveShader = Nothing
+        End If
+
+        If SharedFloorShader IsNot Nothing Then
+            SharedFloorShader.Dispose()
+            SharedFloorShader = Nothing
         End If
 
         If RenderTimer IsNot Nothing Then
@@ -857,7 +868,7 @@ Public Class PreviewModel
     Public Can_Render As Boolean = False
     Public meshes As New List(Of RenderableMesh)
     Private ReadOnly ParentControl As PreviewControl
-    Public Floor As New FloorRenderer
+    Public Floor As FloorRenderer
     Public Property Last_rendered As SliderSet_Class
     Public Property Last_Pose As Poses_class = Nothing
     Public Property Last_size As Config_App.SliderSize = Config_App.SliderSize.Default
@@ -1760,6 +1771,7 @@ Public Class PreviewModel
 
     Public Sub New(Parent_control As PreviewControl)
         ParentControl = Parent_control
+        Floor = New FloorRenderer(ParentControl)
     End Sub
 
     Public Sub Processing_Status_GL(text As String)
@@ -1825,7 +1837,7 @@ Public Class PreviewModel
     Public Sub Setup_GL()
         Process_Indices_GL()
         Process_Textures_GL()
-        If Floor Is Nothing Then Floor = New FloorRenderer()
+        If Floor Is Nothing Then Floor = New FloorRenderer(ParentControl)
         ParentControl.RenderTimer.Start()
         ParentControl.UpdateProjection(True)  ' ? ya hay meshes/bounds; ajusta frustum
         Can_Render = True
@@ -1957,10 +1969,10 @@ End Class
 Public Class FloorRenderer
     Implements IDisposable
 
+    Private ReadOnly ParentControl As PreviewControl
     Private vao As Integer
-        Private vbo As Integer
-        Private shaderProgram As Integer
-        Private vertexCount As Integer
+    Private vbo As Integer
+    Private vertexCount As Integer
 
     Public Initialized As Boolean = False
     Public Property Enabled As Boolean = False
@@ -1968,11 +1980,11 @@ Public Class FloorRenderer
     Public Property StepSize As Single = 10.0F
     Public Property Color As Color = Color.FromKnownColor(KnownColor.ControlLight)
 
-    Public Sub New()
-
+    Public Sub New(parentControl As PreviewControl)
+        Me.ParentControl = parentControl
     End Sub
 
-        Private Sub CreateGeometry()
+    Private Sub CreateGeometry()
             If vao > 0 Then GL.DeleteVertexArray(vao) : vao = 0
             If vbo > 0 Then GL.DeleteBuffer(vbo) : vbo = 0
 
@@ -2030,109 +2042,49 @@ Public Class FloorRenderer
             GL.BindVertexArray(0)
         End Sub
 
-        Private Sub CreateShader()
-            Dim vertexSrc As String =
-"#version 440
-layout(location = 0) in vec3 vertexPosition;
-
-uniform mat4 matProjection;
-uniform mat4 matView;
-uniform mat4 matModel;
-
-void main()
-{
-    gl_Position = matProjection * matView * matModel * vec4(vertexPosition, 1.0);
-}"
-
-            Dim fragmentSrc As String =
-"#version 440
-uniform vec3 gridColor;
-out vec4 FragColor;
-
-void main()
-{
-    FragColor = vec4(gridColor, 1.0);
-}"
-        Try
-            Dim vs = GL.CreateShader(ShaderType.VertexShader)
-            GL.ShaderSource(vs, vertexSrc)
-            GL.CompileShader(vs)
-
-            Dim vsStatus As Integer
-            GL.GetShader(vs, ShaderParameter.CompileStatus, vsStatus)
-            If vsStatus = 0 Then Throw New Exception("GetshaderFailed1")
-
-
-            Dim fs = GL.CreateShader(ShaderType.FragmentShader)
-            GL.ShaderSource(fs, fragmentSrc)
-            GL.CompileShader(fs)
-
-            Dim fsStatus As Integer
-            GL.GetShader(fs, ShaderParameter.CompileStatus, fsStatus)
-            If fsStatus = 0 Then Throw New Exception("GetshaderFailed2")
-
-            shaderProgram = GL.CreateProgram()
-            GL.AttachShader(shaderProgram, vs)
-            GL.AttachShader(shaderProgram, fs)
-            GL.LinkProgram(shaderProgram)
-
-            Dim linkStatus As Integer
-            GL.GetProgram(shaderProgram, GetProgramParameterName.LinkStatus, linkStatus)
-            If linkStatus = 0 Then Throw New Exception("LinkFailed")
-
-            GL.DetachShader(shaderProgram, vs)
-            GL.DetachShader(shaderProgram, fs)
-            GL.DeleteShader(vs)
-            GL.DeleteShader(fs)
-            Initialized = True
-        Catch ex As Exception
-            Debugger.Break()
-        End Try
-
-    End Sub
-
-        Public Sub Render(projection As Matrix4, camera As OrbitCamera, offsetZ As Double)
+    Public Sub Render(projection As Matrix4, camera As OrbitCamera, offsetZ As Double)
         If Not Enabled Then Exit Sub
         If Not Initialized Then Rebuild()
         If Not Initialized Then Exit Sub
-        If shaderProgram = 0 OrElse vao = 0 OrElse vertexCount <= 0 Then Exit Sub
+        If vao = 0 OrElse vertexCount <= 0 Then Exit Sub
+        If IsNothing(ParentControl) OrElse IsNothing(ParentControl.SharedFloorShader) Then Exit Sub
 
-            GL.UseProgram(shaderProgram)
+        Dim shader = ParentControl.SharedFloorShader
 
-            GL.Disable(EnableCap.Blend)
-            GL.Enable(EnableCap.DepthTest)
-            GL.DepthMask(True)
-            GL.Disable(EnableCap.CullFace)
+        shader.Use()
 
-            Dim view As Matrix4 = camera.GetViewMatrix()
+        GL.Disable(EnableCap.Blend)
+        GL.Enable(EnableCap.DepthTest)
+        GL.DepthMask(True)
+        GL.Disable(EnableCap.CullFace)
+
+        Dim view As Matrix4 = camera.GetViewMatrix()
         Dim model As Matrix4 = Matrix4.CreateTranslation(0.0F, 0.0F, CSng(offsetZ) + 0.01F)
 
-        GL.UniformMatrix4(GL.GetUniformLocation(shaderProgram, "matProjection"), False, projection)
-            GL.UniformMatrix4(GL.GetUniformLocation(shaderProgram, "matView"), False, view)
-            GL.UniformMatrix4(GL.GetUniformLocation(shaderProgram, "matModel"), False, model)
-
-            Dim colorLoc = GL.GetUniformLocation(shaderProgram, "gridColor")
-        GL.Uniform3(colorLoc, Color.R / 255.0F, Color.G / 255.0F, Color.B / 255.0F)
+        shader.SetMatrix4("matProjection", projection)
+        shader.SetMatrix4("matView", view)
+        shader.SetMatrix4("matModel", model)
+        shader.SetVector3("gridColor", New Vector3(Color.R / 255.0F, Color.G / 255.0F, Color.B / 255.0F))
 
         GL.BindVertexArray(vao)
-            GL.DrawArrays(PrimitiveType.Lines, 0, vertexCount)
-            GL.BindVertexArray(0)
+        GL.DrawArrays(PrimitiveType.Lines, 0, vertexCount)
+        GL.BindVertexArray(0)
 
-            GL.UseProgram(0)
-        End Sub
+        GL.UseProgram(0)
+    End Sub
 
     Public Sub Rebuild()
-        If Not Initialized Then CreateShader()
-        If Initialized Then CreateGeometry()
+        CreateGeometry()
+        Initialized = (vao <> 0 AndAlso vbo <> 0 AndAlso vertexCount > 0)
     End Sub
 
     Public Sub Dispose() Implements IDisposable.Dispose
-            If vao > 0 Then GL.DeleteVertexArray(vao) : vao = 0
-            If vbo > 0 Then GL.DeleteBuffer(vbo) : vbo = 0
-        If shaderProgram > 0 Then GL.DeleteProgram(shaderProgram) : shaderProgram = 0
+        If vao > 0 Then GL.DeleteVertexArray(vao) : vao = 0
+        If vbo > 0 Then GL.DeleteBuffer(vbo) : vbo = 0
+        Initialized = False
         GC.SuppressFinalize(Me)
     End Sub
-    End Class
+End Class
 
     Public Class OrbitCamera
     ' Para modo orbit

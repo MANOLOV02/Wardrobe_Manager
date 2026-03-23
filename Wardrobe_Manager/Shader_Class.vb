@@ -1,11 +1,40 @@
 ﻿' Version Uploaded of Wardrobe 2.1.3
 Imports OpenTK.Graphics.OpenGL4
 Imports OpenTK.Mathematics
-Public Class Shader_Class
-    Implements IDisposable
 
-    Private disposedValue As Boolean
-    Private ReadOnly vertexShaderSource As String = "
+
+Public Class Floor_Shader_Class
+    Inherits Shader_Base_Class
+    Private Const VertexShaderSourceString As String =
+"#version 440
+layout(location = 0) in vec3 vertexPosition;
+
+uniform mat4 matProjection;
+uniform mat4 matView;
+uniform mat4 matModel;
+
+void main()
+{
+    gl_Position = matProjection * matView * matModel * vec4(vertexPosition, 1.0);
+}"
+
+    Private Const FragmentShaderSourceString As String =
+"#version 440
+uniform vec3 gridColor;
+out vec4 FragColor;
+
+void main()
+{
+    FragColor = vec4(gridColor, 1.0);
+}"
+    Sub New()
+        MyBase.New(VertexShaderSourceString, FragmentShaderSourceString)
+    End Sub
+End Class
+
+Public Class Shader_Class
+    Inherits Shader_Base_Class
+    Private Const VertexShaderSourceString As String = "
 #version 440
 uniform mat4 matProjection;
 uniform mat4 matView;
@@ -166,8 +195,7 @@ void main(void)
 	}
 }
 "
-
-    Private ReadOnly fragmentShaderSource As String = "
+    Private Const FragmentShaderSourceString As String = "
 #version 440
 
 /*
@@ -709,8 +737,16 @@ if (bHide)
 
 }
 "
+    Sub New()
+        MyBase.New(VertexShaderSourceString, FragmentShaderSourceString)
+    End Sub
+End Class
 
 
+Public MustInherit Class Shader_Base_Class
+    Implements IDisposable
+
+    Private disposedValue As Boolean
 
     Private program As Integer
     ' Método público para liberar recursos.
@@ -736,9 +772,9 @@ if (bHide)
         MyBase.Finalize()
     End Sub
 
-    Public Sub New()
-        Dim vertexShader = CompileShader(ShaderType.VertexShader, vertexShaderSource)
-        Dim fragmentShader = CompileShader(ShaderType.FragmentShader, fragmentShaderSource)
+    Public Sub New(VertexShaderSource, FragmentShaderSource)
+        Dim vertexShader = CompileShader(ShaderType.VertexShader, VertexShaderSource)
+        Dim fragmentShader = CompileShader(ShaderType.FragmentShader, FragmentShaderSource)
 
         program = GL.CreateProgram()
         GL.AttachShader(program, vertexShader)
