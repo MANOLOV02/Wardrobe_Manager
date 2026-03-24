@@ -1657,17 +1657,9 @@ Public Class FO4UnifiedMaterial_Class
             .ModelSpaceNormals = shad.ModelSpace,
             .BackLighting = shad.HasBacklight
                                                       }
-
-            ' REVISARRRRR!!!!!!!
             If Not IsNothing(shad.TextureSetRef) AndAlso shad.TextureSetRef.Index <> -1 Then
-                mat.DiffuseTexture = CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet).Textures(0).Content
-                mat.NormalTexture = CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet).Textures(1).Content
-                mat.GlowTexture = CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet).Textures(2).Content
-                mat.DisplacementTexture = CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet).Textures(3).Content
-                mat.EnvmapTexture = CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet).Textures(4).Content
-                mat.FlowTexture = CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet).Textures(5).Content
-                mat.LightingTexture = CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet).Textures(6).Content
-                mat.SmoothSpecTexture = CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet).Textures(7).Content
+                Dim texset = TryCast(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet)
+                ReadBgsmTexturesFromTextureSet(mat, texset)
             End If
         Else
             mat = New BGSM
@@ -1804,8 +1796,8 @@ Public Class FO4UnifiedMaterial_Class
     End Sub
     Public Shared Sub Save_To_Shader(Nif As Nifcontent_Class_Manolo, shap As INiShape, shad As BSLightingShaderProperty, Mat As BGSM)
         If Nif.Valid = False Then Exit Sub
+
         shad.DoubleSided = Mat.TwoSided
-        Dim TextSet = CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet)
         shad.UVOffset = New TexCoord(Mat.UOffset, Mat.VOffset)
         shad.UVScale = New TexCoord(Mat.UScale, Mat.VScale)
         shad.Emissive = Mat.EmitEnabled
@@ -1821,24 +1813,12 @@ Public Class FO4UnifiedMaterial_Class
         End If
 
         Dim texset = CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet)
-
-        While texset.Textures.Count < 8
-            texset.Textures.Add(New NiString4 With {.Content = ""})
-        End While
-
-        ' REVISARRRRR!!!!!!!
-        texset.Textures(0).Content = Mat.DiffuseTexture
-        texset.Textures(1).Content = Mat.NormalTexture
-        texset.Textures(2).Content = Mat.GlowTexture
-        texset.Textures(3).Content = Mat.DisplacementTexture
-        texset.Textures(4).Content = Mat.EnvmapTexture
-        texset.Textures(5).Content = Mat.FlowTexture
-        texset.Textures(6).Content = Mat.LightingTexture
-        texset.Textures(7).Content = Mat.SmoothSpecTexture
+        WriteBgsmTexturesToTextureSet(Mat, texset)
 
         If IsNothing(shap.AlphaPropertyRef) OrElse shap.AlphaPropertyRef.Index = -1 Then
             shap.AlphaPropertyRef = New NiBlockRef(Of NiAlphaProperty) With {.Index = Nif.AddBlock(New NiAlphaProperty)}
         End If
+
         Dim alp = CType(Nif.Blocks(shap.AlphaPropertyRef.Index), NiAlphaProperty)
         alp.Flags.AlphaTest = Mat.AlphaTest
         alp.Threshold = Mat.AlphaTestRef
@@ -1846,6 +1826,63 @@ Public Class FO4UnifiedMaterial_Class
         Dim func = Determine_AlphaFlags(Mat.AlphaBlendMode)
         alp.Flags.SourceBlendMode = func(0)
         alp.Flags.DestinationBlendMode = func(1)
+    End Sub
+    Private Shared Sub EnsureShaderTextureSetSlots(texset As BSShaderTextureSet)
+        If IsNothing(texset) Then Exit Sub
+
+        If IsNothing(texset.Textures) Then
+            texset.Textures = New List(Of NiString4)
+        End If
+
+        While texset.Textures.Count < 8
+            texset.Textures.Add(New NiString4 With {.Content = ""})
+        End While
+
+        For i As Integer = 0 To 7
+            If IsNothing(texset.Textures(i)) Then
+                texset.Textures(i) = New NiString4 With {.Content = ""}
+            ElseIf IsNothing(texset.Textures(i).Content) Then
+                texset.Textures(i).Content = ""
+            End If
+        Next
+    End Sub
+
+    Private Const textset_dDiffuseTexture As Integer = 0
+    Private Const textset_NormalTexture As Integer = 1
+    Private Const textset_GlowTexture As Integer = 2
+    Private Const textset_DisplacementTexture As Integer = 3
+    Private Const textset_EnvmapTexture As Integer = 4
+    Private Const textset_FlowTexture As Integer = 5
+    Private Const textset_LightingTexture As Integer = 6
+    Private Const textset_SmoothSpecTextureAs As Integer = 7
+    Private Shared Sub ReadBgsmTexturesFromTextureSet(mat As BGSM, texset As BSShaderTextureSet)
+        If IsNothing(mat) OrElse IsNothing(texset) Then Exit Sub
+
+        EnsureShaderTextureSetSlots(texset)
+
+        mat.DiffuseTexture = texset.Textures(textset_dDiffuseTexture).Content
+        mat.NormalTexture = texset.Textures(textset_NormalTexture).Content
+        mat.GlowTexture = texset.Textures(textset_GlowTexture).Content
+        mat.DisplacementTexture = texset.Textures(textset_DisplacementTexture).Content
+        mat.EnvmapTexture = texset.Textures(textset_EnvmapTexture).Content
+        mat.FlowTexture = texset.Textures(textset_FlowTexture).Content
+        mat.LightingTexture = texset.Textures(textset_LightingTexture).Content
+        mat.SmoothSpecTexture = texset.Textures(textset_SmoothSpecTextureAs).Content
+    End Sub
+
+    Private Shared Sub WriteBgsmTexturesToTextureSet(mat As BGSM, texset As BSShaderTextureSet)
+        If IsNothing(mat) OrElse IsNothing(texset) Then Exit Sub
+
+        EnsureShaderTextureSetSlots(texset)
+
+        texset.Textures(textset_dDiffuseTexture).Content = mat.DiffuseTexture
+        texset.Textures(textset_NormalTexture).Content = mat.NormalTexture
+        texset.Textures(textset_GlowTexture).Content = mat.GlowTexture
+        texset.Textures(textset_DisplacementTexture).Content = mat.DisplacementTexture
+        texset.Textures(textset_EnvmapTexture).Content = mat.EnvmapTexture
+        texset.Textures(textset_FlowTexture).Content = mat.FlowTexture
+        texset.Textures(textset_LightingTexture).Content = mat.LightingTexture
+        texset.Textures(textset_SmoothSpecTextureAs).Content = mat.SmoothSpecTexture
     End Sub
     Public Sub Deserialize(Memory As Byte(), type As Type)
         If Memory.Length = 0 Then Exit Sub
@@ -1880,13 +1917,13 @@ Public Class FO4UnifiedMaterial_Class
         Dim r = ((color >> 16) And &HFF)
         Dim g = ((color >> 8) And &HFF)
         Dim b = (color And &HFF)
-        Return New Color3(r / 255, b / 255, g / 255)
+        Return New Color3(r / 255, g / 255, b / 255)
     End Function
     Private Shared Function UIntegerToNifColor4(color As UInteger) As NiflySharp.Structs.Color4
         Dim r = ((color >> 16) And &HFF)
         Dim g = ((color >> 8) And &HFF)
         Dim b = (color And &HFF)
-        Return New Color4(r / 255, b / 255, g / 255, 1)
+        Return New Color4(r / 255, g / 255, b / 255, 1)
     End Function
     Public Shared Function NifColorColorToUInteger(color As NiflySharp.Structs.Color4) As UInteger
         Return ColorToUInteger(System.Drawing.Color.FromArgb(color.A * 255, color.R * 255, color.G * 255, color.B * 255))

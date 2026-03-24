@@ -42,15 +42,22 @@ Public Class HighHeels_Plugins_values
         Next
 
         For Each archivo As String In Directory.GetFiles(carpeta, "*.txt")
-            Dim archivoSTM = New StreamReader(archivo)
-            Dim lin As String = archivoSTM.ReadLine
-            archivoSTM.Close()
-            If lin.Contains("="c) = False Then Exit Sub
-            Dim sep = lin.Split("=")
-            If sep.Length <> 2 Then Exit Sub
+            Dim lin As String = ""
+
+            Using archivoSTM As New StreamReader(archivo)
+                lin = archivoSTM.ReadLine()
+            End Using
+
+            If String.IsNullOrWhiteSpace(lin) Then Continue For
+            If lin.Contains("="c) = False Then Continue For
+
+            Dim sep = lin.Split("="c)
+            If sep.Length <> 2 Then Continue For
+
             Dim kvp = New HHJsonItem With {
-                .ItemKey = IO.Path.GetFileNameWithoutExtension(archivo) + ".nif",
-                .ItemValue = CDbl(sep(1).Replace(".", System.Globalization.CultureInfo.CurrentUICulture.NumberFormat.NumberDecimalSeparator))}
+        .ItemKey = IO.Path.GetFileNameWithoutExtension(archivo) + ".nif",
+        .ItemValue = CDbl(sep(1).Replace(".", System.Globalization.CultureInfo.CurrentUICulture.NumberFormat.NumberDecimalSeparator))}
+
             HighHeelsKeys(kvp.ItemKey) = kvp.ItemValue
         Next
     End Sub
@@ -186,19 +193,19 @@ Public Class SliderPresetCollection
         If IO.Directory.Exists(PosesPath) = False Then Exit Sub
         Dim filesPoses = FilesDictionary_class.EnumerateFilesWithSymlinkSupport(PosesPath, "*.xml", False).ToList
         For Each xmlpath In filesPoses
-            If IO.File.Exists(xmlpath) = False Then Exit Sub
+            If IO.File.Exists(xmlpath) = False Then Continue For
             Try
                 Dim rawXml As String = IO.File.ReadAllText(xmlpath)
                 ' Cargar el documento desde el string corregido
                 Dim doc As XDocument = XDocument.Parse(rawXml)
                 For Each pose As XElement In doc.Root.Elements("Pose")
                     Dim pos As New Poses_class With {
-                        .Source = Poses_class.Pose_Source_Enum.BodySlide,
-                        .Name = pose.Attribute("name").Value.ToString,
-                        .Version = "1",
-                        .Skeleton = "CBBE",
-                        .Transforms = New Dictionary(Of String, PoseTransformData)
-                    }
+                .Source = Poses_class.Pose_Source_Enum.BodySlide,
+                .Name = pose.Attribute("name").Value.ToString,
+                .Version = "1",
+                .Skeleton = "CBBE",
+                .Transforms = New Dictionary(Of String, PoseTransformData)
+            }
                     If Not IsNothing(pose.Attribute("WMPose")) Then
                         If pose.Attribute("WMPose").Value = "true" Then
                             pos.Source = Poses_class.Pose_Source_Enum.WardrobeManager
@@ -241,7 +248,7 @@ Public Class SliderPresetCollection
         Dim filesPoses = FilesDictionary_class.EnumerateFilesWithSymlinkSupport(PosesPath, "*.json", False).ToList
         Dim opts As New JsonSerializerOptions With {.PropertyNameCaseInsensitive = True, .NumberHandling = JsonNumberHandling.AllowReadingFromString}
         For Each xmlpath In filesPoses
-            If IO.File.Exists(xmlpath) = False Then Exit Sub
+            If IO.File.Exists(xmlpath) = False Then Continue For
             Try
                 Dim json As String = IO.File.ReadAllText(xmlpath)
                 Dim model As Poses_class = JsonSerializer.Deserialize(Of Poses_class)(json, opts)
@@ -594,6 +601,45 @@ Public Class OSP_Project_Class
             slider.LastProjectFileSignature = slider.GetProjectFileSignature()
         Next
     End Sub
+    Private Shared Function BuildClonedMaterialRelativePath(source As String, relative As String) As String
+        If relative.StartsWith("ManoloCloned", StringComparison.OrdinalIgnoreCase) OrElse
+       relative.StartsWith("ManoloMods", StringComparison.OrdinalIgnoreCase) Then
+            Return relative + IO.Path.GetFileName(source)
+        End If
+
+        Return "ManoloCloned\" + relative + IO.Path.GetFileName(source)
+    End Function
+    Private Shared Sub RegisterGeneratedDictionaryFile(fullPath As String)
+        Dim normalized As String = fullPath.Correct_Path_Separator
+        Dim location As New FilesDictionary_class.File_Location With {
+        .BA2File = "",
+        .Index = -1,
+        .FullPath = normalized
+    }
+
+        If FilesDictionary_class.TryAddDictionaryEntry(normalized, location) = False Then
+            If location.FullPath.Contains("ManoloCloned\", StringComparison.OrdinalIgnoreCase) = False AndAlso
+           location.FullPath.Contains("ManoloMods\", StringComparison.OrdinalIgnoreCase) = False Then
+                Debugger.Break()
+                Throw New Exception
+            End If
+        End If
+    End Sub
+    Private Shared Function SaveClonedMaterialFile(source As String, prefix As String, relative As String, overwrite As Boolean, saveAction As Action(Of Stream)) As String
+        Dim fullpath As String = BuildClonedMaterialRelativePath(source, relative)
+        Dim newfile As String = IO.Path.Combine(Directorios.Fallout4data, prefix + fullpath).Correct_Path_Separator
+
+        If IO.Directory.Exists(IO.Path.GetDirectoryName(newfile)) = False Then
+            IO.Directory.CreateDirectory(IO.Path.GetDirectoryName(newfile))
+        End If
+
+        Using writer As FileStream = IO.File.Open(newfile, FileMode.Create)
+            saveAction(writer)
+        End Using
+
+        RegisterGeneratedDictionaryFile(prefix + fullpath)
+        Return fullpath
+    End Function
     Public Shared Function Clone_Material_Sub(shad As INiShader, Overwrite As Boolean) As String
         Dim mate As String
         Select Case shad.GetType
@@ -626,6 +672,39 @@ Public Class OSP_Project_Class
         If regreso = "" Then Throw New Exception
         Return regreso
     End Function
+    Private Shared Function BuildTextureDictionaryKey(filename As String) As String
+        If String.IsNullOrWhiteSpace(filename) Then Return ""
+
+        Dim normalized = filename.Correct_Path_Separator
+        Dim prefix = "Textures\"
+
+        If normalized.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) Then
+            normalized = normalized.Substring(prefix.Length)
+        End If
+
+        Return (prefix & normalized).Correct_Path_Separator
+    End Function
+
+    Private Shared Function PrefetchDictionaryFiles(paths As IEnumerable(Of String)) As Dictionary(Of String, Byte())
+        Dim result As New Dictionary(Of String, Byte())(StringComparer.OrdinalIgnoreCase)
+        If IsNothing(paths) Then Return result
+
+        Dim normalized = paths.
+        Where(Function(p) String.IsNullOrWhiteSpace(p) = False).
+        Select(Function(p) p.Correct_Path_Separator).
+        Distinct(StringComparer.OrdinalIgnoreCase).
+        ToArray()
+
+        If normalized.Length = 0 Then Return result
+
+        Dim loaded = FilesDictionary_class.GetMultipleFilesBytes(normalized)
+
+        For i As Integer = 0 To normalized.Length - 1
+            result(normalized(i)) = If(loaded(i), Array.Empty(Of Byte)())
+        Next
+
+        Return result
+    End Function
     Private Shared Function Procesa_Material(source As String, prefix As String, relative As String, overwrite As Boolean, canskip As Boolean) As String
 
         Select Case IO.Path.GetExtension(source).ToLower
@@ -638,21 +717,37 @@ Public Class OSP_Project_Class
                     End Using
                     ms.Close()
                 End Using
+                Dim prefetchedTextureBytes = PrefetchDictionaryFiles({
+    BuildTextureDictionaryKey(material.NormalTexture),
+    BuildTextureDictionaryKey(material.SmoothSpecTexture),
+    BuildTextureDictionaryKey(material.GreyscaleTexture),
+    BuildTextureDictionaryKey(material.EnvmapTexture),
+    BuildTextureDictionaryKey(material.FlowTexture),
+    BuildTextureDictionaryKey(material.GlowTexture),
+    BuildTextureDictionaryKey(material.DisplacementTexture),
+    BuildTextureDictionaryKey(material.InnerLayerTexture),
+    BuildTextureDictionaryKey(material.LightingTexture),
+    BuildTextureDictionaryKey(material.SpecularTexture),
+    BuildTextureDictionaryKey(material.WrinklesTexture),
+    BuildTextureDictionaryKey(material.DistanceFieldAlphaTexture),
+    BuildTextureDictionaryKey(material.DiffuseTexture)
+})
                 Dim exist As Boolean
                 Dim Baseexist As Boolean
-                material.NormalTexture = CopyTexture(material.NormalTexture, overwrite, exist)
-                material.SmoothSpecTexture = CopyTexture(material.SmoothSpecTexture, overwrite, exist)
-                material.GreyscaleTexture = CopyTexture(material.GreyscaleTexture, overwrite, exist)
-                material.EnvmapTexture = CopyTexture(material.EnvmapTexture, overwrite, exist)
-                material.FlowTexture = CopyTexture(material.FlowTexture, overwrite, exist)
-                material.GlowTexture = CopyTexture(material.GlowTexture, overwrite, exist)
-                material.DisplacementTexture = CopyTexture(material.DisplacementTexture, overwrite, exist)
-                material.InnerLayerTexture = CopyTexture(material.InnerLayerTexture, overwrite, exist)
-                material.LightingTexture = CopyTexture(material.LightingTexture, overwrite, exist)
-                material.SpecularTexture = CopyTexture(material.SpecularTexture, overwrite, exist)
-                material.WrinklesTexture = CopyTexture(material.WrinklesTexture, overwrite, exist)
-                material.DistanceFieldAlphaTexture = CopyTexture(material.DistanceFieldAlphaTexture, overwrite, exist)
-                material.DiffuseTexture = CopyTexture(material.DiffuseTexture, overwrite, Baseexist)
+                material.NormalTexture = CopyTexture(material.NormalTexture, overwrite, exist, prefetchedTextureBytes)
+                material.SmoothSpecTexture = CopyTexture(material.SmoothSpecTexture, overwrite, exist, prefetchedTextureBytes)
+                material.GreyscaleTexture = CopyTexture(material.GreyscaleTexture, overwrite, exist, prefetchedTextureBytes)
+                material.EnvmapTexture = CopyTexture(material.EnvmapTexture, overwrite, exist, prefetchedTextureBytes)
+                material.FlowTexture = CopyTexture(material.FlowTexture, overwrite, exist, prefetchedTextureBytes)
+                material.GlowTexture = CopyTexture(material.GlowTexture, overwrite, exist, prefetchedTextureBytes)
+                material.DisplacementTexture = CopyTexture(material.DisplacementTexture, overwrite, exist, prefetchedTextureBytes)
+                material.InnerLayerTexture = CopyTexture(material.InnerLayerTexture, overwrite, exist, prefetchedTextureBytes)
+                material.LightingTexture = CopyTexture(material.LightingTexture, overwrite, exist, prefetchedTextureBytes)
+                material.SpecularTexture = CopyTexture(material.SpecularTexture, overwrite, exist, prefetchedTextureBytes)
+                material.WrinklesTexture = CopyTexture(material.WrinklesTexture, overwrite, exist, prefetchedTextureBytes)
+                material.DistanceFieldAlphaTexture = CopyTexture(material.DistanceFieldAlphaTexture, overwrite, exist, prefetchedTextureBytes)
+                material.DiffuseTexture = CopyTexture(material.DiffuseTexture, overwrite, Baseexist, prefetchedTextureBytes)
+
                 If Baseexist = False And canskip Then
                     Return source
                 End If
@@ -665,31 +760,10 @@ Public Class OSP_Project_Class
                     Dim relative2 As String = IO.Path.GetRelativePath(prefix, IO.Path.GetDirectoryName(Filt) + "\")
                     material.RootMaterialPath = Procesa_Material(Filt, prefix, relative, overwrite, True)
                 End If
-                Dim writer As FileStream
-                Dim fullpath As String
-                If relative.StartsWith("ManoloCloned", StringComparison.OrdinalIgnoreCase) = True OrElse relative.StartsWith("ManoloMods", StringComparison.OrdinalIgnoreCase) = True Then
-                    fullpath = relative + IO.Path.GetFileName(source)
-                Else
-                    fullpath = "ManoloCloned\" + relative + IO.Path.GetFileName(source)
-                End If
-                Dim newfile As String = IO.Path.Combine(Directorios.Fallout4data, prefix + fullpath).Correct_Path_Separator
-                If IO.Directory.Exists(IO.Path.GetDirectoryName(newfile)) = False Then IO.Directory.CreateDirectory(IO.Path.GetDirectoryName(newfile))
-                If overwrite = True Then
-                    writer = IO.File.Open(newfile, FileMode.Create)
-                Else
-                    writer = IO.File.Open(newfile, FileMode.OpenOrCreate)
-                End If
-                material.Save(writer)
-                writer.Close()
-                Dim Location As New FilesDictionary_class.File_Location With {.BA2File = "", .Index = -1, .FullPath = prefix + fullpath}
-                If FilesDictionary_class.TryAddDictionaryEntry((prefix + fullpath).Correct_Path_Separator, Location) = False Then
-                    If Location.FullPath.Contains("ManoloCloned\") = False AndAlso Location.FullPath.Contains("ManoloMods\") = False Then
-                        Debugger.Break()
-                        Throw New Exception
-                    End If
+                Return SaveClonedMaterialFile(source, prefix, relative, overwrite, Sub(writer)
+                                                                                       material.Save(writer)
+                                                                                   End Sub)
 
-                End If
-                Return fullpath
             Case ".bgem"
                 Dim material As New BGEM
                 Using ms As New MemoryStream(FilesDictionary_class.GetBytes(source))
@@ -699,52 +773,38 @@ Public Class OSP_Project_Class
                     End Using
                     ms.Close()
                 End Using
+                Dim prefetchedTextureBytes = PrefetchDictionaryFiles({
+    BuildTextureDictionaryKey(material.NormalTexture),
+    BuildTextureDictionaryKey(material.BaseTexture),
+    BuildTextureDictionaryKey(material.EnvmapMaskTexture),
+    BuildTextureDictionaryKey(material.EnvmapTexture),
+    BuildTextureDictionaryKey(material.GrayscaleTexture),
+    BuildTextureDictionaryKey(material.LightingTexture),
+    BuildTextureDictionaryKey(material.GlowTexture),
+    BuildTextureDictionaryKey(material.SpecularTexture)
+})
                 Dim exist As Boolean
                 Dim baseexist As Boolean
-                material.NormalTexture = CopyTexture(material.NormalTexture, overwrite, exist)
-                material.BaseTexture = CopyTexture(material.BaseTexture, overwrite, baseexist)
-                material.EnvmapMaskTexture = CopyTexture(material.EnvmapMaskTexture, overwrite, exist)
-                material.EnvmapTexture = CopyTexture(material.EnvmapTexture, overwrite, exist)
-                material.GrayscaleTexture = CopyTexture(material.GrayscaleTexture, overwrite, exist)
-                material.LightingTexture = CopyTexture(material.LightingTexture, overwrite, exist)
-                material.GlowTexture = CopyTexture(material.GlowTexture, overwrite, exist)
-                material.SpecularTexture = CopyTexture(material.SpecularTexture, overwrite, exist)
+                material.NormalTexture = CopyTexture(material.NormalTexture, overwrite, exist, prefetchedTextureBytes)
+                material.BaseTexture = CopyTexture(material.BaseTexture, overwrite, baseexist, prefetchedTextureBytes)
+                material.EnvmapMaskTexture = CopyTexture(material.EnvmapMaskTexture, overwrite, exist, prefetchedTextureBytes)
+                material.EnvmapTexture = CopyTexture(material.EnvmapTexture, overwrite, exist, prefetchedTextureBytes)
+                material.GrayscaleTexture = CopyTexture(material.GrayscaleTexture, overwrite, exist, prefetchedTextureBytes)
+                material.LightingTexture = CopyTexture(material.LightingTexture, overwrite, exist, prefetchedTextureBytes)
+                material.GlowTexture = CopyTexture(material.GlowTexture, overwrite, exist, prefetchedTextureBytes)
+                material.SpecularTexture = CopyTexture(material.SpecularTexture, overwrite, exist, prefetchedTextureBytes)
                 If baseexist = False And canskip Then
                     Return source
                 End If
 
-                Dim writer As FileStream
-                Dim fullpath As String
-                If relative.StartsWith("ManoloCloned", StringComparison.OrdinalIgnoreCase) = True OrElse relative.StartsWith("ManoloMods", StringComparison.OrdinalIgnoreCase) = True Then
-                    fullpath = relative + IO.Path.GetFileName(source)
-                Else
-                    fullpath = "ManoloCloned\" + relative + IO.Path.GetFileName(source)
-                End If
-                Dim newfile As String = IO.Path.Combine(Directorios.Fallout4data, prefix + fullpath)
-                If IO.Directory.Exists(IO.Path.GetDirectoryName(newfile)) = False Then IO.Directory.CreateDirectory(IO.Path.GetDirectoryName(newfile))
-                If overwrite = True Then
-                    writer = IO.File.Open(newfile, FileMode.Create)
-                Else
-                    writer = IO.File.Open(newfile, FileMode.OpenOrCreate)
-                End If
-                material.Save(writer)
-                writer.Close()
-                Dim fullpath2 As String = (prefix + fullpath)
-                Dim Location As New FilesDictionary_class.File_Location With {.BA2File = "", .Index = -1, .FullPath = fullpath2.Correct_Path_Separator}
-                If FilesDictionary_class.TryAddDictionaryEntry(fullpath2.Correct_Path_Separator, Location) = False Then
-                    If Location.FullPath.Contains("ManoloCloned\") = False AndAlso Location.FullPath.Contains("ManoloMods\") = False Then
-                        Debugger.Break()
-                        Throw New Exception
-                    End If
-                End If
-
-                Return fullpath
+                Return SaveClonedMaterialFile(source, prefix, relative, overwrite, Sub(writer)
+                                                                                       material.Save(writer)
+                                                                                   End Sub)
             Case Else
                 Throw New Exception
         End Select
-
     End Function
-    Private Shared Function CopyTexture(filename As String, Overwrite As Boolean, ByRef exist As Boolean) As String
+    Private Shared Function CopyTexture(filename As String, Overwrite As Boolean, ByRef exist As Boolean, Optional prefetchedBytes As Dictionary(Of String, Byte()) = Nothing) As String
         If filename = "" Then Return ""
         exist = True
         filename = filename.Correct_Path_Separator
@@ -770,7 +830,18 @@ Public Class OSP_Project_Class
                     IO.File.Delete(newfile)
                 End If
             End If
-            System.IO.File.WriteAllBytes(newfile, FilesDictionary_class.Dictionary(oldfile).GetBytes)
+            Dim bytes As Byte() = Nothing
+            Dim oldfileKey As String = oldfile.Correct_Path_Separator
+
+            If Not IsNothing(prefetchedBytes) Then
+                prefetchedBytes.TryGetValue(oldfileKey, bytes)
+            End If
+
+            If IsNothing(bytes) Then
+                bytes = FilesDictionary_class.Dictionary(oldfile).GetBytes()
+            End If
+
+            System.IO.File.WriteAllBytes(newfile, bytes)
             Dim fullpath As String = (prefix + newfilename)
             Dim Location As New FilesDictionary_class.File_Location With {.BA2File = "", .Index = -1, .FullPath = fullpath.Correct_Path_Separator}
             If FilesDictionary_class.TryAddDictionaryEntry(fullpath.Correct_Path_Separator, Location) = False Then
@@ -1567,18 +1638,28 @@ End Function
                 End If
 
                 Dim hh0 As String = IO.Path.Combine(IO.Path.Combine(Directorios.ShapedataRoot, Me.ParentOSP.Nombre), Me.Nombre + ".hht")
-                Dim archivo As StreamReader = Nothing
-                If IsNothing(archivo) Then If IO.File.Exists(hh0) Then archivo = New StreamReader(hh0)
-                If IsNothing(archivo) Then
-                    If maxhh <> 0 Then HighHeelHeight = maxhh
+
+                If IO.File.Exists(hh0) = False Then
+                    HighHeelHeight = maxhh
                     Exit Sub
                 End If
 
-                Dim lin As String = archivo.ReadLine
-                archivo.Close()
-                If lin.Contains("="c) = False Then Exit Sub
-                Dim sep = lin.Split("=")
-                If sep.Length <> 2 Then Exit Sub
+                Dim lin As String = ""
+                Using archivo As New StreamReader(hh0)
+                    lin = archivo.ReadLine()
+                End Using
+
+                If String.IsNullOrWhiteSpace(lin) OrElse lin.Contains("="c) = False Then
+                    HighHeelHeight = maxhh
+                    Exit Sub
+                End If
+
+                Dim sep = lin.Split("="c)
+                If sep.Length <> 2 Then
+                    HighHeelHeight = maxhh
+                    Exit Sub
+                End If
+
                 HighHeelHeight = CDbl(sep(1).Replace(".", System.Globalization.CultureInfo.CurrentUICulture.NumberFormat.NumberDecimalSeparator))
         End Select
 

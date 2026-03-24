@@ -10,6 +10,8 @@ Imports NiflySharp.Blocks
 Imports OpenTK.Graphics.OpenGL.GL
 Imports OpenTK.Mathematics
 Public Class Editor_Form
+    Public Property SavedTargetProject As Boolean = False
+    Public Property WroteFilesToDisk As Boolean = False
 
     Private Last_BMP_Name As String = ""
     Private Last_BMP As Bitmap = Nothing
@@ -46,16 +48,22 @@ Public Class Editor_Form
     Public ReadOnly Property GrayscaleBMP_Rotated As Bitmap
         Get
             Dim fil As String = FO4UnifiedMaterial_Class.CorrectTexturePath(Selected_Material.GreyscaleTexture)
-            If fil <> Last_BMP_Name Then
+
+            If String.Equals(fil, Last_BMP_Name, StringComparison.OrdinalIgnoreCase) = False Then
+                DisposeLastBitmap()
+
                 Last_BMP = CreateBitmapFromDDS(FilesDictionary_class.GetBytes(fil))
                 If Not IsNothing(Last_BMP) Then
                     Last_BMP.RotateFlip(RotateFlipType.Rotate270FlipNone)
                 End If
+
                 Last_BMP_Name = fil
             End If
+
             Return Last_BMP
         End Get
     End Property
+
     Private ReadOnly bones_list As New Dictionary(Of String, Integer)(StringComparison.OrdinalIgnoreCase)
     Private _LastBonesSignature As String = ""
     Private _LastSliderLayoutSignature As String = ""
@@ -535,13 +543,38 @@ Public Class Editor_Form
         End If
     End Sub
     Private Sub PropertyGrid1_PropertyValueChanged(s As Object, e As PropertyValueChangedEventArgs) Handles PropertyGrid1.PropertyValueChanged
-        If e.OldValue.GetType Is GetType(String) Then
-            EditPreviewControl.Model.CleanSingleTexture(e.OldValue)
-            EditPreviewControl.Model.CleanSingleTexture(e.ChangedItem.Value)
+        Dim oldTexture As String = TryCast(e.OldValue, String)
+        Dim newTexture As String = Nothing
+
+        If e.ChangedItem IsNot Nothing Then
+            newTexture = TryCast(e.ChangedItem.Value, String)
         End If
+
+        If oldTexture IsNot Nothing OrElse newTexture IsNot Nothing Then
+            If oldTexture IsNot Nothing Then
+                EditPreviewControl.Model.CleanSingleTexture(oldTexture)
+            End If
+
+            If newTexture IsNot Nothing Then
+                EditPreviewControl.Model.CleanSingleTexture(newTexture)
+            End If
+        End If
+
         Update_Grayscale()
         Iniciado_Edit()
         Render_Changes(False)
+    End Sub
+    Private Sub RequestPreviewRedraw()
+        If IsNothing(EditPreviewControl) Then Exit Sub
+        EditPreviewControl.RefreshRender()
+    End Sub
+
+    Private Sub RequestPreviewRebucketAndRedraw()
+        If IsNothing(EditPreviewControl) Then Exit Sub
+        If IsNothing(EditPreviewControl.Model) Then Exit Sub
+
+        EditPreviewControl.Model.MarkRenderBucketsDirty()
+        EditPreviewControl.RefreshRender()
     End Sub
     Private Sub GrayScaleTrackbar1_ValueChanged(sender As Object, e As EventArgs) Handles GrayScaleTrackbar1.ValueChanged
         Selected_Material.GrayscaleToPaletteScale = GrayScaleTrackbar1.Setvalue
@@ -561,7 +594,7 @@ Public Class Editor_Form
             GrayScaleTrackbar1.Maximum = 100
             GrayScaleTrackbar1.Value = 50
             GrayScaleTrackbar1.Enabled = False
-            GrayScaleTrackbar1.BackgroundImage = Nothing
+            DisposeLastBitmap()
         End If
     End Sub
 
@@ -656,21 +689,19 @@ Public Class Editor_Form
     Private Sub CheckBox1_CheckedChanged(sender As Object, e As EventArgs) Handles RenderCheckTexture.CheckedChanged
         Selected_Shape.ShowTexture = RenderCheckTexture.Checked
         ColorComboBox1.Enabled = RenderCheckWireframe.Checked Or Not RenderCheckTexture.Checked
-        Render_Changes(False)
+        RequestPreviewRedraw()
     End Sub
 
     Private Sub RenderCheckWireframe_CheckedChanged(sender As Object, e As EventArgs) Handles RenderCheckWireframe.CheckedChanged
         Selected_Shape.Wireframe = RenderCheckWireframe.Checked
         ColorComboBox1.Enabled = RenderCheckWireframe.Checked Or Not RenderCheckTexture.Checked
         TrackBar1.Enabled = RenderCheckWireframe.Checked
-        Render_Changes(False)
+        RequestPreviewRebucketAndRedraw()
     End Sub
 
     Private Sub RenderCheckMasks_CheckedChanged(sender As Object, e As EventArgs) Handles RenderCheckMasks.CheckedChanged
         Selected_Shape.ShowMask = RenderCheckMasks.Checked
-        'RenderCheckZap.Enabled = Not RenderCheckMasks.Checked
-        Render_Changes(False)
-
+        RequestPreviewRedraw()
     End Sub
 
     Private Sub RenderCheckZap_CheckedChanged(sender As Object, e As EventArgs) Handles RenderCheckZap.CheckedChanged
@@ -681,12 +712,12 @@ Public Class Editor_Form
 
     Private Sub RenderCheckWeights_CheckedChanged(sender As Object, e As EventArgs) Handles RenderCheckWeights.CheckedChanged
         Selected_Shape.ShowWeight = RenderCheckWeights.Checked
-        Render_Changes(False)
+        RequestPreviewRedraw()
     End Sub
 
     Private Sub CRenderCheckHide_CheckedChanged_1(sender As Object, e As EventArgs) Handles RenderCheckHide.CheckedChanged
         Selected_Shape.RenderHide = RenderCheckHide.Checked
-        Render_Changes(False)
+        RequestPreviewRedraw()
     End Sub
 
     Private Sub ButtonRemovePhysics_Click(sender As Object, e As EventArgs) Handles ButtonRemovePhysics.Click
@@ -729,7 +760,7 @@ Public Class Editor_Form
     End Sub
     Private Sub Button4_Click(sender As Object, e As EventArgs) Handles ButtonCancel.Click
         Finalizado_Edit()
-        Me.Close()
+        Close()
     End Sub
     Private Sub Render_Changes(Force As Boolean)
         Process_render_Changes(Force)
@@ -749,6 +780,7 @@ Public Class Editor_Form
             If hhfile.EndsWith(".hht") = False Then hhfile += ".hht"
             Selected_Slider.SaveHighHeel(hhfile, True)
             Finalizado_Edit()
+            SavedTargetProject = True
             Close()
         End If
     End Sub
@@ -820,6 +852,10 @@ Public Class Editor_Form
     End Sub
 
     Private Sub EditorControl_Closing(sender As Object, e As CancelEventArgs) Handles Me.Closing
+        DialogResult = DialogResult.Continue
+        If WroteFilesToDisk = True And SavedTargetProject = True Then DialogResult = DialogResult.OK
+        If WroteFilesToDisk = True And SavedTargetProject = False Then DialogResult = DialogResult.Cancel
+        If WroteFilesToDisk = False And SavedTargetProject = False Then DialogResult = DialogResult.Abort
         For Each shap In Selected_Slider.Shapes
             shap.Wireframe = False
             shap.ShowTexture = True
@@ -829,6 +865,7 @@ Public Class Editor_Form
             shap.RenderHide = False
             shap.MaskedVertices.Clear()
         Next
+        DisposeLastBitmap()
         EditPreviewControl.Clean()
         EditPreviewControl.Dispose()
     End Sub
@@ -890,6 +927,7 @@ Public Class Editor_Form
             Using Writer As New FileStream(Path.Combine(Wardrobe_Manager_Form.Directorios.Fallout4data, xx.FullPath), FileMode.Create)
                 Selected_Shape.RelatedMaterial.material.Underlying_Material.Save(Writer)
                 Writer.Close()
+                WroteFilesToDisk = True
             End Using
         End If
         MaterialPathTextbox.Text = prefix + Path.GetDirectoryName(Selected_Shape.RelatedMaterial.path)
@@ -913,6 +951,7 @@ Public Class Editor_Form
         If sd.ShowDialog = DialogResult.OK Then
             Using Writer As New FileStream(Path.Combine(Wardrobe_Manager_Form.Directorios.Fallout4data, sd.FileName), FileMode.Create)
                 Selected_Shape.RelatedMaterial.material.Underlying_Material.Save(Writer)
+                WroteFilesToDisk = True
                 Writer.Close()
             End Using
             Dim fullpath = Path.GetRelativePath(Wardrobe_Manager_Form.Directorios.Fallout4data, sd.FileName).Correct_Path_Separator
@@ -1342,6 +1381,7 @@ Public Class Editor_Form
             Else
                 If MsgBox("Are you sure you want to delete Preset " + Nombre + "?", vbYesNo, "Warning") = MsgBoxResult.No Then Return False
             End If
+            WroteFilesToDisk = True
             If IO.Directory.Exists(IO.Path.GetDirectoryName(path)) = False Then
                 IO.Directory.CreateDirectory(IO.Path.GetDirectoryName(path))
             End If
@@ -1360,6 +1400,7 @@ Public Class Editor_Form
                 sel = New XElement("Preset", New XAttribute("name", Nombre), New XAttribute("set", "CBBE Body"))
                 doc.Root.Add(sel)
             End If
+
 
             If delete Then
                 sel.Remove()
@@ -1403,7 +1444,6 @@ Public Class Editor_Form
             If delete AndAlso contar = 0 Then
                 IO.File.Delete(path)
             End If
-
             Return True
         Catch ex As Exception
             MsgBox("Error writing Preset " + Nombre + " in file " + path, vbCritical, "Error")
@@ -1429,6 +1469,7 @@ Public Class Editor_Form
             Else
                 If MsgBox("Are you sure you want to delete pose " + Nombre + "?", vbYesNo, "Warning") = MsgBoxResult.No Then Return False
             End If
+            WroteFilesToDisk = True
 
             If delete AndAlso tipo = Poses_class.Pose_Source_Enum.ScreenArcher Then
                 If IO.File.Exists(path) Then
@@ -1593,7 +1634,7 @@ Public Class Editor_Form
 
     Private Sub CheckBoxShowVColors_CheckedChanged(sender As Object, e As EventArgs) Handles RenderCheckVertexColors.CheckedChanged
         Selected_Shape.ShowVertexColor = RenderCheckVertexColors.Checked
-        Render_Changes(False)
+        RequestPreviewRedraw()
     End Sub
 
     Private Sub OutFilTextbox_TextChanged_1(sender As Object, e As EventArgs) Handles OutFilTextbox.TextChanged
@@ -1623,7 +1664,7 @@ Public Class Editor_Form
     Private Sub ColorComboBox1_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ColorComboBox1.SelectedIndexChanged
         If IsNothing(Selected_Shape) Then Exit Sub
         Selected_Shape.Wirecolor = ColorComboBox1.SelectedColor
-        Render_Changes(False)
+        RequestPreviewRedraw()
     End Sub
 
     Private Sub Button8_Click_1(sender As Object, e As EventArgs) Handles ButtonGrowMask.Click
@@ -1675,7 +1716,7 @@ Public Class Editor_Form
     Private Sub TrackBar1_Scroll(sender As Object, e As EventArgs) Handles TrackBar1.Scroll
         If IsNothing(Selected_Shape) Then Exit Sub
         Selected_Shape.WireAlpha = TrackBar1.Value / 100
-        Render_Changes(False)
+        RequestPreviewRedraw()
     End Sub
 
     Private Sub Button9_Click(sender As Object, e As EventArgs) Handles ButonMatBackToOriginal.Click
@@ -2316,7 +2357,23 @@ Public Class Editor_Form
     End Function
 
     Private Sub CheckBox1_CheckedChanged_2(sender As Object, e As EventArgs) Handles CheckBoxRenderFloor.CheckedChanged
-        If Not IsNothing(EditPreviewControl) Then Process_render_Changes(False)
+        If IsNothing(EditPreviewControl) Then Exit Sub
+        If IsNothing(EditPreviewControl.Model) Then Exit Sub
+        If IsNothing(EditPreviewControl.Model.Floor) Then Exit Sub
+        EditPreviewControl.Model.Floor.Enabled = CheckBoxRenderFloor.Checked
+        EditPreviewControl.RefreshRender()
+    End Sub
+    Private Sub DisposeLastBitmap()
+        If Not IsNothing(GrayScaleTrackbar1) AndAlso GrayScaleTrackbar1.BackgroundImage Is Last_BMP Then
+            GrayScaleTrackbar1.BackgroundImage = Nothing
+        End If
+
+        If Not IsNothing(Last_BMP) Then
+            Last_BMP.Dispose()
+            Last_BMP = Nothing
+        End If
+
+        Last_BMP_Name = ""
     End Sub
 
     Private Sub Button10_Click_1(sender As Object, e As EventArgs) Handles Button10.Click

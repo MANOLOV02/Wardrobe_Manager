@@ -235,21 +235,32 @@ Public Class Nifcontent_Class_Manolo
     End Class
     Public Sub Load_Manolo(Filename As String)
         Try
-            Dim fileBytes As Byte() = File.ReadAllBytes(Filename)
-            Load_Manolo(fileBytes)
-        Catch ex As Exception
-            Throw New Exception(ex.Message)
-        End Try
-    End Sub
-    Public Sub Load_Manolo(FileBytes As Byte())
-        Try
-            Using ms As New MemoryStream(FileBytes)
-                ms.Position = 0
-                MyBase.Load(ms)
+            Using fs As New FileStream(Filename, FileMode.Open, FileAccess.Read, FileShare.Read)
+                Load_Manolo(fs)
             End Using
         Catch ex As Exception
             Throw New Exception(ex.Message)
         End Try
+    End Sub
+
+    Public Sub Load_Manolo(FileBytes As Byte())
+        Try
+            Using ms As New MemoryStream(FileBytes, False)
+                Load_Manolo(ms)
+            End Using
+        Catch ex As Exception
+            Throw New Exception(ex.Message)
+        End Try
+    End Sub
+
+    Private Sub Load_Manolo(input As Stream)
+        Try
+            input.Position = 0
+            MyBase.Load(input)
+        Catch ex As Exception
+            Throw New Exception(ex.Message)
+        End Try
+
         BaseMaterials.Clear()
 
         If Me.Header.Version.IsSK AndAlso Config_App.Current.Game = Config_App.Game_Enum.Skyrim Then

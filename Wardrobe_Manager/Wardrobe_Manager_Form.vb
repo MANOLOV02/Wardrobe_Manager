@@ -688,7 +688,6 @@ Public Class Wardrobe_Manager_Form
 
 
     Private Sub Lee_Shapes()
-        If _Procesando = True Then Exit Sub
         Dim Seleccionado As SliderSet_Class = Nothing
         If RadioButton1.Checked OrElse (RadioButton3.Checked AndAlso Last_List_focused Is ListViewSources) Then
             Seleccionado = Determina_Seleccionado_y_CambiaNombres(0)
@@ -725,28 +724,24 @@ Public Class Wardrobe_Manager_Form
         }
         ListView2.Items.Add(it)
 
+        Dim hh As String = "No"
+        If Seleccionado.IsHighHeel Then
+            hh = "Yes"
+            Label6.Visible = True
+        Else
+            Label6.Visible = False
+        End If
         For Each shap In Seleccionado.Shapes
-            Dim hh As String = "No"
-            If shap.ParentSliderSet.IsHighHeel Then hh = "Yes"
             Dim locals As String = "Yes"
             If shap.IsExternal Then
                 If shap.HasExternalSliders Then locals = "No"
                 If locals = "No" AndAlso shap.HasLocalSliders Then locals = "Mixed"
             End If
-
             it = New ListViewItem({shap.Nombre, locals, hh, String.Join(";", shap.Datafolder)}) With {.Tag = shap}
             If shap.IsExternal Then it.ForeColor = Color.Green
-            If hh = "Yes" Then
-                Label6.Visible = True
-            Else
-                Label6.Visible = False
-            End If
             If shap.IsExternal AndAlso locals <> "No" Then it.BackColor = Color.LightYellow
-
             ListView2.Items.Add(it)
         Next
-
-
         preview_Control.Update_Render(Seleccionado, False, Selected_Combo_Preset, Selected_Combo_Pose, ComboBoxSize.SelectedIndex)
         _LastLeeShapesRequestKey = BuildLeeShapesRequestKey()
     End Sub
@@ -1031,9 +1026,11 @@ Public Class Wardrobe_Manager_Form
         _ExternalEditReloading = True
         Try
             _ExternalEditSlider.Reload(DeepAnalize_check.Checked)
-            If preview_Control.Model.Last_rendered Is _ExternalEditSlider Then
-                preview_Control.Model.Clean(False)
-                preview_Control.Model.CleanTextures()
+            If GetLatestExternalEditWriteTime(_ExternalEditSlider) > _ExternalEditLastOspWrite Then
+                If preview_Control.Model.Last_rendered Is _ExternalEditSlider Then
+                    preview_Control.Model.Clean(False)
+                    preview_Control.Model.CleanTextures()
+                End If
             End If
             RequestLeeShapes(True)
             _ExternalEditReloading = Not (Not _ExternalEditSlider.Unreadable_NIF And Not _ExternalEditSlider.Unreadable_Project)
@@ -1047,10 +1044,8 @@ Public Class Wardrobe_Manager_Form
         Dim lockedSlider = _ExternalEditSlider
 
         ExternalEditTimer.Stop()
-
         _ExternalEditActive = False
         _ExternalEditProcess = Nothing
-        _ExternalEditLastOspWrite = Date.MinValue
         _ExternalEditReloading = False
         _ExternalEditSlider = Nothing
         _ExternalEditFromTarget = False
@@ -1058,17 +1053,20 @@ Public Class Wardrobe_Manager_Form
         If doFinalReload AndAlso Not IsNothing(lockedSlider) Then
             Try
                 lockedSlider.Reload(DeepAnalize_check.Checked)
-                If preview_Control.Model.Last_rendered Is lockedSlider Then
-                    preview_Control.Model.Clean(False)
-                    preview_Control.Model.CleanTextures()
+                If GetLatestExternalEditWriteTime(lockedSlider) > _ExternalEditLastOspWrite Then
+                    If preview_Control.Model.Last_rendered Is lockedSlider Then
+                        preview_Control.Model.Clean(False)
+                        preview_Control.Model.CleanTextures()
+                    End If
                 End If
-                RequestLeeShapes(True)
             Catch ex As Exception
                 MsgBox("Final external edit reload failed: " & ex.Message, MsgBoxStyle.Exclamation, "Error")
             End Try
         End If
+        _ExternalEditLastOspWrite = Date.MinValue
 
         Habilita_deshabilita()
+        RequestLeeShapes(True)
     End Sub
     Private Function GetExistingExternalEditFiles(sliderset As SliderSet_Class) As List(Of String)
         Dim files As New List(Of String)
@@ -1400,7 +1398,6 @@ Public Class Wardrobe_Manager_Form
             selected_target.Reload(DeepAnalize_check.Checked)
             If preview_Control.Model.Last_rendered Is selected_target Then
                 preview_Control.Model.Last_rendered = Nothing
-                RequestLeeShapes()
             End If
         End If
         OSP_Project_Class.Default_Memory_Pause = False
@@ -1662,15 +1659,21 @@ Public Class Wardrobe_Manager_Form
         Editor.Grabable = Grabable
         Editor.SingleBoneCheck.Checked = SingleBoneCheck.Checked
         Editor.RecalculateNormalsCheck.Checked = RecalculateNormalsCheck.Checked
-        Editor.ShowDialog(Me)
-        If preview_Control.Model.Last_rendered Is selected Then
-            preview_Control.Model.Clean(False)
+        Dim resultado = Editor.ShowDialog(Me)
+        If resultado <> DialogResult.Abort Then
+            If preview_Control.Model.Last_rendered Is selected Then
+                preview_Control.Model.Clean(False)
+                preview_Control.Model.CleanTextures()
+            End If
+            selected.Reload(DeepAnalize_check.Checked)
+            Relee_Presets()
+            Relee_Poses()
+            Termina_Procesos()
+            RequestLeeShapes(True)
+        Else
+            Termina_Procesos()
+            RequestLeeShapes()
         End If
-        selected.Reload(DeepAnalize_check.Checked)
-        Relee_Presets()
-        Relee_Poses()
-        Termina_Procesos()
-        RequestLeeShapes(True)
     End Sub
     Private Sub ListViewTargets_DoubleClick(sender As Object, e As EventArgs) Handles ListViewTargets.DoubleClick
         If ListViewTargets.SelectedIndices.Count = 1 Then ButtonEditInternally.PerformClick()
@@ -1689,6 +1692,7 @@ Public Class Wardrobe_Manager_Form
     End Sub
 
     Private Sub Button4_Click_2(sender As Object, e As EventArgs) Handles ButtonOpenConfig.Click
+        Empieza_Procesos(0)
         Dim Config As New Config_Form
         Dim Oldtheme = Config_App.Current.theme
         Config.ShowDialog(Me)
@@ -1699,11 +1703,14 @@ Public Class Wardrobe_Manager_Form
         'If Config_App.Current.theme <> Oldtheme Then ThemeManager.SetTheme(Config_App.Current.theme, Me)
         SingleBoneCheck.Checked = Config_App.Current.Setting_SingleBoneSkinning
         RecalculateNormalsCheck.Checked = Config_App.Current.Setting_RecalculateNormals
-        preview_Control.Model.Floor.Enabled = Config_App.Current.Settings_RenderGrid.Enabled
-        preview_Control.Model.Floor.Color = Config_App.Current.RenderGridColor
-        preview_Control.Model.Floor.Size = Config_App.Current.Settings_RenderGrid.Size
-        preview_Control.Model.Floor.StepSize = Config_App.Current.Settings_RenderGrid.StepSize
-        preview_Control.Model.Floor.Rebuild()
+        If Not IsNothing(preview_Control) AndAlso Not IsNothing(preview_Control.Model) AndAlso Not IsNothing(preview_Control.Model.Floor) Then
+            preview_Control.Model.Floor.Enabled = Config_App.Current.Settings_RenderGrid.Enabled
+            preview_Control.Model.Floor.Color = Config_App.Current.RenderGridColor
+            preview_Control.Model.Floor.Size = Config_App.Current.Settings_RenderGrid.Size
+            preview_Control.Model.Floor.StepSize = Config_App.Current.Settings_RenderGrid.StepSize
+            preview_Control.Model.Floor.Rebuild()
+        End If
+        Termina_Procesos()
         RefreshButton.PerformClick()
     End Sub
 
@@ -1734,7 +1741,7 @@ Public Class Wardrobe_Manager_Form
         preview_Control.Model.SingleBoneSkinning = SingleBoneCheck.Checked
         Config_App.Current.Setting_SingleBoneSkinning = SingleBoneCheck.Checked
         ComboBoxPoses.Enabled = Not SingleBoneCheck.Checked
-        preview_Control.Model.Clean(True)
+        preview_Control.Model.Clean(False)
         RequestLeeShapes()
     End Sub
 
@@ -1823,7 +1830,6 @@ Public Class Wardrobe_Manager_Form
                 Config_App.Current.SkeletonPath = IO.Path.Combine(Directorios.Fallout4data, frm.DictionaryPicker_Control1.SelectedKey)
                 Skeleton_Class.LoadSkeleton(True, True)
                 Habilita_deshabilita()
-                RequestLeeShapes()
                 RefreshButton.PerformClick()
             End If
         End Using
@@ -1837,7 +1843,7 @@ Public Class Wardrobe_Manager_Form
         If IsNothing(preview_Control) Then Exit Sub
         preview_Control.Model.RecalculateNormals = RecalculateNormalsCheck.Checked
         Config_App.Current.Setting_RecalculateNormals = RecalculateNormalsCheck.Checked
-        preview_Control.Model.Clean(True)
+        preview_Control.Model.Clean(False)
         RequestLeeShapes()
     End Sub
 

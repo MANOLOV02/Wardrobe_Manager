@@ -51,8 +51,10 @@ Public Class TriFile
 
     Public Shared Sub Read_Looksmenu_Sliders()
         BSSliders = Deserialize_LooksmenuSiliders(Wardrobe_Manager_Form.Directorios.LooksMenuBSSliders)
+        WMSliders = New List(Of MorphdataTri)
+
         ' Lee los sliders ya grabados solo si no se resetean
-        If Config_App.Current.Settings_Build.ResetSlidersEachBuild Then
+        If Config_App.Current.Settings_Build.ResetSlidersEachBuild = False Then
             WMSliders = Deserialize_LooksmenuSiliders(Wardrobe_Manager_Form.Directorios.LooksMenuWMSliders)
         End If
     End Sub
@@ -60,8 +62,14 @@ Public Class TriFile
     Public Shared Function Deserialize_LooksmenuSiliders(SliderFile As String) As List(Of MorphdataTri)
         Try
             If IO.File.Exists(SliderFile) = False Then Return New List(Of MorphdataTri)
+
             Dim json As String = IO.File.ReadAllText(SliderFile)
             Dim model As List(Of MorphdataTri) = JsonSerializer.Deserialize(Of List(Of MorphdataTri))(json, Jsonopts)
+
+            If model Is Nothing Then
+                Return New List(Of MorphdataTri)
+            End If
+
             Return model
         Catch ex As Exception
             Return New List(Of MorphdataTri)

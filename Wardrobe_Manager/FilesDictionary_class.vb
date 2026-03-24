@@ -13,6 +13,7 @@ Module Extensiones
         Return St.Replace("/", "\")
     End Function
 End Module
+
 Public Class FilesDictionary_class
     Public Shared Property TexturesDictionary_Filter As New FilesDictionary_class.DictionaryFilePickerConfig With {.DictionaryProvider = Function() FilesDictionary_class.Dictionary, .RootPrefix = "Textures\", .AllowedExtensions = New HashSet(Of String)(StringComparer.OrdinalIgnoreCase) From {".dds"}}
     Public Shared Property MaterialsDictionary_Filter As New FilesDictionary_class.DictionaryFilePickerConfig With {.DictionaryProvider = Function() FilesDictionary_class.Dictionary, .RootPrefix = "Materials\", .AllowedExtensions = New HashSet(Of String)(StringComparer.OrdinalIgnoreCase) From {".bgsm", ".bgem"}}
@@ -61,12 +62,18 @@ Public Class FilesDictionary_class
         End Function
     End Class
 
-
+    Private Class DictionaryScanWorkItem
+        Public Property IsArchive As Boolean
+        Public Property FilePath As String = ""
+        Public Property SourceOrder As Integer = Integer.MinValue
+    End Class
     Public Class File_Location
 
         Public Property BA2File As String = ""
         Public Property Index As Integer = -1
         Public Property FullPath As String = ""
+        Public Property SourceOrder As Integer = Integer.MinValue
+
         Public Function GetBytesFromOpenArchive(pack As BSA_BA2_Library_DLL.BethesdaArchive.Core.BethesdaReader) As Byte()
             If IsNothing(pack) OrElse IsLosseFile Then Return Array.Empty(Of Byte)
             Try
@@ -75,6 +82,7 @@ Public Class FilesDictionary_class
                 Return Array.Empty(Of Byte)
             End Try
         End Function
+
         Public ReadOnly Property IsLosseFile As Boolean
             Get
                 Return BA2File = ""
@@ -117,15 +125,14 @@ Public Class FilesDictionary_class
         End If
     End Function
     Private Shared Function EnumerateSupportedLooseFiles(root As String) As IEnumerable(Of String)
-        Dim opts As New EnumerationOptions() With {.RecurseSubdirectories = True}
-        Dim patterns As String() = {"*.dds", "*.bgsm", "*.bgem", "*.nif", "*.tri"}
+        Dim opts As New EnumerationOptions() With {
+        .RecurseSubdirectories = True,
+        .IgnoreInaccessible = True
+    }
 
-        Dim result As IEnumerable(Of String) = Enumerable.Empty(Of String)()
-        For Each pat In patterns
-            result = result.Concat(Directory.EnumerateFiles(root, pat, opts))
-        Next
-
-        Return result
+        Return Directory.
+        EnumerateFiles(root, "*", opts).
+        Where(Function(path) Extensiones.Contains(IO.Path.GetExtension(path)))
     End Function
     Public Shared Function GetMultipleFilesBytes(files As String()) As Byte()()
         If IsNothing(files) OrElse files.Length = 0 Then Return Array.Empty(Of Byte())()
@@ -384,45 +391,208 @@ Public Class FilesDictionary_class
             FO4Path = Fo4DataPath
             Dictionary.Clear()
             ClearSearchIndexes()
-            ' Obtener archivos
-            Dim ba2Files = EnumerateFilesWithSymlinkSupport(Fo4DataPath, "*.ba2;*.bsa", False).ToList()
-            Dim looseFiles = EnumerateSupportedLooseFiles(Fo4DataPath).ToList()
+
+            Dim ba2Files = EnumerateFilesWithSymlinkSupport(Fo4DataPath, "*.ba2;*.bsa", False).
+            OrderBy(Function(p) p, StringComparer.OrdinalIgnoreCase).
+            ToList()
+
+            Dim looseFiles = EnumerateSupportedLooseFiles(Fo4DataPath).
+            OrderBy(Function(p) p, StringComparer.OrdinalIgnoreCase).
+            ToList()
+
+            Dim archivePriority = BuildArchivePriority(ba2Files)
 
             totalCount = ba2Files.Count + looseFiles.Count
             completed = 0
             progress.Report(("Escaneando archivos...", completed, totalCount))
 
-            ' Limitar el número de tareas concurrentes
-            Dim semaphore = New System.Threading.SemaphoreSlim(4) ' Ajusta según CPU/hardware
+            Dim workQueue As New ConcurrentQueue(Of DictionaryScanWorkItem)
 
-            ' Procesar archivos .ba2
-            Dim ba2Tasks = ba2Files.Select(Function(ba2)
-                                               Return ProcessBa2FileAsync(ba2, progress, semaphore)
-                                           End Function)
-            ' Procesar archivos sueldots
-            Dim looseTasks = looseFiles.Select(Function(file)
-                                                   Return ProcessLooseFileAsync(file, Fo4DataPath, progress, semaphore)
-                                               End Function)
-            ' Esperar a que todas las tareas terminen
-            Dim allTasks = ba2Tasks.Concat(looseTasks).ToList()
-            Await Task.WhenAll(allTasks).ConfigureAwait(False)
+            For Each ba2 In ba2Files
+                Dim ba2Name = Path.GetFileName(ba2)
+                Dim sourceOrder As Integer = Integer.MinValue
+                If archivePriority.TryGetValue(ba2Name, sourceOrder) = False Then
+                    sourceOrder = Integer.MinValue
+                End If
+
+                workQueue.Enqueue(New DictionaryScanWorkItem With {
+                .IsArchive = True,
+                .FilePath = ba2,
+                .SourceOrder = sourceOrder
+            })
+            Next
+
+            For Each file In looseFiles
+                workQueue.Enqueue(New DictionaryScanWorkItem With {
+                .IsArchive = False,
+                .FilePath = file,
+                .SourceOrder = Integer.MaxValue
+            })
+            Next
+
+            Dim workerCount As Integer = Math.Min(4, Math.Max(1, workQueue.Count))
+
+            Dim workers = Enumerable.Range(0, workerCount).
+            Select(Function(funza)
+                       Return Task.Run(
+                           Sub()
+                               Dim item As DictionaryScanWorkItem = Nothing
+
+                               While workQueue.TryDequeue(item)
+                                   If item.IsArchive Then
+                                       ProcessBa2File(item.FilePath, item.SourceOrder, progress)
+                                   Else
+                                       ProcessLooseFile(item.FilePath, Fo4DataPath, progress)
+                                   End If
+                               End While
+                           End Sub)
+                   End Function).
+            ToArray()
+
+            Await Task.WhenAll(workers).ConfigureAwait(False)
+
         Catch ex As Exception
             MsgBox(ex.ToString)
         End Try
     End Function
+    Private Shared Function GetPluginsTxtPath() As String
+        If Config_App.Current.Game = Config_App.Game_Enum.Fallout4 Then
+            Return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Fallout4", "loadorder.txt")
+        Else
+            Return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Skyrim Special Edition", "loadorder.txt")
+        End If
+    End Function
 
-    Private Shared Async Function ProcessBa2FileAsync(ba2 As String, progress As IProgress(Of (String, Integer, Integer)), semaphore As SemaphoreSlim) As Task
-        Await semaphore.WaitAsync().ConfigureAwait(False)
+    Private Shared Function ReadPluginsLoadOrder() As List(Of String)
+        Dim result As New List(Of String)
+        Dim pluginsTxt = GetPluginsTxtPath()
+
+        If File.Exists(pluginsTxt) = False Then Return result
+
+        For Each rawLine In File.ReadLines(pluginsTxt, Encoding.UTF8)
+            Dim line = rawLine.Trim()
+
+            If line = "" Then Continue For
+            If line.StartsWith("#", StringComparison.OrdinalIgnoreCase) Then Continue For
+            If line.StartsWith(";", StringComparison.OrdinalIgnoreCase) Then Continue For
+
+            If line.StartsWith("*", StringComparison.OrdinalIgnoreCase) Then
+                line = line.Substring(1).Trim()
+            End If
+
+            If line = "" Then Continue For
+
+            Dim ext = Path.GetExtension(line)
+            If ext.Equals(".esp", StringComparison.OrdinalIgnoreCase) OrElse
+           ext.Equals(".esm", StringComparison.OrdinalIgnoreCase) OrElse
+           ext.Equals(".esl", StringComparison.OrdinalIgnoreCase) Then
+
+                result.Add(Path.GetFileName(line))
+            End If
+        Next
+
+        Return result
+    End Function
+
+    Private Shared Function ArchiveBelongsToPlugin(archiveFileName As String, pluginFileName As String) As Boolean
+        Dim archiveBase = Path.GetFileNameWithoutExtension(archiveFileName)
+        Dim pluginBase = Path.GetFileNameWithoutExtension(pluginFileName)
+        If archiveBase.Equals(pluginBase, StringComparison.OrdinalIgnoreCase) Then Return True
+        If archiveBase.StartsWith(pluginBase & " - ", StringComparison.OrdinalIgnoreCase) Then Return True
+        Return False
+    End Function
+
+    Private Shared Function BuildArchivePriority(ba2Files As List(Of String)) As Dictionary(Of String, Integer)
+        Dim result As New Dictionary(Of String, Integer)(StringComparer.OrdinalIgnoreCase)
+
+        Dim archiveNames = ba2Files.
+        Select(Function(p) Path.GetFileName(p)).
+        OrderBy(Function(n) n, StringComparer.OrdinalIgnoreCase).
+        ToList()
+
+        Dim fullPathsByName = ba2Files.
+        GroupBy(Function(p) Path.GetFileName(p), StringComparer.OrdinalIgnoreCase).
+        ToDictionary(Function(g) g.Key, Function(g) g.First(), StringComparer.OrdinalIgnoreCase)
+
+        Dim pending As New HashSet(Of String)(archiveNames, StringComparer.OrdinalIgnoreCase)
+        Dim nextOrder As Integer = 0
+
+        Dim baseAndDlcOrder As String() = {
+        "Fallout4",
+        "DLCRobot",
+        "DLCworkshop01",
+        "DLCCoast",
+        "DLCworkshop02",
+        "DLCworkshop03",
+        "DLCNukaWorld",
+        "DLCUltraHighResolution"
+    }
+
+        For Each prefix In baseAndDlcOrder
+            Dim matches = pending.
+            Where(Function(name) Path.GetFileNameWithoutExtension(name).StartsWith(prefix, StringComparison.OrdinalIgnoreCase)).
+            OrderBy(Function(name) name, StringComparer.OrdinalIgnoreCase).
+            ToList()
+
+            For Each match In matches
+                result(match) = nextOrder
+                nextOrder += 1
+                pending.Remove(match)
+            Next
+        Next
+
+        Dim pluginsLoadOrder = ReadPluginsLoadOrder()
+
+        For Each plugin In pluginsLoadOrder
+            Dim matches = pending.
+            Where(Function(name) ArchiveBelongsToPlugin(name, plugin)).
+            OrderBy(Function(name) name, StringComparer.OrdinalIgnoreCase).
+            ToList()
+
+            For Each match In matches
+                result(match) = nextOrder
+                nextOrder += 1
+                pending.Remove(match)
+            Next
+        Next
+
+        Dim fallbackMatches = pending.
+        OrderBy(Function(name) File.GetLastWriteTimeUtc(fullPathsByName(name))).
+        ThenBy(Function(name) name, StringComparer.OrdinalIgnoreCase).
+        ToList()
+
+        For Each match In fallbackMatches
+            result(match) = nextOrder
+            nextOrder += 1
+            pending.Remove(match)
+        Next
+
+        Return result
+    End Function
+    Private Shared Sub ProcessBa2File(ba2 As String, sourceOrder As Integer, progress As IProgress(Of (String, Integer, Integer)))
         Try
-            Using fs As FileStream = File.OpenRead(ba2) ' o .bsa
-                Dim i As Integer = 0
+            Using fs As FileStream = File.OpenRead(ba2)
                 Using arc As New BSA_BA2_Library_DLL.BethesdaArchive.Core.BethesdaReader(fs)
                     For Each fil In arc.EntriesFiles
                         Dim standardized = fil.FullPath.Correct_Path_Separator
-                        Dim entry As New File_Location With {.BA2File = Path.GetFileName(ba2), .Index = fil.Index, .FullPath = standardized}
-                        Dictionary.AddOrUpdate(standardized, entry, Function(key, existing)
-                                                                        If Resolve_Conflict(existing, entry) Then Return entry Else Return existing
-                                                                    End Function)
+                        Dim entry As New File_Location With {
+                        .BA2File = Path.GetFileName(ba2),
+                        .Index = fil.Index,
+                        .FullPath = standardized,
+                        .SourceOrder = sourceOrder
+                    }
+
+                        Dictionary.AddOrUpdate(
+                        standardized,
+                        entry,
+                        Function(key, existing)
+                            If Resolve_Conflict(existing, entry) Then
+                                Return entry
+                            Else
+                                Return existing
+                            End If
+                        End Function)
+
                         IndexDictionaryKey(standardized)
                     Next
                 End Using
@@ -433,10 +603,8 @@ Public Class FilesDictionary_class
         Finally
             Dim current = Interlocked.Increment(completed)
             progress.Report(($"Procesado: {Path.GetFileName(ba2)}", current, totalCount))
-            semaphore.Release()
         End Try
-
-    End Function
+    End Sub
 
     Public Shared Function EnumerateFilesWithSymlinkSupport(root As String, pattern As String, Recursive As Boolean) As IEnumerable(Of String)
         Dim spl() As String = {pattern}
@@ -452,52 +620,53 @@ Public Class FilesDictionary_class
         Return result
     End Function
 
-    Private Shared Async Function ProcessLooseFileAsync(file As String, basePath As String, progress As IProgress(Of (String, Integer, Integer)), semaphore As SemaphoreSlim) As Task
-        Await semaphore.WaitAsync().ConfigureAwait(False)
+    Private Shared Sub ProcessLooseFile(file As String, basePath As String, progress As IProgress(Of (String, Integer, Integer)))
         Try
             Dim standardized = Path.GetRelativePath(basePath, file).Correct_Path_Separator
-            Dim entry As New File_Location With {.BA2File = String.Empty, .Index = -1, .FullPath = standardized}
-            Dictionary.AddOrUpdate(standardized, entry, Function(key, existing) entry)
+
+            Dim entry As New File_Location With {
+            .BA2File = String.Empty,
+            .Index = -1,
+            .FullPath = standardized,
+            .SourceOrder = Integer.MaxValue
+        }
+
+            Dictionary.AddOrUpdate(
+            standardized,
+            entry,
+            Function(key, existing)
+                If Resolve_Conflict(existing, entry) Then
+                    Return entry
+                Else
+                    Return existing
+                End If
+            End Function)
+
             IndexDictionaryKey(standardized)
+
         Catch ex As Exception
             MsgBox("Error procesing Loose file " + file + " :" + ex.ToString)
         Finally
             Dim current = Interlocked.Increment(completed)
             progress.Report(($"Procesado: {Path.GetFileName(file)}", current, totalCount))
-            semaphore.Release()
         End Try
-    End Function
+    End Sub
 
     Private Shared Function Resolve_Conflict(Original As File_Location, Nueva As File_Location) As Boolean
-        If Nueva.BA2File.StartsWith("DLCUltraHighResolution", StringComparison.OrdinalIgnoreCase) Then Return True
-        If Original.BA2File.StartsWith("DLCUltraHighResolution", StringComparison.OrdinalIgnoreCase) Then Return False
-        If Nueva.BA2File.StartsWith("Fallout4", StringComparison.OrdinalIgnoreCase) Then Return False
-        If Original.BA2File.StartsWith("Fallout4", StringComparison.OrdinalIgnoreCase) Then Return True
-        If Nueva.BA2File.StartsWith("unofficial fallout 4 patch", StringComparison.OrdinalIgnoreCase) Then Return True
-        If Original.BA2File.StartsWith("unofficial fallout 4 patch", StringComparison.OrdinalIgnoreCase) Then Return False
-        If Nueva.BA2File.StartsWith("Scrap Everything", StringComparison.OrdinalIgnoreCase) Then Return False
-        If Original.BA2File.StartsWith("Scrap Everything", StringComparison.OrdinalIgnoreCase) Then Return True
-        If Nueva.BA2File.StartsWith("DLC", StringComparison.OrdinalIgnoreCase) And Original.BA2File.StartsWith("cc", StringComparison.OrdinalIgnoreCase) Then Return False
-        If Original.BA2File.StartsWith("DLC", StringComparison.OrdinalIgnoreCase) And Nueva.BA2File.StartsWith("cc", StringComparison.OrdinalIgnoreCase) Then Return True
-        If Nueva.BA2File.StartsWith("DLCCOAST", StringComparison.OrdinalIgnoreCase) And Original.BA2File.StartsWith("DLCNUKA", StringComparison.OrdinalIgnoreCase) Then Return False
-        If Original.BA2File.StartsWith("DLCCOAST", StringComparison.OrdinalIgnoreCase) And Nueva.BA2File.StartsWith("DLCNUKA", StringComparison.OrdinalIgnoreCase) Then Return True
-        If Nueva.BA2File.StartsWith("DLCROBOT", StringComparison.OrdinalIgnoreCase) And Original.BA2File.StartsWith("DLCNUKA", StringComparison.OrdinalIgnoreCase) Then Return False
-        If Original.BA2File.StartsWith("DLCROBOT", StringComparison.OrdinalIgnoreCase) And Nueva.BA2File.StartsWith("DLCNUKA", StringComparison.OrdinalIgnoreCase) Then Return True
-        If Nueva.BA2File.StartsWith("DLCROBOT", StringComparison.OrdinalIgnoreCase) And Original.BA2File.StartsWith("DLCCOAST", StringComparison.OrdinalIgnoreCase) Then Return False
-        If Original.BA2File.StartsWith("DLCROBOT", StringComparison.OrdinalIgnoreCase) And Nueva.BA2File.StartsWith("DLCCOAST", StringComparison.OrdinalIgnoreCase) Then Return True
-        If Nueva.BA2File.StartsWith("DLCCOAST", StringComparison.OrdinalIgnoreCase) And Original.BA2File.StartsWith("DLCNUKA", StringComparison.OrdinalIgnoreCase) Then Return False
-        If Original.BA2File.StartsWith("DLCworkshop03", StringComparison.OrdinalIgnoreCase) And Nueva.BA2File.StartsWith("DLCCOAST", StringComparison.OrdinalIgnoreCase) Then Return True
-        If Original.BA2File.StartsWith("DLCCOAST", StringComparison.OrdinalIgnoreCase) And Nueva.BA2File.StartsWith("DLCworkshop03", StringComparison.OrdinalIgnoreCase) Then Return False
+        If IsNothing(Original) Then Return True
+        If IsNothing(Nueva) Then Return False
 
-        If Original.BA2File.StartsWith("ccBGSFO4038", StringComparison.OrdinalIgnoreCase) And Nueva.BA2File.StartsWith("ccBGSFO4044", StringComparison.OrdinalIgnoreCase) Then Return False
-        If Original.BA2File.StartsWith("ccBGSFO4044", StringComparison.OrdinalIgnoreCase) And Nueva.BA2File.StartsWith("ccBGSFO4038", StringComparison.OrdinalIgnoreCase) Then Return True
-        If Original.BA2File.StartsWith("Alternative Satellite World Maps - Textures", StringComparison.OrdinalIgnoreCase) And Nueva.BA2File.StartsWith("DLC", StringComparison.OrdinalIgnoreCase) Then Return True
-        If Original.BA2File.StartsWith("DLC", StringComparison.OrdinalIgnoreCase) And Nueva.BA2File.StartsWith("Alternative Satellite World Maps - Textures", StringComparison.OrdinalIgnoreCase) Then Return False
+        If Nueva.IsLosseFile AndAlso Original.IsLosseFile = False Then Return True
+        If Original.IsLosseFile AndAlso Nueva.IsLosseFile = False Then Return False
 
-        If Original.BA2File.Contains(".bsa") = False Then
-            Debugger.Break()
+        If Nueva.SourceOrder > Original.SourceOrder Then Return True
+        If Nueva.SourceOrder < Original.SourceOrder Then Return False
+
+        If Nueva.IsLosseFile AndAlso Original.IsLosseFile Then
+            Return False
         End If
-        Return True
+
+        Return StringComparer.OrdinalIgnoreCase.Compare(Nueva.BA2File, Original.BA2File) >= 0
     End Function
 
 End Class

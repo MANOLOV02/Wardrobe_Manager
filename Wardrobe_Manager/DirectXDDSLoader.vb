@@ -92,116 +92,138 @@ Public Module DirectXDDSLoader
             Return 0
         End If
 
-        ' 1) Generar y bindear textura
         Dim target = If(tex.IsCubemap, TextureTarget.TextureCubeMap, TextureTarget.Texture2D)
-        Dim texID = GL.GenTexture()
-        GL.BindTexture(target, texID)
+        Dim texID As Integer = 0
+        Dim pbo As Integer = 0
 
-        ' 2) Parámetros de miplevels
-        GL.TexParameter(target, TextureParameterName.TextureBaseLevel, 0)
-        GL.TexParameter(target, TextureParameterName.TextureMaxLevel, tex.Miplevels - 1)
+        Try
+            ' 1) Generar y bindear textura
+            texID = GL.GenTexture()
+            GL.BindTexture(target, texID)
 
-        ' 3) Filtros y LOD bias
-        Dim minFilter = If(tex.Miplevels > 1, TextureMinFilter.LinearMipmapLinear, TextureMinFilter.Linear)
-        GL.TexParameter(target, TextureParameterName.TextureMinFilter, CInt(minFilter))
-        GL.TexParameter(target, TextureParameterName.TextureMagFilter, CInt(TextureMagFilter.Linear))
-        GL.TexParameter(target, TextureParameterName.TextureLodBias, -0.5F)
+            ' 2) Parámetros de miplevels
+            GL.TexParameter(target, TextureParameterName.TextureBaseLevel, 0)
+            GL.TexParameter(target, TextureParameterName.TextureMaxLevel, tex.Miplevels - 1)
 
-        ' 4) Wrapping
-        If tex.IsCubemap Then
-            GL.TexParameter(target, TextureParameterName.TextureWrapS, CInt(TextureWrapMode.ClampToEdge))
-            GL.TexParameter(target, TextureParameterName.TextureWrapT, CInt(TextureWrapMode.ClampToEdge))
-            GL.TexParameter(target, TextureParameterName.TextureWrapR, CInt(TextureWrapMode.ClampToEdge))
-        Else
-            GL.TexParameter(target, TextureParameterName.TextureWrapS, CInt(TextureWrapMode.Repeat))
-            GL.TexParameter(target, TextureParameterName.TextureWrapT, CInt(TextureWrapMode.Repeat))
-        End If
+            ' 3) Filtros y LOD bias
+            Dim minFilter = If(tex.Miplevels > 1, TextureMinFilter.LinearMipmapLinear, TextureMinFilter.Linear)
+            GL.TexParameter(target, TextureParameterName.TextureMinFilter, CInt(minFilter))
+            GL.TexParameter(target, TextureParameterName.TextureMagFilter, CInt(TextureMagFilter.Linear))
+            GL.TexParameter(target, TextureParameterName.TextureLodBias, -0.5F)
 
-        ' 5) Filtrado anisotrópico
-        Dim maxAniso As Single
-        GL.GetFloat(GetPName.MaxTextureMaxAnisotropy, maxAniso)
-        GL.TexParameter(target, CType(&H84FE, TextureParameterName), maxAniso)
+            ' 4) Wrapping
+            If tex.IsCubemap Then
+                GL.TexParameter(target, TextureParameterName.TextureWrapS, CInt(TextureWrapMode.ClampToEdge))
+                GL.TexParameter(target, TextureParameterName.TextureWrapT, CInt(TextureWrapMode.ClampToEdge))
+                GL.TexParameter(target, TextureParameterName.TextureWrapR, CInt(TextureWrapMode.ClampToEdge))
+            Else
+                GL.TexParameter(target, TextureParameterName.TextureWrapS, CInt(TextureWrapMode.Repeat))
+                GL.TexParameter(target, TextureParameterName.TextureWrapT, CInt(TextureWrapMode.Repeat))
+            End If
 
-        ' 6) Reservar almacenamiento con TexStorage2D (OpenGL ≥4.2)
-        '    Usamos el tamaño del nivel 0 como base de ancho/alto
-        Dim baseW = tex.Levels(0).Width
-        Dim baseH = tex.Levels(0).Height
-        GL.TexStorage2D(
-        target,
-        tex.Miplevels,
-        CType(tex.GlInternalFormat, SizedInternalFormat),
-        baseW,
-        baseH)
+            ' 5) Filtrado anisotrópico
+            Dim maxAniso As Single
+            GL.GetFloat(GetPName.MaxTextureMaxAnisotropy, maxAniso)
+            GL.TexParameter(target, CType(&H84FE, TextureParameterName), maxAniso)
 
-        ' 7) Calcular offsets y tamaño total de todos los datos
-        Dim faces = tex.Faces
-        Dim levels = tex.Miplevels
-        Dim totalBytes As Integer = 0
-        Dim offsets(levels * faces - 1) As Integer
-        For m As Integer = 0 To levels - 1
-            For f As Integer = 0 To faces - 1
-                Dim idx = m * faces + f
-                offsets(idx) = totalBytes
-                totalBytes += tex.Levels(idx).Data.Length
+            ' 6) Reservar almacenamiento
+            Dim baseW = tex.Levels(0).Width
+            Dim baseH = tex.Levels(0).Height
+            GL.TexStorage2D(
+            target,
+            tex.Miplevels,
+            CType(tex.GlInternalFormat, SizedInternalFormat),
+            baseW,
+            baseH)
+
+            ' 7) Calcular offsets y tamaño total
+            Dim faces = tex.Faces
+            Dim levels = tex.Miplevels
+            Dim totalBytes As Integer = 0
+            Dim offsets(levels * faces - 1) As Integer
+
+            For m As Integer = 0 To levels - 1
+                For f As Integer = 0 To faces - 1
+                    Dim idx = m * faces + f
+                    offsets(idx) = totalBytes
+                    totalBytes += tex.Levels(idx).Data.Length
+                Next
             Next
-        Next
 
-        ' 8) Crear y bindear un único PBO de PixelUnpack
-        Dim pbo = GL.GenBuffer()
-        GL.BindBuffer(BufferTarget.PixelUnpackBuffer, pbo)
-        GL.BufferData(BufferTarget.PixelUnpackBuffer, totalBytes, IntPtr.Zero, BufferUsageHint.StreamDraw)
+            ' 8) Crear y bindear PBO
+            pbo = GL.GenBuffer()
+            GL.BindBuffer(BufferTarget.PixelUnpackBuffer, pbo)
+            GL.BufferData(BufferTarget.PixelUnpackBuffer, totalBytes, IntPtr.Zero, BufferUsageHint.StreamDraw)
 
-        ' 9) Mapear PBO y volcar en bloque todos los niveles/carás
-        Dim basePtr = GL.MapBuffer(BufferTarget.PixelUnpackBuffer, BufferAccess.WriteOnly)
-        For i As Integer = 0 To offsets.Length - 1
-            Dim lvl = tex.Levels(i)
-            Marshal.Copy(lvl.Data, 0, IntPtr.Add(basePtr, offsets(i)), lvl.Data.Length)
-        Next
-        GL.UnmapBuffer(BufferTarget.PixelUnpackBuffer)
+            ' 9) Mapear PBO y copiar datos
+            Dim basePtr = GL.MapBuffer(BufferTarget.PixelUnpackBuffer, BufferAccess.WriteOnly)
+            If basePtr = IntPtr.Zero Then
+                Throw New InvalidOperationException("GL.MapBuffer devolvió IntPtr.Zero para PixelUnpackBuffer.")
+            End If
 
-        ' 10) Array de targets para cubemap
-        Dim faceTargets() As TextureTarget = {
-        TextureTarget.TextureCubeMapPositiveX, TextureTarget.TextureCubeMapNegativeX,
-        TextureTarget.TextureCubeMapPositiveY, TextureTarget.TextureCubeMapNegativeY,
-        TextureTarget.TextureCubeMapPositiveZ, TextureTarget.TextureCubeMapNegativeZ
-    }
-
-        ' 11) Poblar cada nivel/cara desde el PBO
-        For m As Integer = 0 To levels - 1
-            For f As Integer = 0 To faces - 1
-                Dim idx = m * faces + f
-                Dim lvl = tex.Levels(idx)
-                Dim offsetPtr = New IntPtr(offsets(idx))
-
-                If tex.IsCompressedGL Then
-                    ' Subir datos comprimidos
-                    GL.CompressedTexSubImage2D(
-                    If(tex.IsCubemap, faceTargets(f), TextureTarget.Texture2D),
-                    m, 0, 0,
-                    lvl.Width, lvl.Height,
-                    CType(tex.GlInternalFormat, InternalFormat),
-                    lvl.Data.Length,
-                    offsetPtr)
-                Else
-                    ' Subir datos sin comprimir
-                    GL.TexSubImage2D(
-                    If(tex.IsCubemap, faceTargets(f), TextureTarget.Texture2D),
-                    m, 0, 0,
-                    lvl.Width, lvl.Height,
-                    CType(tex.GlPixelFormat, OpenTK.Graphics.OpenGL4.PixelFormat),
-                    CType(tex.GlPixelType, PixelType),
-                    offsetPtr)
-                End If
+            For i As Integer = 0 To offsets.Length - 1
+                Dim lvl = tex.Levels(i)
+                Marshal.Copy(lvl.Data, 0, IntPtr.Add(basePtr, offsets(i)), lvl.Data.Length)
             Next
-        Next
 
-        ' 12) Desvincular PBO
-        GL.BindBuffer(BufferTarget.PixelUnpackBuffer, 0)
+            If GL.UnmapBuffer(BufferTarget.PixelUnpackBuffer) = False Then
+                Throw New InvalidOperationException("GL.UnmapBuffer devolvió False para PixelUnpackBuffer.")
+            End If
 
-        ' 13) (Opcional) Generar mipmaps en GPU si decides no subir todos manualmente
-        ' GL.GenerateTextureMipmap(texID)
+            ' 10) Targets de cubemap
+            Dim faceTargets() As TextureTarget = {
+            TextureTarget.TextureCubeMapPositiveX, TextureTarget.TextureCubeMapNegativeX,
+            TextureTarget.TextureCubeMapPositiveY, TextureTarget.TextureCubeMapNegativeY,
+            TextureTarget.TextureCubeMapPositiveZ, TextureTarget.TextureCubeMapNegativeZ
+        }
 
-        Return texID
+            ' 11) Subir niveles/caras desde PBO
+            For m As Integer = 0 To levels - 1
+                For f As Integer = 0 To faces - 1
+                    Dim idx = m * faces + f
+                    Dim lvl = tex.Levels(idx)
+                    Dim offsetPtr = New IntPtr(offsets(idx))
+
+                    If tex.IsCompressedGL Then
+                        GL.CompressedTexSubImage2D(
+                        If(tex.IsCubemap, faceTargets(f), TextureTarget.Texture2D),
+                        m, 0, 0,
+                        lvl.Width, lvl.Height,
+                        CType(tex.GlInternalFormat, InternalFormat),
+                        lvl.Data.Length,
+                        offsetPtr)
+                    Else
+                        GL.TexSubImage2D(
+                        If(tex.IsCubemap, faceTargets(f), TextureTarget.Texture2D),
+                        m, 0, 0,
+                        lvl.Width, lvl.Height,
+                        CType(tex.GlPixelFormat, OpenTK.Graphics.OpenGL4.PixelFormat),
+                        CType(tex.GlPixelType, PixelType),
+                        offsetPtr)
+                    End If
+                Next
+            Next
+
+            ' 13) (Opcional) Generar mipmaps en GPU si decides no subir todos manualmente
+            ' GL.GenerateTextureMipmap(texID)
+
+            Return texID
+
+        Catch
+            If texID <> 0 Then
+                GL.DeleteTexture(texID)
+            End If
+            Throw
+
+        Finally
+            GL.BindBuffer(BufferTarget.PixelUnpackBuffer, 0)
+
+            If pbo <> 0 Then
+                GL.DeleteBuffer(pbo)
+            End If
+
+            GL.BindTexture(target, 0)
+        End Try
     End Function
 
     Public Function Load_And_GenerateOpenGLTextures_FromFiles(fullpaths As String(), useCompress As Boolean, forceOpenGL As Boolean) As Dictionary(Of String, PreviewModel.Texture_Loaded_Class)
@@ -266,18 +288,9 @@ Public Module DirectXDDSLoader
 
         Next
         results.Clear()
-        If Environment.Is64BitProcess = False Then Limpia_LOH()
         Return diccionario
     End Function
-    Private Async Sub Limpia_LOH()
-        GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce
-        ' Justo después de soltar referencias:
-        Await Task.Run(Sub()
-                           GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking:=True, compacting:=True)
-                           GC.WaitForPendingFinalizers()
-                           GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking:=True, compacting:=True)
-                       End Sub)
-    End Sub
+
 End Module
 
 

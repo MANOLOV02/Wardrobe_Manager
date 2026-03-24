@@ -351,6 +351,7 @@ Public Class PreviewControl
     Public updateRequired As Boolean = True
 
     Public Sub Processing_Status(Texto As String)
+        If Me.IsDisposed Then Exit Sub
         Me.MakeCurrent()
         GL.ClearColor(Config_App.Current.Setting_BackColor)
         GL.Clear(ClearBufferMask.ColorBufferBit Or ClearBufferMask.DepthBufferBit)
@@ -1775,6 +1776,7 @@ Public Class PreviewModel
     End Sub
 
     Public Sub Processing_Status_GL(text As String)
+        If Me.ParentControl.IsDisposed Then Exit Sub
         Me.ParentControl.Processing_Status(text)
     End Sub
     Public Sub LoadShapesParallel(shapes As List(Of Shape_class))
@@ -1835,6 +1837,7 @@ Public Class PreviewModel
     End Function
 
     Public Sub Setup_GL()
+        If Me.ParentControl.IsDisposed Then Exit Sub
         Process_Indices_GL()
         Process_Textures_GL()
         If Floor Is Nothing Then Floor = New FloorRenderer(ParentControl)
@@ -1845,6 +1848,7 @@ Public Class PreviewModel
     End Sub
 
     Private Sub Process_Indices_GL()
+        If Me.ParentControl.IsDisposed Then Exit Sub
         ParentControl.MakeCurrent()
         For Each mesh In meshes
             mesh.SetupMesh_GL()
@@ -1853,19 +1857,34 @@ Public Class PreviewModel
 
     Private ReadOnly Last_Loaded_Textures As New HashSet(Of String)
     Public Sub Process_Textures_GL()
+        If Me.ParentControl.IsDisposed Then Exit Sub
         Me.ParentControl.MakeCurrent()
-        Dim texturas As New HashSet(Of String)
-        texturas.UnionWith(Me.meshes.SelectMany(Function(pf) pf.MeshData.Material.Textures_Path_List).Where(Function(pf) pf <> "").Distinct().Where(Function(pf) Textures_Dictionary.ContainsKey(pf) = False))
-        texturas.ExceptWith(Last_Loaded_Textures)
-        If texturas.Count > 0 Then
-            Last_Loaded_Textures.UnionWith(texturas)
-            Me.ParentControl.Processing_Status("Texturing")
-            Dim agregar = Load_And_GenerateOpenGLTextures_FromDictionary(texturas.ToArray, True, True)
-            For Each a In agregar
-                Textures_Dictionary.Add(a.Key, a.Value)
-            Next
-        End If
 
+        Dim texturas As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+        texturas.UnionWith(
+        Me.meshes.
+            SelectMany(Function(pf) pf.MeshData.Material.Textures_Path_List).
+            Where(Function(pf) pf <> "").
+            Distinct(StringComparer.OrdinalIgnoreCase).
+            Where(Function(pf) Textures_Dictionary.ContainsKey(pf) = False))
+
+        texturas.ExceptWith(Last_Loaded_Textures)
+
+        If texturas.Count = 0 Then Exit Sub
+
+        Me.ParentControl.Processing_Status("Texturing")
+
+        Dim agregar = Load_And_GenerateOpenGLTextures_FromDictionary(texturas.ToArray(), True, True)
+
+        For Each a In agregar
+            If a.Value IsNot Nothing AndAlso a.Value.Loaded AndAlso a.Value.Texture_ID > 0 Then
+                Textures_Dictionary(a.Key) = a.Value
+                Last_Loaded_Textures.Add(a.Key)
+            Else
+                Textures_Dictionary.Remove(a.Key)
+                Last_Loaded_Textures.Remove(a.Key)
+            End If
+        Next
     End Sub
 
     Public Sub CleanTextures()
