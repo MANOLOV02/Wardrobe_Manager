@@ -445,7 +445,8 @@ Public Class Editor_Form
     Private Selected_size As Config_App.SliderSize
     Public Sub Lee_Edit(Seleccion As SliderSet_Class, Preset As String, Pose As String)
         ComboBoxAllXYZ.SelectedIndex = 1
-        OSP_Project_Class.Load_and_CHeck_Project(Seleccion, True, True)
+        OSP_Project_Class.Load_and_CHeck_Project(Seleccion)
+        OSP_Project_Class.Load_and_Check_Shapedata(Seleccion, True)
         CheckBoxZappedShapes.Checked = Seleccion.KeepZappedShapes
         CheckBoxPreventMorph.Checked = Seleccion.PreventMorphFile
         CheckBoxGenweight.Checked = Seleccion.GenWeights

@@ -138,7 +138,7 @@ Public Class FilesDictionary_class
         If IsNothing(files) OrElse files.Length = 0 Then Return Array.Empty(Of Byte())()
 
         Dim output As Byte()() = New Byte(files.Length - 1)() {}
-        Dim looseIndexes As New List(Of Integer)
+        Dim looseIndexes As New Dictionary(Of Integer, File_Location)
         Dim packedGroups As New Dictionary(Of String, List(Of (OutputIndex As Integer, Location As File_Location)))(StringComparer.OrdinalIgnoreCase)
 
         For i As Integer = 0 To files.Length - 1
@@ -151,7 +151,7 @@ Public Class FilesDictionary_class
             End If
 
             If located_File.IsLosseFile Then
-                looseIndexes.Add(i)
+                looseIndexes.Add(i, located_File)
             Else
                 Dim group As List(Of (OutputIndex As Integer, Location As File_Location)) = Nothing
                 If packedGroups.TryGetValue(located_File.BA2File, group) = False Then
@@ -162,14 +162,14 @@ Public Class FilesDictionary_class
             End If
         Next
 
-        Parallel.ForEach(looseIndexes, Sub(i As Integer)
-                                           Dim located_File As File_Location = Nothing
-                                           If Dictionary.TryGetValue(files(i).Correct_Path_Separator, located_File) AndAlso Not IsNothing(located_File) Then
-                                               output(i) = located_File.GetBytes()
-                                           Else
-                                               output(i) = Array.Empty(Of Byte)
-                                           End If
-                                       End Sub)
+        Parallel.ForEach(looseIndexes.Keys, Sub(i As Integer)
+                                                Dim located_File As File_Location = looseIndexes(i)
+                                                If Not IsNothing(located_File) Then
+                                                    output(i) = located_File.GetBytes()
+                                                Else
+                                                    output(i) = Array.Empty(Of Byte)
+                                                End If
+                                            End Sub)
 
         Parallel.ForEach(packedGroups, Sub(group)
                                            Dim archivePath = IO.Path.Combine(FO4Path, group.Key)
@@ -374,18 +374,24 @@ Public Class FilesDictionary_class
         If extensionSet.Count = 0 Then Return New List(Of String)
 
         For Each ext In extensionSet
-            Dim extBucket As ConcurrentDictionary(Of String, Byte) = Nothing
-            If _KeysByExtension.TryGetValue(ext, extBucket) Then
-                For Each key In extBucket.Keys
-                    If DictionaryFilePickerConfig.PathStartsWithRoot(key, normalizedRoot) Then
+            Dim suffix = "|" & ext   ' ej: "|.dds"
+
+            For Each bucketKey In _KeysByDirectoryExtension.Keys   ' recorre directorios, no archivos
+                If Not bucketKey.EndsWith(suffix, StringComparison.OrdinalIgnoreCase) Then Continue For
+                If Not DictionaryFilePickerConfig.PathStartsWithRoot(bucketKey, normalizedRoot) Then Continue For
+
+                Dim bucket As ConcurrentDictionary(Of String, Byte) = Nothing
+                If _KeysByDirectoryExtension.TryGetValue(bucketKey, bucket) Then
+                    For Each key In bucket.Keys
                         results.Add(key)
-                    End If
-                Next
-            End If
+                    Next
+                End If
+            Next
         Next
 
         Return results.OrderBy(Function(k) k, StringComparer.OrdinalIgnoreCase).ToList()
     End Function
+
     Public Shared Async Function Fill_DictionaryAsync(Fo4DataPath As String, progress As IProgress(Of (Stepn As String, Value As Integer, Max As Integer))) As Task
         Try
             FO4Path = Fo4DataPath

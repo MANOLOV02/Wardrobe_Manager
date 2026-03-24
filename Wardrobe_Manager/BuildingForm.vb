@@ -26,10 +26,9 @@ Public Class BuildingForm
         Dim DummyOSP As New OSP_Project_Class
         Dim Errores As String = ""
         Dim Nombre As String = "Unknown"
-
         ' Lee los sliders de looksmenu si se graba tri
         If Config_App.Current.Settings_Build.SaveTri Then TriFile.Read_Looksmenu_Sliders()
-
+        OSP_Project_Class.Default_Memory_Pause = True
         Dim has_pose = (Config_App.Current.Settings_Build.BuildInPose AndAlso _Pose.Source <> Poses_class.Pose_Source_Enum.None)
         For Each sliderset_target In _Lista
             Try
@@ -40,8 +39,8 @@ Public Class BuildingForm
                 Dim size As Config_App.SliderSize = Config_App.SliderSize.Default
                 For Sizecount = 0 To CInt(IIf(sliderset_target.Multisize, 1, 0))
                     ProgressBar1.Value = 0
-                    ProgressBar1.Maximum = (builder.Shapes.Count * 5 + 5)
-                    OSP_Project_Class.Load_and_CHeck_Project(builder, False, True)
+                    ProgressBar1.Maximum = (builder.Shapes.Count * 4 + 6)
+                    OSP_Project_Class.Load_and_CHeck_Project(builder)
                     ProgressBar1.Value += 1
                     OSP_Project_Class.Load_and_Check_Shapedata(builder, True)
                     builder.HighHeelHeight = sliderset_target.HighHeelHeight
@@ -57,13 +56,13 @@ Public Class BuildingForm
                     Application.DoEvents()
                     If Sizecount = 0 Then size = Config_App.SliderSize.Small
                     If Sizecount = 1 Then size = Config_App.SliderSize.Big
+                    ' 0 - cargo morph
+                    builder.SetPreset(_Preset, size)
+                    ProgressBar1.Value += 1
                     For Each shap In builder.Shapes.ToList
                         If Not IsNothing(shap.RelatedNifShape) Then
                             ' 1- cargo geometria 
                             Dim geom = SkinningHelper.ExtractSkinnedGeometry(shap, ApplyPose:=has_pose, singleboneskinning:=Config_App.Current.Setting_SingleBoneSkinning, RecalculateNormals:=False) ' Los normales los calculo despues
-                            ProgressBar1.Value += 1
-                            ' 2- cargo morph
-                            builder.SetPreset(_Preset, size)
                             ProgressBar1.Value += 1
                             ' 3- aplico morph (y recalculo normales si esta elegido)
                             MorphingHelper.ApplyMorph_CPU(shap, geom, Config_App.Current.Setting_RecalculateNormals, AllowMask:=False)
@@ -81,7 +80,7 @@ Public Class BuildingForm
                             End If
 
                         Else
-                            ProgressBar1.Value += 5
+                            ProgressBar1.Value += 4
                         End If
                     Next
 
@@ -120,12 +119,10 @@ Public Class BuildingForm
                 Errores += Nombre + vbCrLf
             End Try
 
-
         Next
-
+        OSP_Project_Class.Default_Memory_Pause = False
         ' Grabo archivo sliders.json 
         If Config_App.Current.Game = Config_App.Game_Enum.Fallout4 AndAlso Config_App.Current.Settings_Build.AddAddintionalSliders AndAlso Config_App.Current.Settings_Build.SaveTri Then TriFile.Serialize_LooksmenuAdditionalSiliders()
-
         If Errores <> "" Then
             MsgBox("Error building the following projects:" + Errores)
         End If

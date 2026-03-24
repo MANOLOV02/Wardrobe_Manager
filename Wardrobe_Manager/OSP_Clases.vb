@@ -801,9 +801,8 @@ Public Class Clone_Materials_class
                 If temp <> "" Then
                     Dim rootSource As String = ("Materials\" & temp).Correct_Path_Separator
 
-                    If FilesDictionary_class.Dictionary.ContainsKey(rootSource) Then
-                        Dim rootLocation = FilesDictionary_class.Dictionary(rootSource)
-
+                    Dim rootLocation As FilesDictionary_class.File_Location = Nothing
+                    If FilesDictionary_class.Dictionary.TryGetValue(rootSource, rootLocation) Then
                         If rootSource.Equals(job.Source, StringComparison.OrdinalIgnoreCase) = False Then
                             If rootLocation.IsLosseFile OrElse Config_App.Allowed_To_Clone(rootLocation.BA2File) Then
                                 job.RootMaterialSource = rootSource
@@ -869,11 +868,13 @@ Public Class Clone_Materials_class
             Exit Sub
         End If
 
-        If FilesDictionary_class.Dictionary.ContainsKey(job.SourceKey) = False Then
+        Dim location As FilesDictionary_class.File_Location = Nothing
+
+        FilesDictionary_class.Dictionary.TryGetValue(job.SourceKey, location)
+
+        If IsNothing(location) Then
             Exit Sub
         End If
-
-        Dim location = FilesDictionary_class.Dictionary(job.SourceKey)
 
         If Not location.IsLosseFile AndAlso Not Config_App.Allowed_To_Clone(location.BA2File) Then
             Exit Sub
@@ -973,8 +974,9 @@ Public Class Clone_Materials_class
         Dim prefetchedPackedBytes = PrefetchDictionaryFiles(packedSources)
 
         For Each job In pending
-            Dim location = FilesDictionary_class.Dictionary(job.SourceKey)
-
+            Dim location As FilesDictionary_class.File_Location = Nothing
+            FilesDictionary_class.Dictionary.TryGetValue(job.SourceKey, location)
+            If IsNothing(location) Then Continue For
             If location.IsLosseFile Then
                 Dim sourceLooseFile As String = IO.Path.Combine(FilesDictionary_class.FO4Path, location.FullPath)
                 Dim sourceFull As String = IO.Path.GetFullPath(sourceLooseFile)
@@ -1238,7 +1240,8 @@ Public Class OSP_Project_Class
     End Function
     Public Function AddProject(ByRef Template As SliderSet_Class) As SliderSet_Class
         Dim Sliderset_Target = New SliderSet_Class(Me.xml.DocumentElement.AppendChild(Me.xml.ImportNode(Template.Nodo.Clone, True)), Me)
-        Load_and_CHeck_Project(Sliderset_Target, True, True)
+        Load_and_CHeck_Project(Sliderset_Target)
+        Load_and_Check_Shapedata(Sliderset_Target, True)
         SliderSets.Add(Sliderset_Target)
         Return Sliderset_Target
     End Function
@@ -1370,7 +1373,7 @@ Public Class OSP_Project_Class
         Return True
     End Function
 
-    Public Shared Function Load_and_CHeck_Project(ByRef Sliderset_Target As SliderSet_Class, Deep_Analize As Boolean, verbose As Boolean) As Boolean
+    Public Shared Function Load_and_CHeck_Project(ByRef Sliderset_Target As SliderSet_Class) As Boolean
         Dim nombre As String = "(Sin Nombre)"
         If Sliderset_Target.Unreadable_Project Then Return False
 
@@ -1387,12 +1390,11 @@ Public Class OSP_Project_Class
             'If Sliderset_Target.Shapes.Where(Function(pf) pf.Nombre <> pf.Target).Count > 1 Then Throw New Exception("Shape name and target doesnt match")
         Catch ex As Exception
             Sliderset_Target.Unreadable_Project = True
-            If verbose Then MsgBox("Error reading project: " + nombre + " " + ex.Message.ToString, vbCritical + vbOK, "Error")
+            MsgBox("Error reading project: " + nombre + " " + ex.Message.ToString, vbCritical + vbOK, "Error")
             Return False
         End Try
 
         ''ESTO LO HACE LENTO PERO SIRVE PARA CONTROLLAR
-        If Deep_Analize Then Return OSP_Project_Class.Load_and_Check_Shapedata(Sliderset_Target, verbose)
         Return True
     End Function
 
@@ -1407,7 +1409,8 @@ Public Class OSP_Project_Class
                 Else
                     Sliderset_target = New SliderSet_Class(Sset, Me)
                 End If
-                Load_and_CHeck_Project(Sliderset_target, Deep_Analize, True)
+                Load_and_CHeck_Project(Sliderset_target)
+                If Deep_Analize Then Load_and_Check_Shapedata(Sliderset_target, True)
                 SliderSets.Add(Sliderset_target)
             Next
 
@@ -1468,7 +1471,7 @@ Public Class OSP_Project_Class
     Public Shared Function Merge_Proyecto(Sliderset_Madre As SliderSet_Class, Sliderset_Source As SliderSet_Class, ExcludeReference As Boolean, Keep_Physics As Boolean) As SliderSet_Class
         ' Add project and update
         Dim Sliderset_Target = New SliderSet_Class(Sliderset_Madre.ParentOSP.xml.ImportNode(Sliderset_Source.Nodo.Clone, True), Sliderset_Madre.ParentOSP)
-        If OSP_Project_Class.Load_and_CHeck_Project(Sliderset_Target, True, True) = False Then Return Nothing
+        If OSP_Project_Class.Load_and_CHeck_Project(Sliderset_Target) = False OrElse OSP_Project_Class.Load_and_Check_Shapedata(Sliderset_Target, True) = False Then Return Nothing
 
         ' Define HighHeels
         If Sliderset_Target.HighHeelHeight <> 0 Then

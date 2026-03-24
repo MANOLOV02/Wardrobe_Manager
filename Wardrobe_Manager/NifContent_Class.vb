@@ -23,20 +23,19 @@ Public Class Skeleton_Class
         If IsNothing(Pose) Then Exit Sub
 
         For Each posbon In Pose.Transforms
-            Dim bon As HierarchiBone_class = Nothing
-            If SkeletonDictionary.TryGetValue(posbon.Key, bon) Then
-                Dim Bonetrans = bon.OriginalLocaLTransform
-                Dim posetrans = New Transform_Class(posbon.Value, Pose.Source)
-                Dim trans As Transform_Class
-                If Pose.Source = Poses_class.Pose_Source_Enum.ScreenArcher Then
-                    trans = Bonetrans.Inverse.ComposeTransforms(posetrans)
-                Else
-                    trans = posetrans
-                End If
-                Dim reemplazo = bon
-                reemplazo.DeltaTransform = trans
-                bon = reemplazo
+            If Not SkeletonDictionary.ContainsKey(posbon.Key) Then Continue For
+            Dim bon = SkeletonDictionary(posbon.Key)
+            Dim Bonetrans = bon.OriginalLocaLTransform
+            Dim posetrans = New Transform_Class(posbon.Value, Pose.Source)
+            Dim trans As Transform_Class
+
+            If Pose.Source = Poses_class.Pose_Source_Enum.ScreenArcher Then
+                trans = Bonetrans.Inverse.ComposeTransforms(posetrans)
+            Else
+                trans = posetrans
             End If
+            bon.DeltaTransform = trans
+            SkeletonDictionary(posbon.Key) = bon   ' write-back explícito e intencional
         Next
 
     End Sub
@@ -84,7 +83,10 @@ Public Class Skeleton_Class
                 Skeleton.Load_Manolo(Directorios.SkeletonPath)
             Else
                 Dim relativestr = IO.Path.GetRelativePath(Directorios.Fallout4data, Directorios.SkeletonPath)
-                Skeleton.Load_Manolo(FilesDictionary_class.Dictionary(relativestr).GetBytes)
+                Dim skel As FilesDictionary_class.File_Location = Nothing
+                If FilesDictionary_class.Dictionary.TryGetValue(relativestr, skel) Then
+                    Skeleton.Load_Manolo(skel.GetBytes)
+                End If
             End If
             For Each bon As NiNode In Skeleton.Blocks.Where(Function(pf) pf.GetType Is GetType(NiNode))
                 Dim par = GetParentNodeSkeleton(bon.Name.String)
@@ -109,10 +111,14 @@ Public Class Skeleton_Class
         Dim hasPose = Not IsNothing(pose) AndAlso pose.Source <> Poses_class.Pose_Source_Enum.None
 
         ClearInjectedBones()
-
-        For Each shape In shapes
-            SkeletonClothOverlayHelper_Class.InjectMissingBonesIntoLiveSkeleton(shape, SkeletonInjectedBones)
-        Next
+        Try
+            For Each shape In shapes
+                SkeletonClothOverlayHelper_Class.InjectMissingBonesIntoLiveSkeleton(shape, SkeletonInjectedBones)
+            Next
+        Catch ex As Exception
+            Debugger.Break()
+            ClearInjectedBones()
+        End Try
 
         If hasPose Then
             AppplyPoseToSkeleton(pose)
@@ -173,18 +179,9 @@ Public Class Skeleton_Class
     End Sub
 
     Public Shared Function GetParentNodeNameSkeleton(bone As String) As String
-        If HasSkeleton = False Then Return ""
-        Dim childIndex As Integer
-        Dim child = Skeleton.FindBlockByName(Of NiNode)(bone)
-
-        If Not Skeleton.GetBlockIndex(child, childIndex) Then
-            Return Nothing
-        End If
-
-        Dim nodes = Skeleton.Blocks.OfType(Of NiNode)().Where(Function(n) n IsNot child)
-        Dim result = nodes.FirstOrDefault(Function(n) n.Children.Indices.Contains(childIndex))
+        Dim result = GetParentNodeSkeleton(bone).Name.String
         If IsNothing(result) Then Return ""
-        Return result.Name.String
+        Return result
     End Function
     Public Shared Function GetParentNodeSkeleton(bone As String) As NiNode
         If HasSkeleton = False Then Return Nothing
@@ -326,7 +323,8 @@ Public Class Nifcontent_Class_Manolo
         Else
             target = FindBlockByName(Of INiShape)(shapeName)
         End If
-        If Not IsNothing(target.ExtraDataList) Then
+
+        If Not IsNothing(target) AndAlso Not IsNothing(target.ExtraDataList) Then
             For Each ref As NiRef In target.ExtraDataList.References
                 Dim ed As NiStringExtraData
                 ed = TryCast(Blocks(ref.Index), NiStringExtraData)
@@ -342,103 +340,115 @@ Public Class Nifcontent_Class_Manolo
             Next
         End If
     End Sub
-
     Public Function AssignExtraData(target As NiAVObject, triPath As String) As UInteger
         If Not IsNothing(target.ExtraDataList) Then
             For Each ref As NiRef In target.ExtraDataList.References
-                Dim ed As NiStringExtraData
-                ed = TryCast(Blocks(ref.Index), NiStringExtraData)
-                If Not IsNothing(ed) Then
-                    If ed.Name.String = "BODYTRI" Then
-                        ed.Name.String = "BODYTRI"
-                        ed.StringData.String = triPath
-                        Return ref.Index
-                    End If
+                Dim ed As NiStringExtraData = TryCast(Blocks(ref.Index), NiStringExtraData)
+                If Not IsNothing(ed) AndAlso ed.Name.String = "BODYTRI" Then
+                    ed.StringData.String = triPath
+                    Return ref.Index
                 End If
             Next
         End If
-        Dim triExtraData As New NiStringExtraData()
-        Dim nam = New NiStringRef("BODYTRI")
-        triExtraData.Name = nam
-        Dim pat = New NiStringRef(triPath)
-        triExtraData.StringData = pat
+
+        Dim triExtraData As New NiStringExtraData With {
+            .Name = New NiStringRef("BODYTRI"),
+            .StringData = New NiStringRef(triPath)
+        }
         Dim extraDataId As UInteger = AddBlock(triExtraData)
+
+        If IsNothing(target.ExtraDataList) Then
+            target.ExtraDataList = New NiBlockRefArray(Of NiExtraData)
+        End If
         target.ExtraDataList.AddBlockRef(extraDataId)
+
         Return extraDataId
     End Function
+
     Public Function GetRelatedMaterial(shap As INiShape) As RelatedMaterial_Class
-        Dim prefix = "materials\"
+        Const prefix As String = "materials\"
         Dim shad = GetShader(shap)
+
+        ' Sin shader: material vacío desde shader nulo
         If IsNothing(shad) Then
-            Dim material As New FO4UnifiedMaterial_Class
-            material.Create_From_Shader(Me, shap, CType(shad, BSLightingShaderProperty))
-            Dim related As New RelatedMaterial_Class With {.material = material, .path = ""}
-            Return related
+            Dim mat As New FO4UnifiedMaterial_Class
+            mat.Create_From_Shader(Me, shap, New BSLightingShaderProperty)
+            Return New RelatedMaterial_Class With {.material = mat, .path = ""}
         End If
+
+        ' Extraer solo lo que difiere entre tipos de shader
+        Dim shadName As String
+        Dim matType As Type
+        Dim createFromShader As Action(Of FO4UnifiedMaterial_Class)
 
         Select Case shad.GetType
             Case GetType(BSLightingShaderProperty)
-                Dim material As New FO4UnifiedMaterial_Class
-                Dim fullpath = CType(shad, BSLightingShaderProperty).Name.String.Correct_Path_Separator
-                If fullpath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) Then fullpath = fullpath.Substring(prefix.Length)
-                If fullpath = "" Then
-                    material.Create_From_Shader(Me, shap, CType(shad, BSLightingShaderProperty))
-                Else
-                    material.Deserialize(prefix + fullpath, GetType(BGSM))
-                End If
-                Dim related As New RelatedMaterial_Class With {.material = material, .path = fullpath}
-                Return related
+                Dim typed = CType(shad, BSLightingShaderProperty)
+                shadName = typed.Name.String
+                matType = GetType(BGSM)
+                createFromShader = Sub(m) m.Create_From_Shader(Me, shap, typed)
             Case GetType(BSEffectShaderProperty)
-                Dim material As New FO4UnifiedMaterial_Class
-                Dim fullpath = CType(shad, BSEffectShaderProperty).Name.String.Correct_Path_Separator
-                If fullpath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) Then fullpath = fullpath.Substring(prefix.Length)
-                If fullpath = "" Then
-                    material.Create_From_Shader(Me, shap, CType(shad, BSEffectShaderProperty))
-                Else
-                    material.Deserialize(prefix + fullpath, GetType(BGEM))
-                End If
-                Dim related As New RelatedMaterial_Class With {.material = material, .path = fullpath}
-                Return related
+                Dim typed = CType(shad, BSEffectShaderProperty)
+                shadName = typed.Name.String
+                matType = GetType(BGEM)
+                createFromShader = Sub(m) m.Create_From_Shader(Me, shap, typed)
             Case Else
                 Debugger.Break()
                 Throw New Exception
         End Select
+
+        ' Lógica común (antes duplicada en cada Case)
+        Dim fullpath = shadName.Correct_Path_Separator
+        If fullpath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) Then
+            fullpath = fullpath.Substring(prefix.Length)
+        End If
+
+        Dim material As New FO4UnifiedMaterial_Class
+        If fullpath = "" Then
+            createFromShader(material)
+        Else
+            material.Deserialize(prefix & fullpath, matType)
+        End If
+
+        Return New RelatedMaterial_Class With {.material = material, .path = fullpath}
     End Function
+
     Public Sub SetRelatedMaterial(shap As INiShape, MatPath As String, mat As FO4UnifiedMaterial_Class)
+        MatPath = MatPath.Correct_Path_Separator
+        Dim prefix = "materials\"
+        If MatPath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) Then MatPath = MatPath.Substring(prefix.Length)
+
+        Dim shad = GetShader(shap)
+
         Select Case Config_App.Current.Game
             Case Config_App.Game_Enum.Fallout4
-                MatPath = MatPath.Correct_Path_Separator
-                Dim prefix = "materials\"
-                If MatPath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) Then MatPath = MatPath.Substring(prefix.Length)
-                Dim shad = GetShader(shap)
                 Select Case shad.GetType
                     Case GetType(BSLightingShaderProperty)
-                        CType(shad, BSLightingShaderProperty).Name.String = MatPath
+                        DirectCast(shad, BSShaderProperty).Name.String = MatPath
                     Case GetType(BSEffectShaderProperty)
-                        CType(shad, BSEffectShaderProperty).Name.String = MatPath
+                        DirectCast(shad, BSEffectShaderProperty).Name.String = MatPath
                     Case Else
                         Debugger.Break()
                         Throw New Exception
                 End Select
             Case Config_App.Game_Enum.Skyrim
-                MatPath = MatPath.Correct_Path_Separator
-                Dim prefix = "materials\"
-                If MatPath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) Then MatPath = MatPath.Substring(prefix.Length)
-                Dim shad = GetShader(shap)
+                Dim saveAction As Action
                 Select Case shad.GetType
                     Case GetType(BSLightingShaderProperty)
-                        FO4UnifiedMaterial_Class.Save_To_Shader(Me, shap, CType(shad, BSLightingShaderProperty), mat.Underlying_Material)
-                        CType(shad, BSLightingShaderProperty).Name.String = MatPath
+                        Dim typed = CType(shad, BSLightingShaderProperty)
+                        saveAction = Sub() FO4UnifiedMaterial_Class.Save_To_Shader(Me, shap, typed, mat.Underlying_Material)
                     Case GetType(BSEffectShaderProperty)
-                        FO4UnifiedMaterial_Class.Save_To_Shader(Me, shap, CType(shad, BSEffectShaderProperty), mat.Underlying_Material)
-                        CType(shad, BSEffectShaderProperty).Name.String = MatPath
+                        Dim typed = CType(shad, BSEffectShaderProperty)
+                        saveAction = Sub() FO4UnifiedMaterial_Class.Save_To_Shader(Me, shap, typed, mat.Underlying_Material)
                     Case Else
                         Debugger.Break()
                         Throw New Exception
                 End Select
+                saveAction()
+                DirectCast(shad, BSShaderProperty).Name.String = MatPath   ' común a ambos cases
         End Select
-
     End Sub
+
     Public Sub Save_As_Manolo(Filename As String, Overwrite As Boolean)
         If IO.File.Exists(Filename) AndAlso Overwrite = False Then
             If MsgBox("NIF File already exists, replace?", vbYesNo, "Warning") = MsgBoxResult.No Then

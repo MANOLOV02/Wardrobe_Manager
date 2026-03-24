@@ -67,10 +67,9 @@ Public NotInheritable Class HkxPackfileParser_Class
             .Flags = reader.ReadUInt32(),
             .MaxPredicate = reader.ReadByte(),
             .PredicateArraySizePlusPadding = reader.ReadByte(),
-            .SectionHeaderRelativeOffset = reader.ReadUInt16()
+            .SectionHeaderRelativeOffset = reader.ReadUInt16(),
+            .Reserved = reader.ReadBytes(16)
         }
-
-        header.Reserved = reader.ReadBytes(16)
         header.SectionHeadersAbsoluteOffset = HeaderFixedSize + CInt(header.SectionHeaderRelativeOffset)
 
         If header.Magic0 <> HavokMagic0 OrElse header.Magic1 <> HavokMagic1 Then
