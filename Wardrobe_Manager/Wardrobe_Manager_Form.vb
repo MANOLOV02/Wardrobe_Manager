@@ -959,15 +959,18 @@ Public Class Wardrobe_Manager_Form
         For Each ind As ListViewItem In ListViewSources.SelectedItems
             ProgressBar1.Value += 1
             If Not varios Then Nombre = TextBox_SourceName.Text Else Nombre = Calcula_nombre(ind.Tag)
-            resultado = Pack.Agrega_Proyecto(ind.Tag, Nombre, Filename, Exclude_Reference_Checkbox.Checked, Ovewrite_DataFiles.Checked, CloneMaterialsCheck.Checked, PhysicsCheckbox.Checked, OutputDirChangeCheck.Checked)
-            If Not IsNothing(resultado) AndAlso Auto_Move_Check.Checked Then Mueve_Singles(ind, Directorios.SliderSets_Processed, fullpack)
+            resultado = Pack.Agrega_Proyecto(ind.Tag, Nombre, Filename, Exclude_Reference_Checkbox.Checked, Ovewrite_DataFiles.Checked, PhysicsCheckbox.Checked, OutputDirChangeCheck.Checked)
+            If Not IsNothing(resultado) Then
+                If CloneMaterialsCheck.Checked Then Clone_Materials_class.Clone_Materials_For_Project(resultado, Ovewrite_DataFiles.Checked)
+                If Auto_Move_Check.Checked Then Mueve_Singles(ind, Directorios.SliderSets_Processed, fullpack)
+            End If
         Next
         Lee_Listbox_Targets()
     End Sub
     Private Sub Rename_Clone_Target(original As SliderSet_Class, pack As OSP_Project_Class, Nombre As String, DeleteAfter As Boolean)
         Dim resultado As SliderSet_Class
         ProgressBar1.Value += 1
-        resultado = pack.Agrega_Proyecto(original, Nombre, pack.Filename, False, False, False, True, False)
+        resultado = pack.Agrega_Proyecto(original, Nombre, pack.Filename, False, False, True, False)
         If Not IsNothing(resultado) Then
             If DeleteAfter Then pack.RemoveProject(original)
             Lee_Listbox_Targets()
@@ -976,7 +979,7 @@ Public Class Wardrobe_Manager_Form
     Private Sub Extract_Target(Source As SliderSet_Class, pack As OSP_Project_Class, Nombre As String)
         Dim resultado As SliderSet_Class
         Dim Origen As SliderSet_Class = Source
-        resultado = pack.Agrega_Proyecto(Origen, Nombre, pack.Filename, False, False, False, True, False)
+        resultado = pack.Agrega_Proyecto(Origen, Nombre, pack.Filename, False, False, True, False)
     End Sub
 
     Private Sub Merge_Singles(Pack As OSP_Project_Class, Filename As String)
@@ -984,11 +987,12 @@ Public Class Wardrobe_Manager_Form
         Dim fullpack As Boolean = Full_packs_Selected()
         ProgressBar1.Value += 1
         Dim mover As ListViewItem = ListViewSources.SelectedItems(0)
-        Dim Proyecto_Madre As SliderSet_Class = Pack.Agrega_Proyecto(ListViewSources.SelectedItems(0).Tag, Nombre, Filename, Exclude_Reference_Checkbox.Checked, Ovewrite_DataFiles.Checked, CloneMaterialsCheck.Checked, PhysicsCheckbox.Checked, OutputDirChangeCheck.Checked)
+        Dim Proyecto_Madre As SliderSet_Class = Pack.Agrega_Proyecto(ListViewSources.SelectedItems(0).Tag, Nombre, Filename, Exclude_Reference_Checkbox.Checked, Ovewrite_DataFiles.Checked, PhysicsCheckbox.Checked, OutputDirChangeCheck.Checked)
         If Not IsNothing(Proyecto_Madre) Then
             Merge_Part(Proyecto_Madre, mover, Auto_Move_Check.Checked)
+            If CloneMaterialsCheck.Checked Then Clone_Materials_class.Clone_Materials_For_Project(Proyecto_Madre, Ovewrite_DataFiles.Checked)
+            If Auto_Move_Check.Checked Then Mueve_Singles(mover, Directorios.SliderSets_Processed, fullpack)
         End If
-        If Not IsNothing(Proyecto_Madre) AndAlso Auto_Move_Check.Checked Then Mueve_Singles(mover, Directorios.SliderSets_Processed, fullpack)
         Lee_Listbox_Targets()
     End Sub
     Private Sub Merge_Part(Proyecto_Madre As SliderSet_Class, Movido As ListViewItem, Mueve As Boolean)
@@ -996,7 +1000,7 @@ Public Class Wardrobe_Manager_Form
         For Each ind As ListViewItem In ListViewSources.SelectedItems
             If IsNothing(Movido) OrElse (ind Is Movido) = False Then
                 ProgressBar1.Value += 1
-                resultado = OSP_Project_Class.Merge_Proyecto(Proyecto_Madre, ind.Tag, Exclude_Reference_Checkbox.Checked, Ovewrite_DataFiles.Checked, CloneMaterialsCheck.Checked, PhysicsCheckbox.Checked)
+                resultado = OSP_Project_Class.Merge_Proyecto(Proyecto_Madre, ind.Tag, Exclude_Reference_Checkbox.Checked, PhysicsCheckbox.Checked)
                 If Not IsNothing(resultado) AndAlso Mueve Then Mueve_Singles(ind, Directorios.SliderSets_Processed, False)
             End If
         Next

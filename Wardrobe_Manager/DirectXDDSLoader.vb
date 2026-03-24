@@ -213,17 +213,14 @@ Public Module DirectXDDSLoader
             If texID <> 0 Then
                 GL.DeleteTexture(texID)
             End If
-            Throw
-
         Finally
             GL.BindBuffer(BufferTarget.PixelUnpackBuffer, 0)
-
             If pbo <> 0 Then
                 GL.DeleteBuffer(pbo)
             End If
-
             GL.BindTexture(target, 0)
         End Try
+        Return 0
     End Function
 
     Public Function Load_And_GenerateOpenGLTextures_FromFiles(fullpaths As String(), useCompress As Boolean, forceOpenGL As Boolean) As Dictionary(Of String, PreviewModel.Texture_Loaded_Class)

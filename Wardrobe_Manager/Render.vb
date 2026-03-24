@@ -1837,10 +1837,11 @@ Public Class PreviewModel
     End Function
 
     Public Sub Setup_GL()
-        If Me.ParentControl.IsDisposed Then Exit Sub
+        If ParentControl.IsDisposed Then Exit Sub
         Process_Indices_GL()
         Process_Textures_GL()
         If Floor Is Nothing Then Floor = New FloorRenderer(ParentControl)
+        If ParentControl.IsDisposed Then Exit Sub
         ParentControl.RenderTimer.Start()
         ParentControl.UpdateProjection(True)  ' ? ya hay meshes/bounds; ajusta frustum
         Can_Render = True

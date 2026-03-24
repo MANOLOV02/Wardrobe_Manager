@@ -489,7 +489,669 @@ Public Class OSD_DataDiff_Class
     Public Property Z As Single
 
 End Class
+Public Class Clone_Materials_class
+    Private Shared ReadOnly allowedExtensions As String() = New String() {".bgsm", ".bgem"}
+    Private Class ClonePlan
+        Public ReadOnly MaterialJobs As New Dictionary(Of String, MaterialJob)(StringComparer.OrdinalIgnoreCase)
+        Public ReadOnly TextureJobs As New Dictionary(Of String, TextureJob)(StringComparer.OrdinalIgnoreCase)
+        Public ReadOnly Bindings As New List(Of ShapeMaterialBinding)
+    End Class
 
+    Private Class ShapeMaterialBinding
+        Public Property Shader As INiShader
+        Public Property MaterialSourceKey As String = ""
+        Public Property FallbackShaderMaterialName As String = ""
+    End Class
+
+    Private Class MaterialJob
+        Public Property Source As String = ""
+        Public Property Extension As String = ""
+        Public Property RelativeSourceDirectory As String = ""
+        Public Property TargetReference As String = ""
+        Public Property TargetFullPath As String = ""
+        Public Property Required As Boolean = False
+
+        Public Property Scanned As Boolean = False
+        Public Property Resolving As Boolean = False
+        Public Property Resolved As Boolean = False
+        Public Property Succeeded As Boolean = False
+        Public Property NeedsWrite As Boolean = False
+
+        Public Property FinalReference As String = ""
+
+        Public Property BaseTexturePropertyName As String = ""
+        Public Property RootMaterialSource As String = ""
+        Public Property RootMaterialResolved As String = ""
+
+        Public ReadOnly TextureReferences As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase)
+        Public ReadOnly ResolvedTextureReferences As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase)
+    End Class
+
+    Private Class TextureJob
+        Public Property SourceKey As String = ""
+        Public Property OriginalRelative As String = ""
+        Public Property TargetRelative As String = ""
+        Public Property TargetFullPath As String = ""
+
+        Public Property Resolved As Boolean = False
+        Public Property Succeeded As Boolean = False
+        Public Property NeedsWrite As Boolean = False
+        Public Property FinalRelative As String = ""
+    End Class
+    Private Shared Function BuildTextureDictionaryKey(filename As String) As String
+        If String.IsNullOrWhiteSpace(filename) Then Return ""
+
+        Dim normalized = filename.Correct_Path_Separator
+        Dim prefix = "Textures\"
+
+        If normalized.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) Then
+            normalized = normalized.Substring(prefix.Length)
+        End If
+
+        Return (prefix & normalized).Correct_Path_Separator
+    End Function
+
+    Private Shared Function PrefetchDictionaryFiles(paths As IEnumerable(Of String)) As Dictionary(Of String, Byte())
+        Dim result As New Dictionary(Of String, Byte())(StringComparer.OrdinalIgnoreCase)
+        If IsNothing(paths) Then Return result
+
+        Dim normalized = paths.
+    Where(Function(p) String.IsNullOrWhiteSpace(p) = False).
+    Select(Function(p) p.Correct_Path_Separator).
+    Distinct(StringComparer.OrdinalIgnoreCase).
+    Where(Function(p)
+              Dim location As FilesDictionary_class.File_Location = Nothing
+              Return FilesDictionary_class.Dictionary.TryGetValue(p, location) AndAlso
+                     Not IsNothing(location) AndAlso
+                     location.IsLosseFile = False
+          End Function).
+    ToArray()
+
+        If normalized.Length = 0 Then Return result
+
+        Dim loaded = FilesDictionary_class.GetMultipleFilesBytes(normalized)
+
+        For i As Integer = 0 To normalized.Length - 1
+            result(normalized(i)) = loaded(i)
+        Next
+
+        Return result
+    End Function
+
+    Public Shared Sub Clone_Materials_For_Project(project As SliderSet_Class, overwrite As Boolean)
+        Dim plan As New ClonePlan
+        If OSP_Project_Class.Load_and_Check_Shapedata(project, True) = False Then Exit Sub
+        CollectClonePlan(project, plan)
+
+        For Each job In plan.MaterialJobs.Values.ToList()
+            ResolveMaterialJob(plan, job, overwrite)
+        Next
+
+        CommitTextureJobs(plan, overwrite)
+        CommitMaterialJobs(plan, overwrite)
+        ApplyShapeBindings(plan)
+
+        project.InvalidateAllLookupCaches()
+        project.Save_Shapedatas(True)
+    End Sub
+
+    Private Shared Sub CollectClonePlan(project As SliderSet_Class, plan As ClonePlan)
+        For Each shap In project.Shapes
+            If IsNothing(shap.RelatedNifShader) Then Continue For
+
+            Dim shad = shap.RelatedNifShader
+            Dim originalMaterialName As String = GetShaderMaterialName(shad)
+            Dim materialSourceKey As String = NormalizeMaterialSourceKey(originalMaterialName)
+
+            plan.Bindings.Add(New ShapeMaterialBinding With {
+                .Shader = shad,
+                .MaterialSourceKey = materialSourceKey,
+                .FallbackShaderMaterialName = NormalizeMaterialReference(originalMaterialName)
+            })
+
+            If materialSourceKey <> "" Then
+                RegisterMaterialDirectory(plan, materialSourceKey)
+            End If
+        Next
+    End Sub
+
+    Private Shared Function GetShaderMaterialName(shad As INiShader) As String
+        Select Case shad.GetType
+            Case GetType(BSLightingShaderProperty)
+                Return CType(shad, BSLightingShaderProperty).Name.String.Correct_Path_Separator
+            Case GetType(BSEffectShaderProperty)
+                Return CType(shad, BSEffectShaderProperty).Name.String.Correct_Path_Separator
+            Case Else
+                Debugger.Break()
+                Throw New Exception
+        End Select
+    End Function
+
+    Private Shared Sub SetShaderMaterialName(shad As INiShader, value As String)
+        Select Case shad.GetType
+            Case GetType(BSLightingShaderProperty)
+                CType(shad, BSLightingShaderProperty).Name.String = value
+            Case GetType(BSEffectShaderProperty)
+                CType(shad, BSEffectShaderProperty).Name.String = value
+            Case Else
+                Debugger.Break()
+                Throw New Exception
+        End Select
+    End Sub
+
+    Private Shared Function NormalizeRelativeDirectory(relative As String) As String
+        Dim normalized = relative.Correct_Path_Separator
+        If normalized = "." OrElse normalized = ".\" Then Return ""
+        If normalized <> "" AndAlso normalized.EndsWith("\"c) = False Then normalized &= "\"
+        Return normalized
+    End Function
+
+    Private Shared Function NormalizeMaterialReference(materialName As String) As String
+        Dim mate As String = materialName.Correct_Path_Separator
+        Dim prefix As String = "Materials\"
+
+        If mate.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) Then
+            mate = mate.Substring(prefix.Length)
+        End If
+
+        Return mate
+    End Function
+
+    Private Shared Function NormalizeMaterialSourceKey(materialName As String) As String
+        Dim mate As String = NormalizeMaterialReference(materialName)
+        If mate = "" Then Return ""
+        Return ("Materials\" & mate).Correct_Path_Separator
+    End Function
+
+    Private Shared Function NormalizeTextureReference(textureName As String) As String
+        Dim normalized = textureName.Correct_Path_Separator
+        Dim prefix = "Textures\"
+
+        If normalized.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) Then
+            normalized = normalized.Substring(prefix.Length)
+        End If
+
+        Return normalized
+    End Function
+
+    Private Shared Function BuildClonedTextureRelativePath(textureName As String) As String
+        Dim normalized = NormalizeTextureReference(textureName)
+        If normalized = "" Then Return ""
+
+        If normalized.Contains("ManoloCloned", StringComparison.OrdinalIgnoreCase) OrElse
+           normalized.Contains("ManoloMods", StringComparison.OrdinalIgnoreCase) Then
+            Return normalized
+        End If
+
+        Return "ManoloCloned\" & normalized
+    End Function
+
+    Private Shared Function GetOrCreateMaterialJob(plan As ClonePlan, source As String, required As Boolean) As MaterialJob
+        Dim normalizedSource As String = NormalizeMaterialSourceKey(source)
+        If normalizedSource = "" Then Return Nothing
+
+        Dim existing As MaterialJob = Nothing
+        If plan.MaterialJobs.TryGetValue(normalizedSource, existing) Then
+            If required Then existing.Required = True
+            Return existing
+        End If
+
+        Dim directory As String = IO.Path.GetDirectoryName(normalizedSource).Correct_Path_Separator
+        Dim relativeDir As String = NormalizeRelativeDirectory(IO.Path.GetRelativePath("Materials\", directory & "\"))
+
+        Dim job As New MaterialJob With {
+            .Source = normalizedSource,
+            .Extension = IO.Path.GetExtension(normalizedSource).ToLowerInvariant(),
+            .RelativeSourceDirectory = relativeDir,
+            .TargetReference = BuildClonedMaterialRelativePath(normalizedSource, relativeDir),
+            .Required = required
+        }
+
+        job.TargetFullPath = IO.Path.Combine(Directorios.Fallout4data, "Materials\" & job.TargetReference).Correct_Path_Separator
+        job.FinalReference = job.Source
+
+        plan.MaterialJobs.Add(normalizedSource, job)
+        Return job
+    End Function
+
+    Private Shared Function GetOrCreateTextureJob(plan As ClonePlan, textureReference As String) As TextureJob
+        Dim sourceKey As String = BuildTextureDictionaryKey(textureReference)
+        If sourceKey = "" Then Return Nothing
+
+        Dim existing As TextureJob = Nothing
+        If plan.TextureJobs.TryGetValue(sourceKey, existing) Then
+            Return existing
+        End If
+
+        Dim originalRelative As String = NormalizeTextureReference(textureReference)
+        Dim targetRelative As String = BuildClonedTextureRelativePath(textureReference)
+
+        Dim job As New TextureJob With {
+            .SourceKey = sourceKey,
+            .OriginalRelative = originalRelative,
+            .TargetRelative = targetRelative,
+            .TargetFullPath = IO.Path.Combine(Config_App.Current.FO4EDataPath, "Textures\" & targetRelative).Correct_Path_Separator,
+            .FinalRelative = originalRelative
+        }
+
+        plan.TextureJobs.Add(sourceKey, job)
+        Return job
+    End Function
+
+    Private Shared Sub RegisterMaterialDirectory(plan As ClonePlan, originalMaterialSource As String)
+        Dim normalizedOriginal As String = NormalizeMaterialSourceKey(originalMaterialSource)
+        If normalizedOriginal = "" Then Exit Sub
+        If FilesDictionary_class.Dictionary.ContainsKey(normalizedOriginal) = False Then Exit Sub
+
+        Dim originalLocation = FilesDictionary_class.Dictionary(normalizedOriginal)
+        If Not originalLocation.IsLosseFile AndAlso Not Config_App.Allowed_To_Clone(originalLocation.BA2File) Then Exit Sub
+
+        Dim directory As String = IO.Path.GetDirectoryName(normalizedOriginal).Correct_Path_Separator
+
+        For Each fil In FilesDictionary_class.GetFilesInDirectory(directory, allowedExtensions)
+            Dim normalizedFil As String = fil.Correct_Path_Separator
+
+            Dim location = FilesDictionary_class.Dictionary(normalizedFil)
+            If location.IsLosseFile OrElse Config_App.Allowed_To_Clone(location.BA2File) Then
+                GetOrCreateMaterialJob(plan, normalizedFil, normalizedFil.Equals(normalizedOriginal, StringComparison.OrdinalIgnoreCase))
+            End If
+        Next
+    End Sub
+
+    Private Shared Sub RegisterMaterialTextureReference(plan As ClonePlan, job As MaterialJob, propertyName As String, textureReference As String)
+        Dim normalizedReference As String = textureReference.Correct_Path_Separator
+        job.TextureReferences(propertyName) = normalizedReference
+
+        If String.IsNullOrWhiteSpace(normalizedReference) = False Then
+            GetOrCreateTextureJob(plan, normalizedReference)
+        End If
+    End Sub
+
+    Private Shared Sub ScanMaterialJob(plan As ClonePlan, job As MaterialJob)
+        If job.Scanned Then Exit Sub
+
+        Select Case job.Extension
+            Case ".bgsm"
+                Dim material As New BGSM
+                Using ms As New MemoryStream(FilesDictionary_class.GetBytes(job.Source))
+                    Using reader As New BinaryReader(ms)
+                        material.Deserialize(reader)
+                    End Using
+                End Using
+
+                job.BaseTexturePropertyName = "DiffuseTexture"
+
+                RegisterMaterialTextureReference(plan, job, "NormalTexture", material.NormalTexture)
+                RegisterMaterialTextureReference(plan, job, "SmoothSpecTexture", material.SmoothSpecTexture)
+                RegisterMaterialTextureReference(plan, job, "GreyscaleTexture", material.GreyscaleTexture)
+                RegisterMaterialTextureReference(plan, job, "EnvmapTexture", material.EnvmapTexture)
+                RegisterMaterialTextureReference(plan, job, "FlowTexture", material.FlowTexture)
+                RegisterMaterialTextureReference(plan, job, "GlowTexture", material.GlowTexture)
+                RegisterMaterialTextureReference(plan, job, "DisplacementTexture", material.DisplacementTexture)
+                RegisterMaterialTextureReference(plan, job, "InnerLayerTexture", material.InnerLayerTexture)
+                RegisterMaterialTextureReference(plan, job, "LightingTexture", material.LightingTexture)
+                RegisterMaterialTextureReference(plan, job, "SpecularTexture", material.SpecularTexture)
+                RegisterMaterialTextureReference(plan, job, "WrinklesTexture", material.WrinklesTexture)
+                RegisterMaterialTextureReference(plan, job, "DistanceFieldAlphaTexture", material.DistanceFieldAlphaTexture)
+                RegisterMaterialTextureReference(plan, job, "DiffuseTexture", material.DiffuseTexture)
+
+                Dim temp = material.RootMaterialPath.Correct_Path_Separator
+                If temp.StartsWith("Materials\", StringComparison.OrdinalIgnoreCase) Then temp = temp.Substring("Materials\".Length)
+
+                If temp <> "" Then
+                    Dim rootSource As String = ("Materials\" & temp).Correct_Path_Separator
+
+                    If FilesDictionary_class.Dictionary.ContainsKey(rootSource) Then
+                        Dim rootLocation = FilesDictionary_class.Dictionary(rootSource)
+
+                        If rootSource.Equals(job.Source, StringComparison.OrdinalIgnoreCase) = False Then
+                            If rootLocation.IsLosseFile OrElse Config_App.Allowed_To_Clone(rootLocation.BA2File) Then
+                                job.RootMaterialSource = rootSource
+                                GetOrCreateMaterialJob(plan, rootSource, False)
+                            End If
+                        End If
+                    End If
+                End If
+
+            Case ".bgem"
+                Dim material As New BGEM
+                Using ms As New MemoryStream(FilesDictionary_class.GetBytes(job.Source))
+                    Using reader As New BinaryReader(ms)
+                        material.Deserialize(reader)
+                    End Using
+                End Using
+
+                job.BaseTexturePropertyName = "BaseTexture"
+
+                RegisterMaterialTextureReference(plan, job, "NormalTexture", material.NormalTexture)
+                RegisterMaterialTextureReference(plan, job, "BaseTexture", material.BaseTexture)
+                RegisterMaterialTextureReference(plan, job, "EnvmapMaskTexture", material.EnvmapMaskTexture)
+                RegisterMaterialTextureReference(plan, job, "EnvmapTexture", material.EnvmapTexture)
+                RegisterMaterialTextureReference(plan, job, "GrayscaleTexture", material.GrayscaleTexture)
+                RegisterMaterialTextureReference(plan, job, "LightingTexture", material.LightingTexture)
+                RegisterMaterialTextureReference(plan, job, "GlowTexture", material.GlowTexture)
+                RegisterMaterialTextureReference(plan, job, "SpecularTexture", material.SpecularTexture)
+
+            Case Else
+                Throw New Exception
+        End Select
+
+        job.Scanned = True
+    End Sub
+
+    Private Shared Function ResolveTextureReference(plan As ClonePlan, textureReference As String, overwrite As Boolean, ByRef succeeded As Boolean) As String
+        If String.IsNullOrWhiteSpace(textureReference) Then
+            succeeded = True
+            Return ""
+        End If
+
+        Dim job = GetOrCreateTextureJob(plan, textureReference)
+        If IsNothing(job) Then
+            succeeded = True
+            Return ""
+        End If
+
+        ResolveTextureJob(job, overwrite)
+        succeeded = job.Succeeded
+        Return job.FinalRelative
+    End Function
+
+    Private Shared Sub ResolveTextureJob(job As TextureJob, overwrite As Boolean)
+        If job.Resolved Then Exit Sub
+
+        job.Resolved = True
+        job.Succeeded = False
+        job.NeedsWrite = False
+        job.FinalRelative = job.OriginalRelative
+
+        If job.SourceKey = "" Then
+            job.Succeeded = True
+            Exit Sub
+        End If
+
+        If FilesDictionary_class.Dictionary.ContainsKey(job.SourceKey) = False Then
+            Exit Sub
+        End If
+
+        Dim location = FilesDictionary_class.Dictionary(job.SourceKey)
+
+        If Not location.IsLosseFile AndAlso Not Config_App.Allowed_To_Clone(location.BA2File) Then
+            Exit Sub
+        End If
+
+        If job.TargetRelative.Equals(job.OriginalRelative, StringComparison.OrdinalIgnoreCase) Then
+            job.Succeeded = True
+            job.NeedsWrite = False
+            job.FinalRelative = job.OriginalRelative
+            Exit Sub
+        End If
+
+        If IO.File.Exists(job.TargetFullPath) AndAlso overwrite = False Then
+            job.Succeeded = True
+            job.NeedsWrite = False
+            job.FinalRelative = job.TargetRelative
+            Exit Sub
+        End If
+
+        job.Succeeded = True
+        job.NeedsWrite = True
+        job.FinalRelative = job.TargetRelative
+    End Sub
+
+    Private Shared Sub ResolveMaterialJob(plan As ClonePlan, job As MaterialJob, overwrite As Boolean)
+        If job.Resolved Then Exit Sub
+
+        If job.Resolving Then
+            Throw New Exception("Circular RootMaterialPath: " & job.Source)
+        End If
+
+        job.Resolving = True
+        Try
+            If job.Scanned = False Then
+                ScanMaterialJob(plan, job)
+            End If
+
+            Dim baseSucceeded As Boolean = True
+
+            For Each kv In job.TextureReferences
+                Dim textureSucceeded As Boolean
+                Dim resolvedReference As String = ResolveTextureReference(plan, kv.Value, overwrite, textureSucceeded)
+
+                job.ResolvedTextureReferences(kv.Key) = resolvedReference
+
+                If kv.Key.Equals(job.BaseTexturePropertyName, StringComparison.OrdinalIgnoreCase) Then
+                    baseSucceeded = textureSucceeded
+                End If
+            Next
+
+            If job.RootMaterialSource <> "" Then
+                Dim rootJob = GetOrCreateMaterialJob(plan, job.RootMaterialSource, False)
+                ResolveMaterialJob(plan, rootJob, overwrite)
+                job.RootMaterialResolved = rootJob.FinalReference
+            End If
+
+            Dim sourceReference As String = NormalizeMaterialReference(job.Source)
+
+            If job.Required = False AndAlso baseSucceeded = False Then
+                job.Succeeded = False
+                job.NeedsWrite = False
+                job.FinalReference = sourceReference
+            Else
+                job.Succeeded = True
+
+                If job.TargetReference.Equals(sourceReference, StringComparison.OrdinalIgnoreCase) Then
+                    job.NeedsWrite = False
+                    job.FinalReference = sourceReference
+                Else
+                    job.FinalReference = job.TargetReference
+
+                    If IO.File.Exists(job.TargetFullPath) AndAlso overwrite = False Then
+                        job.NeedsWrite = False
+                    Else
+                        job.NeedsWrite = True
+                    End If
+                End If
+            End If
+
+            job.Resolved = True
+        Finally
+            job.Resolving = False
+        End Try
+    End Sub
+
+    Private Shared Sub CommitTextureJobs(plan As ClonePlan, overwrite As Boolean)
+        Dim pending = plan.TextureJobs.Values.Where(Function(pf) pf.NeedsWrite AndAlso pf.Succeeded).ToList
+        If pending.Count = 0 Then Exit Sub
+
+        Dim packedSources = pending.
+            Where(Function(pf)
+                      If FilesDictionary_class.Dictionary.ContainsKey(pf.SourceKey) = False Then Return False
+                      Return FilesDictionary_class.Dictionary(pf.SourceKey).IsLosseFile = False
+                  End Function).
+            Select(Function(pf) pf.SourceKey)
+
+        Dim prefetchedPackedBytes = PrefetchDictionaryFiles(packedSources)
+
+        For Each job In pending
+            Dim location = FilesDictionary_class.Dictionary(job.SourceKey)
+
+            If location.IsLosseFile Then
+                Dim sourceLooseFile As String = IO.Path.Combine(FilesDictionary_class.FO4Path, location.FullPath)
+                Dim sourceFull As String = IO.Path.GetFullPath(sourceLooseFile)
+                Dim targetFull As String = IO.Path.GetFullPath(job.TargetFullPath)
+
+                If sourceFull.Equals(targetFull, StringComparison.OrdinalIgnoreCase) Then
+                    RegisterGeneratedDictionaryFile("Textures\" & job.TargetRelative)
+                    Continue For
+                End If
+            End If
+
+            If IO.Directory.Exists(IO.Path.GetDirectoryName(job.TargetFullPath)) = False Then
+                IO.Directory.CreateDirectory(IO.Path.GetDirectoryName(job.TargetFullPath))
+            End If
+
+            If IO.File.Exists(job.TargetFullPath) Then
+                If overwrite = False Then
+                    RegisterGeneratedDictionaryFile("Textures\" & job.TargetRelative)
+                    Continue For
+                Else
+                    IO.File.Delete(job.TargetFullPath)
+                End If
+            End If
+
+            If location.IsLosseFile Then
+                Dim sourceLooseFile As String = IO.Path.Combine(FilesDictionary_class.FO4Path, location.FullPath)
+                IO.File.Copy(sourceLooseFile, job.TargetFullPath, False)
+            Else
+                Dim bytes As Byte() = Nothing
+                prefetchedPackedBytes.TryGetValue(job.SourceKey, bytes)
+
+                If IsNothing(bytes) OrElse bytes.Length = 0 Then
+                    bytes = location.GetBytes()
+                End If
+
+                If IsNothing(bytes) OrElse bytes.Length = 0 Then
+                    Throw New Exception("Cannot copy texture: " & job.SourceKey)
+                End If
+
+                IO.File.WriteAllBytes(job.TargetFullPath, bytes)
+            End If
+
+            RegisterGeneratedDictionaryFile("Textures\" & job.TargetRelative)
+        Next
+    End Sub
+
+    Private Shared Sub WriteMaterialJob(job As MaterialJob, overwrite As Boolean, saveAction As Action(Of Stream))
+        If IO.Directory.Exists(IO.Path.GetDirectoryName(job.TargetFullPath)) = False Then
+            IO.Directory.CreateDirectory(IO.Path.GetDirectoryName(job.TargetFullPath))
+        End If
+
+        If IO.File.Exists(job.TargetFullPath) Then
+            If overwrite = False Then
+                RegisterGeneratedDictionaryFile("Materials\" & job.TargetReference)
+                Exit Sub
+            Else
+                IO.File.Delete(job.TargetFullPath)
+            End If
+        End If
+
+        Using writer As FileStream = IO.File.Open(job.TargetFullPath, FileMode.Create)
+            saveAction(writer)
+        End Using
+
+        RegisterGeneratedDictionaryFile("Materials\" & job.TargetReference)
+    End Sub
+    Private Shared Function BuildClonedMaterialRelativePath(source As String, relative As String) As String
+        If relative.StartsWith("ManoloCloned", StringComparison.OrdinalIgnoreCase) OrElse
+       relative.StartsWith("ManoloMods", StringComparison.OrdinalIgnoreCase) Then
+            Return relative + IO.Path.GetFileName(source)
+        End If
+
+        Return "ManoloCloned\" + relative + IO.Path.GetFileName(source)
+    End Function
+    Private Shared Sub RegisterGeneratedDictionaryFile(fullPath As String)
+        Dim normalized As String = fullPath.Correct_Path_Separator
+        Dim location As New FilesDictionary_class.File_Location With {
+        .BA2File = "",
+        .Index = -1,
+        .FullPath = normalized
+    }
+
+        If FilesDictionary_class.TryAddDictionaryEntry(normalized, location) = False Then
+            If location.FullPath.Contains("ManoloCloned\", StringComparison.OrdinalIgnoreCase) = False AndAlso
+           location.FullPath.Contains("ManoloMods\", StringComparison.OrdinalIgnoreCase) = False Then
+                Debugger.Break()
+                Throw New Exception
+            End If
+        End If
+    End Sub
+    Private Shared Sub ApplyBGSMResolvedReferences(material As BGSM, job As MaterialJob)
+        Dim value As String = Nothing
+        If job.ResolvedTextureReferences.TryGetValue("NormalTexture", value) Then material.NormalTexture = value
+        If job.ResolvedTextureReferences.TryGetValue("SmoothSpecTexture", value) Then material.SmoothSpecTexture = value
+        If job.ResolvedTextureReferences.TryGetValue("GreyscaleTexture", value) Then material.GreyscaleTexture = value
+        If job.ResolvedTextureReferences.TryGetValue("EnvmapTexture", value) Then material.EnvmapTexture = value
+        If job.ResolvedTextureReferences.TryGetValue("FlowTexture", value) Then material.FlowTexture = value
+        If job.ResolvedTextureReferences.TryGetValue("GlowTexture", value) Then material.GlowTexture = value
+        If job.ResolvedTextureReferences.TryGetValue("DisplacementTexture", value) Then material.DisplacementTexture = value
+        If job.ResolvedTextureReferences.TryGetValue("InnerLayerTexture", value) Then material.InnerLayerTexture = value
+        If job.ResolvedTextureReferences.TryGetValue("LightingTexture", value) Then material.LightingTexture = value
+        If job.ResolvedTextureReferences.TryGetValue("SpecularTexture", value) Then material.SpecularTexture = value
+        If job.ResolvedTextureReferences.TryGetValue("WrinklesTexture", value) Then material.WrinklesTexture = value
+        If job.ResolvedTextureReferences.TryGetValue("DistanceFieldAlphaTexture", value) Then material.DistanceFieldAlphaTexture = value
+        If job.ResolvedTextureReferences.TryGetValue("DiffuseTexture", value) Then material.DiffuseTexture = value
+        If job.RootMaterialSource <> "" AndAlso job.RootMaterialResolved <> "" Then
+            material.RootMaterialPath = job.RootMaterialResolved
+        End If
+    End Sub
+
+    Private Shared Sub ApplyBGEMResolvedReferences(material As BGEM, job As MaterialJob)
+        Dim value As String = Nothing
+        If job.ResolvedTextureReferences.TryGetValue("NormalTexture", value) Then material.NormalTexture = value
+        If job.ResolvedTextureReferences.TryGetValue("BaseTexture", value) Then material.BaseTexture = value
+        If job.ResolvedTextureReferences.TryGetValue("EnvmapMaskTexture", value) Then material.EnvmapMaskTexture = value
+        If job.ResolvedTextureReferences.TryGetValue("EnvmapTexture", value) Then material.EnvmapTexture = value
+        If job.ResolvedTextureReferences.TryGetValue("GrayscaleTexture", value) Then material.GrayscaleTexture = value
+        If job.ResolvedTextureReferences.TryGetValue("LightingTexture", value) Then material.LightingTexture = value
+        If job.ResolvedTextureReferences.TryGetValue("GlowTexture", value) Then material.GlowTexture = value
+        If job.ResolvedTextureReferences.TryGetValue("SpecularTexture", value) Then material.SpecularTexture = value
+    End Sub
+
+    Private Shared Sub CommitMaterialJobs(plan As ClonePlan, overwrite As Boolean)
+        Dim pending = plan.MaterialJobs.Values.Where(Function(pf) pf.NeedsWrite AndAlso pf.Succeeded).ToList
+        If pending.Count = 0 Then Exit Sub
+
+        For Each job In pending
+            Select Case job.Extension
+                Case ".bgsm"
+                    Dim material As New BGSM
+                    Using ms As New MemoryStream(FilesDictionary_class.GetBytes(job.Source))
+                        Using reader As New BinaryReader(ms)
+                            material.Deserialize(reader)
+                        End Using
+                    End Using
+
+                    ApplyBGSMResolvedReferences(material, job)
+
+                    WriteMaterialJob(job, overwrite, Sub(writer)
+                                                         material.Save(writer)
+                                                     End Sub)
+
+                Case ".bgem"
+                    Dim material As New BGEM
+                    Using ms As New MemoryStream(FilesDictionary_class.GetBytes(job.Source))
+                        Using reader As New BinaryReader(ms)
+                            material.Deserialize(reader)
+                        End Using
+                    End Using
+
+                    ApplyBGEMResolvedReferences(material, job)
+
+                    WriteMaterialJob(job, overwrite, Sub(writer)
+                                                         material.Save(writer)
+                                                     End Sub)
+
+                Case Else
+                    Throw New Exception
+            End Select
+        Next
+    End Sub
+
+    Private Shared Sub ApplyShapeBindings(plan As ClonePlan)
+        For Each binding In plan.Bindings
+            Dim finalName As String = binding.FallbackShaderMaterialName
+
+            If binding.MaterialSourceKey <> "" Then
+                Dim job As MaterialJob = Nothing
+                If plan.MaterialJobs.TryGetValue(binding.MaterialSourceKey, job) Then
+                    finalName = job.FinalReference
+                End If
+            End If
+
+            SetShaderMaterialName(binding.Shader, finalName)
+        Next
+    End Sub
+End Class
 Public Class OSP_Project_Class
     Public Property SliderSets As New List(Of SliderSet_Class)
     Public xml As New XmlDocument
@@ -595,264 +1257,15 @@ Public Class OSP_Project_Class
     End Sub
 
     Public Sub Save_Pack_As(NewFilename As String, Overwrite As Boolean)
-        If IO.File.Exists(Filename) AndAlso Overwrite = False Then Throw New Exception("OSP File already exists")
+        If IO.File.Exists(NewFilename) AndAlso Overwrite = False Then Throw New Exception("OSP File already exists")
         Me.xml.Save(NewFilename)
         For Each slider In Me.SliderSets
             slider.LastProjectFileSignature = slider.GetProjectFileSignature()
         Next
     End Sub
-    Private Shared Function BuildClonedMaterialRelativePath(source As String, relative As String) As String
-        If relative.StartsWith("ManoloCloned", StringComparison.OrdinalIgnoreCase) OrElse
-       relative.StartsWith("ManoloMods", StringComparison.OrdinalIgnoreCase) Then
-            Return relative + IO.Path.GetFileName(source)
-        End If
 
-        Return "ManoloCloned\" + relative + IO.Path.GetFileName(source)
-    End Function
-    Private Shared Sub RegisterGeneratedDictionaryFile(fullPath As String)
-        Dim normalized As String = fullPath.Correct_Path_Separator
-        Dim location As New FilesDictionary_class.File_Location With {
-        .BA2File = "",
-        .Index = -1,
-        .FullPath = normalized
-    }
 
-        If FilesDictionary_class.TryAddDictionaryEntry(normalized, location) = False Then
-            If location.FullPath.Contains("ManoloCloned\", StringComparison.OrdinalIgnoreCase) = False AndAlso
-           location.FullPath.Contains("ManoloMods\", StringComparison.OrdinalIgnoreCase) = False Then
-                Debugger.Break()
-                Throw New Exception
-            End If
-        End If
-    End Sub
-    Private Shared Function SaveClonedMaterialFile(source As String, prefix As String, relative As String, overwrite As Boolean, saveAction As Action(Of Stream)) As String
-        Dim fullpath As String = BuildClonedMaterialRelativePath(source, relative)
-        Dim newfile As String = IO.Path.Combine(Directorios.Fallout4data, prefix + fullpath).Correct_Path_Separator
 
-        If IO.Directory.Exists(IO.Path.GetDirectoryName(newfile)) = False Then
-            IO.Directory.CreateDirectory(IO.Path.GetDirectoryName(newfile))
-        End If
-
-        Using writer As FileStream = IO.File.Open(newfile, FileMode.Create)
-            saveAction(writer)
-        End Using
-
-        RegisterGeneratedDictionaryFile(prefix + fullpath)
-        Return fullpath
-    End Function
-    Public Shared Function Clone_Material_Sub(shad As INiShader, Overwrite As Boolean) As String
-        Dim mate As String
-        Select Case shad.GetType
-            Case GetType(BSLightingShaderProperty)
-                mate = CType(shad, BSLightingShaderProperty).Name.String.Correct_Path_Separator
-            Case GetType(BSEffectShaderProperty)
-                mate = CType(shad, BSEffectShaderProperty).Name.String.Correct_Path_Separator
-            Case Else
-                Debugger.Break()
-                Return Nothing
-        End Select
-        If mate = "" Then Return mate
-        Dim prefix = "Materials\"
-        If mate.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) Then mate = mate.Substring(prefix.Length)
-        Dim Fil_original As String = prefix + mate
-        If FilesDictionary_class.Dictionary.ContainsKey(Fil_original) = False Then Return mate
-        If Not FilesDictionary_class.Dictionary(Fil_original).IsLosseFile AndAlso Not Config_App.Allowed_To_Clone(FilesDictionary_class.Dictionary(Fil_original).BA2File) Then Return mate
-        Dim Dire As String = IO.Path.GetDirectoryName(Fil_original).Correct_Path_Separator
-        Dim regreso As String = Fil_original
-        For Each Fil In FilesDictionary_class.GetFilesInDirectory(IO.Path.GetDirectoryName(prefix + mate), allowedExtensions)
-            If FilesDictionary_class.Dictionary(Fil).IsLosseFile OrElse Config_App.Allowed_To_Clone(FilesDictionary_class.Dictionary(Fil).BA2File) Then
-                Dim relative As String = IO.Path.GetRelativePath(prefix, Dire + "\")
-                Dim source As String = Dire + "\" + IO.Path.GetFileName(Fil)
-                Dim temp As String = Procesa_Material(source, prefix, relative, Overwrite, Not Fil.Correct_Path_Separator.Equals(Fil_original, StringComparison.OrdinalIgnoreCase))
-                If Fil.Correct_Path_Separator.Equals(Fil_original, StringComparison.OrdinalIgnoreCase) Then
-                    regreso = temp
-                End If
-            End If
-        Next
-        If regreso = "" Then Throw New Exception
-        Return regreso
-    End Function
-    Private Shared Function BuildTextureDictionaryKey(filename As String) As String
-        If String.IsNullOrWhiteSpace(filename) Then Return ""
-
-        Dim normalized = filename.Correct_Path_Separator
-        Dim prefix = "Textures\"
-
-        If normalized.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) Then
-            normalized = normalized.Substring(prefix.Length)
-        End If
-
-        Return (prefix & normalized).Correct_Path_Separator
-    End Function
-
-    Private Shared Function PrefetchDictionaryFiles(paths As IEnumerable(Of String)) As Dictionary(Of String, Byte())
-        Dim result As New Dictionary(Of String, Byte())(StringComparer.OrdinalIgnoreCase)
-        If IsNothing(paths) Then Return result
-
-        Dim normalized = paths.
-        Where(Function(p) String.IsNullOrWhiteSpace(p) = False).
-        Select(Function(p) p.Correct_Path_Separator).
-        Distinct(StringComparer.OrdinalIgnoreCase).
-        ToArray()
-
-        If normalized.Length = 0 Then Return result
-
-        Dim loaded = FilesDictionary_class.GetMultipleFilesBytes(normalized)
-
-        For i As Integer = 0 To normalized.Length - 1
-            result(normalized(i)) = If(loaded(i), Array.Empty(Of Byte)())
-        Next
-
-        Return result
-    End Function
-    Private Shared Function Procesa_Material(source As String, prefix As String, relative As String, overwrite As Boolean, canskip As Boolean) As String
-
-        Select Case IO.Path.GetExtension(source).ToLower
-            Case ".bgsm"
-                Dim material As New BGSM
-                Using ms As New MemoryStream(FilesDictionary_class.GetBytes(source))
-                    Using reader As New BinaryReader(ms)
-                        material.Deserialize(reader)
-                        reader.Close()
-                    End Using
-                    ms.Close()
-                End Using
-                Dim prefetchedTextureBytes = PrefetchDictionaryFiles({
-    BuildTextureDictionaryKey(material.NormalTexture),
-    BuildTextureDictionaryKey(material.SmoothSpecTexture),
-    BuildTextureDictionaryKey(material.GreyscaleTexture),
-    BuildTextureDictionaryKey(material.EnvmapTexture),
-    BuildTextureDictionaryKey(material.FlowTexture),
-    BuildTextureDictionaryKey(material.GlowTexture),
-    BuildTextureDictionaryKey(material.DisplacementTexture),
-    BuildTextureDictionaryKey(material.InnerLayerTexture),
-    BuildTextureDictionaryKey(material.LightingTexture),
-    BuildTextureDictionaryKey(material.SpecularTexture),
-    BuildTextureDictionaryKey(material.WrinklesTexture),
-    BuildTextureDictionaryKey(material.DistanceFieldAlphaTexture),
-    BuildTextureDictionaryKey(material.DiffuseTexture)
-})
-                Dim exist As Boolean
-                Dim Baseexist As Boolean
-                material.NormalTexture = CopyTexture(material.NormalTexture, overwrite, exist, prefetchedTextureBytes)
-                material.SmoothSpecTexture = CopyTexture(material.SmoothSpecTexture, overwrite, exist, prefetchedTextureBytes)
-                material.GreyscaleTexture = CopyTexture(material.GreyscaleTexture, overwrite, exist, prefetchedTextureBytes)
-                material.EnvmapTexture = CopyTexture(material.EnvmapTexture, overwrite, exist, prefetchedTextureBytes)
-                material.FlowTexture = CopyTexture(material.FlowTexture, overwrite, exist, prefetchedTextureBytes)
-                material.GlowTexture = CopyTexture(material.GlowTexture, overwrite, exist, prefetchedTextureBytes)
-                material.DisplacementTexture = CopyTexture(material.DisplacementTexture, overwrite, exist, prefetchedTextureBytes)
-                material.InnerLayerTexture = CopyTexture(material.InnerLayerTexture, overwrite, exist, prefetchedTextureBytes)
-                material.LightingTexture = CopyTexture(material.LightingTexture, overwrite, exist, prefetchedTextureBytes)
-                material.SpecularTexture = CopyTexture(material.SpecularTexture, overwrite, exist, prefetchedTextureBytes)
-                material.WrinklesTexture = CopyTexture(material.WrinklesTexture, overwrite, exist, prefetchedTextureBytes)
-                material.DistanceFieldAlphaTexture = CopyTexture(material.DistanceFieldAlphaTexture, overwrite, exist, prefetchedTextureBytes)
-                material.DiffuseTexture = CopyTexture(material.DiffuseTexture, overwrite, Baseexist, prefetchedTextureBytes)
-
-                If Baseexist = False And canskip Then
-                    Return source
-                End If
-                '
-                Dim temp = material.RootMaterialPath
-                If temp.StartsWith("Materials\", StringComparison.OrdinalIgnoreCase) Then temp = temp.Substring(prefix.Length)
-                Dim Filt As String = prefix + temp
-                If FilesDictionary_class.Dictionary.ContainsKey(Filt) Then
-                    Debugger.Break()
-                    Dim relative2 As String = IO.Path.GetRelativePath(prefix, IO.Path.GetDirectoryName(Filt) + "\")
-                    material.RootMaterialPath = Procesa_Material(Filt, prefix, relative, overwrite, True)
-                End If
-                Return SaveClonedMaterialFile(source, prefix, relative, overwrite, Sub(writer)
-                                                                                       material.Save(writer)
-                                                                                   End Sub)
-
-            Case ".bgem"
-                Dim material As New BGEM
-                Using ms As New MemoryStream(FilesDictionary_class.GetBytes(source))
-                    Using reader As New BinaryReader(ms)
-                        material.Deserialize(reader)
-                        reader.Close()
-                    End Using
-                    ms.Close()
-                End Using
-                Dim prefetchedTextureBytes = PrefetchDictionaryFiles({
-    BuildTextureDictionaryKey(material.NormalTexture),
-    BuildTextureDictionaryKey(material.BaseTexture),
-    BuildTextureDictionaryKey(material.EnvmapMaskTexture),
-    BuildTextureDictionaryKey(material.EnvmapTexture),
-    BuildTextureDictionaryKey(material.GrayscaleTexture),
-    BuildTextureDictionaryKey(material.LightingTexture),
-    BuildTextureDictionaryKey(material.GlowTexture),
-    BuildTextureDictionaryKey(material.SpecularTexture)
-})
-                Dim exist As Boolean
-                Dim baseexist As Boolean
-                material.NormalTexture = CopyTexture(material.NormalTexture, overwrite, exist, prefetchedTextureBytes)
-                material.BaseTexture = CopyTexture(material.BaseTexture, overwrite, baseexist, prefetchedTextureBytes)
-                material.EnvmapMaskTexture = CopyTexture(material.EnvmapMaskTexture, overwrite, exist, prefetchedTextureBytes)
-                material.EnvmapTexture = CopyTexture(material.EnvmapTexture, overwrite, exist, prefetchedTextureBytes)
-                material.GrayscaleTexture = CopyTexture(material.GrayscaleTexture, overwrite, exist, prefetchedTextureBytes)
-                material.LightingTexture = CopyTexture(material.LightingTexture, overwrite, exist, prefetchedTextureBytes)
-                material.GlowTexture = CopyTexture(material.GlowTexture, overwrite, exist, prefetchedTextureBytes)
-                material.SpecularTexture = CopyTexture(material.SpecularTexture, overwrite, exist, prefetchedTextureBytes)
-                If baseexist = False And canskip Then
-                    Return source
-                End If
-
-                Return SaveClonedMaterialFile(source, prefix, relative, overwrite, Sub(writer)
-                                                                                       material.Save(writer)
-                                                                                   End Sub)
-            Case Else
-                Throw New Exception
-        End Select
-    End Function
-    Private Shared Function CopyTexture(filename As String, Overwrite As Boolean, ByRef exist As Boolean, Optional prefetchedBytes As Dictionary(Of String, Byte()) = Nothing) As String
-        If filename = "" Then Return ""
-        exist = True
-        filename = filename.Correct_Path_Separator
-        Dim prefix = "Textures\"
-        If filename.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) Then filename = filename.Substring(prefix.Length)
-        Dim oldfile As String = prefix + filename
-        Dim newfilename
-        If filename.Contains("ManoloCloned", StringComparison.OrdinalIgnoreCase) = False AndAlso filename.Contains("ManoloMods", StringComparison.OrdinalIgnoreCase) = False Then
-            newfilename = "ManoloCloned\" + filename
-        Else
-            newfilename = filename
-        End If
-        Dim newfile As String = IO.Path.Combine(Config_App.Current.FO4EDataPath, prefix + newfilename)
-        If FilesDictionary_class.Dictionary.ContainsKey(oldfile) = False Then exist = False : Return filename
-        If Not FilesDictionary_class.Dictionary(oldfile).IsLosseFile AndAlso Not Config_App.Allowed_To_Clone(FilesDictionary_class.Dictionary(oldfile).BA2File) Then Return filename
-
-        If filename <> newfilename Then
-            If IO.Directory.Exists(IO.Path.GetDirectoryName(newfile)) = False Then IO.Directory.CreateDirectory(IO.Path.GetDirectoryName(newfile))
-            If IO.File.Exists(newfile) = True Then
-                If Overwrite = False Then
-                    Return newfilename
-                Else
-                    IO.File.Delete(newfile)
-                End If
-            End If
-            Dim bytes As Byte() = Nothing
-            Dim oldfileKey As String = oldfile.Correct_Path_Separator
-
-            If Not IsNothing(prefetchedBytes) Then
-                prefetchedBytes.TryGetValue(oldfileKey, bytes)
-            End If
-
-            If IsNothing(bytes) Then
-                bytes = FilesDictionary_class.Dictionary(oldfile).GetBytes()
-            End If
-
-            System.IO.File.WriteAllBytes(newfile, bytes)
-            Dim fullpath As String = (prefix + newfilename)
-            Dim Location As New FilesDictionary_class.File_Location With {.BA2File = "", .Index = -1, .FullPath = fullpath.Correct_Path_Separator}
-            If FilesDictionary_class.TryAddDictionaryEntry(fullpath.Correct_Path_Separator, Location) = False Then
-                If Location.FullPath.Contains("ManoloCloned\") = False AndAlso Location.FullPath.Contains("ManoloMods\") = False Then
-                    Debugger.Break()
-                    Throw New Exception
-                End If
-            End If
-        End If
-        Return newfilename
-    End Function
 
     Public ReadOnly Property IsManoloPack
         Get
@@ -1012,7 +1425,7 @@ Public Class OSP_Project_Class
         End If
         Return True
     End Function
-    Public Function Agrega_Proyecto(Sliderset_Source As SliderSet_Class, Nombre_Proyecto As String, Filename As String, ExcludeReference As Boolean, OverwriteShapeFiles As Boolean, Clone_Materials As Boolean, Keep_Physics As Boolean, ChangeOutputDir As Boolean) As SliderSet_Class
+    Public Function Agrega_Proyecto(Sliderset_Source As SliderSet_Class, Nombre_Proyecto As String, Filename As String, ExcludeReference As Boolean, OverwriteShapeFiles As Boolean, Keep_Physics As Boolean, ChangeOutputDir As Boolean) As SliderSet_Class
         If Check_repeated(Nombre_Proyecto) = False Then Return Nothing
         ' Add project and update
         Dim Sliderset_Target As SliderSet_Class = AddProject(Sliderset_Source)
@@ -1039,24 +1452,6 @@ Public Class OSP_Project_Class
             Sliderset_Target.RemoveShape(Sliderset_Target.Shapes.Where(Function(pf) pf.IsReference).First)
         End If
 
-        ' Clona Material
-        If Clone_Materials Then
-            For Each shap In Sliderset_Target.Shapes
-                If Not IsNothing(shap.RelatedNifShader) Then
-                    Dim shad = shap.RelatedNifShader
-                    Select Case shad.GetType
-                        Case GetType(BSLightingShaderProperty)
-                            CType(shad, BSLightingShaderProperty).Name.String = Clone_Material_Sub(shap.RelatedNifShader, OverwriteShapeFiles)
-                        Case GetType(BSEffectShaderProperty)
-                            CType(shad, BSEffectShaderProperty).Name.String = Clone_Material_Sub(shap.RelatedNifShader, OverwriteShapeFiles)
-                        Case Else
-                            Debugger.Break()
-                            Throw New Exception
-                    End Select
-                End If
-            Next
-        End If
-
         ' Saca Physics
         If Not Keep_Physics Then Sliderset_Target.NIFContent.RemoveBlocksOfType(Of BSClothExtraData)()
 
@@ -1070,7 +1465,7 @@ Public Class OSP_Project_Class
         Return Sliderset_Target
     End Function
 
-    Public Shared Function Merge_Proyecto(Sliderset_Madre As SliderSet_Class, Sliderset_Source As SliderSet_Class, ExcludeReference As Boolean, OverwriteShapeFiles As Boolean, Clone_Materials As Boolean, Keep_Physics As Boolean) As SliderSet_Class
+    Public Shared Function Merge_Proyecto(Sliderset_Madre As SliderSet_Class, Sliderset_Source As SliderSet_Class, ExcludeReference As Boolean, Keep_Physics As Boolean) As SliderSet_Class
         ' Add project and update
         Dim Sliderset_Target = New SliderSet_Class(Sliderset_Madre.ParentOSP.xml.ImportNode(Sliderset_Source.Nodo.Clone, True), Sliderset_Madre.ParentOSP)
         If OSP_Project_Class.Load_and_CHeck_Project(Sliderset_Target, True, True) = False Then Return Nothing
@@ -1178,32 +1573,9 @@ Public Class OSP_Project_Class
 
         Next
 
-
+        ' Merge Shapes
         Nifcontent_Class_Manolo.Merge_Shapes_Original(Sliderset_Madre.NIFContent, Sliderset_Target.NIFContent, Keep_Physics)
         Sliderset_Madre.InvalidateAllLookupCaches()
-        '' Exclude reference
-        'If ExcludeReference = True AndAlso Sliderset_Madre.Shapes.Where(Function(pf) pf.IsReference).Any Then
-        '    Sliderset_Madre.RemoveShape(Sliderset_Madre.Shapes.Where(Function(pf) pf.IsReference).First)
-        'End If
-
-
-        ' Clona Material en el proyecto
-        If Clone_Materials Then
-            For Each shap In Sliderset_Madre.Shapes
-                If Not IsNothing(shap.RelatedNifShader) Then
-                    Dim shad = shap.RelatedNifShader
-                    Select Case shad.GetType
-                        Case GetType(BSLightingShaderProperty)
-                            CType(shad, BSLightingShaderProperty).Name.String = Clone_Material_Sub(shap.RelatedNifShader, OverwriteShapeFiles)
-                        Case GetType(BSEffectShaderProperty)
-                            CType(shad, BSEffectShaderProperty).Name.String = Clone_Material_Sub(shap.RelatedNifShader, OverwriteShapeFiles)
-                        Case Else
-                            Debugger.Break()
-                            Throw New Exception
-                    End Select
-                End If
-            Next
-        End If
 
         ' Make Local Sliders
         Make_Sliders_Local(Sliderset_Madre)
@@ -1256,7 +1628,6 @@ Public Class OSP_Project_Class
 
     Private Shared ReadOnly OldReferenceStringArray As String() = {"Old Reference"}
     Private Shared ReadOnly ClearReferenceStringArray As String() = {""}
-    Private Shared ReadOnly allowedExtensions As String() = New String() {".bgsm", ".bgem"}
 
 End Class
 Public Class SliderSet_Class
