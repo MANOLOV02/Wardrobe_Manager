@@ -122,7 +122,7 @@ Public Class Wardrobe_Manager_Form
         End Property
         Public Shared ReadOnly Property SharedTexturesPath As String
             Get
-                Return IO.Path.Combine(Config_App.Current.FO4EDataPath, "Textures\ManoloCloned\ManoloShared")
+                Return IO.Path.Combine(Config_App.Current.FO4EDataPath, TexturesPrefix & "ManoloCloned\ManoloShared")
             End Get
         End Property
 
@@ -1418,7 +1418,7 @@ Public Class Wardrobe_Manager_Form
 
                 If ListViewTargets.SelectedIndices.Count = 1 Then
                     nombre = TextBox_TargetName.Text
-                    If Selected_Pack.SliderSets.Where(Function(pf) pf.Nombre.Equals(nombre, StringComparison.OrdinalIgnoreCase)).Any Then
+                    If Selected_Pack.SliderSets.Any(Function(pf) pf.Nombre.Equals(nombre, StringComparison.OrdinalIgnoreCase)) Then
                         nombre += "_Clone"
                     End If
                 Else
@@ -1491,8 +1491,8 @@ Public Class Wardrobe_Manager_Form
         ' Borra primero 
         If Config_App.Current.Settings_Build.DeleteUnbuilt = True Then
             For Each projecto In que
-                Dim fil = IO.Path.Combine(IO.Path.Combine(Directorios.Fallout4data, projecto.OutputPathValue), projecto.OutputFileValue)
-                If fil.EndsWith(".nif") = False Then fil += ".nif"
+                Dim fil = projecto.OutputFullPathBase
+                If fil.EndsWith(".nif", StringComparison.OrdinalIgnoreCase) = False Then fil += ".nif"
                 Dim hhfile = fil.Replace(".nif", ".txt", StringComparison.OrdinalIgnoreCase)
                 Dim Trifile = fil.Replace(".nif", ".tri", StringComparison.OrdinalIgnoreCase)
                 If IO.File.Exists(fil) Then IO.File.Delete(fil)

@@ -366,7 +366,7 @@ Public Class Nifcontent_Class_Manolo
     End Function
 
     Public Function GetRelatedMaterial(shap As INiShape) As RelatedMaterial_Class
-        Const prefix As String = "materials\"
+        Dim prefix = MaterialsPrefix
         Dim shad = GetShader(shap)
 
         ' Sin shader: material vacío desde shader nulo
@@ -415,8 +415,8 @@ Public Class Nifcontent_Class_Manolo
 
     Public Sub SetRelatedMaterial(shap As INiShape, MatPath As String, mat As FO4UnifiedMaterial_Class)
         MatPath = MatPath.Correct_Path_Separator
-        Dim prefix = "materials\"
-        If MatPath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) Then MatPath = MatPath.Substring(prefix.Length)
+        Dim prefix = MaterialsPrefix
+        MatPath = MatPath.StripPrefix(prefix)
 
         Dim shad = GetShader(shap)
 

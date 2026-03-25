@@ -115,6 +115,7 @@ Public Class TriFile
                             Dim kv = shapeMorphs(shapeName)
                             Dim morphCount As UShort = GetMorphCount(shapeName, MorphType.MORPHTYPE_POSITION)
 
+                            If shapeName.Length > 255 Then Throw New InvalidOperationException($"Shape name exceeds 255-character TRI format limit: '{shapeName}'")
                             Dim shapeLen As Byte = CByte(shapeName.Length)
                             bw.Write(shapeLen)
                             If shapeLen > 0 Then bw.Write(System.Text.Encoding.ASCII.GetBytes(shapeName))
@@ -126,6 +127,7 @@ Public Class TriFile
 
                             For Each morph In morphsPos
                                 Dim morphName As String = morph.morph
+                                If morphName.Length > 255 Then Throw New InvalidOperationException($"Morph name exceeds 255-character TRI format limit: '{morphName}'")
                                 Dim morphLen As Byte = CByte(morphName.Length)
                                 bw.Write(morphLen)
                                 If morphLen > 0 Then bw.Write(System.Text.Encoding.ASCII.GetBytes(morphName))
@@ -171,6 +173,7 @@ Public Class TriFile
                             Dim kv = shapeMorphs(shapeName)
                             Dim morphCount As UShort = GetMorphCount(shapeName, MorphType.MORPHTYPE_UV)
 
+                            If shapeName.Length > 255 Then Throw New InvalidOperationException($"Shape name exceeds 255-character TRI format limit: '{shapeName}'")
                             Dim shapeLen As Byte = CByte(shapeName.Length)
                             bw.Write(shapeLen)
                             If shapeLen > 0 Then bw.Write(System.Text.Encoding.ASCII.GetBytes(shapeName))
@@ -181,6 +184,7 @@ Public Class TriFile
 
                             For Each morph In morphsUV
                                 Dim morphName As String = morph.morph
+                                If morphName.Length > 255 Then Throw New InvalidOperationException($"Morph name exceeds 255-character TRI format limit: '{morphName}'")
                                 Dim morphLen As Byte = CByte(morphName.Length)
                                 bw.Write(morphLen)
                                 If morphLen > 0 Then bw.Write(System.Text.Encoding.ASCII.GetBytes(morphName))
@@ -224,7 +228,7 @@ Public Class TriFile
     Public Sub AddMorph(shapeName As String, data As MorphdataTri)
         Dim list As List(Of MorphdataTri) = Nothing
         If shapeMorphs.TryGetValue(shapeName, list) Then
-            Dim exists = list.Exists(Function(md) md.morph = data.morph)
+            Dim exists = list.Exists(Function(md) md.morph.Equals(data.morph, StringComparison.OrdinalIgnoreCase))
             If Not exists Then list.Add(data)
         Else
             shapeMorphs(shapeName) = New List(Of MorphdataTri)()
@@ -312,8 +316,8 @@ Public Class TriFile
                     If morph.offsets.Count > 0 Then
                         tri.AddMorph(shape.Name.String, morph)
                         If Config_App.Current.Settings_Build.AddAddintionalSliders Then
-                            If BSSliders.Where(Function(pf) pf.morph.Equals(morph.morph)).Any = False Then
-                                If WMSliders.Where(Function(pf) pf.morph.Equals(morph.morph)).Any = False Then
+                            If Not BSSliders.Any(Function(pf) pf.morph.Equals(morph.morph)) Then
+                                If Not WMSliders.Any(Function(pf) pf.morph.Equals(morph.morph)) Then
                                     WMSliders.Add(New MorphdataTri With {.name = "$" + morph.morph, .morph = morph.morph})
                                 End If
                             End If

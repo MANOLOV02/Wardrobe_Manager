@@ -1,6 +1,26 @@
 Option Strict On
 Option Explicit On
 
+' =============================================================================
+' ESTADO: DEBUG / EN REVISIÓN — NO CERRADO
+' -----------------------------------------------------------------------------
+' Parsing del header y secciones del formato Havok Packfile binario.
+' Actualmente usado por SkeletonClothOverlayHelper (ruta activa del render).
+'
+' Lo que está bien:
+'  - Lectura de header, secciones, classnames, local/global/virtual fixups.
+'  - Validaciones de bounds y magic correctas.
+'  - PointerSize y Endianness se leen del header.
+'
+' PENDIENTES CONOCIDOS:
+'  - Reserved = reader.ReadBytes(16): lee 16 bytes más allá del header de 64 bytes
+'    (posiblemente dentro del primer section header). Inofensivo porque ReadSections
+'    reposiciona el stream explícitamente. El campo Reserved almacena basura.
+'  - PointerSize se lee pero NO se propaga al HkxObjectGraph_Class. Todos los parseos
+'    de arrays asumen 64-bit. Para Skyrim SSE (PointerSize=4) el grafo falla.
+'  - Solo soporta little-endian (Endianness=1). Big-endian lanza excepción; correcto.
+' =============================================================================
+
 Imports System.IO
 Imports System.Linq
 Imports System.Text

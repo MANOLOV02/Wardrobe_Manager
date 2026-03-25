@@ -1,6 +1,25 @@
 Option Strict On
 Option Explicit On
 
+' =============================================================================
+' ESTADO: DEBUG / EN REVISIÓN — NO CERRADO
+' -----------------------------------------------------------------------------
+' Construye cápsulas de colisión vivas a partir de datos HKX + esqueleto activo.
+'
+' BUILT BUT NOT CONNECTED AL RENDER.
+' Ningún caller activo en el proyecto.
+'
+' PENDIENTES CONOCIDOS:
+'  - LocalReferencePoseToTransform y ResolveUniformScale: duplicadas aquí y en
+'    SkeletonClothOverlayHelper.vb. Implementaciones idénticas (OpenTK Matrix4).
+'    Candidatas a extraer a un módulo compartido.
+'  - BuildReferenceSkeletonTransforms: asume que parentIndices siempre tienen
+'    índices menores que el hijo (topological order). Correcto en Havok pero
+'    sin validación explícita.
+'  - ToMatrix4Local: sin validación de que Values tenga 16 elementos.
+'    ReadMatrix4 ya garantiza esto en teoría, pero a revisar.
+' =============================================================================
+
 Imports System.Linq
 Imports NiflySharp.Structs
 Imports OpenTK.Mathematics

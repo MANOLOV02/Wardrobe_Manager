@@ -13,6 +13,7 @@ Public Class Editor_Form
     Public Property SavedTargetProject As Boolean = False
     Public Property WroteFilesToDisk As Boolean = False
 
+    Private _OriginalSlider As SliderSet_Class = Nothing
     Private Last_BMP_Name As String = ""
     Private Last_BMP As Bitmap = Nothing
     Public Property Selected_Slider As SliderSet_Class = Nothing
@@ -230,12 +231,12 @@ Public Class Editor_Form
         If Not IsNothing(Selected_Slider) Then
             ' De las formas
             For Each slid In Selected_Slider.Sliders
-                If IsNothing(Selected_Preset.Sliders.Find(Function(pf) pf.Name = slid.Nombre)) = False Then
-                    Dim sli0 As PresetSlider_Class = Selected_Preset.Sliders.Where(Function(pf) pf.Name = slid.Nombre And pf.Size = Config_App.SliderSize.Default).FirstOrDefault
+                If IsNothing(Selected_Preset.Sliders.Find(Function(pf) pf.Name.Equals(slid.Nombre, StringComparison.OrdinalIgnoreCase))) = False Then
+                    Dim sli0 As PresetSlider_Class = Selected_Preset.Sliders.Where(Function(pf) pf.Name.Equals(slid.Nombre, StringComparison.OrdinalIgnoreCase) And pf.Size = Config_App.SliderSize.Default).FirstOrDefault
                     If Not IsNothing(sli0) Then sli0.Value = slid.Default_Setting(Config_App.SliderSize.Default)
-                    Dim sli As PresetSlider_Class = Selected_Preset.Sliders.Where(Function(pf) pf.Name = slid.Nombre And pf.Size = Config_App.SliderSize.Big).FirstOrDefault
+                    Dim sli As PresetSlider_Class = Selected_Preset.Sliders.Where(Function(pf) pf.Name.Equals(slid.Nombre, StringComparison.OrdinalIgnoreCase) And pf.Size = Config_App.SliderSize.Big).FirstOrDefault
                     If Not IsNothing(sli) Then sli.Value = slid.Default_Big_Value
-                    Dim sli2 As PresetSlider_Class = Selected_Preset.Sliders.Where(Function(pf) pf.Name = slid.Nombre And pf.Size = Config_App.SliderSize.Small).FirstOrDefault
+                    Dim sli2 As PresetSlider_Class = Selected_Preset.Sliders.Where(Function(pf) pf.Name.Equals(slid.Nombre, StringComparison.OrdinalIgnoreCase) And pf.Size = Config_App.SliderSize.Small).FirstOrDefault
                     If Not IsNothing(sli2) Then sli2.Value = slid.Default_Small_Value
                 Else
                     Dim sli As New PresetSlider_Class With {.Name = slid.Nombre, .DisplayName = slid.Nombre, .Value = slid.Default_Setting(Selected_size), .Category = nif_cat, .Size = Selected_size}
@@ -250,18 +251,18 @@ Public Class Editor_Form
             Selected_Preset.Name = Selected_Combo_Preset.Name
             Selected_Preset.GroupNames = Selected_Combo_Preset.GroupNames.ToList
             Selected_Preset.SetName = Selected_Combo_Preset.SetName
-            Dim nodefault = Selected_Combo_Preset.Sliders.Where(Function(pf) pf.Size = Config_App.SliderSize.Default).Any = False
-            Dim nobig = Selected_Combo_Preset.Sliders.Where(Function(pf) pf.Size = Config_App.SliderSize.Big).Any = False
-            Dim nosmall = Selected_Combo_Preset.Sliders.Where(Function(pf) pf.Size = Config_App.SliderSize.Small).Any = False
+            Dim nodefault = Not Selected_Combo_Preset.Sliders.Any(Function(pf) pf.Size = Config_App.SliderSize.Default)
+            Dim nobig = Not Selected_Combo_Preset.Sliders.Any(Function(pf) pf.Size = Config_App.SliderSize.Big)
+            Dim nosmall = Not Selected_Combo_Preset.Sliders.Any(Function(pf) pf.Size = Config_App.SliderSize.Small)
             For Each slid In Selected_Combo_Preset.Sliders
-                If IsNothing(Selected_Preset.Sliders.Find(Function(pf) pf.Name = slid.Name)) = False Then
-                    Dim sli0 As PresetSlider_Class = Selected_Preset.Sliders.Where(Function(pf) pf.Name = slid.Name And pf.Size = Config_App.SliderSize.Default).FirstOrDefault
+                If IsNothing(Selected_Preset.Sliders.Find(Function(pf) pf.Name.Equals(slid.Name, StringComparison.OrdinalIgnoreCase))) = False Then
+                    Dim sli0 As PresetSlider_Class = Selected_Preset.Sliders.Where(Function(pf) pf.Name.Equals(slid.Name, StringComparison.OrdinalIgnoreCase) And pf.Size = Config_App.SliderSize.Default).FirstOrDefault
 
-                    If Not IsNothing(sli0) And slid.Size = define_cual_size(Config_App.SliderSize.Default, nodefault, nobig, nosmall) Then sli0.Value = slid.Value
-                    Dim sli As PresetSlider_Class = Selected_Preset.Sliders.Where(Function(pf) pf.Name = slid.Name And pf.Size = Config_App.SliderSize.Big).FirstOrDefault
-                    If Not IsNothing(sli) And slid.Size = define_cual_size(Config_App.SliderSize.Big, nodefault, nobig, nosmall) Then sli.Value = slid.Value
-                    Dim sli2 As PresetSlider_Class = Selected_Preset.Sliders.Where(Function(pf) pf.Name = slid.Name And pf.Size = Config_App.SliderSize.Small).FirstOrDefault
-                    If Not IsNothing(sli2) And slid.Size = define_cual_size(Config_App.SliderSize.Small, nodefault, nobig, nosmall) Then sli2.Value = slid.Value
+                    If Not IsNothing(sli0) And slid.Size = Define_cual_size(Config_App.SliderSize.Default, nodefault, nobig, nosmall) Then sli0.Value = slid.Value
+                    Dim sli As PresetSlider_Class = Selected_Preset.Sliders.Where(Function(pf) pf.Name.Equals(slid.Name, StringComparison.OrdinalIgnoreCase) And pf.Size = Config_App.SliderSize.Big).FirstOrDefault
+                    If Not IsNothing(sli) And slid.Size = Define_cual_size(Config_App.SliderSize.Big, nodefault, nobig, nosmall) Then sli.Value = slid.Value
+                    Dim sli2 As PresetSlider_Class = Selected_Preset.Sliders.Where(Function(pf) pf.Name.Equals(slid.Name, StringComparison.OrdinalIgnoreCase) And pf.Size = Config_App.SliderSize.Small).FirstOrDefault
+                    If Not IsNothing(sli2) And slid.Size = Define_cual_size(Config_App.SliderSize.Small, nodefault, nobig, nosmall) Then sli2.Value = slid.Value
                 Else
                     Dim sli As New PresetSlider_Class With {.Name = slid.Name, .DisplayName = slid.Name, .Value = slid.Value, .Category = Slid_cat, .Size = slid.Size}
                     Selected_Preset.Sliders.Add(sli)
@@ -447,13 +448,19 @@ Public Class Editor_Form
         ComboBoxAllXYZ.SelectedIndex = 1
         OSP_Project_Class.Load_and_CHeck_Project(Seleccion)
         OSP_Project_Class.Load_and_Check_Shapedata(Seleccion, True)
-        CheckBoxZappedShapes.Checked = Seleccion.KeepZappedShapes
-        CheckBoxPreventMorph.Checked = Seleccion.PreventMorphFile
-        CheckBoxGenweight.Checked = Seleccion.GenWeights
+        ' Work on a clone so Cancel leaves the original untouched
+        _OriginalSlider = Seleccion
+        Dim cloneNode = Seleccion.ParentOSP.xml.ImportNode(Seleccion.Nodo.Clone, True)
+        Dim clone As New SliderSet_Class(cloneNode, Seleccion.ParentOSP)
+        OSP_Project_Class.Load_and_CHeck_Project(clone)
+        OSP_Project_Class.Load_and_Check_Shapedata(clone, True)
+        CheckBoxZappedShapes.Checked = clone.KeepZappedShapes
+        CheckBoxPreventMorph.Checked = clone.PreventMorphFile
+        CheckBoxGenweight.Checked = clone.GenWeights
         Label34.Visible = CheckBox2.Checked AndAlso Config_App.Current.Game = Config_App.Game_Enum.Skyrim
         ComboBoxSize.SelectedIndex = Config_App.Current.Bodytipe
         Selected_size = Config_App.Current.Bodytipe
-        Selected_Slider = Seleccion
+        Selected_Slider = clone
         ComboBoxPresets.Items.AddRange(FilesDictionary_class.SliderPresets.Presets.Select(Function(pf) pf.Key).Order.ToArray)
         ComboBoxPoses.Items.AddRange(FilesDictionary_class.SliderPresets.Poses.Select(Function(pf) pf.Key).Order.ToArray)
         Dim idx = ComboBoxPresets.FindString(Preset)
@@ -521,12 +528,12 @@ Public Class Editor_Form
     End Sub
     Private Sub Lee_Materials()
         Dim idx As Integer
-        Dim prefix = "materials\"
+        Dim prefix = MaterialsPrefix
         ComboBoxMaterials.Items.Clear()
         If Not IsNothing(Selected_Shape) Then
 
             Dim path As String = IO.Path.GetDirectoryName(Selected_Shape.RelatedMaterial.path).Correct_Path_Separator
-            If path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) Then path = path.Substring(prefix.Length)
+            path = path.StripPrefix(prefix)
             Dim fil As String = IO.Path.GetFileName(Selected_Shape.RelatedMaterial.path)
             Dim ext As String = IO.Path.GetExtension(fil)
             Dim pathtxt = prefix + path
@@ -607,7 +614,7 @@ Public Class Editor_Form
     End Sub
     Private Sub Lee_Comboselected_Material(fullpath As String)
         Selected_Material = New FO4UnifiedMaterial_Class
-        Dim prefix = "materials\"
+        Dim prefix = MaterialsPrefix
         If IsNothing(Selected_Shape.RelatedNifShader) Then
             If Selected_Shape.RelatedNifShape.ShaderPropertyRef.Index <> -1 Then
                 Debugger.Break()
@@ -626,7 +633,7 @@ Public Class Editor_Form
         End If
         Select Case Selected_Shape.RelatedNifShader.GetType
             Case GetType(BSLightingShaderProperty)
-                If fullpath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) Then fullpath = fullpath.Substring(prefix.Length)
+                fullpath = fullpath.StripPrefix(prefix)
                 If fullpath = "Embedded" Then
                     Selected_Material.Create_From_Shader(Selected_Slider.NIFContent, Selected_Shape.RelatedNifShape, CType(Selected_Shape.RelatedNifShader, BSLightingShaderProperty))
                     _LastMaterial.Create_From_Shader(Selected_Slider.NIFContent, Selected_Shape.RelatedNifShape, CType(Selected_Shape.RelatedNifShader, BSLightingShaderProperty))
@@ -635,23 +642,26 @@ Public Class Editor_Form
                     Label6.ForeColor = Color.FromKnownColor(KnownColor.DarkGray)
                     Exit Select
                 End If
-                Selected_Material.Deserialize(prefix + fullpath, GetType(BGSM))
-                _LastMaterial.Deserialize(prefix + fullpath, GetType(BGSM))
-                If FilesDictionary_class.Dictionary(prefix + fullpath).IsLosseFile Then
-                    Label6.Text = "Loose"
-                    If fullpath.Contains("ManoloCloned", StringComparison.OrdinalIgnoreCase) Or fullpath.Contains("ManoloMods", StringComparison.OrdinalIgnoreCase) Then
-                        Label6.ForeColor = Color.FromKnownColor(KnownColor.Blue)
+                Dim locBgsm As FilesDictionary_class.File_Location = Nothing
+                If FilesDictionary_class.Dictionary.TryGetValue(prefix + fullpath, locBgsm) Then
+                    Selected_Material.Deserialize(prefix + fullpath, GetType(BGSM))
+                    _LastMaterial.Deserialize(prefix + fullpath, GetType(BGSM))
+                    If locBgsm.IsLosseFile Then
+                        Label6.Text = "Loose"
+                        If fullpath.Contains("ManoloCloned", StringComparison.OrdinalIgnoreCase) Or fullpath.Contains("ManoloMods", StringComparison.OrdinalIgnoreCase) Then
+                            Label6.ForeColor = Color.FromKnownColor(KnownColor.Blue)
+                        Else
+                            Label6.ForeColor = Color.FromKnownColor(KnownColor.Red)
+                        End If
                     Else
-                        Label6.ForeColor = Color.FromKnownColor(KnownColor.Red)
+                        Label6.Text = IO.Path.GetExtension(locBgsm.BA2File)
+                        Label6.ForeColor = Color.FromKnownColor(KnownColor.Brown)
                     End If
-                Else
-                    Label6.Text = IO.Path.GetExtension(FilesDictionary_class.Dictionary(prefix + fullpath).BA2File)
-                    Label6.ForeColor = Color.FromKnownColor(KnownColor.Brown)
+                    Selected_Shape.RelatedMaterial.path = fullpath
+                    Selected_Shape.RelatedMaterial.material = Selected_Material
                 End If
-                Selected_Shape.RelatedMaterial.path = fullpath
-                Selected_Shape.RelatedMaterial.material = Selected_Material
             Case GetType(BSEffectShaderProperty)
-                If fullpath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) Then fullpath = fullpath.Substring(prefix.Length)
+                fullpath = fullpath.StripPrefix(prefix)
                 If fullpath = "Embedded" Then
                     Selected_Material.Create_From_Shader(Selected_Slider.NIFContent, Selected_Shape.RelatedNifShape, CType(Selected_Shape.RelatedNifShader, BSEffectShaderProperty))
                     _LastMaterial.Create_From_Shader(Selected_Slider.NIFContent, Selected_Shape.RelatedNifShape, CType(Selected_Shape.RelatedNifShader, BSEffectShaderProperty))
@@ -660,13 +670,14 @@ Public Class Editor_Form
                     Label6.ForeColor = Color.FromKnownColor(KnownColor.DarkGray)
                     Exit Select
                 End If
-                If FilesDictionary_class.Dictionary.ContainsKey(prefix + fullpath) Then
+                Dim locBgem As FilesDictionary_class.File_Location = Nothing
+                If FilesDictionary_class.Dictionary.TryGetValue(prefix + fullpath, locBgem) Then
                     Selected_Material.Deserialize(prefix + fullpath, GetType(BGEM))
                     _LastMaterial.Deserialize(prefix + fullpath, GetType(BGEM))
-                    If FilesDictionary_class.Dictionary(prefix + fullpath).IsLosseFile Then
+                    If locBgem.IsLosseFile Then
                         Label6.Text = "Loose"
                     Else
-                        Label6.Text = IO.Path.GetExtension(FilesDictionary_class.Dictionary(prefix + fullpath).BA2File)
+                        Label6.Text = IO.Path.GetExtension(locBgem.BA2File)
                     End If
                     Selected_Shape.RelatedMaterial.path = fullpath
                     Selected_Shape.RelatedMaterial.material = Selected_Material
@@ -735,13 +746,10 @@ Public Class Editor_Form
 
     Private Sub Button1_Click(sender As Object, e As EventArgs) Handles Button1.Click
         Dim removedIndex As Integer = ComboBoxShapes.SelectedIndex
-
         Selected_Slider.RemoveShape(Selected_Shape)
-
         If removedIndex >= 0 AndAlso removedIndex < ComboBoxShapes.Items.Count Then
             ComboBoxShapes.Items.RemoveAt(removedIndex)
         End If
-
         Selected_Slider.InvalidateAllLookupCaches()
         _LastBonesSignature = ""
         _LastSliderLayoutSignature = ""
@@ -775,6 +783,10 @@ Public Class Editor_Form
                     Exit Sub
                 End If
             End If
+            ' Promote the clone's node into the OSP document tree so Save_Pack persists XML changes
+            If _OriginalSlider IsNot Nothing Then
+                _OriginalSlider.Nodo.ParentNode.ReplaceChild(Selected_Slider.Nodo, _OriginalSlider.Nodo)
+            End If
             Selected_Slider.Save_Shapedatas(True)
             Selected_Slider.ParentOSP.Save_Pack(True)
             Dim hhfile = Selected_Slider.SourceFileFullPath
@@ -787,11 +799,11 @@ Public Class Editor_Form
     End Sub
     Private Function Revisa_Material() As Boolean
         ' Define material
-        Dim prefix = "materials\"
+        Dim prefix = MaterialsPrefix
         Dim TestChanges As New FO4UnifiedMaterial_Class
         For Each shap In Selected_Slider.Shapes
             Dim orig = shap.RelatedMaterial.path.Correct_Path_Separator
-            If orig.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) Then orig = orig.Substring(prefix.Length)
+            orig = orig.StripPrefix(prefix)
             Select Case Path.GetExtension(orig).ToLower
                 Case ".bgem"
                     TestChanges.Deserialize(prefix + orig, GetType(BGEM))
@@ -912,7 +924,7 @@ Public Class Editor_Form
     End Sub
 
     Private Sub ButtonMatSave_Click(sender As Object, e As EventArgs) Handles ButtonMatSave.Click
-        Dim prefix = "materials\"
+        Dim prefix = MaterialsPrefix
         Dim fil = Selected_Shape.RelatedMaterial.path.Correct_Path_Separator
         If fil.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) = False Then fil = prefix + fil
         If fil = "" OrElse FilesDictionary_class.Dictionary.ContainsKey(fil) = False Then
@@ -937,7 +949,7 @@ Public Class Editor_Form
     End Sub
 
     Private Sub ButtonMatSaveAs_Click(sender As Object, e As EventArgs) Handles ButtonMatSaveAs.Click
-        Dim prefix = "materials\"
+        Dim prefix = MaterialsPrefix
         Dim fil = Selected_Shape.RelatedMaterial.path.Correct_Path_Separator
         If fil.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) = False Then fil = prefix + fil
         If IO.Directory.Exists(Path.Combine(Wardrobe_Manager_Form.Directorios.Fallout4data, IO.Path.GetDirectoryName(fil))) = False Then
@@ -956,7 +968,7 @@ Public Class Editor_Form
                 Writer.Close()
             End Using
             Dim fullpath = Path.GetRelativePath(Wardrobe_Manager_Form.Directorios.Fallout4data, sd.FileName).Correct_Path_Separator
-            If fullpath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) Then fullpath = fullpath.Substring(prefix.Length)
+            fullpath = fullpath.StripPrefix(prefix)
             Selected_Shape.RelatedMaterial.path = fullpath
             Dim Location As New FilesDictionary_class.File_Location With {.BA2File = "", .Index = -1, .FullPath = prefix + Selected_Shape.RelatedMaterial.path}
             FilesDictionary_class.TryAddDictionaryEntry((prefix + Selected_Shape.RelatedMaterial.path).Correct_Path_Separator, Location)
@@ -967,7 +979,7 @@ Public Class Editor_Form
     End Sub
 
     Private Sub ButtonMatLoad_Click(sender As Object, e As EventArgs) Handles ButtonMatLoad.Click
-        Dim prefix = "materials\"
+        Dim prefix = MaterialsPrefix
         Dim fil = Selected_Shape.RelatedMaterial.path.Correct_Path_Separator
         If fil.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) = False Then fil = prefix + fil
 
@@ -982,7 +994,7 @@ Public Class Editor_Form
             If frm.ShowDialog() = DialogResult.OK Then
                 Dim sel = frm.DictionaryPicker_Control1.SelectedKey
                 Dim fullpath = sel.Correct_Path_Separator
-                If fullpath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) Then fullpath = fullpath.Substring(prefix.Length)
+                fullpath = fullpath.StripPrefix(prefix)
                 Selected_Shape.RelatedMaterial.path = fullpath
                 Lee_Materials()
                 MaterialPathTextbox.Text = prefix + Path.GetDirectoryName(Selected_Shape.RelatedMaterial.path)
@@ -1142,7 +1154,7 @@ Public Class Editor_Form
         Dim block As OSD_Block_Class
 
 
-        If Not SelectedZap.Datas.Where(Function(pf) pf.RelatedShape Is Selected_Shape And pf.Islocal).Any Then
+        If Not SelectedZap.Datas.Any(Function(pf) pf.RelatedShape Is Selected_Shape And pf.Islocal) Then
             Dim el = SelectedZap.Nodo.OwnerDocument.CreateElement("Data")
             el.SetAttribute("name", Selected_Shape.Target + SelectedZap.Nombre)
             el.SetAttribute("target", Selected_Shape.Target)
@@ -1157,8 +1169,8 @@ Public Class Editor_Form
             Selected_Slider.InvalidateAllLookupCaches()
         Else
             If SelectedZap.Datas.Where(Function(pf) pf.RelatedShape Is Selected_Shape And pf.Islocal).Count > 1 Then Throw New Exception
-            dat = SelectedZap.Datas.Where(Function(pf) pf.RelatedShape Is Selected_Shape And pf.Islocal).First
-            block = SelectedZap.Datas.Where(Function(pf) pf.RelatedShape Is Selected_Shape And pf.Islocal).Select(Function(pq) pq.RelatedLocalOSDBlocks).Select(Function(pf) pf).First.First
+            dat = SelectedZap.Datas.First(Function(pf) pf.RelatedShape Is Selected_Shape And pf.Islocal)
+            block = SelectedZap.Datas.Where(Function(pf) pf.RelatedShape Is Selected_Shape And pf.Islocal).Select(Function(pq) pq.RelatedLocalOSDBlocks).First.First
         End If
 
         If SelectedZap.Datas.Where(Function(pf) pf.RelatedShape Is Selected_Shape And pf.Islocal).Select(Function(pq) pq.RelatedLocalOSDBlocks).Count > 1 Then Throw New Exception
@@ -1328,7 +1340,7 @@ Public Class Editor_Form
     Private Sub ButtonCopyPath_Click(sender As Object, e As EventArgs) Handles ButtonCopyPath.Click
         If ComboBoxMaterials.SelectedIndex = -1 Then Exit Sub
         Dim path = (MaterialPathTextbox.Text + "\" + ComboBoxMaterials.SelectedItem.ToString).Correct_Path_Separator
-        If path.StartsWith("Materials\", StringComparison.OrdinalIgnoreCase) Then path = path.Substring("Materials\".Length)
+        path = path.StripPrefix(MaterialsPrefix)
         Clipboard.SetText(path)
     End Sub
 
@@ -1721,14 +1733,14 @@ Public Class Editor_Form
     End Sub
 
     Private Sub Button9_Click(sender As Object, e As EventArgs) Handles ButonMatBackToOriginal.Click
-        Dim prefix = "materials\"
+        Dim prefix = MaterialsPrefix
         Dim combinado = Path.Combine(MaterialPathTextbox.Text.Replace("ManoloCloned\", "", StringComparison.OrdinalIgnoreCase), ComboBoxMaterials.SelectedItem)
         Dim fullpath = combinado.Correct_Path_Separator
         If FilesDictionary_class.Dictionary.ContainsKey(fullpath) = False Then
             MsgBox("Original material not found in files.", vbCritical, "Error")
             Exit Sub
         End If
-        If fullpath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) Then fullpath = fullpath.Substring(prefix.Length)
+        fullpath = fullpath.StripPrefix(prefix)
         Selected_Shape.RelatedMaterial.path = fullpath
         Lee_Materials()
 
@@ -1822,15 +1834,15 @@ Public Class Editor_Form
         End If
         ButtonClearBoneTransform.Enabled = Not IsNothing(Selected_Pose_Transform) AndAlso Selected_Pose_Transform.Isidentity = False
         ButtonReloadBonePose.Enabled = Not IsNothing(ComboSelected_Pose) And pose_is_Edited
-        ButtonClearPoseTransforms.Enabled = Not IsNothing(Selected_Pose) AndAlso Selected_Pose.Transforms.Where(Function(pf) pf.Value.Isidentity = False).Any
+        ButtonClearPoseTransforms.Enabled = Not IsNothing(Selected_Pose) AndAlso Selected_Pose.Transforms.Any(Function(pf) Not pf.Value.Isidentity)
         ButtonReloadPose.Enabled = Not IsNothing(ComboSelected_Pose) And pose_is_Edited
 
         PoseSaveAsButton.Enabled = Not IsNothing(Selected_Pose)
-        PoseSaveButton.Enabled = Not IsNothing(ComboSelected_Pose) AndAlso (ComboSelected_Pose.Source = Poses_class.Pose_Source_Enum.BodySlide Or ComboSelected_Pose.Source = Poses_class.Pose_Source_Enum.WardrobeManager) AndAlso Not IsNothing(Selected_Pose) AndAlso pose_is_Edited AndAlso Selected_Pose.Transforms.Where(Function(pf) pf.Value.Isidentity = False).Any
-        PoseBakeButton.Enabled = Not SingleBoneCheck.Checked AndAlso Not IsNothing(Selected_Pose) AndAlso Not IsNothing(ComboSelected_Pose) AndAlso Selected_Pose.Transforms.Where(Function(pf) pf.Value.Isidentity = False).Any
-        PoseUnBakeButton.Enabled = Not SingleBoneCheck.Checked AndAlso Not IsNothing(Selected_Pose) AndAlso Not IsNothing(ComboSelected_Pose) AndAlso Selected_Pose.Transforms.Where(Function(pf) pf.Value.Isidentity = False).Any
-        PoseBakeShapeButton.Enabled = Not SingleBoneCheck.Checked AndAlso Not IsNothing(Selected_Pose) AndAlso Not IsNothing(ComboSelected_Pose) AndAlso Selected_Pose.Transforms.Where(Function(pf) pf.Value.Isidentity = False).Any
-        PoseUnBakeShapeButton.Enabled = Not SingleBoneCheck.Checked AndAlso Not IsNothing(Selected_Pose) AndAlso Not IsNothing(ComboSelected_Pose) AndAlso Selected_Pose.Transforms.Where(Function(pf) pf.Value.Isidentity = False).Any
+        PoseSaveButton.Enabled = Not IsNothing(ComboSelected_Pose) AndAlso (ComboSelected_Pose.Source = Poses_class.Pose_Source_Enum.BodySlide Or ComboSelected_Pose.Source = Poses_class.Pose_Source_Enum.WardrobeManager) AndAlso Not IsNothing(Selected_Pose) AndAlso pose_is_Edited AndAlso Selected_Pose.Transforms.Any(Function(pf) Not pf.Value.Isidentity)
+        PoseBakeButton.Enabled = Not SingleBoneCheck.Checked AndAlso Not IsNothing(Selected_Pose) AndAlso Not IsNothing(ComboSelected_Pose) AndAlso Selected_Pose.Transforms.Any(Function(pf) Not pf.Value.Isidentity)
+        PoseUnBakeButton.Enabled = Not SingleBoneCheck.Checked AndAlso Not IsNothing(Selected_Pose) AndAlso Not IsNothing(ComboSelected_Pose) AndAlso Selected_Pose.Transforms.Any(Function(pf) Not pf.Value.Isidentity)
+        PoseBakeShapeButton.Enabled = Not SingleBoneCheck.Checked AndAlso Not IsNothing(Selected_Pose) AndAlso Not IsNothing(ComboSelected_Pose) AndAlso Selected_Pose.Transforms.Any(Function(pf) Not pf.Value.Isidentity)
+        PoseUnBakeShapeButton.Enabled = Not SingleBoneCheck.Checked AndAlso Not IsNothing(Selected_Pose) AndAlso Not IsNothing(ComboSelected_Pose) AndAlso Selected_Pose.Transforms.Any(Function(pf) Not pf.Value.Isidentity)
         PoseDeleteButton.Enabled = Not IsNothing(ComboSelected_Pose) AndAlso ComboSelected_Pose.Source <> Poses_class.Pose_Source_Enum.None
 
     End Sub
@@ -2093,8 +2105,8 @@ Public Class Editor_Form
         If MsgBox("Are you sure you want to bake the pose in the mesh. This will modify the nif vertex positions", vbYesNo, "Warning") = MsgBoxResult.Yes Then
             EditPreviewControl.Model.BakeOrInvertPose(False)
             Process_render_Changes(True)
-            Dim None_key = FilesDictionary_class.SliderPresets.Poses.Where(Function(pf) pf.Value.Source = Poses_class.Pose_Source_Enum.None).First.Key
-            ComboBoxPoses.SelectedIndex = ComboBoxPoses.Items.IndexOf(None_key)
+            Dim None_key1 = FilesDictionary_class.SliderPresets.Poses.FirstOrDefault(Function(pf) pf.Value.Source = Poses_class.Pose_Source_Enum.None).Key
+            If None_key1 IsNot Nothing Then ComboBoxPoses.SelectedIndex = ComboBoxPoses.Items.IndexOf(None_key1)
         End If
     End Sub
 
@@ -2102,8 +2114,8 @@ Public Class Editor_Form
         If MsgBox("Are you sure you want to bake the pose in the shape. This will modify the shape vertex positions", vbYesNo, "Warning") = MsgBoxResult.Yes Then
             EditPreviewControl.Model.BakeOrInvertPose(Selected_Shape, False)
             Process_render_Changes(True)
-            Dim None_key = FilesDictionary_class.SliderPresets.Poses.Where(Function(pf) pf.Value.Source = Poses_class.Pose_Source_Enum.None).First.Key
-            ComboBoxPoses.SelectedIndex = ComboBoxPoses.Items.IndexOf(None_key)
+            Dim None_key2 = FilesDictionary_class.SliderPresets.Poses.FirstOrDefault(Function(pf) pf.Value.Source = Poses_class.Pose_Source_Enum.None).Key
+            If None_key2 IsNot Nothing Then ComboBoxPoses.SelectedIndex = ComboBoxPoses.Items.IndexOf(None_key2)
         End If
     End Sub
 

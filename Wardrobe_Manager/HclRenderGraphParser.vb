@@ -1,6 +1,27 @@
 Option Strict On
 Option Explicit On
 
+' =============================================================================
+' ESTADO: DEBUG / EN REVISIÓN — NO CERRADO
+' -----------------------------------------------------------------------------
+' Parseo de operadores de render/skin del HKX de tela.
+' NO conectado al render actual. Built but unused.
+'
+' PENDIENTES CONOCIDOS:
+'  - ParseObjectSpaceSkinPNOperator: offsets (+0x10 name, +0x18 header, +0x20
+'    BoneTransforms, +0x30 BoneIndices, +0x48 TransformSubset, etc.) determinados
+'    empíricamente. NO verificados contra Havok SDK. Gap de 8 bytes en +0x40 y
+'    entre +0x78 y +0x88 sin identificar.
+'  - ParseSimpleMeshBoneDeformOperator: boneIndex = packedBone \ 64 (bits 6-15)
+'    es reverse-engineered. Internamente consistente pero no confirmado.
+'    TriangleIndex = packedValue \ 6: misma situación.
+'  - ParseWeightedTransformSubset: layout SIMD 16-lane asumido. Tamaños 224/176/128
+'    para 4/3/2 blend son consistentes con la fórmula pero no verificados.
+'  - ReadMatrix4: stride 64 bytes (4×4 floats). Correcto para hkMatrix4.
+'  - DecodeQuantizedVector3: scale=256.0 para posiciones, 32767.0 para normales.
+'    Origen de estos valores: no documentado. A verificar.
+' =============================================================================
+
 Imports System.Collections.Generic
 Imports System.Linq
 

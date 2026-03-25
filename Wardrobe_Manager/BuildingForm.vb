@@ -47,8 +47,8 @@ Public Class BuildingForm
                     Skeleton_Class.PrepareSkeletonForShapes(builder.Shapes, If(has_pose, _Pose, Nothing))
                     ProgressBar1.Value += 1
 
-                    Dim fil = IO.Path.Combine(IO.Path.Combine(Directorios.Fallout4data, builder.OutputPathValue), builder.OutputFileValue) + IIf(sliderset_target.Multisize, "_" + Sizecount.ToString, "") + ".nif"
-                    Dim tri = IO.Path.Combine(IO.Path.Combine(Directorios.Fallout4data, builder.OutputPathValue), builder.OutputFileValue) + ".tri"
+                    Dim fil = builder.OutputFullPathBase + If(sliderset_target.Multisize, "_" + Sizecount.ToString, "") + ".nif"
+                    Dim tri = builder.OutputFullPathBase + ".tri"
                     Dim Tridata = IO.Path.GetRelativePath(IO.Path.Combine(IO.Path.Combine(Directorios.Fallout4data, "Meshes")), tri)
                     Dim dir = IO.Path.GetDirectoryName(fil)
                     Nombre = sliderset_target.Nombre

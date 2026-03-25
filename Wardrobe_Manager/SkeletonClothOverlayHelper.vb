@@ -3,6 +3,28 @@ Imports NiflySharp.Blocks
 Imports NiflySharp.Structs
 Imports OpenTK.Mathematics
 
+' =============================================================================
+' ESTADO: ACTIVO — ruta principal de bone injection para physics en el render.
+' -----------------------------------------------------------------------------
+' InjectMissingBonesIntoLiveSkeleton: llamado desde
+'   Skeleton_Class.PrepareSkeletonForShapes → NifContent_Class.
+' Parsea el hkaSkeleton del BSClothExtraData e inyecta los huesos de física
+' que no existen en el esqueleto del juego como HierarchiBone_class temporales.
+'
+' LocalReferencePoseToTransform: usa OpenTK Matrix4 → Transform_Class(Matrix4).
+' Es la implementación CORRECTA y consistente con el resto del render.
+'
+' PENDIENTES CONOCIDOS:
+'  - LocalReferencePoseToTransform y ResolveUniformScale están duplicadas aquí
+'    y en HclCollisionPoseHelper.vb. Candidatas a extraer a módulo compartido
+'    cuando se decida conectar HclCollisionPoseHelper al render.
+'  - Debugger.Break() en el catch de InjectMissingBonesIntoLiveSkeleton:
+'    útil para debug, evaluar si dejar o quitar en producción.
+'  - NormalizeBoneName usa ToUpperInvariant(). Consistente con el resto de
+'    bone lookups (OrdinalIgnoreCase). Revisar si hay casos edge con nombres
+'    de huesos que usen caracteres no-ASCII.
+' =============================================================================
+
 Public NotInheritable Class SkeletonClothOverlayHelper_Class
 
     Public Shared Sub InjectMissingBonesIntoLiveSkeleton(shape As Shape_class,

@@ -289,8 +289,8 @@ Public Class SliderPresetCollection
                         Dim valname As String = CStr(sliderElem.Attribute("name").Value)
                         Dim valdisplay As String = CStr(sliderElem.Attribute("displayname").Value)
                         Dim sliderName As String() = {valname, valdisplay}
-                        If sliderNames.Count > 0 AndAlso sliderNames.Where(Function(pf) valname.ToUpper.Equals(pf(0).ToUpper) = True).Any Then
-                            sliderName = sliderNames.Where(Function(pf) valname.ToUpper.Equals(pf(0).ToUpper) = True).First
+                        If sliderNames.Count > 0 AndAlso sliderNames.Any(Function(pf) valname.ToUpper.Equals(pf(0).ToUpper)) Then
+                            sliderName = sliderNames.First(Function(pf) valname.ToUpper.Equals(pf(0).ToUpper))
                             sliderName(1) = valdisplay
                         Else
                             sliderNames.Add(sliderName)
@@ -541,14 +541,8 @@ Public Class Clone_Materials_class
     Private Shared Function BuildTextureDictionaryKey(filename As String) As String
         If String.IsNullOrWhiteSpace(filename) Then Return ""
 
-        Dim normalized = filename.Correct_Path_Separator
-        Dim prefix = "Textures\"
-
-        If normalized.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) Then
-            normalized = normalized.Substring(prefix.Length)
-        End If
-
-        Return (prefix & normalized).Correct_Path_Separator
+        Dim normalized = filename.Correct_Path_Separator.StripPrefix(TexturesPrefix)
+        Return (TexturesPrefix & normalized).Correct_Path_Separator
     End Function
 
     Private Shared Function PrefetchDictionaryFiles(paths As IEnumerable(Of String)) As Dictionary(Of String, Byte())
@@ -647,31 +641,17 @@ Public Class Clone_Materials_class
     End Function
 
     Private Shared Function NormalizeMaterialReference(materialName As String) As String
-        Dim mate As String = materialName.Correct_Path_Separator
-        Dim prefix As String = "Materials\"
-
-        If mate.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) Then
-            mate = mate.Substring(prefix.Length)
-        End If
-
-        Return mate
+        Return materialName.Correct_Path_Separator.StripPrefix(MaterialsPrefix)
     End Function
 
     Private Shared Function NormalizeMaterialSourceKey(materialName As String) As String
         Dim mate As String = NormalizeMaterialReference(materialName)
         If mate = "" Then Return ""
-        Return ("Materials\" & mate).Correct_Path_Separator
+        Return (MaterialsPrefix & mate).Correct_Path_Separator
     End Function
 
     Private Shared Function NormalizeTextureReference(textureName As String) As String
-        Dim normalized = textureName.Correct_Path_Separator
-        Dim prefix = "Textures\"
-
-        If normalized.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) Then
-            normalized = normalized.Substring(prefix.Length)
-        End If
-
-        Return normalized
+        Return textureName.Correct_Path_Separator.StripPrefix(TexturesPrefix)
     End Function
 
     Private Shared Function BuildClonedTextureRelativePath(textureName As String) As String
@@ -697,7 +677,7 @@ Public Class Clone_Materials_class
         End If
 
         Dim directory As String = IO.Path.GetDirectoryName(normalizedSource).Correct_Path_Separator
-        Dim relativeDir As String = NormalizeRelativeDirectory(IO.Path.GetRelativePath("Materials\", directory & "\"))
+        Dim relativeDir As String = NormalizeRelativeDirectory(IO.Path.GetRelativePath(MaterialsPrefix, directory & "\"))
 
         Dim job As New MaterialJob With {
             .Source = normalizedSource,
@@ -707,7 +687,7 @@ Public Class Clone_Materials_class
             .Required = required
         }
 
-        job.TargetFullPath = IO.Path.Combine(Directorios.Fallout4data, "Materials\" & job.TargetReference).Correct_Path_Separator
+        job.TargetFullPath = IO.Path.Combine(Directorios.Fallout4data, MaterialsPrefix & job.TargetReference).Correct_Path_Separator
         job.FinalReference = job.Source
 
         plan.MaterialJobs.Add(normalizedSource, job)
@@ -730,7 +710,7 @@ Public Class Clone_Materials_class
             .SourceKey = sourceKey,
             .OriginalRelative = originalRelative,
             .TargetRelative = targetRelative,
-            .TargetFullPath = IO.Path.Combine(Config_App.Current.FO4EDataPath, "Textures\" & targetRelative).Correct_Path_Separator,
+            .TargetFullPath = IO.Path.Combine(Config_App.Current.FO4EDataPath, TexturesPrefix & targetRelative).Correct_Path_Separator,
             .FinalRelative = originalRelative
         }
 
@@ -796,10 +776,10 @@ Public Class Clone_Materials_class
                 RegisterMaterialTextureReference(plan, job, "DiffuseTexture", material.DiffuseTexture)
 
                 Dim temp = material.RootMaterialPath.Correct_Path_Separator
-                If temp.StartsWith("Materials\", StringComparison.OrdinalIgnoreCase) Then temp = temp.Substring("Materials\".Length)
+                temp = temp.StripPrefix(MaterialsPrefix)
 
                 If temp <> "" Then
-                    Dim rootSource As String = ("Materials\" & temp).Correct_Path_Separator
+                    Dim rootSource As String = (MaterialsPrefix & temp).Correct_Path_Separator
 
                     Dim rootLocation As FilesDictionary_class.File_Location = Nothing
                     If FilesDictionary_class.Dictionary.TryGetValue(rootSource, rootLocation) Then
@@ -983,7 +963,7 @@ Public Class Clone_Materials_class
                 Dim targetFull As String = IO.Path.GetFullPath(job.TargetFullPath)
 
                 If sourceFull.Equals(targetFull, StringComparison.OrdinalIgnoreCase) Then
-                    RegisterGeneratedDictionaryFile("Textures\" & job.TargetRelative)
+                    RegisterGeneratedDictionaryFile(TexturesPrefix & job.TargetRelative)
                     Continue For
                 End If
             End If
@@ -994,7 +974,7 @@ Public Class Clone_Materials_class
 
             If IO.File.Exists(job.TargetFullPath) Then
                 If overwrite = False Then
-                    RegisterGeneratedDictionaryFile("Textures\" & job.TargetRelative)
+                    RegisterGeneratedDictionaryFile(TexturesPrefix & job.TargetRelative)
                     Continue For
                 Else
                     IO.File.Delete(job.TargetFullPath)
@@ -1030,7 +1010,7 @@ Public Class Clone_Materials_class
 
         If IO.File.Exists(job.TargetFullPath) Then
             If overwrite = False Then
-                RegisterGeneratedDictionaryFile("Materials\" & job.TargetReference)
+                RegisterGeneratedDictionaryFile(MaterialsPrefix & job.TargetReference)
                 Exit Sub
             Else
                 IO.File.Delete(job.TargetFullPath)
@@ -1348,7 +1328,7 @@ Public Class OSP_Project_Class
             Sliderset_Target.InvalidateShapeDataLookupCache()
             Sliderset_Target.RebuildShapeDataLookupCache()
 
-            If Sliderset_Target.Shapes.Where(Function(pf) pf.RelatedNifShape Is Nothing).Any Then Throw New Exception("Shape without Nif Shapes different")
+            If Sliderset_Target.Shapes.Any(Function(pf) pf.RelatedNifShape Is Nothing) Then Throw New Exception("Shape without Nif Shapes different")
             If Sliderset_Target.Sliders.SelectMany(Function(pf) pf.Datas).Where(Function(pq) pq.RelatedOSDBlocks.Any).Count > Sliderset_Target.Sliders.SelectMany(Function(pf) pf.Datas).Count Then Throw New Exception("Datas and OSD blocks different")
             If Sliderset_Target.Sliders.SelectMany(Function(pf) pf.Datas).Select(Function(pf) (pf.Nombre.ToLower + pf.ParentSlider.Nombre.ToLower)).GroupBy(Function(key) key).Any(Function(g) g.Count() > 1) Then Throw New Exception("Duplicated Slider Data")
 
@@ -1403,8 +1383,8 @@ Public Class OSP_Project_Class
         Try
             For Each Sset As XmlNode In xml.DocumentElement.SelectNodes("SliderSet")
                 Dim Sliderset_target As SliderSet_Class
-                If YaEstan.Where(Function(pf) pf.Nombre = Sset.Attributes("name").Value).Any Then
-                    Sliderset_target = YaEstan.Where(Function(pf) pf.Nombre = Sset.Attributes("name").Value).First
+                Sliderset_target = YaEstan.FirstOrDefault(Function(pf) pf.Nombre.Equals(Sset.Attributes("name").Value, StringComparison.OrdinalIgnoreCase))
+                If Not IsNothing(Sliderset_target) Then
                     Sliderset_target.Reload(Sset)
                 Else
                     Sliderset_target = New SliderSet_Class(Sset, Me)
@@ -1422,7 +1402,7 @@ Public Class OSP_Project_Class
     End Sub
 
     Private Function Check_repeated(Nombre As String) As Boolean
-        If SliderSets.Where(Function(pf) pf.Nombre.Equals(Nombre, StringComparison.OrdinalIgnoreCase)).Any Then
+        If SliderSets.Any(Function(pf) pf.Nombre.Equals(Nombre, StringComparison.OrdinalIgnoreCase)) Then
             MsgBox("El nombre del proyecto ya existe, no se procesará", vbCritical)
             Return False
         End If
@@ -1451,8 +1431,9 @@ Public Class OSP_Project_Class
         Sliderset_Target.HighHeelHeight = Sliderset_Source.HighHeelHeight
 
         ' Exclude reference
-        If ExcludeReference = True AndAlso Sliderset_Target.Shapes.Where(Function(pf) pf.IsReference).Any Then
-            Sliderset_Target.RemoveShape(Sliderset_Target.Shapes.Where(Function(pf) pf.IsReference).First)
+        If ExcludeReference = True Then
+            Dim refShape = Sliderset_Target.Shapes.FirstOrDefault(Function(pf) pf.IsReference)
+            If refShape IsNot Nothing Then Sliderset_Target.RemoveShape(refShape)
         End If
 
         ' Saca Physics
@@ -1486,7 +1467,7 @@ Public Class OSP_Project_Class
 
         ' Agrega Sliders Faltantes
         For Each slid In Sliderset_Target.Sliders
-            If Sliderset_Madre.Sliders.Where(Function(pf) pf.Nombre.Equals(slid.Nombre, StringComparison.OrdinalIgnoreCase)).Any = False Then
+            If Not Sliderset_Madre.Sliders.Any(Function(pf) pf.Nombre.Equals(slid.Nombre, StringComparison.OrdinalIgnoreCase)) Then
                 Dim nodo = Sliderset_Madre.Nodo.AppendChild(Sliderset_Madre.ParentOSP.xml.ImportNode(slid.Nodo.Clone, True))
                 For Each ch In nodo.SelectNodes("Data")
                     nodo.RemoveChild(ch)
@@ -1498,12 +1479,13 @@ Public Class OSP_Project_Class
         Sliderset_Target.InvalidateAllLookupCaches()
 
         ' Exclude reference for the source
-        If ExcludeReference = True AndAlso Sliderset_Target.Shapes.Where(Function(pf) pf.IsReference).Any Then
-            Sliderset_Target.RemoveShape(Sliderset_Target.Shapes.Where(Function(pf) pf.IsReference).First)
+        If ExcludeReference = True Then
+            Dim refShapeSource = Sliderset_Target.Shapes.FirstOrDefault(Function(pf) pf.IsReference)
+            If refShapeSource IsNot Nothing Then Sliderset_Target.RemoveShape(refShapeSource)
         End If
 
         ' Reference
-        If Sliderset_Madre.Shapes.Where(Function(pf) pf.IsReference).Any Then
+        If Sliderset_Madre.Shapes.Any(Function(pf) pf.IsReference) Then
             For Each extsh In Sliderset_Target.Shapes.Where(Function(pf) pf.IsReference)
                 For Each dat In extsh.Related_Slider_data.ToList
                     If dat.Islocal = False Then
@@ -1533,8 +1515,9 @@ Public Class OSP_Project_Class
                 Next
 
                 If Shap.Target <> nombre_Nuevo Then
-                    If Sliderset_Target.NIFContent.NifShapes.Where(Function(pf) pf.Name.String.Equals(Shap.Nombre, StringComparison.OrdinalIgnoreCase)).Any Then
-                        Sliderset_Target.NIFContent.NifShapes.Where(Function(pf) pf.Name.String.Equals(Shap.Nombre, StringComparison.OrdinalIgnoreCase)).First.Name.String = nombre_Nuevo
+                    Dim nifShap = Sliderset_Target.NIFContent.NifShapes.FirstOrDefault(Function(pf) pf.Name.String.Equals(Shap.Nombre, StringComparison.OrdinalIgnoreCase))
+                    If nifShap IsNot Nothing Then
+                        nifShap.Name.String = nombre_Nuevo
                     End If
                 End If
                 Shap.Target = nombre_Nuevo
@@ -1563,12 +1546,13 @@ Public Class OSP_Project_Class
                 End If
 
                 For Each block In dat.RelatedLocalOSDBlocks
-                    If Sliderset_Madre.OSDContent_Local.Blocks.Where(Function(pf) pf.BlockName.Equals(dat_Nuevo)).Any = False Then
+                    If Not Sliderset_Madre.OSDContent_Local.Blocks.Any(Function(pf) pf.BlockName.Equals(dat_Nuevo, StringComparison.OrdinalIgnoreCase)) Then
                         Sliderset_Madre.OSDContent_Local.Clone_block(block)
                     End If
                 Next
 
-                Dim slid As Slider_class = Sliderset_Madre.Sliders.Where(Function(pf) pf.Nombre.Equals(dat.ParentSlider.Nombre, StringComparison.OrdinalIgnoreCase)).First
+                Dim slid As Slider_class = Sliderset_Madre.Sliders.FirstOrDefault(Function(pf) pf.Nombre.Equals(dat.ParentSlider.Nombre, StringComparison.OrdinalIgnoreCase))
+                If slid Is Nothing Then Continue For
                 Dim new_dat As New Slider_Data_class(slid.Nodo.AppendChild(Sliderset_Madre.ParentOSP.xml.ImportNode(dat.Nodo.Clone, True)), slid)
                 slid.Datas.Add(new_dat)
                 Sliderset_Madre.InvalidateAllLookupCaches()
@@ -1774,12 +1758,12 @@ Public Class SliderSet_Class
         Return Enumerable.Empty(Of OSD_Block_Class)()
     End Function
 
-Friend Function GetExternalOsdBlocksByNameCached(name As String) As IEnumerable(Of OSD_Block_Class)
-    EnsureShapeDataLookupCache()
-    Dim result As List(Of OSD_Block_Class) = Nothing
-    If _ExternalOsdBlocksByNameCache.TryGetValue(name, result) Then Return result
-    Return Enumerable.Empty(Of OSD_Block_Class)()
-End Function
+    Friend Function GetExternalOsdBlocksByNameCached(name As String) As IEnumerable(Of OSD_Block_Class)
+        EnsureShapeDataLookupCache()
+        Dim result As List(Of OSD_Block_Class) = Nothing
+        If _ExternalOsdBlocksByNameCache.TryGetValue(name, result) Then Return result
+        Return Enumerable.Empty(Of OSD_Block_Class)()
+    End Function
 
     Friend Function GetShapeHasLocalCached(target As String) As Boolean
         EnsureMetadataLookupCache()
@@ -1821,7 +1805,7 @@ End Function
         Select Case Config_App.Current.Game
             Case Config_App.Game_Enum.Fallout4
                 files.Add(IO.Path.Combine(IO.Path.Combine(Directorios.ShapedataRoot, Me.ParentOSP.Nombre), Me.Nombre + ".hht"))
-                files.Add(IO.Path.Combine(IO.Path.Combine(IO.Path.Combine(Directorios.Fallout4data, Me.OutputPathValue)), Me.OutputFileValue + ".txt"))
+                files.Add(Me.OutputFullPathBase & ".txt")
             Case Config_App.Game_Enum.Skyrim
                 files.Add(IO.Path.Combine(IO.Path.Combine(Directorios.ShapedataRoot, Me.ParentOSP.Nombre), Me.Nombre + ".hht"))
         End Select
@@ -1901,7 +1885,7 @@ End Function
     End Sub
     Public ReadOnly Property HasPhysics As Boolean
         Get
-            Return Me.Shapes.Where(Function(pf) pf.HasPhysics).Any
+            Return Me.Shapes.Any(Function(pf) pf.HasPhysics)
         End Get
     End Property
 
@@ -1982,13 +1966,13 @@ End Function
         Select Case Config_App.Current.Game
             Case Config_App.Game_Enum.Fallout4
                 Dim hh0 As String = IO.Path.Combine(IO.Path.Combine(Directorios.ShapedataRoot, Me.ParentOSP.Nombre), Me.Nombre + ".hht")
-                Dim hh1 As String = Correct_Path_Separator(IO.Path.Combine(IO.Path.Combine(IO.Path.Combine(Directorios.Fallout4data, Me.OutputPathValue)), Me.OutputFileValue + ".nif"))
+                Dim hh1 As String = Me.OutputFullPathBase.Correct_Path_Separator & ".nif"
                 'aDim hh1b As String = IO.Path.Combine(Directorios.HighHeels_Plugin, Me.OutputFileValue + ".json")
-                Dim hh2 As String = IO.Path.Combine(IO.Path.Combine(IO.Path.Combine(Directorios.Fallout4data, Me.OutputPathValue)), Me.OutputFileValue + ".txt")
+                Dim hh2 As String = Me.OutputFullPathBase & ".txt"
 
                 If IO.File.Exists(hh0) Then HighHeelHeight = ReadHighHeelTXT(hh0) : Exit Sub
-                If FilesDictionary_class.HighHeels_Plugin_Value.HighHeelsKeys.Where(Function(pf) hh1.EndsWith(pf.Key, StringComparison.CurrentCultureIgnoreCase)).Any Then
-                    HighHeelHeight = FilesDictionary_class.HighHeels_Plugin_Value.HighHeelsKeys.OrderByDescending(Function(pf) pf.Key.Length).Where(Function(pf) hh1.EndsWith(pf.Key, StringComparison.CurrentCultureIgnoreCase)).First.Value
+                If FilesDictionary_class.HighHeels_Plugin_Value.HighHeelsKeys.Any(Function(pf) hh1.EndsWith(pf.Key, StringComparison.CurrentCultureIgnoreCase)) Then
+                    HighHeelHeight = FilesDictionary_class.HighHeels_Plugin_Value.HighHeelsKeys.OrderByDescending(Function(pf) pf.Key.Length).First(Function(pf) hh1.EndsWith(pf.Key, StringComparison.CurrentCultureIgnoreCase)).Value
                     Exit Sub
                 End If
                 If IO.File.Exists(hh2) Then HighHeelHeight = ReadHighHeelTXT(hh2) : Exit Sub
@@ -2047,7 +2031,7 @@ End Function
     Public Sub SaveHighHeelBuild(Optional NifSource As Nifcontent_Class_Manolo = Nothing)
         Select Case Config_App.Current.Game
             Case Config_App.Game_Enum.Fallout4
-                Dim hhfile = Path.Combine(Directorios.Fallout4data, Path.Combine(OutputPathValue, OutputFileValue)).Replace(".nif", "txt", StringComparison.OrdinalIgnoreCase)
+                Dim hhfile = OutputFullPathBase.Replace(".nif", "txt", StringComparison.OrdinalIgnoreCase)
                 If hhfile.EndsWith(".txt") = False Then hhfile += ".txt"
                 If HighHeelHeight = 0 Then
                     If IO.File.Exists(hhfile) Then IO.File.Delete(hhfile)
@@ -2061,7 +2045,7 @@ End Function
                 End If
             Case Config_App.Game_Enum.Skyrim
                 For sizecount = 0 To IIf(Multisize, 1, 0)
-                    Dim fil = IO.Path.Combine(IO.Path.Combine(Directorios.Fallout4data, OutputPathValue), OutputFileValue) + IIf(Multisize, "_" + sizecount.ToString, "") + ".nif"
+                    Dim fil = OutputFullPathBase + If(Multisize(), "_" + sizecount.ToString, "") + ".nif"
                     Dim NIF As New Nifcontent_Class_Manolo
                     If Config_App.Current.Settings_Build.SaveHHS OrElse Config_App.Current.Settings_Build.DeleteUnbuilt Then
                         If IsNothing(NifSource) Then
@@ -2153,7 +2137,7 @@ End Function
     Public Function Check_Unique_Shapename(Prueba As String) As String
         Dim index = 0
         Dim Nuevo As String = Prueba
-        While Me.Shapes.Where(Function(pf) pf.Nombre.Equals(Nuevo, StringComparison.OrdinalIgnoreCase)).Any Or Me.Shapes.Where(Function(pf) pf.Target.Equals(Nuevo, StringComparison.OrdinalIgnoreCase)).Any
+        While Me.Shapes.Any(Function(pf) pf.Nombre.Equals(Nuevo, StringComparison.OrdinalIgnoreCase)) Or Me.Shapes.Any(Function(pf) pf.Target.Equals(Nuevo, StringComparison.OrdinalIgnoreCase))
             Nuevo = Prueba + "_" + index.ToString
             index += 1
         End While
@@ -2162,7 +2146,7 @@ End Function
     Public Function Check_Unique_DataName(Prueba As String, slidername As String) As String
         Dim index = 0
         Dim Nuevo As String = Prueba
-        While Me.Sliders.SelectMany(Function(pf) pf.Datas).Where(Function(pf) pf.TargetSlider.Equals(Nuevo + slidername, StringComparison.OrdinalIgnoreCase)).Any
+        While Me.Sliders.SelectMany(Function(pf) pf.Datas).Any(Function(pf) pf.TargetSlider.Equals(Nuevo + slidername, StringComparison.OrdinalIgnoreCase))
             Nuevo = Prueba + "_" + index.ToString
             index += 1
         End While
@@ -2327,6 +2311,12 @@ End Function
             Return IO.Path.Combine(IO.Path.Combine(Directorios.ShapedataRoot, DataFolderValue), IO.Path.GetFileName(SourceFileValue))
         End Get
     End Property
+    ''' <summary>Base output path (no extension): Fallout4data\OutputPath\OutputFile</summary>
+    Public ReadOnly Property OutputFullPathBase As String
+        Get
+            Return IO.Path.Combine(Directorios.Fallout4data, OutputPathValue, OutputFileValue)
+        End Get
+    End Property
 
     Public Property DataFolderValue As String
         Get
@@ -2361,7 +2351,7 @@ End Function
         Dim Legacy_Osd = Legacy_Nif.Replace(".nif", ".osd", StringComparison.OrdinalIgnoreCase)
         Dim Legacy_htt = Legacy_Nif.Replace(".nif", ".hht", StringComparison.OrdinalIgnoreCase)
 
-        Dim Built_Nif = IO.Path.Combine(Directorios.Fallout4data, IO.Path.Combine(Me.OutputPathValue, Me.OutputFileValue)) + ".nif"
+        Dim Built_Nif = Me.OutputFullPathBase & ".nif"
         Dim Built_htt = Legacy_Nif.Replace(".nif", ".txt", StringComparison.OrdinalIgnoreCase)
         Dim Built_Tri = Legacy_Nif.Replace(".nif", ".tri", StringComparison.OrdinalIgnoreCase)
 
@@ -2414,7 +2404,7 @@ End Function
 
         OSDContent_Local.Save_As(New_Osd, OverwriteShapeFiles)
         NIFContent.Save_As_Manolo(New_Nif, OverwriteShapeFiles)
-        SaveHighHeel(New_Nif.Replace(".nif", ".hht"), OverwriteShapeFiles)
+        SaveHighHeel(New_Nif.Replace(".nif", ".hht", StringComparison.OrdinalIgnoreCase), OverwriteShapeFiles)
 
         ShapeDataLoaded = False
         LastShapeDataSignature = ""
@@ -2444,7 +2434,7 @@ Public Class Shape_class
         Get
             If IsNothing(ParentSliderSet.NIFContent) Then Return False
             If IsNothing(ParentSliderSet.NIFContent.Blocks) Then Return False
-            Return ParentSliderSet.NIFContent.Blocks.Where(Function(pf) pf.GetType Is GetType(BSClothExtraData)).Any
+            Return ParentSliderSet.NIFContent.Blocks.Any(Function(pf) pf.GetType Is GetType(BSClothExtraData))
         End Get
     End Property
 

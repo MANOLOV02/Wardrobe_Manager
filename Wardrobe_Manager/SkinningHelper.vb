@@ -218,15 +218,15 @@ Public Class SkinningHelper
             .ShapeGlobal = GlobalTransform,
             .BoneMatsBind = matsBind,
             .BoneMatsPose = matsPose,
-            .Indices = IIf(Not IsNothing(tri.Triangles), tri.Triangles?.SelectMany(Function(t2) New UInteger() {t2.V1, t2.V2, t2.V3}).ToArray(), Array.Empty(Of UInteger)),
-            .VertexColors = IIf(tri.HasVertexColors, tri.VertexColors.Select(Function(c) New Vector4(c.R / 255.0F, c.G / 255.0F, c.B / 255.0F, 1.0F)).ToArray(), Enumerable.Repeat(New Vector4(0.1F, 0.1F, 0.1F, 1.0F), rawVerts.Length).ToArray()),
-                        .Eyedata = IIf(tri.HasEyeData, tri.EyeData.ToArray, Enumerable.Repeat(0F, rawVerts.Length).ToArray),
+            .Indices = If(Not IsNothing(tri.Triangles), tri.Triangles.SelectMany(Function(t2) New UInteger() {t2.V1, t2.V2, t2.V3}).ToArray(), Array.Empty(Of UInteger)),
+            .VertexColors = If(tri.HasVertexColors, tri.VertexColors.Select(Function(c) New Vector4(c.R / 255.0F, c.G / 255.0F, c.B / 255.0F, 1.0F)).ToArray(), Enumerable.Repeat(New Vector4(0.1F, 0.1F, 0.1F, 1.0F), rawVerts.Length).ToArray()),
+            .Eyedata = If(tri.HasEyeData, tri.EyeData.ToArray(), Enumerable.Repeat(0F, rawVerts.Length).ToArray()),
             .VertexData = allVD.ToList,
             .VertexDataSSE = allVDSSE.ToList,
             .TriShape = tri,
             .VertexMask = Enumerable.Repeat(0.0F, rawVerts.Length).ToArray(),
-            .dirtyVertexIndices = New HashSet(Of Integer)(Enumerable.Range(0, Math.Max(0, rawVerts.Length - 1))),
-            .dirtyMaskIndices = New HashSet(Of Integer)(Enumerable.Range(0, Math.Max(0, rawVerts.Length - 1))),
+            .dirtyVertexIndices = New HashSet(Of Integer)(Enumerable.Range(0, rawVerts.Length)),
+            .dirtyMaskIndices = New HashSet(Of Integer)(Enumerable.Range(0, rawVerts.Length)),
             .dirtyMaskFlags = Enumerable.Repeat(True, rawVerts.Length).ToArray,
             .dirtyVertexFlags = Enumerable.Repeat(True, rawVerts.Length).ToArray,
              .Boundingcenter = center,
@@ -407,10 +407,10 @@ Public Class SkinningHelper
         End Select
 
         If ApplyMorph Then
-            geom.Vertices = worldV.ToArray
-            geom.BaseVertices = worldV.ToArray
+            geom.Vertices = worldV
+            geom.BaseVertices = CType(worldV.Clone(), Vector3d())
         Else
-            geom.Vertices = worldV.ToArray
+            geom.Vertices = worldV
         End If
 
         InjectToTrishape(geom)
@@ -562,7 +562,7 @@ Public Class MorphingHelper
 
     Public Shared Sub RemoveZaps(shape As Shape_class, ByRef geom As SkinnedGeometry)
 
-        If shape.ParentSliderSet.Sliders.Where(Function(pf) pf.IsZap).Any = False Then Exit Sub
+        If Not shape.ParentSliderSet.Sliders.Any(Function(pf) pf.IsZap) Then Exit Sub
 
         ' ==== 0) Datos locales / alias ====
         Dim tri As INiShape = geom.TriShape

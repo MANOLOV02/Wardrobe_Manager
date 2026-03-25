@@ -1,6 +1,27 @@
 ﻿Option Strict On
 Option Explicit On
 
+' =============================================================================
+' ESTADO: DEBUG / EN REVISIÓN — NO CERRADO
+' -----------------------------------------------------------------------------
+' HkxObjectGraph_Class: infraestructura de parsing del grafo de objetos HKX.
+' Usada activamente por SkeletonClothOverlayHelper (bone injection) y por
+' HclClothPackageParser (built but not connected al render todavía).
+'
+' PENDIENTES CONOCIDOS:
+'  - ReadArrayHeader hardcodea offsets para punteros de 64-bit (FO4 PointerSize=8).
+'    Para Skyrim SSE (PointerSize=4): Count estaría en +4, CapacityAndFlags en +8.
+'    El campo PointerSize del header se lee pero NUNCA se usa aquí.
+'    Ver: ReadArrayHeader, ReadObjectReferenceArray.
+'  - ParseSimClothData (línea ~272): sin callers externos. Exploración supersedida
+'    por HclStructuredGraphParser_Class. Pendiente eliminar.
+'  - GetLocalFixupsInRange / GetGlobalFixupsInRange: LINQ scan lineal O(n)
+'    sobre todas las fixups en cada llamada. No indexado por rango. Bajo impacto
+'    en práctica pero revisar si escala.
+'  - Offsets de campos (hklClothData, hkaSkeleton, hkRootLevelContainer):
+'    determinados empíricamente para FO4 64-bit. No verificados contra SDK Havok.
+' =============================================================================
+
 Imports System.IO
 Imports System.Linq
 Imports System.Text
@@ -177,6 +198,9 @@ Public Class HkxObjectGraph_Class
     End Function
 
     Public Function ReadArrayHeader(fieldRelativeOffset As Integer) As HkxObjectArrayHeader_Class
+        ' REVISAR: offsets +8 y +12 son correctos SOLO para PointerSize=8 (FO4 64-bit).
+        ' Para Skyrim SSE (PointerSize=4): Count en +4, CapacityAndFlags en +8.
+        ' Packfile.Header.PointerSize está disponible pero no se usa aquí todavía.
         Dim pointer = ResolveLocalPointer(fieldRelativeOffset)
         Return New HkxObjectArrayHeader_Class With {
             .FieldRelativeOffset = fieldRelativeOffset,
@@ -269,37 +293,6 @@ Public Class HkxObjectGraph_Class
         Return result
     End Function
 
-    Public Function ParseSimClothData(source As HkxVirtualObjectGraph_Class) As HclSimClothDataGraph_Class
-        If IsNothing(source) OrElse Not source.ClassName.Equals("hclSimClothData", StringComparison.OrdinalIgnoreCase) Then Return Nothing
-
-        Dim result As New HclSimClothDataGraph_Class With {
-            .SourceObject = source,
-            .Name = ResolveLocalString(source.RelativeOffset + &H30),
-            .UnknownFloat20 = ReadSingle(source.RelativeOffset + &H20),
-            .UnknownFloat24 = ReadSingle(source.RelativeOffset + &H24),
-            .UnknownFloat28 = ReadSingle(source.RelativeOffset + &H28),
-            .UnknownFloat2C = ReadSingle(source.RelativeOffset + &H2C)
-        }
-
-        For Each field In {
-            New With {.Offset = &H38, .Name = "Array_38"},
-            New With {.Offset = &H48, .Name = "Array_48"},
-            New With {.Offset = &H58, .Name = "Array_58"},
-            New With {.Offset = &H68, .Name = "Array_68"},
-            New With {.Offset = &H88, .Name = "Array_88"},
-            New With {.Offset = &H98, .Name = "Array_98"},
-            New With {.Offset = &HA8, .Name = "Array_A8"},
-            New With {.Offset = &HB8, .Name = "Array_B8"},
-            New With {.Offset = &HD8, .Name = "Array_D8"},
-            New With {.Offset = &HF8, .Name = "Array_F8"},
-            New With {.Offset = &H108, .Name = "Array_108"},
-            New With {.Offset = &H118, .Name = "Array_118"}
-        }
-            result.ArrayFields.Add(CreateArrayField(source, field.Offset, field.Name))
-        Next
-
-        Return result
-    End Function
 
     Public Function ParseClothState(source As HkxVirtualObjectGraph_Class) As HclClothStateGraph_Class
         If IsNothing(source) OrElse Not source.ClassName.Equals("hclClothState", StringComparison.OrdinalIgnoreCase) Then Return Nothing
@@ -515,15 +508,6 @@ Public Class HclClothDataGraph_Class
     Public ReadOnly Property Fields As New List(Of HkxObjectArrayField_Class)
 End Class
 
-Public Class HclSimClothDataGraph_Class
-    Public Property SourceObject As HkxVirtualObjectGraph_Class
-    Public Property Name As String
-    Public Property UnknownFloat20 As Single
-    Public Property UnknownFloat24 As Single
-    Public Property UnknownFloat28 As Single
-    Public Property UnknownFloat2C As Single
-    Public ReadOnly Property ArrayFields As New List(Of HkxObjectArrayField_Class)
-End Class
 
 Public Class HclClothStateGraph_Class
     Public Property SourceObject As HkxVirtualObjectGraph_Class

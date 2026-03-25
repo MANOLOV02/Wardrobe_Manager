@@ -1941,20 +1941,14 @@ Public Class FO4UnifiedMaterial_Class
 
     Public Shared Function CorrectTexturePath(Texture As String) As String
         If String.IsNullOrEmpty(Texture) Then Return ""
-        Dim t As String = Texture.Correct_Path_Separator.ToLowerInvariant()
-        If Not t.StartsWith("textures\") Then
-            t = "textures\" & t
-        End If
-        Return t
+        Dim t As String = Texture.Correct_Path_Separator.StripPrefix(TexturesPrefix).ToLowerInvariant()
+        Return TexturesPrefix.ToLowerInvariant() & t
     End Function
 
     Public Shared Function CorrectMaterialPath(Texture As String) As String
         If String.IsNullOrEmpty(Texture) Then Return ""
-        Dim t As String = Texture.Correct_Path_Separator.ToLowerInvariant()
-        If Not t.StartsWith("materials\") Then
-            t = "materials\" & t
-        End If
-        Return t
+        Dim t As String = Texture.Correct_Path_Separator.StripPrefix(MaterialsPrefix).ToLowerInvariant()
+        Return MaterialsPrefix.ToLowerInvariant() & t
     End Function
     Shared Sub New()
 
@@ -2023,14 +2017,12 @@ Public Class DictionaryFilePickerEditor
 
         Dim filtered = FilesDictionary_class.GetFilteredKeys(FilesDictionary_class.TexturesDictionary_Filter)
         Dim initialKey As String = TryCast(value, String).Correct_Path_Separator
-        If Not initialKey.StartsWith("Textures\", StringComparison.OrdinalIgnoreCase) Then
-            initialKey = "Textures\" + initialKey
-        End If
+        initialKey = TexturesPrefix & initialKey.StripPrefix(TexturesPrefix)
 
         Using frm As New DictionaryFilePicker_Form(filtered, FilesDictionary_class.TexturesDictionary_Filter.RootPrefix, FilesDictionary_class.TexturesDictionary_Filter.AllowedExtensions, initialKey)
             If frm.ShowDialog() = DialogResult.OK Then
                 Dim sel = frm.DictionaryPicker_Control1.SelectedKey
-                If Not String.IsNullOrEmpty(sel) Then Return IO.Path.GetRelativePath("Textures\", sel)
+                If Not String.IsNullOrEmpty(sel) Then Return IO.Path.GetRelativePath(TexturesPrefix, sel)
             End If
         End Using
 

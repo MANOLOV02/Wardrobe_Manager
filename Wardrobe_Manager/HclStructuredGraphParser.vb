@@ -1,6 +1,23 @@
 ﻿Option Strict On
 Option Explicit On
 
+' =============================================================================
+' ESTADO: DEBUG / EN REVISIÓN — NO CERRADO
+' -----------------------------------------------------------------------------
+' Parseo de estructuras HCL (Havok Cloth): SimClothData, collidables, capsules,
+' operadores (MoveParticles, Simulate, CopyVertices, etc.), cloth states.
+' Llamado desde HclClothPackageParser_Class.
+'
+' PENDIENTES CONOCIDOS:
+'  - Todos los offsets de campos (+0x10, +0x18, +0x28, etc.) determinados
+'    empíricamente para FO4 64-bit. No verificados contra Havok SDK.
+'  - hclSimClothData: layout casi completamente desconocido. Partícula posiciones,
+'    índices de partículas fijas, bone indices de colisión — sin mapear.
+'  - hclCollidable: ShapeObject resuelto vía global fixup en +0x88. A verificar.
+'  - Operadores de simulación: campos internos parcialmente mapeados.
+'  - Sin soporte para Skyrim SSE (PointerSize=4).
+' =============================================================================
+
 Imports System.Collections.Generic
 Imports System.Linq
 

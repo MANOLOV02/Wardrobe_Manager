@@ -1,6 +1,26 @@
 ﻿Option Strict On
 Option Explicit On
 
+' =============================================================================
+' ESTADO: DEBUG / EN REVISIÓN — NO CERRADO
+' -----------------------------------------------------------------------------
+' Orquestador del parseo completo de un HKX de tela embebido en un NIF:
+' skeleton, collidables, capsule shapes, cloth data, operators, states.
+'
+' BUILT BUT NOT CONNECTED AL RENDER.
+' Ningún caller activo en el proyecto. La ruta del render usa directamente
+' HkxPackfileParser + HkxObjectGraphParser + SkeletonClothOverlayHelper,
+' sin pasar por este parser completo.
+'
+' PENDIENTES CONOCIDOS:
+'  - Heredará todos los problemas de offsets de HclStructuredGraphParser y
+'    HclRenderGraphParser (empíricos, FO4 64-bit only).
+'  - PopulateSkinBoneNames, PopulateStateOperatorLinks, PopulateResolvedCollidableBindings,
+'    etc.: lógica de resolución de referencias cruzadas a revisar cuando se conecte
+'    al render.
+'  - Sin soporte para Skyrim SSE (PointerSize=4).
+' =============================================================================
+
 Imports System.Collections.Generic
 Imports System.Linq
 Imports System.Numerics

@@ -87,6 +87,8 @@ Public Class TextOverlayRenderer
 
         GL.UseProgram(0)
         GL.Enable(EnableCap.DepthTest)
+        GL.Enable(EnableCap.CullFace)
+        GL.Disable(EnableCap.Blend)
     End Sub
 
     Private Sub InitBuffers()
@@ -1803,7 +1805,8 @@ Public Class PreviewModel
     End Sub
 
     Public Sub BakeOrInvertPose(Shape As Shape_class, inverse As Boolean)
-        Dim mesh = Me.meshes.Where(Function(pf) pf.MeshData.Shape Is Shape).First
+        Dim mesh = Me.meshes.FirstOrDefault(Function(pf) pf.MeshData.Shape Is Shape)
+        If mesh Is Nothing Then Return
         SkinningHelper.BakeFromMemoryUsingOriginal(Shape, mesh.MeshData.Meshgeometry, ApplyPose:=HasPose, inverse:=inverse, ApplyMorph:=False, RemoveZaps:=False, SingleBoneSkinning)
     End Sub
 
@@ -2005,62 +2008,62 @@ Public Class FloorRenderer
     End Sub
 
     Private Sub CreateGeometry()
-            If vao > 0 Then GL.DeleteVertexArray(vao) : vao = 0
-            If vbo > 0 Then GL.DeleteBuffer(vbo) : vbo = 0
+        If vao > 0 Then GL.DeleteVertexArray(vao) : vao = 0
+        If vbo > 0 Then GL.DeleteBuffer(vbo) : vbo = 0
 
-            If StepSize <= 0 Then StepSize = 10.0F
-            If Size <= 0 Then Size = 100.0F
+        If StepSize <= 0 Then StepSize = 10.0F
+        If Size <= 0 Then Size = 100.0F
 
-            Dim halfSize As Single = Size * 0.5F
-            Dim lineCountPerAxis As Integer = CInt(Math.Floor(Size / StepSize)) + 1
+        Dim halfSize As Single = Size * 0.5F
+        Dim lineCountPerAxis As Integer = CInt(Math.Floor(Size / StepSize)) + 1
 
-            Dim verts As New List(Of Single)
+        Dim verts As New List(Of Single)
 
-            Dim startPos As Single = -halfSize
-            Dim endPos As Single = halfSize
+        Dim startPos As Single = -halfSize
+        Dim endPos As Single = halfSize
 
-            For i As Integer = 0 To lineCountPerAxis - 1
-                Dim p As Single = startPos + (i * StepSize)
+        For i As Integer = 0 To lineCountPerAxis - 1
+            Dim p As Single = startPos + (i * StepSize)
 
-                If p > endPos Then Exit For
+            If p > endPos Then Exit For
 
-                ' línea paralela al eje Y, en X = p
-                verts.Add(p) : verts.Add(startPos) : verts.Add(0.0F)
-                verts.Add(p) : verts.Add(endPos) : verts.Add(0.0F)
+            ' línea paralela al eje Y, en X = p
+            verts.Add(p) : verts.Add(startPos) : verts.Add(0.0F)
+            verts.Add(p) : verts.Add(endPos) : verts.Add(0.0F)
 
-                ' línea paralela al eje X, en Y = p
-                verts.Add(startPos) : verts.Add(p) : verts.Add(0.0F)
-                verts.Add(endPos) : verts.Add(p) : verts.Add(0.0F)
-            Next
+            ' línea paralela al eje X, en Y = p
+            verts.Add(startPos) : verts.Add(p) : verts.Add(0.0F)
+            verts.Add(endPos) : verts.Add(p) : verts.Add(0.0F)
+        Next
 
-            ' asegurar borde final si no cayó exacto
-            If Math.Abs(endPos - (startPos + ((lineCountPerAxis - 1) * StepSize))) > 0.0001F Then
-                Dim p As Single = endPos
+        ' asegurar borde final si no cayó exacto
+        If Math.Abs(endPos - (startPos + ((lineCountPerAxis - 1) * StepSize))) > 0.0001F Then
+            Dim p As Single = endPos
 
-                verts.Add(p) : verts.Add(startPos) : verts.Add(0.0F)
-                verts.Add(p) : verts.Add(endPos) : verts.Add(0.0F)
+            verts.Add(p) : verts.Add(startPos) : verts.Add(0.0F)
+            verts.Add(p) : verts.Add(endPos) : verts.Add(0.0F)
 
-                verts.Add(startPos) : verts.Add(p) : verts.Add(0.0F)
-                verts.Add(endPos) : verts.Add(p) : verts.Add(0.0F)
-            End If
+            verts.Add(startPos) : verts.Add(p) : verts.Add(0.0F)
+            verts.Add(endPos) : verts.Add(p) : verts.Add(0.0F)
+        End If
 
-            Dim vertices As Single() = verts.ToArray()
-            vertexCount = vertices.Length \ 3
+        Dim vertices As Single() = verts.ToArray()
+        vertexCount = vertices.Length \ 3
 
-            vao = GL.GenVertexArray()
-            vbo = GL.GenBuffer()
+        vao = GL.GenVertexArray()
+        vbo = GL.GenBuffer()
 
-            GL.BindVertexArray(vao)
+        GL.BindVertexArray(vao)
 
-            GL.BindBuffer(BufferTarget.ArrayBuffer, vbo)
-            GL.BufferData(BufferTarget.ArrayBuffer, vertices.Length * 4, vertices, BufferUsageHint.StaticDraw)
+        GL.BindBuffer(BufferTarget.ArrayBuffer, vbo)
+        GL.BufferData(BufferTarget.ArrayBuffer, vertices.Length * 4, vertices, BufferUsageHint.StaticDraw)
 
-            GL.EnableVertexAttribArray(0)
-            GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, False, 12, 0)
+        GL.EnableVertexAttribArray(0)
+        GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, False, 12, 0)
 
-            GL.BindBuffer(BufferTarget.ArrayBuffer, 0)
-            GL.BindVertexArray(0)
-        End Sub
+        GL.BindBuffer(BufferTarget.ArrayBuffer, 0)
+        GL.BindVertexArray(0)
+    End Sub
 
     Public Sub Render(projection As Matrix4, camera As OrbitCamera, offsetZ As Double)
         If Not Enabled Then Exit Sub
@@ -2091,6 +2094,7 @@ Public Class FloorRenderer
         GL.BindVertexArray(0)
 
         GL.UseProgram(0)
+        GL.Enable(EnableCap.CullFace)
     End Sub
 
     Public Sub Rebuild()

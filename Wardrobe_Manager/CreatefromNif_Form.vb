@@ -98,7 +98,7 @@ Public Class Create_from_Nif_Form
 
     Private Sub Read_selected(key As String)
         Dim fil As String = key
-        Dim tri = fil.Replace(".nif", ".tri")
+        Dim tri = fil.Replace(".nif", ".tri", StringComparison.OrdinalIgnoreCase)
         selected_slider.ParentOSP.xml.DocumentElement.InnerText = ""
         selected_slider = New SliderSet_Class(selected_slider.ParentOSP) With {
             .BypassDiskShapeDataLoad = True
@@ -118,7 +118,9 @@ Public Class Create_from_Nif_Form
 
             End If
 
-            selected_slider.NIFContent.Load_Manolo(FilesDictionary_class.Dictionary(fil).GetBytes)
+            Dim filLoc As FilesDictionary_class.File_Location = Nothing
+            If Not FilesDictionary_class.Dictionary.TryGetValue(fil, filLoc) Then Return
+            selected_slider.NIFContent.Load_Manolo(filLoc.GetBytes)
             For Each shap In selected_slider.NIFContent.GetShapes
                 If Nifcontent_Class_Manolo.SupportedShape(shap.GetType) Then
                     Dim shapec As New Shape_class(shap.Name.String, selected_slider)
@@ -132,16 +134,16 @@ Public Class Create_from_Nif_Form
                 Try
                     For Each shapeMorph In TriFileParese.shapeMorphs
                         For Each morp In shapeMorph.Value
-                            If selected_slider.Sliders.Where(Function(pf) pf.Nombre.Equals(morp.Morph)).Any = False Then
+                            If Not selected_slider.Sliders.Any(Function(pf) pf.Nombre.Equals(morp.Morph, StringComparison.OrdinalIgnoreCase)) Then
                                 selected_slider.Sliders.Add(New Slider_class(morp.Morph, selected_slider, morp.type))
                             End If
-                            Dim slider = selected_slider.Sliders.Where(Function(pf) pf.Nombre.Equals(morp.Morph)).First
+                            Dim slider = selected_slider.Sliders.First(Function(pf) pf.Nombre.Equals(morp.Morph, StringComparison.OrdinalIgnoreCase))
                             Dim dat As Slider_Data_class
                             Dim datnombre = shapeMorph.Key.Replace(":", "_") + slider.Nombre
-                            If slider.Datas.Where(Function(pf) pf.Nombre = datnombre).Any = False Then
+                            If Not slider.Datas.Any(Function(pf) pf.Nombre.Equals(datnombre, StringComparison.OrdinalIgnoreCase)) Then
                                 slider.Datas.Add(New Slider_Data_class(datnombre, slider, shapeMorph.Key, "Tochange.osd"))
                             End If
-                            dat = slider.Datas.Where(Function(pf) pf.Nombre = datnombre).First
+                            dat = slider.Datas.First(Function(pf) pf.Nombre.Equals(datnombre, StringComparison.OrdinalIgnoreCase))
 
                             Dim block = New OSD_Block_Class(selected_slider.OSDContent_Local) With {.BlockName = dat.Nombre, .ParentOSDContent = selected_slider.OSDContent_Local, .DataDiff = New List(Of OSD_DataDiff_Class)}
                             selected_slider.OSDContent_Local.Blocks.Add(block)

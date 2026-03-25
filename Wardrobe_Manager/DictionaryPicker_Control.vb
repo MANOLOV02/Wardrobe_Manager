@@ -371,7 +371,9 @@ Public Class DictionaryPicker_Control
             End If
             Using sd As New SaveFileDialog With {.AddExtension = True, .OverwritePrompt = True, .AddToRecent = False, .DefaultExt = ext, .Filter = filtro, .InitialDirectory = dir, .FileName = IO.Path.GetFileName(fil), .Title = "Clone dictionary file"}
                 If sd.ShowDialog = DialogResult.OK Then
-                    File.WriteAllBytes(sd.FileName, FilesDictionary_class.Dictionary(SelectedKey).GetBytes())
+                    Dim cloneLoc As FilesDictionary_class.File_Location = Nothing
+                    If Not FilesDictionary_class.Dictionary.TryGetValue(SelectedKey, cloneLoc) Then Throw New Exception("Key no longer exists in dictionary")
+                    File.WriteAllBytes(sd.FileName, cloneLoc.GetBytes())
                     RaiseEvent Cloned(sd.FileName)
                 Else
                     If Creado Then IO.Directory.Delete(dir)
