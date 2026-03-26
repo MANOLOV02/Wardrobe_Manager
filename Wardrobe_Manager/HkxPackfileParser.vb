@@ -225,9 +225,12 @@ Public NotInheritable Class HkxPackfileParser_Class
 
         Dim cursor = section.LocalFixupsAbsoluteStart
         While cursor + 8 <= section.LocalFixupsAbsoluteEnd
+            Dim sourceOffset = BitConverter.ToInt32(packfile.RawBytes, cursor)
+            If sourceOffset = -1 Then Exit While  ' padding sentinel — same convention as Global/Virtual fixups
+
             packfile.LocalFixups.Add(New HkxLocalFixupEntry_Class With {
                 .SectionIndex = section.Index,
-                .SourceRelativeOffset = BitConverter.ToInt32(packfile.RawBytes, cursor),
+                .SourceRelativeOffset = sourceOffset,
                 .DestinationRelativeOffset = BitConverter.ToInt32(packfile.RawBytes, cursor + 4)
             })
             cursor += 8

@@ -112,8 +112,22 @@ Public Class Skeleton_Class
 
         ClearInjectedBones()
         Try
+            ' Parse HKX skeleton once per unique NIFContent — all shapes from the same outfit
+            ' share the same BSClothExtraData so we avoid re-parsing the HKX N times.
+            Dim skeletonCache = shapes.
+                Where(Function(s) s.HasPhysics AndAlso s.ParentSliderSet?.NIFContent IsNot Nothing).
+                Select(Function(s) s.ParentSliderSet.NIFContent).
+                Distinct().
+                ToDictionary(
+                    Function(nif) nif,
+                    Function(nif) SkeletonClothOverlayHelper_Class.ParseClothSkeleton(nif))
+
             For Each shape In shapes
-                SkeletonClothOverlayHelper_Class.InjectMissingBonesIntoLiveSkeleton(shape, SkeletonInjectedBones)
+                Dim cached As HkaSkeletonGraph_Class = Nothing
+                If shape.ParentSliderSet?.NIFContent IsNot Nothing Then
+                    skeletonCache.TryGetValue(shape.ParentSliderSet.NIFContent, cached)
+                End If
+                SkeletonClothOverlayHelper_Class.InjectMissingBonesIntoLiveSkeleton(shape, SkeletonInjectedBones, cached)
             Next
         Catch ex As Exception
             Debugger.Break()

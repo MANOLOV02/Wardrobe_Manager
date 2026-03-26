@@ -27,30 +27,48 @@ Imports OpenTK.Mathematics
 
 Public NotInheritable Class SkeletonClothOverlayHelper_Class
 
+    ' Parses the BSClothExtraData from a NIF and returns the HKX skeleton.
+    ' Returns Nothing if the NIF has no cloth data or the skeleton cannot be parsed.
+    ' Call once per unique NIFContent and cache the result when processing multiple shapes.
+    Public Shared Function ParseClothSkeleton(nifContent As Nifcontent_Class_Manolo) As HkaSkeletonGraph_Class
+        Dim cloth = nifContent?.Blocks.OfType(Of BSClothExtraData)().FirstOrDefault()
+        If cloth Is Nothing Then Return Nothing
+        Try
+            Dim graph = HkxObjectGraphParser_Class.BuildGraph(HkxPackfileParser_Class.Parse(cloth))
+            Dim skeletonObject = graph.GetObjectsByClassName("hkaSkeleton").FirstOrDefault()
+            If skeletonObject Is Nothing Then Return Nothing
+            Dim skeleton = graph.ParseSkeleton(skeletonObject)
+            If skeleton Is Nothing OrElse skeleton.Bones Is Nothing OrElse skeleton.ReferencePose Is Nothing OrElse skeleton.ParentIndices Is Nothing Then Return Nothing
+            If skeleton.Bones.Count = 0 OrElse skeleton.ReferencePose.Count <> skeleton.Bones.Count Then Return Nothing
+            Return skeleton
+        Catch ex As Exception
+            Return Nothing
+        End Try
+    End Function
+
     Public Shared Sub InjectMissingBonesIntoLiveSkeleton(shape As Shape_class,
-                                                         injectedBones As System.Collections.Generic.HashSet(Of String))
+                                                         injectedBones As System.Collections.Generic.HashSet(Of String),
+                                                         Optional cachedSkeleton As HkaSkeletonGraph_Class = Nothing)
         If IsNothing(shape) OrElse Not Skeleton_Class.HasSkeleton Then Exit Sub
         If IsNothing(shape.RelatedBones) OrElse shape.RelatedBones.Count = 0 Then Exit Sub
         If Not shape.HasPhysics Then Exit Sub
         If IsNothing(shape.ParentSliderSet) OrElse IsNothing(shape.ParentSliderSet.NIFContent) Then Exit Sub
 
+        Dim skeleton As HkaSkeletonGraph_Class
+        If cachedSkeleton IsNot Nothing Then
+            skeleton = cachedSkeleton
+        Else
+            skeleton = ParseClothSkeleton(shape.ParentSliderSet.NIFContent)
+            If skeleton Is Nothing Then Exit Sub
+        End If
+
         Dim shapeName = If(IsNothing(shape.RelatedNifShape) OrElse IsNothing(shape.RelatedNifShape.Name), "<shape>", shape.RelatedNifShape.Name.String)
-        Dim cloth = shape.ParentSliderSet.NIFContent.Blocks.OfType(Of BSClothExtraData)().FirstOrDefault()
-        If IsNothing(cloth) Then Exit Sub
 
         Try
-            Dim packfile = HkxPackfileParser_Class.Parse(cloth)
-            Dim graph = HkxObjectGraphParser_Class.BuildGraph(packfile)
-            Dim skeletonObject = graph.GetObjectsByClassName("hkaSkeleton").FirstOrDefault()
-            If IsNothing(skeletonObject) Then Exit Sub
-
-            Dim skeleton = graph.ParseSkeleton(skeletonObject)
-            If IsNothing(skeleton) OrElse IsNothing(skeleton.Bones) OrElse IsNothing(skeleton.ReferencePose) OrElse IsNothing(skeleton.ParentIndices) Then Exit Sub
-            If skeleton.Bones.Count = 0 OrElse skeleton.ReferencePose.Count <> skeleton.Bones.Count Then Exit Sub
-
+            ' Build name→index lookup once per skeleton (case-insensitive, no extra ToUpperInvariant needed)
             Dim hkxBoneLookup = skeleton.Bones.
                 Where(Function(bone) bone IsNot Nothing AndAlso Not String.IsNullOrWhiteSpace(bone.Name)).
-                GroupBy(Function(bone) NormalizeBoneName(bone.Name), StringComparer.OrdinalIgnoreCase).
+                GroupBy(Function(bone) bone.Name.Trim(), StringComparer.OrdinalIgnoreCase).
                 ToDictionary(Function(group) group.Key,
                              Function(group) group.First().Index,
                              StringComparer.OrdinalIgnoreCase)
@@ -64,7 +82,7 @@ Public NotInheritable Class SkeletonClothOverlayHelper_Class
                 If Skeleton_Class.SkeletonDictionary.ContainsKey(shapeBoneName) Then Continue For
 
                 Dim targetIndex As Integer = -1
-                If Not hkxBoneLookup.TryGetValue(NormalizeBoneName(shapeBoneName), targetIndex) Then Continue For
+                If Not hkxBoneLookup.TryGetValue(shapeBoneName, targetIndex) Then Continue For
                 EnsureLiveInjectedBone(targetIndex, skeleton, injectedBones, shapeName, shapeBoneName)
             Next
         Catch ex As Exception

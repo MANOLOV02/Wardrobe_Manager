@@ -9,11 +9,24 @@ Option Explicit On
 ' Llamado desde HclClothPackageParser_Class.
 '
 ' PENDIENTES CONOCIDOS:
-'  - Todos los offsets de campos (+0x10, +0x18, +0x28, etc.) determinados
-'    empíricamente para FO4 64-bit. No verificados contra Havok SDK.
-'  - hclSimClothData: layout casi completamente desconocido. Partícula posiciones,
-'    índices de partículas fijas, bone indices de colisión — sin mapear.
-'  - hclCollidable: ShapeObject resuelto vía global fixup en +0x88. A verificar.
+'  - Todos los offsets de campos determinados empíricamente para FO4 64-bit.
+'    No verificados contra Havok SDK, pero todos confirmados con DumpStructuralAnalysis
+'    en CasualDress.nif.
+'  - hclSimClothData layout verificado (ver HkxObjectGraphParser.vb para offsets):
+'      +0x038: Particles (hkVector4 xyz=pos w=invMass)
+'      +0x048: FixedParticles (uint16 indices)
+'      +0x058: TriangleIndices (uint16 triplets)
+'      +0x068: m_unknown68 (54 elems, tipo desconocido — ReadByteArray con stride 1 probablemente incorrecto)
+'      +0x088: m_unknown88 (uint32 SIN fixups = bone indices para collidables) ← Field88UInt32
+'      +0x098: m_collidableTransforms (5×hkMatrix4=64B embedded) ← Field98Matrices
+'      +0x0A8: m_collidables (GLOBAL fixups → hclCollidable) ← offset CORRECTO
+'      +0x0B8: m_staticConstraintSets (GLOBAL fixups)
+'      +0x0D8: m_simClothPoses (GLOBAL fixups)
+'  - BUG: .Name = ResolveLocalString(+0x030) lee el ptr de hkArray (m_collidableTransformIndices)
+'    como string — es semánticamente incorrecto. Devuelve vacío cuando count=0 (todos los samples
+'    conocidos), pero retornaría garbage para arrays no vacíos. La clase no tiene m_name serializado.
+'  - hclCollidable: ShapeObject resuelto vía GLOBAL fixup en +0x88. VERIFICADO.
+'    hclCollidable.m_transform: hkMatrix4 column-major en +0x020 (4×hkVector4). VERIFICADO.
 '  - Operadores de simulación: campos internos parcialmente mapeados.
 '  - Sin soporte para Skyrim SSE (PointerSize=4).
 ' =============================================================================
@@ -32,7 +45,7 @@ Public NotInheritable Class HclStructuredGraphParser_Class
 
         Dim result As New HclSimClothDataDetail_Class With {
             .SourceObject = source,
-            .Name = graph.ResolveLocalString(source.RelativeOffset + &H30),
+            .Name = String.Empty,  ' hclSimClothData no tiene m_name serializado; +0x030 es hkArray ptr (m_collidableTransformIndices), no string
             .Field38Vectors = ReadVector4Array(graph, graph.ReadArrayHeader(source.RelativeOffset + &H38)),
             .Field48UInt16 = ReadUInt16Array(graph, graph.ReadArrayHeader(source.RelativeOffset + &H48)),
             .Field58UInt16 = ReadUInt16Array(graph, graph.ReadArrayHeader(source.RelativeOffset + &H58)),
