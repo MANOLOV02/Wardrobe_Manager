@@ -9,6 +9,8 @@ Imports Wardrobe_Manager.RecalcTBN
 Public Structure SkinnedGeometry
     Public Vertices() As Vector3d
     Public BaseVertices() As Vector3d
+    Public NifLocalVertices() As Vector3d      ' pre-skinning NIF local space — base for morph application
+    Public PerVertexSkinMatrix() As Matrix4d   ' per-vertex blended Mtot = GlobalTransform * skin; filled once in ExtractSkinnedGeometry
     Public dirtyMaskIndices As HashSet(Of Integer)              ' Para dirty-tracking de máscara
     Public dirtyVertexIndices As HashSet(Of Integer)
     Public dirtyMaskFlags() As Boolean
@@ -116,6 +118,9 @@ Public Class SkinningHelper
         Next
 
         ' 4) Aplicar skinning CPU
+        ' Save NIF-local vertices BEFORE skinning (needed for correct morph-space application)
+        Dim nifLocalVerts = rawVerts.ToArray()
+        Dim perVertexMtot(vertexCount - 1) As Matrix4d
         Dim allVD = Array.Empty(Of BSVertexData)
         Dim allVDSSE = Array.Empty(Of BSVertexDataSSE)
 
@@ -160,6 +165,7 @@ Public Class SkinningHelper
                                                      Mskin = matsPose(0)
                                                  End If
                                                  Dim Mtot = GlobalTransform * Mskin
+                                                 perVertexMtot(i) = Mtot
                                                  Dim NormalsMat = Create_Normal_Matrix(Mtot)
 
                                                  rawVerts(i) = Vector3d.TransformPosition(rawVerts(i), Mtot)
@@ -173,6 +179,7 @@ Public Class SkinningHelper
             Case singleboneskinning AndAlso bones.Length > 0
                 ' Single-bone
                 Dim Mtot = GlobalTransform * matsPose(0)
+                Array.Fill(perVertexMtot, Mtot)
                 Dim NormalsMat = Create_Normal_Matrix(Mtot)
                 Parallel.For(0, vertexCount, Sub(i)
                                                  rawVerts(i) = Vector3d.TransformPosition(rawVerts(i), Mtot)
@@ -186,6 +193,7 @@ Public Class SkinningHelper
             Case Else
                 ' Sin huesos
                 Dim Mtot = GlobalTransform
+                Array.Fill(perVertexMtot, Mtot)
                 Dim NormalsMat = Create_Normal_Matrix(Mtot)
                 Parallel.For(0, vertexCount, Sub(i)
                                                  rawVerts(i) = Vector3d.TransformPosition(rawVerts(i), Mtot)
@@ -212,6 +220,8 @@ Public Class SkinningHelper
         Dim geo = New SkinnedGeometry With {
             .Vertices = rawVerts,
             .BaseVertices = rawVerts.ToArray,
+            .NifLocalVertices = nifLocalVerts,
+            .PerVertexSkinMatrix = perVertexMtot,
             .Normals = rawNormals,
             .Tangents = rawTangents,
             .Bitangents = rawBitangs,
@@ -503,8 +513,9 @@ Public Class MorphingHelper
         Next
     End Sub
     Public Shared Sub ApplyMorph_CPU(shape As Shape_class, ByRef Geometry As SkinnedGeometry, RecalculateNormals As Boolean, AllowMask As Boolean)
-        Dim count = Geometry.BaseVertices.Length
-        Dim verts = Geometry.BaseVertices.ToArray()
+        Dim count = Geometry.NifLocalVertices.Length
+        ' Start from NIF local space (pre-skinning) so deltas are applied in the correct space
+        Dim verts = Geometry.NifLocalVertices.ToArray()
 
         LoadMorphTargets(shape, Geometry)
         ' Reiniciar máscara y dirty-tracking
@@ -532,13 +543,16 @@ Public Class MorphingHelper
                     Geometry.dirtyMaskFlags(i) = True
                 Next
             Else
-                ' Morph normal: mueve vértice
+                ' Morph normal: mueve vértice en espacio local NIF
                 For Each morph In shape.MorphDiffs(s.Nombre)
                     Dim i = CInt(morph.index)
                     verts(i) = verts(i) + morph.PosDiff * t
                 Next
             End If
         Next
+
+        ' Transform morphed local verts to world space using the stored skin matrices
+        ApplySkinningToLocalVerts(verts, Geometry)
 
         For i = 0 To count - 1
             If Geometry.Vertices(i) <> verts(i) Then
@@ -558,6 +572,20 @@ Public Class MorphingHelper
                 Geometry.dirtyVertexFlags(ad) = True
             Next
         End If
+    End Sub
+
+    ''' <summary>
+    ''' Applies the same per-vertex skinning used in ExtractSkinnedGeometry to an array of
+    ''' NIF-local-space vertices, transforming them to world space in-place.
+    ''' Used by ApplyMorph_CPU so that morph deltas are applied before skinning.
+    ''' </summary>
+    ''' Applies the cached per-vertex skin matrices (filled by ExtractSkinnedGeometry) to an array
+    ''' of NIF-local-space vertices, transforming them to world space in-place.
+    Private Shared Sub ApplySkinningToLocalVerts(verts As Vector3d(), geom As SkinnedGeometry)
+        Dim mats = geom.PerVertexSkinMatrix
+        Parallel.For(0, verts.Length, Sub(i)
+                                          verts(i) = Vector3d.TransformPosition(verts(i), mats(i))
+                                      End Sub)
     End Sub
 
     Public Shared Sub RemoveZaps(shape As Shape_class, ByRef geom As SkinnedGeometry)

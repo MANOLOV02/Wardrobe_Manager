@@ -893,7 +893,6 @@ Public Class Wardrobe_Manager_Form
                 If sliderset_target.ParentOSP.SliderSets.Count = 0 Then Remove_Empty_Pack(sliderset_target)
             Next
         End If
-
         Termina_Procesos()
     End Sub
     Private Sub Remove_Empty_Pack(sliderset_target As SliderSet_Class)
@@ -1342,16 +1341,37 @@ Public Class Wardrobe_Manager_Form
 
 
     Private Sub ListViewSources_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ListViewSources.SelectedIndexChanged
-        RequestLeeShapes()
-        Habilita_deshabilita()
+        If seleccionPendiente Then Return
+
+        seleccionPendiente = True
+
+        ListViewSources.BeginInvoke(Sub()
+                                        seleccionPendiente = False
+                                        ProcesarSeleccionFinal()
+                                    End Sub)
+
+
     End Sub
 
     Private Sub ListViewTargets_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ListViewTargets.SelectedIndexChanged
+        If seleccionPendiente Then Return
+
+        seleccionPendiente = True
+
+        ListViewTargets.BeginInvoke(Sub()
+                                        seleccionPendiente = False
+                                        ProcesarSeleccionFinal()
+                                    End Sub)
+
+    End Sub
+
+    Private seleccionPendiente As Boolean = False
+
+
+    Private Sub ProcesarSeleccionFinal()
         RequestLeeShapes()
         Habilita_deshabilita()
     End Sub
-
-
 
     Private Sub RenameButton_Click(sender As Object, e As EventArgs) Handles RenameButton.Click
         Empieza_Procesos(1)
@@ -1817,6 +1837,8 @@ Public Class Wardrobe_Manager_Form
         Using frm As New Create_from_Nif_Form(filtered, dict_used.RootPrefix, dict_used.AllowedExtensions, initialKey)
             If frm.ShowDialog() = DialogResult.Yes Then
                 RefreshButton.PerformClick()
+            Else
+                RequestLeeShapes(True)
             End If
         End Using
     End Sub

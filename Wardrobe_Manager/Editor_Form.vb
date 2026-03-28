@@ -19,7 +19,7 @@ Public Class Editor_Form
     Public Property Selected_Slider As SliderSet_Class = Nothing
     Public Selected_Shape As Shape_class = Nothing
     Public Selected_Material As FO4UnifiedMaterial_Class = Nothing
-    Public Event Render_By_Edit(seleccionado As SliderSet_Class, force As Boolean)
+    'Public Event Render_By_Edit(seleccionado As SliderSet_Class, force As Boolean)
     Public Event Edit_Begun()
     Public Event Edit_Ended()
     Public Grabable As Boolean = True
@@ -65,7 +65,7 @@ Public Class Editor_Form
         End Get
     End Property
 
-    Private ReadOnly bones_list As New Dictionary(Of String, Integer)(StringComparison.OrdinalIgnoreCase)
+    Private ReadOnly bones_list As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
     Private _LastBonesSignature As String = ""
     Private _LastSliderLayoutSignature As String = ""
     Private Function BuildBonesSignature() As String
@@ -155,9 +155,7 @@ Public Class Editor_Form
 
         For Each shap In Selected_Slider.Shapes
             For Each bon In shap.RelatedBones
-                Dim idx = shap.ParentSliderSet.NIFContent.Blocks.IndexOf(bon)
-                Dim nam As String = bon.Name.String
-                bones_list.TryAdd(nam, idx)
+                bones_list.Add(bon.Name.String)
             Next
         Next
 
@@ -177,7 +175,7 @@ Public Class Editor_Form
         TreeViewSkeleton.ResumeLayout()
 
         ListView1.Items.AddRange(
-        bones_list.Keys.
+        bones_list.
             OrderBy(Function(pf) pf, StringComparer.OrdinalIgnoreCase).
             Select(Function(pf) New ListViewItem({pf, "0"}) With {.Name = pf}).
             ToArray())
@@ -196,7 +194,7 @@ Public Class Editor_Form
         Else
             node = Parentnode.Nodes.Add(sknode.BoneName)
         End If
-        If bones_list.ContainsKey(sknode.BoneName) Then
+        If bones_list.Contains(sknode.BoneName) Then
             node.Tag = True
             node.ForeColor = Color.Blue
         Else
@@ -228,19 +226,27 @@ Public Class Editor_Form
             Next
         Next
 
+        ' Lookup O(1): name → lista de PresetSlider_Class por size
+        Dim presetLookup As Dictionary(Of String, List(Of PresetSlider_Class)) =
+            Selected_Preset.Sliders.
+            GroupBy(Function(s) s.Name, StringComparer.OrdinalIgnoreCase).
+            ToDictionary(Function(g) g.Key, Function(g) g.ToList(), StringComparer.OrdinalIgnoreCase)
+
         If Not IsNothing(Selected_Slider) Then
             ' De las formas
             For Each slid In Selected_Slider.Sliders
-                If IsNothing(Selected_Preset.Sliders.Find(Function(pf) pf.Name.Equals(slid.Nombre, StringComparison.OrdinalIgnoreCase))) = False Then
-                    Dim sli0 As PresetSlider_Class = Selected_Preset.Sliders.Where(Function(pf) pf.Name.Equals(slid.Nombre, StringComparison.OrdinalIgnoreCase) And pf.Size = Config_App.SliderSize.Default).FirstOrDefault
+                Dim matches As List(Of PresetSlider_Class) = Nothing
+                If presetLookup.TryGetValue(slid.Nombre, matches) Then
+                    Dim sli0 = matches.FirstOrDefault(Function(s) s.Size = Config_App.SliderSize.Default)
                     If Not IsNothing(sli0) Then sli0.Value = slid.Default_Setting(Config_App.SliderSize.Default)
-                    Dim sli As PresetSlider_Class = Selected_Preset.Sliders.Where(Function(pf) pf.Name.Equals(slid.Nombre, StringComparison.OrdinalIgnoreCase) And pf.Size = Config_App.SliderSize.Big).FirstOrDefault
-                    If Not IsNothing(sli) Then sli.Value = slid.Default_Big_Value
-                    Dim sli2 As PresetSlider_Class = Selected_Preset.Sliders.Where(Function(pf) pf.Name.Equals(slid.Nombre, StringComparison.OrdinalIgnoreCase) And pf.Size = Config_App.SliderSize.Small).FirstOrDefault
-                    If Not IsNothing(sli2) Then sli2.Value = slid.Default_Small_Value
+                    Dim sliB = matches.FirstOrDefault(Function(s) s.Size = Config_App.SliderSize.Big)
+                    If Not IsNothing(sliB) Then sliB.Value = slid.Default_Big_Value
+                    Dim sliS = matches.FirstOrDefault(Function(s) s.Size = Config_App.SliderSize.Small)
+                    If Not IsNothing(sliS) Then sliS.Value = slid.Default_Small_Value
                 Else
                     Dim sli As New PresetSlider_Class With {.Name = slid.Nombre, .DisplayName = slid.Nombre, .Value = slid.Default_Setting(Selected_size), .Category = nif_cat, .Size = Selected_size}
                     Selected_Preset.Sliders.Add(sli)
+                    presetLookup(slid.Nombre) = New List(Of PresetSlider_Class) From {sli}
                 End If
             Next
         End If
@@ -255,17 +261,18 @@ Public Class Editor_Form
             Dim nobig = Not Selected_Combo_Preset.Sliders.Any(Function(pf) pf.Size = Config_App.SliderSize.Big)
             Dim nosmall = Not Selected_Combo_Preset.Sliders.Any(Function(pf) pf.Size = Config_App.SliderSize.Small)
             For Each slid In Selected_Combo_Preset.Sliders
-                If IsNothing(Selected_Preset.Sliders.Find(Function(pf) pf.Name.Equals(slid.Name, StringComparison.OrdinalIgnoreCase))) = False Then
-                    Dim sli0 As PresetSlider_Class = Selected_Preset.Sliders.Where(Function(pf) pf.Name.Equals(slid.Name, StringComparison.OrdinalIgnoreCase) And pf.Size = Config_App.SliderSize.Default).FirstOrDefault
-
-                    If Not IsNothing(sli0) And slid.Size = Define_cual_size(Config_App.SliderSize.Default, nodefault, nobig, nosmall) Then sli0.Value = slid.Value
-                    Dim sli As PresetSlider_Class = Selected_Preset.Sliders.Where(Function(pf) pf.Name.Equals(slid.Name, StringComparison.OrdinalIgnoreCase) And pf.Size = Config_App.SliderSize.Big).FirstOrDefault
-                    If Not IsNothing(sli) And slid.Size = Define_cual_size(Config_App.SliderSize.Big, nodefault, nobig, nosmall) Then sli.Value = slid.Value
-                    Dim sli2 As PresetSlider_Class = Selected_Preset.Sliders.Where(Function(pf) pf.Name.Equals(slid.Name, StringComparison.OrdinalIgnoreCase) And pf.Size = Config_App.SliderSize.Small).FirstOrDefault
-                    If Not IsNothing(sli2) And slid.Size = Define_cual_size(Config_App.SliderSize.Small, nodefault, nobig, nosmall) Then sli2.Value = slid.Value
+                Dim matches As List(Of PresetSlider_Class) = Nothing
+                If presetLookup.TryGetValue(slid.Name, matches) Then
+                    Dim sli0 = matches.FirstOrDefault(Function(s) s.Size = Config_App.SliderSize.Default)
+                    If Not IsNothing(sli0) AndAlso slid.Size = Define_cual_size(Config_App.SliderSize.Default, nodefault, nobig, nosmall) Then sli0.Value = slid.Value
+                    Dim sliB = matches.FirstOrDefault(Function(s) s.Size = Config_App.SliderSize.Big)
+                    If Not IsNothing(sliB) AndAlso slid.Size = Define_cual_size(Config_App.SliderSize.Big, nodefault, nobig, nosmall) Then sliB.Value = slid.Value
+                    Dim sliS = matches.FirstOrDefault(Function(s) s.Size = Config_App.SliderSize.Small)
+                    If Not IsNothing(sliS) AndAlso slid.Size = Define_cual_size(Config_App.SliderSize.Small, nodefault, nobig, nosmall) Then sliS.Value = slid.Value
                 Else
                     Dim sli As New PresetSlider_Class With {.Name = slid.Name, .DisplayName = slid.Name, .Value = slid.Value, .Category = Slid_cat, .Size = slid.Size}
                     Selected_Preset.Sliders.Add(sli)
+                    presetLookup(slid.Name) = New List(Of PresetSlider_Class) From {sli}
                 End If
             Next
         End If
@@ -313,7 +320,11 @@ Public Class Editor_Form
         TableLayoutPanel4.Parent.SuspendLayout()
 
         Dim tlp As TableLayoutPanel = Me.TableLayoutPanel4
+        Dim existingControls = tlp.Controls.Cast(Of Control)().ToList()
         tlp.Controls.Clear()
+        For Each ctrl In existingControls
+            ctrl.Dispose()
+        Next
         tlp.RowStyles.Clear()
         tlp.RowCount = 0
         tlp.ColumnCount = 2
@@ -352,10 +363,7 @@ Public Class Editor_Form
             tlp.SetColumnSpan(lblCat, 2)
 
             For Each slideName In sliderNames
-                Dim presetItem As PresetSlider_Class =
-                Selected_Preset.Sliders.Find(Function(s) s.Name.Equals(slideName.Name, StringComparison.OrdinalIgnoreCase) AndAlso s.Size = Selected_size)
-
-                Dim initValue As Integer = If(presetItem IsNot Nothing, CInt(presetItem.Value), 0)
+                Dim initValue As Integer = CInt(slideName.Value)
 
                 Dim row As Integer = tlp.RowCount
                 tlp.RowCount += 1
@@ -438,8 +446,10 @@ Public Class Editor_Form
                 vert = Selected_Shape.RelatedNifShape.VertexData.Where(Function(pf) pf.BoneIndices.Contains(j)).Count
             End If
 
-            bonIt.SubItems(1).Text = vert.ToString
-            If Not IsNothing(bonIt) Then bonIt.ForeColor = Color.Blue
+            If Not IsNothing(bonIt) Then
+                bonIt.SubItems(1).Text = vert.ToString
+                bonIt.ForeColor = Color.Blue
+            End If
         Next
     End Sub
 
@@ -461,6 +471,8 @@ Public Class Editor_Form
         ComboBoxSize.SelectedIndex = Config_App.Current.Bodytipe
         Selected_size = Config_App.Current.Bodytipe
         Selected_Slider = clone
+        ComboBoxPresets.Items.Clear()
+        ComboBoxPoses.Items.Clear()
         ComboBoxPresets.Items.AddRange(FilesDictionary_class.SliderPresets.Presets.Select(Function(pf) pf.Key).Order.ToArray)
         ComboBoxPoses.Items.AddRange(FilesDictionary_class.SliderPresets.Poses.Select(Function(pf) pf.Key).Order.ToArray)
         Dim idx = ComboBoxPresets.FindString(Preset)
@@ -507,7 +519,7 @@ Public Class Editor_Form
             ButtonMatCancel.Enabled = False
             ButtonMatLoad.Enabled = True
         End If
-        Habiliza_Zap_Buttons()
+        Habilita_Zap_Buttons()
         _Editando = False
     End Sub
     Private Sub ComboBoxShapes_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBoxShapes.SelectedIndexChanged
@@ -523,6 +535,7 @@ Public Class Editor_Form
         ColorComboBox1.SelectedColor = Selected_Shape.Wirecolor
         TrackBar1.Value = Math.Max(0, Math.Min(100, CInt(Selected_Shape.WireAlpha * 100)))
         Button1.Enabled = ComboBoxShapes.Items.Count > 1
+        Habilita_Mask_Buttons()
         Lee_Materials()
         MarcaBones()
     End Sub
@@ -570,7 +583,7 @@ Public Class Editor_Form
 
         Update_Grayscale()
         Iniciado_Edit()
-        Render_Changes(False)
+        Process_render_Changes(False)
     End Sub
     Private Sub RequestPreviewRedraw()
         If IsNothing(EditPreviewControl) Then Exit Sub
@@ -587,7 +600,7 @@ Public Class Editor_Form
     Private Sub GrayScaleTrackbar1_ValueChanged(sender As Object, e As EventArgs) Handles GrayScaleTrackbar1.ValueChanged
         Selected_Material.GrayscaleToPaletteScale = GrayScaleTrackbar1.Setvalue
         Iniciado_Edit()
-        Render_Changes(False)
+        Process_render_Changes(False)
     End Sub
     Private Sub Update_Grayscale()
         If Selected_Material.GreyscaleTexture <> "" AndAlso Not IsNothing(GrayscaleBMP_Rotated) Then
@@ -690,7 +703,7 @@ Public Class Editor_Form
 
         PropertyGrid1.SelectedObject = Selected_Material
         Update_Grayscale()
-        Render_Changes(False)
+        Process_render_Changes(False)
         Iniciado_Edit()
     End Sub
     Private Sub CheckBox2_CheckedChanged(sender As Object, e As EventArgs) Handles CheckBox2.CheckedChanged
@@ -713,12 +726,25 @@ Public Class Editor_Form
 
     Private Sub RenderCheckMasks_CheckedChanged(sender As Object, e As EventArgs) Handles RenderCheckMasks.CheckedChanged
         Selected_Shape.ShowMask = RenderCheckMasks.Checked
+        Habilita_Mask_Buttons()
         RequestPreviewRedraw()
+    End Sub
+    Private Sub Habilita_Mask_Buttons()
+        Dim enab = Selected_Shape.ShowMask
+        ButtonMaskAll.Enabled = enab
+        ButtonUnmaskAll.Enabled = enab
+        ButtonInvertMask.Enabled = enab
+        ButtonClickAll.Enabled = enab
+        ButtonGrowMask.Enabled = enab
+        ButtonShrinkMask.Enabled = enab
+        ButtonMaskByBones.Enabled = enab
+        ButtonUnmaskByBones.Enabled = enab
+        Habilita_Zap_Buttons()
     End Sub
 
     Private Sub RenderCheckZap_CheckedChanged(sender As Object, e As EventArgs) Handles RenderCheckZap.CheckedChanged
         Selected_Shape.ApplyZaps = RenderCheckZap.Checked
-        Render_Changes(False)
+        Process_render_Changes(False)
 
     End Sub
 
@@ -736,7 +762,7 @@ Public Class Editor_Form
         If MsgBox("This cant be undone, do you want to delete all physics", vbYesNo, "Remove Physics") = MsgBoxResult.Yes Then
             Selected_Slider.NIFContent.RemoveBlocksOfType(Of BSClothExtraData)()
             Selected_Slider.InvalidateAllLookupCaches()
-            Render_Changes(True)
+            Process_render_Changes(True)
             Lee_Bones()
             ButtonRemovePhysics.Enabled = False
             Iniciado_Edit()
@@ -756,7 +782,7 @@ Public Class Editor_Form
 
         Actualiza_Preset()
         Lee_Bones()
-        Render_Changes(True)
+        Process_render_Changes(True)
 
         If ComboBoxShapes.Items.Count > 0 Then
             ComboBoxShapes.SelectedIndex = Math.Min(removedIndex, ComboBoxShapes.Items.Count - 1)
@@ -771,11 +797,6 @@ Public Class Editor_Form
         Finalizado_Edit()
         Close()
     End Sub
-    Private Sub Render_Changes(Force As Boolean)
-        Process_render_Changes(Force)
-        RaiseEvent Render_By_Edit(Selected_Slider, Force)
-    End Sub
-
     Private Sub Button3_Click(sender As Object, e As EventArgs) Handles ButtonSave.Click
         If Revisa_Material() Then
             If Not Grabable AndAlso Selected_Slider.ParentOSP.IsManoloPack = False Then
@@ -784,9 +805,7 @@ Public Class Editor_Form
                 End If
             End If
             ' Promote the clone's node into the OSP document tree so Save_Pack persists XML changes
-            If _OriginalSlider IsNot Nothing Then
-                _OriginalSlider.Nodo.ParentNode.ReplaceChild(Selected_Slider.Nodo, _OriginalSlider.Nodo)
-            End If
+            _OriginalSlider?.Nodo.ParentNode.ReplaceChild(Selected_Slider.Nodo, _OriginalSlider.Nodo)
             Selected_Slider.Save_Shapedatas(True)
             Selected_Slider.ParentOSP.Save_Pack(True)
             Dim hhfile = Selected_Slider.SourceFileFullPath
@@ -944,7 +963,13 @@ Public Class Editor_Form
             End Using
         End If
         MaterialPathTextbox.Text = prefix + Path.GetDirectoryName(Selected_Shape.RelatedMaterial.path)
-        ComboBoxMaterials.SelectedIndex = ComboBoxMaterials.Items.Add(Path.GetFileName(Selected_Shape.RelatedMaterial.path))
+        Dim fname = Path.GetFileName(Selected_Shape.RelatedMaterial.path)
+        Dim existingIdx = ComboBoxMaterials.FindStringExact(fname)
+        If existingIdx = -1 Then
+            ComboBoxMaterials.SelectedIndex = ComboBoxMaterials.Items.Add(fname)
+        Else
+            ComboBoxMaterials.SelectedIndex = existingIdx
+        End If
         Lee_Comboselected_Material(Path.Combine(MaterialPathTextbox.Text, ComboBoxMaterials.SelectedItem).Correct_Path_Separator)
     End Sub
 
@@ -997,14 +1022,12 @@ Public Class Editor_Form
                 fullpath = fullpath.StripPrefix(prefix)
                 Selected_Shape.RelatedMaterial.path = fullpath
                 Lee_Materials()
-                MaterialPathTextbox.Text = prefix + Path.GetDirectoryName(Selected_Shape.RelatedMaterial.path)
-                ComboBoxMaterials.SelectedIndex = ComboBoxMaterials.Items.Add(Path.GetFileName(Selected_Shape.RelatedMaterial.path))
             End If
         End Using
-        If ComboBoxMaterials.SelectedItem <> "" Then Lee_Comboselected_Material(Path.Combine(MaterialPathTextbox.Text, ComboBoxMaterials.SelectedItem).Correct_Path_Separator)
+        If ComboBoxMaterials.SelectedItem IsNot Nothing AndAlso ComboBoxMaterials.SelectedItem.ToString() <> "" Then Lee_Comboselected_Material(Path.Combine(MaterialPathTextbox.Text, ComboBoxMaterials.SelectedItem).Correct_Path_Separator)
     End Sub
 
-    Private Sub Button2_Click(sender As Object, e As EventArgs) Handles Button2.Click
+    Private Sub Button2_Click(sender As Object, e As EventArgs) Handles ButtonMaskByBones.Click
         Selected_Shape.MaskedVertices.UnionWith(Procesa_Bones_Mask)
         Process_render_Changes(False)
     End Sub
@@ -1046,7 +1069,7 @@ Public Class Editor_Form
         Return lista
     End Function
 
-    Private Sub Button4_Click_1(sender As Object, e As EventArgs) Handles Button4.Click
+    Private Sub Button4_Click_1(sender As Object, e As EventArgs) Handles ButtonMaskAll.Click
         Dim Nifversion = Selected_Shape.ParentSliderSet.NIFContent.Header.Version
         If Nifversion.IsSSE Then
             Selected_Shape.MaskedVertices.UnionWith(Enumerable.Range(0, Selected_Shape.RelatedNifShape.VertexDataSSE.Count))
@@ -1057,12 +1080,12 @@ Public Class Editor_Form
         Process_render_Changes(False)
     End Sub
 
-    Private Sub Button5_Click(sender As Object, e As EventArgs) Handles Button5.Click
+    Private Sub Button5_Click(sender As Object, e As EventArgs) Handles ButtonUnmaskAll.Click
         Selected_Shape.MaskedVertices.Clear()
         Process_render_Changes(False)
     End Sub
 
-    Private Sub Button6_Click(sender As Object, e As EventArgs) Handles Button6.Click
+    Private Sub Button6_Click(sender As Object, e As EventArgs) Handles ButtonInvertMask.Click
         Dim lista As New HashSet(Of Integer)
         lista.UnionWith(Selected_Shape.MaskedVertices)
         Dim Nifversion = Selected_Shape.ParentSliderSet.NIFContent.Header.Version
@@ -1076,23 +1099,25 @@ Public Class Editor_Form
         Process_render_Changes(False)
     End Sub
 
-    Private Sub Button3_Click_1(sender As Object, e As EventArgs) Handles Button3.Click
+    Private Sub Button3_Click_1(sender As Object, e As EventArgs) Handles ButtonUnmaskByBones.Click
         Selected_Shape.MaskedVertices.ExceptWith(Procesa_Bones_Mask)
         Process_render_Changes(False)
     End Sub
     Private SelectedZap As Slider_class = Nothing
-    Private Sub Habiliza_Zap_Buttons()
+    Private Sub Habilita_Zap_Buttons()
         If ListView2.SelectedItems.Count > 0 Then SelectedZap = ListView2.SelectedItems(0).Tag Else SelectedZap = Nothing
-        ZapLoad.Enabled = Not IsNothing(SelectedZap)
-        ZapExclude.Enabled = Not IsNothing(SelectedZap)
-        ZapInclude.Enabled = Not IsNothing(SelectedZap)
-        ZapCreate.Enabled = Not IsNothing(Selected_Slider)
-        ZapInverted.Enabled = Not IsNothing(SelectedZap)
-        Zap_Zap.Enabled = Not IsNothing(SelectedZap)
-        Zap_Fix.Enabled = Not IsNothing(SelectedZap)
-        GroupBoxZaps.Enabled = Not IsNothing(SelectedZap) AndAlso SelectedZap.IsManoloFix = True
-        DeleteZap.Enabled = Not IsNothing(SelectedZap)
-        ButtonClearZap.Enabled = Not IsNothing(SelectedZap)
+        Dim enab = Selected_Shape.ShowMask
+        Dim zap = Not IsNothing(SelectedZap)
+        ZapLoad.Enabled = zap And enab
+        ZapExclude.Enabled = zap And enab
+        ZapInclude.Enabled = zap And enab
+        ZapCreate.Enabled = zap And enab
+        ZapInverted.Enabled = zap And enab
+        Zap_Zap.Enabled = zap And enab
+        Zap_Fix.Enabled = zap And enab
+        GroupBoxZaps.Enabled = zap And enab AndAlso SelectedZap.IsManoloFix = True
+        DeleteZap.Enabled = zap And enab
+        ButtonClearZap.Enabled = zap And enab
         If Not IsNothing(SelectedZap) Then
             ZapInverted.Checked = SelectedZap.Invert
             Zap_Zap.Checked = SelectedZap.IsZap
@@ -1101,7 +1126,7 @@ Public Class Editor_Form
     End Sub
 
     Private Sub ListView2_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ListView2.SelectedIndexChanged
-        Habiliza_Zap_Buttons()
+        Habilita_Zap_Buttons()
     End Sub
 
     Private Sub ZapCreate_Click(sender As Object, e As EventArgs) Handles ZapCreate.Click
@@ -1111,20 +1136,18 @@ Public Class Editor_Form
             MsgBox("El Zap ya existe", vbCritical, "Error")
             Exit Sub
         End If
-        If nombre <> "" Then
-            Dim el = Selected_Slider.Nodo.OwnerDocument.CreateElement("Slider")
-            el.SetAttribute("name", nombre)
-            el.SetAttribute("zap", "true")
-            el.SetAttribute("invert", "false")
-            el.SetAttribute("default", "100")
-            Dim slid As New Slider_class(el, Selected_Slider)
-            Selected_Slider.Nodo.AppendChild(el)
-            Selected_Slider.Sliders.Add(slid)
-            Selected_Slider.InvalidateAllLookupCaches()
-            _LastSliderLayoutSignature = ""
-            Actualiza_Preset()
-            Lee_Zaps()
-        End If
+        Dim el = Selected_Slider.Nodo.OwnerDocument.CreateElement("Slider")
+        el.SetAttribute("name", nombre)
+        el.SetAttribute("zap", "true")
+        el.SetAttribute("invert", "false")
+        el.SetAttribute("default", "100")
+        Dim slid As New Slider_class(el, Selected_Slider)
+        Selected_Slider.Nodo.AppendChild(el)
+        Selected_Slider.Sliders.Add(slid)
+        Selected_Slider.InvalidateAllLookupCaches()
+        _LastSliderLayoutSignature = ""
+        Actualiza_Preset()
+        Lee_Zaps()
 
     End Sub
 
@@ -1315,7 +1338,7 @@ Public Class Editor_Form
 
             Lee_Zaps()
         End If
-        Habiliza_Zap_Buttons()
+        Habilita_Zap_Buttons()
         Process_render_Changes(False)
     End Sub
     Private Function Get_Zap_Verts() As IEnumerable(Of Integer)
@@ -1394,7 +1417,6 @@ Public Class Editor_Form
             Else
                 If MsgBox("Are you sure you want to delete Preset " + Nombre + "?", vbYesNo, "Warning") = MsgBoxResult.No Then Return False
             End If
-            WroteFilesToDisk = True
             If IO.Directory.Exists(IO.Path.GetDirectoryName(path)) = False Then
                 IO.Directory.CreateDirectory(IO.Path.GetDirectoryName(path))
             End If
@@ -1410,7 +1432,8 @@ Public Class Editor_Form
             Dim doc = XDocument.Load(path)
             Dim sel = doc.Root.Elements("Preset").Where(Function(pf) pf.Attribute("name").Value.Equals(Nombre, StringComparison.OrdinalIgnoreCase)).FirstOrDefault
             If IsNothing(sel) Then
-                sel = New XElement("Preset", New XAttribute("name", Nombre), New XAttribute("set", "CBBE Body"))
+                Dim setName As String = If(String.IsNullOrWhiteSpace(Selected_Preset?.SetName), "CBBE Body", Selected_Preset.SetName)
+                sel = New XElement("Preset", New XAttribute("name", Nombre), New XAttribute("set", setName))
                 doc.Root.Add(sel)
             End If
 
@@ -1438,6 +1461,7 @@ Public Class Editor_Form
 
             Dim contar = doc.Root.Elements("Preset").Count
             doc.Save(path)
+            WroteFilesToDisk = True
 
 
             If delete Then
@@ -1472,10 +1496,11 @@ Public Class Editor_Form
 
             If delete = False Then
                 If FilesDictionary_class.SliderPresets.Poses.ContainsKey(Keyname) OrElse FilesDictionary_class.SliderPresets.Poses.ContainsKey(KeynameBS) Then
-                    If FilesDictionary_class.SliderPresets.Poses(KeynameActual).Filename.Equals(path, StringComparison.OrdinalIgnoreCase) Then
+                    Dim foundKey = If(FilesDictionary_class.SliderPresets.Poses.ContainsKey(Keyname), Keyname, KeynameBS)
+                    If FilesDictionary_class.SliderPresets.Poses(foundKey).Filename.Equals(path, StringComparison.OrdinalIgnoreCase) Then
                         If MsgBox("Pose " + Nombre + " already exist. Do you want to ovewrite?", vbYesNo, "Warning") = MsgBoxResult.No Then Return False
                     Else
-                        MsgBox("Preset " + Nombre + " already exist in another file ", vbCritical, "Warning")
+                        MsgBox("Pose " + Nombre + " already exist in another file ", vbCritical, "Warning")
                         Return False
                     End If
                 End If
@@ -1650,18 +1675,10 @@ Public Class Editor_Form
         RequestPreviewRedraw()
     End Sub
 
-    Private Sub OutFilTextbox_TextChanged_1(sender As Object, e As EventArgs) Handles OutFilTextbox.TextChanged
-
-    End Sub
-
-    Private Sub OutDirTextbox_TextChanged_1(sender As Object, e As EventArgs) Handles OutDirTextbox.TextChanged
-
-    End Sub
-
     Private Sub SingleBoneCheck_CheckedChanged(sender As Object, e As EventArgs) Handles SingleBoneCheck.CheckedChanged
         EditPreviewControl.Model.SingleBoneSkinning = SingleBoneCheck.Checked
         ComboBoxPoses.Enabled = Not SingleBoneCheck.Checked
-        Render_Changes(True)
+        Process_render_Changes(True)
     End Sub
 
     Private Sub ButtonMakeGradient_Click(sender As Object, e As EventArgs) Handles ButtonMakeGradient.Click
@@ -1671,7 +1688,7 @@ Public Class Editor_Form
         Selected_Material.GrayscaleToPaletteScale = 0.5
         Update_Grayscale()
         Iniciado_Edit()
-        Render_Changes(False)
+        Process_render_Changes(False)
     End Sub
 
     Private Sub ColorComboBox1_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ColorComboBox1.SelectedIndexChanged
@@ -1682,10 +1699,10 @@ Public Class Editor_Form
 
     Private Sub Button8_Click_1(sender As Object, e As EventArgs) Handles ButtonGrowMask.Click
         AddNeighborVerticesOnce(Selected_Shape.MaskedVertices, Selected_Shape.RelatedNifShape.Triangles)
-        Render_Changes(False)
+        Process_render_Changes(False)
     End Sub
 
-    Public Shared Sub AddNeighborVerticesOnce(marked As HashSet(Of Integer), triangles As List(Of NiflySharp.Structs.Triangle))
+    Private Shared Sub AddNeighborVerticesOnce(marked As HashSet(Of Integer), triangles As List(Of NiflySharp.Structs.Triangle))
         If marked.Count = 0 Then Exit Sub
         Dim original = New HashSet(Of Integer)
         original.UnionWith(marked)
@@ -1700,8 +1717,8 @@ Public Class Editor_Form
         Next
 
     End Sub
-    Sub RemoveNeighborVerticesOnce(marked As HashSet(Of Integer), triangles As List(Of NiflySharp.Structs.Triangle))
-        If marked.Count = Selected_Shape.RelatedNifShape.VertexPositions.Count Then Exit Sub
+    Private Shared Sub RemoveNeighborVerticesOnce(marked As HashSet(Of Integer), triangles As List(Of NiflySharp.Structs.Triangle), vertexCount As Integer)
+        If marked.Count = vertexCount Then Exit Sub
         Dim original = New HashSet(Of Integer)
         original.UnionWith(marked)
         For Each tri As NiflySharp.Structs.Triangle In triangles
@@ -1720,9 +1737,9 @@ Public Class Editor_Form
         EditPreviewControl.BrushRadiusPx = NumericMaskRadius.Value
     End Sub
 
-    Private Sub Button8_Click_2(sender As Object, e As EventArgs) Handles Button8.Click
-        RemoveNeighborVerticesOnce(Selected_Shape.MaskedVertices, Selected_Shape.RelatedNifShape.Triangles)
-        Render_Changes(False)
+    Private Sub Button8_Click_2(sender As Object, e As EventArgs) Handles ButtonShrinkMask.Click
+        RemoveNeighborVerticesOnce(Selected_Shape.MaskedVertices, Selected_Shape.RelatedNifShape.Triangles, Selected_Shape.RelatedNifShape.VertexPositions.Count)
+        Process_render_Changes(False)
     End Sub
 
 
@@ -1753,7 +1770,7 @@ Public Class Editor_Form
     End Sub
 
     Private Const trackbarscale As Integer = 100000
-    Private Const RotationConversion As Integer = (180 / Math.PI)
+    Private Const RotationConversion As Single = (180 / Math.PI)
     Private Sub TreeViewSkeleton_AfterSelect(sender As Object, e As TreeViewEventArgs) Handles TreeViewSkeleton.AfterSelect
         Update_Bone_Sliders()
     End Sub
@@ -1947,7 +1964,7 @@ Public Class Editor_Form
 
     Private Sub CheckBox1_CheckedChanged_1(sender As Object, e As EventArgs) Handles RecalculateNormalsCheck.CheckedChanged
         EditPreviewControl.Model.RecalculateNormals = RecalculateNormalsCheck.Checked
-        Render_Changes(True)
+        Process_render_Changes(True)
     End Sub
     Private WithEvents ScrollTimer As New Timer() With {.Interval = 500, .Enabled = False}
     Private pendingValue As Boolean = False
@@ -2039,50 +2056,6 @@ Public Class Editor_Form
         Selected_Slider.OutputPathValue = OutDirTextbox.Text
         Button7.Enabled = False
     End Sub
-    Public Function ComputeInversePoseTransforms() As Dictionary(Of String, Transform_Class)
-
-        Dim invLocals As New Dictionary(Of String, Transform_Class)
-        If Not Skeleton_Class.HasSkeleton OrElse IsNothing(Selected_Pose) Then
-            Return invLocals
-        End If
-
-        For Each kvp In Selected_Pose.Transforms
-            Dim boneName As String = kvp.Key
-
-            ' 1) Matriz GLOBAL de la pose actual
-            Dim Gpose As Matrix4d =
-            Skeleton_Class.
-                SkeletonDictionary(boneName).
-                GetGlobalTransform().ToMatrix4d()
-
-            ' 2) Matriz GLOBAL del bind-pose original
-            Dim Gbind As Matrix4d =
-            Skeleton_Class.
-                SkeletonDictionary(boneName).
-                OriginalGetGlobalTransform().ToMatrix4d()
-
-            ' 3) Matriz GLOBAL del padre en la pose actual
-            Dim parentBone = Skeleton_Class.
-                             SkeletonDictionary(boneName).Parent
-            Dim GposeParent As Matrix4d = Matrix4d.Identity
-            If parentBone IsNot Nothing Then
-                GposeParent = Skeleton_Class.SkeletonDictionary(boneName).Parent.GetGlobalTransform().ToMatrix4d()
-            End If
-
-            ' 4) Pasa Gbind a coordenadas locales del hueso:
-            '    inv(GposeParent) * Gbind
-            Dim invGparent As Matrix4d = GposeParent
-            invGparent.Invert()
-            Dim Linv As Matrix4d = invGparent * Gbind
-
-            ' 5) Crea el Transform_Class local inverso
-            Dim tc As New Transform_Class(Linv)
-
-            invLocals(boneName) = tc
-        Next
-
-        Return invLocals
-    End Function
     Private Sub Button9_Click_1(sender As Object, e As EventArgs) Handles PoseUnBakeButton.Click
         If MsgBox("Are you sure you want to un-bake the pose in the mesh. This will modify the nif vertex positions", vbYesNo, "Warning") = MsgBoxResult.Yes Then
             EditPreviewControl.Model.BakeOrInvertPose(True)
@@ -2279,9 +2252,17 @@ Public Class Editor_Form
         If IsNothing(Selected_Shape) Then Return result
         If Selected_Shape.MaskedVertices.Count = 0 Then Return result
         If IsNothing(Selected_Shape.RelatedNifShape) Then Return result
-        If IsNothing(Selected_Shape.RelatedNifShape.VertexPositions) OrElse Selected_Shape.RelatedNifShape.VertexPositions.Count = 0 Then Return result
-
-        Dim verts = Selected_Shape.RelatedNifShape.VertexPositions
+        ' Use skinned/posed world-space positions (what the user sees); fall back to NIF bind-pose
+        Dim positions As Vector3()
+        Dim geomMesh = EditPreviewControl?.Model?.meshes.FirstOrDefault(Function(m) m.MeshData.Shape Is Selected_Shape)
+        If geomMesh IsNot Nothing AndAlso geomMesh.MeshData.Meshgeometry.Vertices IsNot Nothing AndAlso geomMesh.MeshData.Meshgeometry.Vertices.Length > 0 Then
+            Dim sv = geomMesh.MeshData.Meshgeometry.Vertices
+            positions = sv.Select(Function(v) New Vector3(CSng(v.X), CSng(v.Y), CSng(v.Z))).ToArray()
+        Else
+            If IsNothing(Selected_Shape.RelatedNifShape.VertexPositions) OrElse Selected_Shape.RelatedNifShape.VertexPositions.Count = 0 Then Return result
+            Dim bv = Selected_Shape.RelatedNifShape.VertexPositions
+            positions = bv.Select(Function(v) New Vector3(v.X, v.Y, v.Z)).ToArray()
+        End If
 
         Dim limit As Single = 0
         Dim first As Boolean = True
@@ -2289,80 +2270,80 @@ Public Class Editor_Form
         Select Case directionIndex
             Case 0 ' Above  -> desde el Z más bajo, todo hacia arriba
                 For Each idx In Selected_Shape.MaskedVertices
-                    Dim v As Single = verts(idx).Z
+                    Dim v As Single = positions(idx).Z
                     If first OrElse v < limit Then
                         limit = v
                         first = False
                     End If
                 Next
 
-                For i = 0 To verts.Count - 1
-                    If verts(i).Z >= limit Then result.Add(i)
+                For i = 0 To positions.Length - 1
+                    If positions(i).Z >= limit Then result.Add(i)
                 Next
 
             Case 1 ' Below -> desde el Z más alto, todo hacia abajo
                 For Each idx In Selected_Shape.MaskedVertices
-                    Dim v As Single = verts(idx).Z
+                    Dim v As Single = positions(idx).Z
                     If first OrElse v > limit Then
                         limit = v
                         first = False
                     End If
                 Next
 
-                For i = 0 To verts.Count - 1
-                    If verts(i).Z <= limit Then result.Add(i)
+                For i = 0 To positions.Length - 1
+                    If positions(i).Z <= limit Then result.Add(i)
                 Next
 
             Case 2 ' Left -> desde el X más a la derecha, todo hacia la izquierda
                 For Each idx In Selected_Shape.MaskedVertices
-                    Dim v As Single = verts(idx).X
+                    Dim v As Single = positions(idx).X
                     If first OrElse v > limit Then
                         limit = v
                         first = False
                     End If
                 Next
 
-                For i = 0 To verts.Count - 1
-                    If verts(i).X <= limit Then result.Add(i)
+                For i = 0 To positions.Length - 1
+                    If positions(i).X <= limit Then result.Add(i)
                 Next
 
             Case 3 ' Right -> desde el X más a la izquierda, todo hacia la derecha
                 For Each idx In Selected_Shape.MaskedVertices
-                    Dim v As Single = verts(idx).X
+                    Dim v As Single = positions(idx).X
                     If first OrElse v < limit Then
                         limit = v
                         first = False
                     End If
                 Next
 
-                For i = 0 To verts.Count - 1
-                    If verts(i).X >= limit Then result.Add(i)
+                For i = 0 To positions.Length - 1
+                    If positions(i).X >= limit Then result.Add(i)
                 Next
 
             Case 4 ' Front -> desde el Y más atrás, todo hacia delante
                 For Each idx In Selected_Shape.MaskedVertices
-                    Dim v As Single = verts(idx).Y
+                    Dim v As Single = positions(idx).Y
                     If first OrElse v < limit Then
                         limit = v
                         first = False
                     End If
                 Next
 
-                For i = 0 To verts.Count - 1
-                    If verts(i).Y >= limit Then result.Add(i)
+                For i = 0 To positions.Length - 1
+                    If positions(i).Y >= limit Then result.Add(i)
                 Next
 
             Case 5 ' Back -> desde el Y más adelante, todo hacia atrás
                 For Each idx In Selected_Shape.MaskedVertices
-                    Dim v As Single = verts(idx).Y
+                    Dim v As Single = positions(idx).Y
                     If first OrElse v > limit Then
                         limit = v
                         first = False
                     End If
                 Next
 
-                For i = 0 To verts.Count - 1
-                    If verts(i).Y <= limit Then result.Add(i)
+                For i = 0 To positions.Length - 1
+                    If positions(i).Y <= limit Then result.Add(i)
                 Next
         End Select
 
@@ -2413,4 +2394,47 @@ Public Class Editor_Form
     End Sub
 
 
+
+
+    Private Sub ButtonMaskOccluded_Click(sender As Object, e As EventArgs) Handles ButtonMaskOccluded.Click
+        If IsNothing(Selected_Shape) OrElse IsNothing(EditPreviewControl?.Model) Then Exit Sub
+
+        Dim targetMesh = EditPreviewControl.Model.meshes.FirstOrDefault(Function(m) m.MeshData.Shape Is Selected_Shape)
+        If IsNothing(targetMesh) OrElse IsNothing(targetMesh.MeshData.Meshgeometry.Vertices) Then
+            MsgBox("The selected shape has no rendered geometry. Render the model first.", vbExclamation, "Mask Occluded")
+            Exit Sub
+        End If
+
+        Dim occluders = EditPreviewControl.Model.meshes.
+            Where(Function(m) m.MeshData.Shape IsNot Selected_Shape AndAlso
+                               Not m.MeshData.Shape.RenderHide AndAlso
+                               m.MeshData.Meshgeometry.Vertices IsNot Nothing)
+
+        Using frm As New OcclusionMask_Form(targetMesh, occluders)
+            AddHandler frm.ApplyOcclusion, AddressOf ApplyOclusion
+            frm.ShowDialog(Me)
+            RemoveHandler frm.ApplyOcclusion, AddressOf ApplyOclusion
+        End Using
+    End Sub
+    Private Sub ApplyOclusion(frm As OcclusionMask_Form)
+        If frm.ResultVertices IsNot Nothing Then
+            Selected_Shape.MaskedVertices.UnionWith(frm.ResultVertices)
+            Process_render_Changes(False)
+        End If
+    End Sub
+    Private Sub ButtonConform_Click(sender As Object, e As EventArgs) Handles ButtonConform.Click
+        If IsNothing(Selected_Shape) OrElse IsNothing(Selected_Slider) Then Exit Sub
+        If Selected_Slider.Shapes.Count < 2 Then
+            MsgBox("The project needs at least two shapes to conform (source + target).", vbInformation, "Conform Sliders")
+            Exit Sub
+        End If
+        Using frm As New Conform_Form(Selected_Slider, Selected_Shape)
+            AddHandler frm.Apply_Conformed, AddressOf ApplyConform
+            frm.ShowDialog(Me)
+            RemoveHandler frm.Apply_Conformed, AddressOf ApplyConform
+        End Using
+    End Sub
+    Private Sub ApplyConform(frm As Conform_Form)
+        Process_render_Changes(True)
+    End Sub
 End Class

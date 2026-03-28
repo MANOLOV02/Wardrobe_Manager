@@ -82,7 +82,10 @@ Public NotInheritable Class SkeletonClothOverlayHelper_Class
                 If Skeleton_Class.SkeletonDictionary.ContainsKey(shapeBoneName) Then Continue For
 
                 Dim targetIndex As Integer = -1
-                If Not hkxBoneLookup.TryGetValue(shapeBoneName, targetIndex) Then Continue For
+                If Not hkxBoneLookup.TryGetValue(shapeBoneName, targetIndex) Then
+                    Debugger.Break()
+                    Continue For
+                End If
                 EnsureLiveInjectedBone(targetIndex, skeleton, injectedBones, shapeName, shapeBoneName)
             Next
         Catch ex As Exception
@@ -168,4 +171,6 @@ Public NotInheritable Class SkeletonClothOverlayHelper_Class
         If String.IsNullOrWhiteSpace(name) Then Return String.Empty
         Return name.Trim().ToUpperInvariant()
     End Function
+
+
 End Class

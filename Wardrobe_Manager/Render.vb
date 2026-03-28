@@ -994,12 +994,12 @@ Public Class PreviewModel
                     If MaterialBase.AlphaBlendMode = AlphaBlendModeType.Standard Then Return True
                     If MaterialBase.AlphaBlendMode = AlphaBlendModeType.Multiplicative Then Return True
                     If MaterialBase.AlphaBlendMode = AlphaBlendModeType.Additive Then Return True
-                    If MaterialBase.AlphaBlendMode = AlphaBlendModeType.Unknown Then Return GetAlphaFromShape()
+                    If MaterialBase.AlphaBlendMode = AlphaBlendModeType.Unknown Then Return GetAlphaFromShape() OrElse MaterialBase.Alpha < 1.0F
                     Debugger.Break()
                     Return False
                 End Get
             End Property
-            Private Function GetAlphaFromShape()
+            Private Function GetAlphaFromShape() As Boolean
                 If Not IsNothing(ParentMeshData.Shape.RelatedNifShape.AlphaPropertyRef) AndAlso ParentMeshData.Shape.RelatedNifShape.AlphaPropertyRef.Index <> -1 Then
                     Dim alp = CType(ParentMeshData.Shape.ParentSliderSet.NIFContent.Blocks(ParentMeshData.Shape.RelatedNifShape.AlphaPropertyRef.Index), NiflySharp.Blocks.NiAlphaProperty)
                     If alp.Flags.AlphaBlend Then
