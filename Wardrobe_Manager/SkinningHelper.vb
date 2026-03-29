@@ -486,7 +486,121 @@ Public Class SkinningHelper
 
     End Sub
 
+    ''' <summary>
+    ''' Snapshots the separate per-vertex arrays from a BSTriShape.
+    ''' UVs are converted from TexCoord to Vector3(U,V,0) for SetUVs compatibility.
+    ''' Must be called BEFORE SetVertexDataSSE/SetVertexData.
+    ''' </summary>
+    Public Shared Function SnapshotSeparateArrays(shape As BSTriShape) As ShapeArrays
+        Dim snap As New ShapeArrays()
+        snap.Positions = shape.VertexPositions?.ToList()
+        If shape.HasNormals Then snap.Normals = shape.Normals?.ToList()
+        If shape.HasTangents Then
+            snap.Tangents = shape.Tangents?.ToList()
+            snap.Bitangents = shape.Bitangents?.ToList()
+        End If
+        If shape.HasUVs Then snap.UVs = shape.UVs?.Select(
+            Function(u) New System.Numerics.Vector3(u.U, u.V, 0)).ToList()
+        If shape.HasVertexColors Then snap.VertexColors = shape.VertexColors?.ToList()
+        If shape.HasEyeData Then snap.EyeData = shape.EyeData?.ToList()
+        Return snap
+    End Function
+
+    ''' <summary>
+    ''' Applies packed vertex data, separate per-vertex arrays, and triangles to a BSTriShape.
+    ''' Single authoritative point for updating shape geometry when vertex count changes.
+    ''' Same contract as InjectToTrishape but works with raw NIF arrays instead of SkinnedGeometry.
+    ''' </summary>
+    Public Shared Sub ApplyShapeGeometry(
+            shape As BSTriShape,
+            version As NiVersion,
+            isSSE As Boolean,
+            vertexDataSSE As List(Of BSVertexDataSSE),
+            vertexData As List(Of BSVertexData),
+            triangles As List(Of Triangle),
+            arrays As ShapeArrays)
+        If shape Is Nothing Then Return
+
+        If isSSE Then
+            shape.SetVertexDataSSE(vertexDataSSE)
+        Else
+            shape.SetVertexData(vertexData)
+        End If
+
+        If arrays IsNot Nothing Then
+            If arrays.Positions IsNot Nothing Then shape.SetVertexPositions(arrays.Positions)
+            If arrays.Normals IsNot Nothing AndAlso shape.HasNormals Then shape.SetNormals(arrays.Normals)
+            If arrays.Tangents IsNot Nothing AndAlso shape.HasTangents Then shape.SetTangents(arrays.Tangents)
+            If arrays.Bitangents IsNot Nothing AndAlso shape.HasTangents Then shape.SetBitangents(arrays.Bitangents)
+            If arrays.UVs IsNot Nothing AndAlso shape.HasUVs Then shape.SetUVs(arrays.UVs)
+            If arrays.VertexColors IsNot Nothing AndAlso shape.HasVertexColors Then shape.SetVertexColors(arrays.VertexColors)
+            If arrays.EyeData IsNot Nothing AndAlso shape.HasEyeData Then shape.SetEyeData(arrays.EyeData)
+        End If
+
+        shape.SetTriangles(version, triangles)
+    End Sub
+
 End Class
+
+''' <summary>
+''' Holds per-vertex arrays in the types expected by BSTriShape.Set* methods.
+''' </summary>
+Public Class ShapeArrays
+    Public Positions As List(Of System.Numerics.Vector3)
+    Public Normals As List(Of System.Numerics.Vector3)
+    Public Tangents As List(Of System.Numerics.Vector3)
+    Public Bitangents As List(Of System.Numerics.Vector3)
+    Public UVs As List(Of System.Numerics.Vector3)
+    Public VertexColors As List(Of NiflySharp.Structs.Color4)
+    Public EyeData As List(Of Single)
+
+    ''' <summary>Returns a new ShapeArrays containing only elements at the given original indices.</summary>
+    Public Function FilterByIndices(indices As HashSet(Of Integer)) As ShapeArrays
+        Dim r As New ShapeArrays()
+        If Positions IsNot Nothing Then r.Positions = Positions.Where(Function(x, i) indices.Contains(i)).ToList()
+        If Normals IsNot Nothing Then r.Normals = Normals.Where(Function(x, i) indices.Contains(i)).ToList()
+        If Tangents IsNot Nothing Then r.Tangents = Tangents.Where(Function(x, i) indices.Contains(i)).ToList()
+        If Bitangents IsNot Nothing Then r.Bitangents = Bitangents.Where(Function(x, i) indices.Contains(i)).ToList()
+        If UVs IsNot Nothing Then r.UVs = UVs.Where(Function(x, i) indices.Contains(i)).ToList()
+        If VertexColors IsNot Nothing Then r.VertexColors = VertexColors.Where(Function(x, i) indices.Contains(i)).ToList()
+        If EyeData IsNot Nothing Then r.EyeData = EyeData.Where(Function(x, i) indices.Contains(i)).ToList()
+        Return r
+    End Function
+
+    ''' <summary>Appends all arrays from another ShapeArrays (for merge/concatenation).</summary>
+    Public Sub Append(other As ShapeArrays)
+        If other Is Nothing Then Return
+        If other.Positions IsNot Nothing Then
+            If Positions Is Nothing Then Positions = New List(Of System.Numerics.Vector3)()
+            Positions.AddRange(other.Positions)
+        End If
+        If other.Normals IsNot Nothing Then
+            If Normals Is Nothing Then Normals = New List(Of System.Numerics.Vector3)()
+            Normals.AddRange(other.Normals)
+        End If
+        If other.Tangents IsNot Nothing Then
+            If Tangents Is Nothing Then Tangents = New List(Of System.Numerics.Vector3)()
+            Tangents.AddRange(other.Tangents)
+        End If
+        If other.Bitangents IsNot Nothing Then
+            If Bitangents Is Nothing Then Bitangents = New List(Of System.Numerics.Vector3)()
+            Bitangents.AddRange(other.Bitangents)
+        End If
+        If other.UVs IsNot Nothing Then
+            If UVs Is Nothing Then UVs = New List(Of System.Numerics.Vector3)()
+            UVs.AddRange(other.UVs)
+        End If
+        If other.VertexColors IsNot Nothing Then
+            If VertexColors Is Nothing Then VertexColors = New List(Of NiflySharp.Structs.Color4)()
+            VertexColors.AddRange(other.VertexColors)
+        End If
+        If other.EyeData IsNot Nothing Then
+            If EyeData Is Nothing Then EyeData = New List(Of Single)()
+            EyeData.AddRange(other.EyeData)
+        End If
+    End Sub
+End Class
+
 Public Class MorphingHelper
     Private Shared Sub LoadMorphTargets(shape As Shape_class, ByRef Geometry As SkinnedGeometry)
         ' 1) Inicializar el diccionario

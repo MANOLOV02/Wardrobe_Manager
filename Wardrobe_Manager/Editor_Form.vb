@@ -1,4 +1,4 @@
-﻿Imports System.ComponentModel
+Imports System.ComponentModel
 Imports System.Diagnostics.Eventing.Reader
 Imports System.Globalization
 Imports System.IO
@@ -226,7 +226,7 @@ Public Class Editor_Form
             Next
         Next
 
-        ' Lookup O(1): name → lista de PresetSlider_Class por size
+        ' Lookup O(1): name ? lista de PresetSlider_Class por size
         Dim presetLookup As Dictionary(Of String, List(Of PresetSlider_Class)) =
             Selected_Preset.Sliders.
             GroupBy(Function(s) s.Name, StringComparer.OrdinalIgnoreCase).
@@ -464,6 +464,7 @@ Public Class Editor_Form
         Dim clone As New SliderSet_Class(cloneNode, Seleccion.ParentOSP)
         OSP_Project_Class.Load_and_CHeck_Project(clone)
         OSP_Project_Class.Load_and_Check_Shapedata(clone, True)
+        clone.BypassDiskShapeDataLoad = True
         CheckBoxZappedShapes.Checked = clone.KeepZappedShapes
         CheckBoxPreventMorph.Checked = clone.PreventMorphFile
         CheckBoxGenweight.Checked = clone.GenWeights
@@ -490,7 +491,7 @@ Public Class Editor_Form
             ComboBoxMaterials.Items.Clear()
             HHNumericUpDown.Value = 0
             ButtonRemovePhysics.Enabled = False
-            Button1.Enabled = False
+            ButtonRemoveSHape.Enabled = False
             ButtonCancel.Enabled = False
             ButtonSave.Enabled = False
             ButtonMatSave.Enabled = False
@@ -511,7 +512,7 @@ Public Class Editor_Form
             If ComboBoxShapes.Items.Count > 0 Then Selected_Shape = Selected_Slider.Shapes(0)
             HHNumericUpDown.Value = Selected_Slider.HighHeelHeight
             ButtonRemovePhysics.Enabled = Selected_Slider.HasPhysics
-            Button1.Enabled = ComboBoxShapes.Items.Count > 1
+            ButtonRemoveSHape.Enabled = ComboBoxShapes.Items.Count > 1
             ButtonCancel.Enabled = False
             ButtonSave.Enabled = False
             ButtonMatSave.Enabled = False
@@ -534,7 +535,7 @@ Public Class Editor_Form
         RenderCheckVertexColors.Checked = Selected_Shape.ShowVertexColor
         ColorComboBox1.SelectedColor = Selected_Shape.Wirecolor
         TrackBar1.Value = Math.Max(0, Math.Min(100, CInt(Selected_Shape.WireAlpha * 100)))
-        Button1.Enabled = ComboBoxShapes.Items.Count > 1
+        ButtonRemoveSHape.Enabled = ComboBoxShapes.Items.Count > 1
         Habilita_Mask_Buttons()
         Lee_Materials()
         MarcaBones()
@@ -760,6 +761,13 @@ Public Class Editor_Form
 
     Private Sub ButtonRemovePhysics_Click(sender As Object, e As EventArgs) Handles ButtonRemovePhysics.Click
         If MsgBox("This cant be undone, do you want to delete all physics", vbYesNo, "Remove Physics") = MsgBoxResult.Yes Then
+            Dim report As String = ""
+            If MsgBox("do yow want to try to reweight vertex with physics to base skeleton", vbYesNo, "Remove Physics") = MsgBoxResult.Yes Then
+                If PhysicsWeightCollapseHelper.TryCollapseInjectedWeightsAndExpandPaletteBeforeRemovingPhysics(Selected_Slider, report) = False Then
+                    MsgBox(report, vbExclamation, "Remove Physics")
+                    Exit Sub
+                End If
+            End If
             Selected_Slider.NIFContent.RemoveBlocksOfType(Of BSClothExtraData)()
             Selected_Slider.InvalidateAllLookupCaches()
             Process_render_Changes(True)
@@ -769,8 +777,7 @@ Public Class Editor_Form
         End If
     End Sub
 
-
-    Private Sub Button1_Click(sender As Object, e As EventArgs) Handles Button1.Click
+    Private Sub Button1_Click(sender As Object, e As EventArgs) Handles ButtonRemoveSHape.Click
         Dim removedIndex As Integer = ComboBoxShapes.SelectedIndex
         Selected_Slider.RemoveShape(Selected_Shape)
         If removedIndex >= 0 AndAlso removedIndex < ComboBoxShapes.Items.Count Then
@@ -1111,7 +1118,7 @@ Public Class Editor_Form
         ZapLoad.Enabled = zap And enab
         ZapExclude.Enabled = zap And enab
         ZapInclude.Enabled = zap And enab
-        ZapCreate.Enabled = zap And enab
+        ZapCreate.Enabled = enab
         ZapInverted.Enabled = zap And enab
         Zap_Zap.Enabled = zap And enab
         Zap_Fix.Enabled = zap And enab
@@ -1198,14 +1205,34 @@ Public Class Editor_Form
 
         If SelectedZap.Datas.Where(Function(pf) pf.RelatedShape Is Selected_Shape And pf.Islocal).Select(Function(pq) pq.RelatedLocalOSDBlocks).Count > 1 Then Throw New Exception
 
-        ' Inflate?
-        Dim rawVerts = Array.Empty(Of Vector3)
-        Dim Center As Vector3
+        ' Inflate? � normals in NIF local space (pre-skinning), consistent with OSD delta space.
+        ' Priority: (1) current viewport normals transformed back to local via M^T (covers morphs +
+        ' RecalculateNormals); (2) NIF base normals; (3) vertex?center fallback.
+        Dim rawNorms = Array.Empty(Of Vector3)
         If CheckBoxInflate.Checked Then
-            rawVerts = Selected_Shape.RelatedNifShape.VertexPositions.Select(Function(v) New Vector3(v.X, v.Y, v.Z)).ToArray
-            Center = New Vector3(Selected_Shape.RelatedNifShape.BoundingVolume.Sphere.Center.X, Selected_Shape.RelatedNifShape.BoundingVolume.Sphere.Center.Y, Selected_Shape.RelatedNifShape.BoundingVolume.Sphere.Center.Z)
+            Dim renderMesh = EditPreviewControl.Model.meshes.FirstOrDefault(Function(m) m.MeshData.Shape Is Selected_Shape)
+            If renderMesh IsNot Nothing Then
+                ' World-space normals ? NIF local via transpose of per-vertex skin matrix.
+                ' For FO4 skin matrices (rotation-dominant), M^T � M^{-1} so this is exact
+                ' up to a uniform-scale factor that cancels after normalization.
+                Dim geom = renderMesh.MeshData.Meshgeometry
+                rawNorms = Enumerable.Range(0, geom.Normals.Length) _
+                    .Select(Function(i)
+                                Dim localN = Vector3d.TransformNormal(geom.Normals(i), geom.PerVertexSkinMatrix(i).Transposed())
+                                Return SafeNormalize(New Vector3(CSng(localN.X), CSng(localN.Y), CSng(localN.Z)))
+                            End Function).ToArray()
+            Else
+                Dim tri = Selected_Shape.RelatedNifShape
+                If tri.HasNormals Then
+                    rawNorms = tri.Normals.Select(Function(n) SafeNormalize(New Vector3(n.X, n.Y, n.Z))).ToArray()
+                Else
+                    Dim sphereCenter = New Vector3(tri.BoundingVolume.Sphere.Center.X,
+                                                   tri.BoundingVolume.Sphere.Center.Y,
+                                                   tri.BoundingVolume.Sphere.Center.Z)
+                    rawNorms = tri.VertexPositions.Select(Function(v) SafeNormalize(New Vector3(v.X, v.Y, v.Z) - sphereCenter)).ToArray()
+                End If
+            End If
         End If
-
 
         ' Nuevos
         Dim Norm As Vector3
@@ -1222,8 +1249,8 @@ Public Class Editor_Form
                 block.DataDiff.Add(New OSD_DataDiff_Class With {.Index = ver, .X = Diff.X, .Y = Diff.Y, .Z = Diff.Z})
             Else
                 If CheckBoxInflate.Checked Then
-                    Norm = Vector3.Normalize(rawVerts(ver) - Center)
-                    vector = vector * Norm - vector * Norm / 2
+                    Norm = rawNorms(ver)
+                    vector = BuildInflateDeltaLocal(Norm, Diff)
                 End If
                 block.DataDiff.Add(New OSD_DataDiff_Class With {.Index = ver, .X = vector.X, .Y = vector.Y, .Z = vector.Z})
             End If
@@ -1241,15 +1268,15 @@ Public Class Editor_Form
                     If IncrementalCheck.Checked Then
                         Dim old As New Vector3(dd.X, dd.Y, dd.Z)
                         If CheckBoxInflate.Checked Then
-                            Norm = Vector3.Normalize(rawVerts(dd.Index) - Center)
-                            vector = old + vector * Norm - vector * Norm / 2
+                            Norm = rawNorms(dd.Index)
+                            vector = old + BuildInflateDeltaLocal(Norm, Diff)
                         Else
                             vector += old
                         End If
                     Else
                         If CheckBoxInflate.Checked Then
-                            Norm = Vector3.Normalize(rawVerts(dd.Index) - Center)
-                            vector = vector * Norm - vector * Norm / 2
+                            Norm = rawNorms(dd.Index)
+                            vector = BuildInflateDeltaLocal(Norm, Diff)
                         End If
                     End If
                     dd.X = vector.X
@@ -1291,7 +1318,7 @@ Public Class Editor_Form
         Process_render_Changes(False)
     End Sub
     Private Sub Cambia_Tipo_Zap()
-        If IsNothing(SelectedZap) Then Exit Sub
+        If IsNothing(SelectedZap) OrElse ListView2.SelectedItems.Count = 0 Then Exit Sub
         Dim tipo As String = "Zap"
         If SelectedZap.IsZap = True Then
             GroupBoxZaps.Enabled = False
@@ -1707,9 +1734,9 @@ Public Class Editor_Form
         Dim original = New HashSet(Of Integer)
         original.UnionWith(marked)
         For Each tri As NiflySharp.Structs.Triangle In triangles
-            ' si alguno de los tres ya está marcado...
+            ' si alguno de los tres ya est� marcado...
             If original.Contains(tri(0)) OrElse original.Contains(tri(1)) OrElse original.Contains(tri(2)) Then
-                ' ...añadimos los tres al HashSet
+                ' ...a�adimos los tres al HashSet
                 marked.Add(tri(0))
                 marked.Add(tri(1))
                 marked.Add(tri(2))
@@ -1722,9 +1749,9 @@ Public Class Editor_Form
         Dim original = New HashSet(Of Integer)
         original.UnionWith(marked)
         For Each tri As NiflySharp.Structs.Triangle In triangles
-            ' si alguno de los tres ya está marcado...
+            ' si alguno de los tres ya est� marcado...
             If Not original.Contains(tri(0)) OrElse Not original.Contains(tri(1)) OrElse Not original.Contains(tri(2)) Then
-                ' ...añadimos los tres al HashSet
+                ' ...a�adimos los tres al HashSet
                 marked.Remove(tri(0))
                 marked.Remove(tri(1))
                 marked.Remove(tri(2))
@@ -1971,12 +1998,12 @@ Public Class Editor_Form
 
     Public Sub New()
 
-        ' Esta llamada es exigida por el diseñador.
+        ' Esta llamada es exigida por el dise�ador.
         InitializeComponent()
         CheckBoxSaveSAF.Checked = Config_App.Current.Setting_ExportSam
         CheckBoxRenderFloor.Checked = Config_App.Current.Settings_RenderGrid.Enabled
         'ThemeManager.SetTheme(Config_App.Current.theme, Me)
-        ' Agregue cualquier inicialización después de la llamada a InitializeComponent().
+        ' Agregue cualquier inicializaci�n despu�s de la llamada a InitializeComponent().
 
     End Sub
 
@@ -2252,6 +2279,7 @@ Public Class Editor_Form
         If IsNothing(Selected_Shape) Then Return result
         If Selected_Shape.MaskedVertices.Count = 0 Then Return result
         If IsNothing(Selected_Shape.RelatedNifShape) Then Return result
+
         ' Use skinned/posed world-space positions (what the user sees); fall back to NIF bind-pose
         Dim positions As Vector3()
         Dim geomMesh = EditPreviewControl?.Model?.meshes.FirstOrDefault(Function(m) m.MeshData.Shape Is Selected_Shape)
@@ -2264,88 +2292,58 @@ Public Class Editor_Form
             positions = bv.Select(Function(v) New Vector3(v.X, v.Y, v.Z)).ToArray()
         End If
 
+        ' Above/Below and Left/Right use camera-relative axes so the result always matches what
+        ' the user sees on screen regardless of camera angle or NIF local coordinate conventions.
+        ' Front/Back keep world-Y (character anatomical front/back, independent of camera angle).
+        Dim cam = EditPreviewControl?.camera
+        Dim screenUp As Vector3 = If(cam IsNot Nothing, cam.upPlane, Vector3.UnitZ)
+        Dim screenRight As Vector3 = If(cam IsNot Nothing, cam.right, Vector3.UnitX)
+        ' Forward points from scene toward camera eye; higher dot = closer to viewer.
+        Dim screenForward As Vector3 = If(cam IsNot Nothing, cam.Forward, -Vector3.UnitY)
+
+        ' Determine projection axis and selection direction (True = select >= limit, False = select <= limit)
+        Dim axis As Vector3
+        Dim selectHigh As Boolean
+        Select Case directionIndex
+            Case 0 : axis = screenUp : selectHigh = True     ' Above: from lowest screen-up point of mask, select upward
+            Case 1 : axis = screenUp : selectHigh = False    ' Below: from highest screen-up point of mask, select downward
+            Case 2 : axis = screenRight : selectHigh = False ' Left:  from rightmost screen-right point, select leftward
+            Case 3 : axis = screenRight : selectHigh = True  ' Right: from leftmost screen-right point, select rightward
+            Case 4 : axis = screenForward : selectHigh = True  ' Front: from deepest masked point, extend toward camera
+            Case 5 : axis = screenForward : selectHigh = False ' Back:  from closest masked point, extend away from camera
+            Case Else : Return result
+        End Select
+
+        ' Project all vertices onto the axis once
+        Dim projections(positions.Length - 1) As Single
+        For i = 0 To positions.Length - 1
+            projections(i) = Vector3.Dot(positions(i), axis)
+        Next
+
+        ' Find the limit from the masked vertices
+        ' selectHigh=True  → limit = MIN projection (extend from the lowest masked point upward/rightward)
+        ' selectHigh=False → limit = MAX projection (extend from the highest masked point downward/leftward)
         Dim limit As Single = 0
         Dim first As Boolean = True
+        For Each idx In Selected_Shape.MaskedVertices
+            Dim v As Single = projections(idx)
+            If first Then
+                limit = v : first = False
+            ElseIf selectHigh AndAlso v < limit Then
+                limit = v
+            ElseIf Not selectHigh AndAlso v > limit Then
+                limit = v
+            End If
+        Next
 
-        Select Case directionIndex
-            Case 0 ' Above  -> desde el Z más bajo, todo hacia arriba
-                For Each idx In Selected_Shape.MaskedVertices
-                    Dim v As Single = positions(idx).Z
-                    If first OrElse v < limit Then
-                        limit = v
-                        first = False
-                    End If
-                Next
-
-                For i = 0 To positions.Length - 1
-                    If positions(i).Z >= limit Then result.Add(i)
-                Next
-
-            Case 1 ' Below -> desde el Z más alto, todo hacia abajo
-                For Each idx In Selected_Shape.MaskedVertices
-                    Dim v As Single = positions(idx).Z
-                    If first OrElse v > limit Then
-                        limit = v
-                        first = False
-                    End If
-                Next
-
-                For i = 0 To positions.Length - 1
-                    If positions(i).Z <= limit Then result.Add(i)
-                Next
-
-            Case 2 ' Left -> desde el X más a la derecha, todo hacia la izquierda
-                For Each idx In Selected_Shape.MaskedVertices
-                    Dim v As Single = positions(idx).X
-                    If first OrElse v > limit Then
-                        limit = v
-                        first = False
-                    End If
-                Next
-
-                For i = 0 To positions.Length - 1
-                    If positions(i).X <= limit Then result.Add(i)
-                Next
-
-            Case 3 ' Right -> desde el X más a la izquierda, todo hacia la derecha
-                For Each idx In Selected_Shape.MaskedVertices
-                    Dim v As Single = positions(idx).X
-                    If first OrElse v < limit Then
-                        limit = v
-                        first = False
-                    End If
-                Next
-
-                For i = 0 To positions.Length - 1
-                    If positions(i).X >= limit Then result.Add(i)
-                Next
-
-            Case 4 ' Front -> desde el Y más atrás, todo hacia delante
-                For Each idx In Selected_Shape.MaskedVertices
-                    Dim v As Single = positions(idx).Y
-                    If first OrElse v < limit Then
-                        limit = v
-                        first = False
-                    End If
-                Next
-
-                For i = 0 To positions.Length - 1
-                    If positions(i).Y >= limit Then result.Add(i)
-                Next
-
-            Case 5 ' Back -> desde el Y más adelante, todo hacia atrás
-                For Each idx In Selected_Shape.MaskedVertices
-                    Dim v As Single = positions(idx).Y
-                    If first OrElse v > limit Then
-                        limit = v
-                        first = False
-                    End If
-                Next
-
-                For i = 0 To positions.Length - 1
-                    If positions(i).Y <= limit Then result.Add(i)
-                Next
-        End Select
+        ' Select vertices on the correct side of the limit
+        For i = 0 To positions.Length - 1
+            If selectHigh Then
+                If projections(i) >= limit Then result.Add(i)
+            Else
+                If projections(i) <= limit Then result.Add(i)
+            End If
+        Next
 
         Return result
     End Function
@@ -2396,6 +2394,80 @@ Public Class Editor_Form
 
 
 
+    Private Sub ButtonSplitShape_Click(sender As Object, e As EventArgs) Handles ButtonSplitShape.Click
+        If Not SplitShapeHelper.CanSplit(Selected_Shape) Then
+            MsgBox("Select a shape that has masked vertices.", vbInformation, "Split Shape")
+            Exit Sub
+        End If
+        Dim totalVerts = Selected_Shape.RelatedNifShape.VertexPositions.Count
+        Dim maskedCount = Selected_Shape.MaskedVertices.Count
+        Dim msg = $"Split '{Selected_Shape.Target}' into two shapes?" & vbCrLf &
+                  "  � Original keeps the non-fully-masked geometry and the cut border." & vbCrLf &
+                  $"  � New shape '{Selected_Shape.Target}_Split' gets fully masked triangles." & vbCrLf & vbCrLf &
+                  "Triangles touching both groups stay on the original shape to avoid a visible gap. Changes stay in memory until you save."
+        If MsgBox(msg, vbYesNo + vbQuestion, "Split Shape") <> MsgBoxResult.Yes Then Exit Sub
+        Try
+            Dim origShapeIdx = Selected_Slider.Shapes.IndexOf(Selected_Shape)
+            SplitShapeHelper.Split(Selected_Shape, Selected_Slider)
+            ' The split shape is inserted right after the original in Shapes
+            Dim splitShape = Selected_Slider.Shapes(origShapeIdx + 1)
+            ComboBoxShapes.Items.Insert(ComboBoxShapes.SelectedIndex + 1, splitShape.Nombre)
+            ButtonRemoveSHape.Enabled = ComboBoxShapes.Items.Count > 1
+            Iniciado_Edit()
+            Process_render_Changes(True)
+        Catch ex As Exception
+            MsgBox("Split failed: " & ex.Message, vbCritical, "Split Shape")
+        End Try
+    End Sub
+    Private Shared Function SafeNormalize(v As Vector3) As Vector3
+        If v.LengthSquared <= 0.000001F Then Return Vector3.Zero
+        Return Vector3.Normalize(v)
+    End Function
+
+    Private Shared Function BuildInflateDeltaLocal(localNormal As Vector3, axisAmounts As Vector3) As Vector3
+        Dim n = SafeNormalize(localNormal)
+        If n.LengthSquared <= 0.000001F Then Return Vector3.Zero
+
+        Dim amount As Single =
+        (n.X * n.X) * axisAmounts.X +
+        (n.Y * n.Y) * axisAmounts.Y +
+        (n.Z * n.Z) * axisAmounts.Z
+
+        Return n * amount
+    End Function
+
+    Private Sub ButtonMergeShapes_Click(sender As Object, e As EventArgs) Handles ButtonMergeShapes.Click
+        If IsNothing(Selected_Shape) OrElse IsNothing(Selected_Slider) Then Exit Sub
+        If Selected_Slider.Shapes.Count < 2 Then
+            MsgBox("Need at least two shapes to merge.", vbInformation, "Merge Shapes")
+            Exit Sub
+        End If
+        Using frm As New MergeShapes_Form(Selected_Shape, Selected_Slider)
+            If frm.ShowDialog(Me) <> DialogResult.OK Then Exit Sub
+            Try
+                MergeShapesHelper.Merge(frm.TargetShape, frm.DonorShapes, Selected_Slider)
+                ' Clear stale meshes immediately so the render timer can't draw removed donors
+                EditPreviewControl.Model.Clean(False)
+                ' Remove donor entries from combobox
+                For Each donor In frm.DonorShapes
+                    Dim idx = ComboBoxShapes.Items.IndexOf(donor.Nombre)
+                    If idx >= 0 Then ComboBoxShapes.Items.RemoveAt(idx)
+                Next
+                ' If target changed name (it doesn't, but ensure selection is correct)
+                Dim targetIdx = ComboBoxShapes.Items.IndexOf(frm.TargetShape.Nombre)
+                If targetIdx >= 0 Then ComboBoxShapes.SelectedIndex = targetIdx
+                ButtonRemoveSHape.Enabled = ComboBoxShapes.Items.Count > 1
+                _LastBonesSignature = ""
+                _LastSliderLayoutSignature = ""
+                Lee_Bones()
+                Iniciado_Edit()
+                Process_render_Changes(True)
+            Catch ex As Exception
+                MsgBox("Merge failed: " & ex.Message, vbCritical, "Merge Shapes")
+            End Try
+        End Using
+    End Sub
+
     Private Sub ButtonMaskOccluded_Click(sender As Object, e As EventArgs) Handles ButtonMaskOccluded.Click
         If IsNothing(Selected_Shape) OrElse IsNothing(EditPreviewControl?.Model) Then Exit Sub
 
@@ -2438,3 +2510,4 @@ Public Class Editor_Form
         Process_render_Changes(True)
     End Sub
 End Class
+

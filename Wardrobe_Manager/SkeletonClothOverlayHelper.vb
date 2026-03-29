@@ -1,4 +1,5 @@
 ﻿Imports System.Linq
+Imports NiflySharp
 Imports NiflySharp.Blocks
 Imports NiflySharp.Structs
 Imports OpenTK.Mathematics
@@ -50,9 +51,14 @@ Public NotInheritable Class SkeletonClothOverlayHelper_Class
                                                          injectedBones As System.Collections.Generic.HashSet(Of String),
                                                          Optional cachedSkeleton As HkaSkeletonGraph_Class = Nothing)
         If IsNothing(shape) OrElse Not Skeleton_Class.HasSkeleton Then Exit Sub
-        If IsNothing(shape.RelatedBones) OrElse shape.RelatedBones.Count = 0 Then Exit Sub
         If Not shape.HasPhysics Then Exit Sub
         If IsNothing(shape.ParentSliderSet) OrElse IsNothing(shape.ParentSliderSet.NIFContent) Then Exit Sub
+
+        Dim nifShape = ResolveShapeNifShape(shape)
+        If IsNothing(nifShape) Then Exit Sub
+
+        Dim relatedBones = ResolveShapeBones(shape, nifShape)
+        If relatedBones.Count = 0 Then Exit Sub
 
         Dim skeleton As HkaSkeletonGraph_Class
         If cachedSkeleton IsNot Nothing Then
@@ -62,10 +68,9 @@ Public NotInheritable Class SkeletonClothOverlayHelper_Class
             If skeleton Is Nothing Then Exit Sub
         End If
 
-        Dim shapeName = If(IsNothing(shape.RelatedNifShape) OrElse IsNothing(shape.RelatedNifShape.Name), "<shape>", shape.RelatedNifShape.Name.String)
+        Dim shapeName = ResolveShapeDisplayName(shape, nifShape)
 
         Try
-            ' Build name→index lookup once per skeleton (case-insensitive, no extra ToUpperInvariant needed)
             Dim hkxBoneLookup = skeleton.Bones.
                 Where(Function(bone) bone IsNot Nothing AndAlso Not String.IsNullOrWhiteSpace(bone.Name)).
                 GroupBy(Function(bone) bone.Name.Trim(), StringComparer.OrdinalIgnoreCase).
@@ -73,7 +78,7 @@ Public NotInheritable Class SkeletonClothOverlayHelper_Class
                              Function(group) group.First().Index,
                              StringComparer.OrdinalIgnoreCase)
 
-            For Each shapeBone In shape.RelatedBones
+            For Each shapeBone In relatedBones
                 If IsNothing(shapeBone) OrElse IsNothing(shapeBone.Name) Then Continue For
 
                 Dim shapeBoneName = shapeBone.Name.String
@@ -93,6 +98,49 @@ Public NotInheritable Class SkeletonClothOverlayHelper_Class
         End Try
     End Sub
 
+    Private Shared Function ResolveShapeNifShape(shape As Shape_class) As INiShape
+        If IsNothing(shape) OrElse IsNothing(shape.ParentSliderSet) OrElse IsNothing(shape.ParentSliderSet.NIFContent) Then Return Nothing
+
+        Dim expectedNames = New List(Of String) From {
+            NormalizeBoneName(shape.Nombre),
+            NormalizeBoneName(shape.Target)
+        }
+
+        For Each nifShape In shape.ParentSliderSet.NIFContent.NifShapes
+            Dim nifName = NormalizeBoneName(nifShape?.Name?.String)
+            If String.IsNullOrWhiteSpace(nifName) Then Continue For
+            If expectedNames.Any(Function(name) String.IsNullOrWhiteSpace(name) = False AndAlso String.Equals(name, nifName, StringComparison.OrdinalIgnoreCase)) Then Return nifShape
+        Next
+
+        Return Nothing
+    End Function
+
+    Private Shared Function ResolveShapeBones(shape As Shape_class, nifShape As INiShape) As List(Of NiNode)
+        Dim result As New List(Of NiNode)
+        If IsNothing(shape) OrElse IsNothing(nifShape) OrElse IsNothing(shape.ParentSliderSet) OrElse IsNothing(shape.ParentSliderSet.NIFContent) Then Return result
+        If IsNothing(nifShape.SkinInstanceRef) OrElse nifShape.SkinInstanceRef.Index < 0 Then Return result
+
+        Dim skin = TryCast(shape.ParentSliderSet.NIFContent.Blocks(nifShape.SkinInstanceRef.Index), INiSkin)
+        If IsNothing(skin) OrElse IsNothing(skin.Bones) Then Return result
+
+        For Each boneIndex In skin.Bones.Indices
+            If boneIndex < 0 OrElse boneIndex >= shape.ParentSliderSet.NIFContent.Blocks.Count Then Continue For
+            Dim node = TryCast(shape.ParentSliderSet.NIFContent.Blocks(boneIndex), NiNode)
+            If IsNothing(node) Then Continue For
+            result.Add(node)
+        Next
+
+        Return result
+    End Function
+
+    Private Shared Function ResolveShapeDisplayName(shape As Shape_class, nifShape As INiShape) As String
+        Dim nifName = nifShape?.Name?.String
+        If String.IsNullOrWhiteSpace(nifName) = False Then Return nifName
+        If IsNothing(shape) Then Return "<shape>"
+        If String.IsNullOrWhiteSpace(shape.Nombre) = False Then Return shape.Nombre
+        If String.IsNullOrWhiteSpace(shape.Target) = False Then Return shape.Target
+        Return "<shape>"
+    End Function
     Private Shared Function EnsureLiveInjectedBone(index As Integer,
                                                    skeleton As HkaSkeletonGraph_Class,
                                                    injectedBones As System.Collections.Generic.HashSet(Of String),
@@ -174,3 +222,4 @@ Public NotInheritable Class SkeletonClothOverlayHelper_Class
 
 
 End Class
+

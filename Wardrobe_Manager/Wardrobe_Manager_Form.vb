@@ -892,8 +892,10 @@ Public Class Wardrobe_Manager_Form
                 ListViewTargets.Items.Remove(it)
                 If sliderset_target.ParentOSP.SliderSets.Count = 0 Then Remove_Empty_Pack(sliderset_target)
             Next
+            RequestLeeShapes(True)
         End If
         Termina_Procesos()
+
     End Sub
     Private Sub Remove_Empty_Pack(sliderset_target As SliderSet_Class)
         If MsgBox("The pack is empty, do you want to delete it?", vbYesNo, "Delete pack") = MsgBoxResult.Yes Then
@@ -1426,6 +1428,7 @@ Public Class Wardrobe_Manager_Form
         End If
         OSP_Project_Class.Default_Memory_Pause = False
         Termina_Procesos()
+        RequestLeeShapes(True)
     End Sub
 
     Private Sub CloneButton_Click(sender As Object, e As EventArgs) Handles CloneButton.Click
@@ -1756,6 +1759,7 @@ Public Class Wardrobe_Manager_Form
                 End If
                 ListViewSources.Items.Remove(it)
             Next
+            RequestLeeShapes(True)
         End If
         Termina_Procesos()
     End Sub

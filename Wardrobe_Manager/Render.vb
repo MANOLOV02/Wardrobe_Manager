@@ -983,7 +983,9 @@ Public Class PreviewModel
             Public Property ParentMeshData As MeshData_Class
             Public ReadOnly Property MaterialBase As FO4UnifiedMaterial_Class
                 Get
-                    Return ParentMeshData.Shape.RelatedMaterial.material
+                    Dim rel = ParentMeshData.Shape.RelatedMaterial
+                    If rel Is Nothing OrElse rel.material Is Nothing Then Return New FO4UnifiedMaterial_Class()
+                    Return rel.material
                 End Get
             End Property
 
@@ -1011,10 +1013,8 @@ Public Class PreviewModel
                 Return False
             End Function
 
-
             Public ReadOnly Property HasAlphaTest
                 Get
-                    If HasAlphaBlend = True Then Return False
                     If IsNothing(ParentMeshData.Shape.RelatedMaterial) Then Return False
                     Return MaterialBase.AlphaTest
                 End Get
@@ -1472,26 +1472,25 @@ Public Class PreviewModel
             '=============================== DRAW ===============================
             GL.BindVertexArray(vao)
             Dim mat = MeshData.Material.MaterialBase
-            Dim isTwoSidedBlended As Boolean = MeshData.Material.HasAlphaBlend AndAlso mat.TwoSided AndAlso Not MeshData.Shape.Wireframe
+            Dim faceMode = ResolveEffectiveFaceMode(MeshData.Shape, mat)
 
-            If isTwoSidedBlended Then
-                ' — Pasada 1: caras traseras (culling de frontales) —
+            Dim isTwoPassBlended As Boolean = False
+            If MeshData.Material.HasAlphaBlend AndAlso Not MeshData.Shape.Wireframe AndAlso faceMode = EffectiveFaceMode.DrawBoth Then
+                isTwoPassBlended = True
+            End If
+
+            If isTwoPassBlended Then
                 GL.Enable(EnableCap.CullFace)
+
                 GL.CullFace(TriangleFace.Front)
+                GL.DepthMask(False)
                 GL.DrawElements(PrimitiveType.Triangles, indexCount, DrawElementsType.UnsignedInt, 0)
 
-                ' — Pasada 2: caras frontales (culling de traseras) —
                 GL.CullFace(TriangleFace.Back)
+                GL.DepthMask(True)
                 GL.DrawElements(PrimitiveType.Triangles, indexCount, DrawElementsType.UnsignedInt, 0)
             Else
-                ' — Caso normal: una sola pasada —
-                If mat.TwoSided Then
-                    GL.Disable(EnableCap.CullFace)      ' dibuja front y back
-                Else
-                    GL.Enable(EnableCap.CullFace)
-                    GL.CullFace(TriangleFace.Back)    ' descarta caras traseras
-                End If
-
+                ApplyFaceMode(faceMode)
                 GL.DrawElements(PrimitiveType.Triangles, indexCount, DrawElementsType.UnsignedInt, 0)
             End If
 
@@ -1502,6 +1501,95 @@ Public Class PreviewModel
             GL.CullFace(TriangleFace.Back)
 
         End Sub
+
+        Private Enum EffectiveFaceMode
+            DrawCCW = 1
+            DrawCW = 2
+            DrawBoth = 3
+        End Enum
+
+        Private Const StencilDrawMask As Integer = &HC00
+        Private Const StencilDrawShift As Integer = 10
+
+        Private Shared Function ResolveDefaultFaceMode(materialBase As FO4UnifiedMaterial_Class) As EffectiveFaceMode
+            If materialBase IsNot Nothing AndAlso materialBase.TwoSided Then
+                Return EffectiveFaceMode.DrawBoth
+            End If
+
+            Return EffectiveFaceMode.DrawCCW
+        End Function
+
+        Private Shared Function TryGetStencilDrawMode(shape As Shape_class, ByRef drawMode As Integer) As Boolean
+            drawMode = 0
+
+            If shape Is Nothing Then Return False
+            If shape.RelatedNifShape Is Nothing Then Return False
+            If shape.ParentSliderSet Is Nothing Then Return False
+            If shape.ParentSliderSet.NIFContent Is Nothing Then Return False
+            If shape.RelatedNifShape Is Nothing Then Return False
+            If shape.RelatedNifShape.Properties Is Nothing Then Return False
+            Dim stencil = shape.ParentSliderSet.NIFContent.GetPropertyOfType(Of NiflySharp.Blocks.NiStencilProperty)(shape.RelatedNifShape)
+            If stencil Is Nothing Then Return False
+
+            Try
+                Dim flagsProp = stencil.GetType().GetProperty("Flags")
+                If flagsProp Is Nothing Then Return False
+
+                Dim flagsObj = flagsProp.GetValue(stencil, Nothing)
+                If flagsObj Is Nothing Then Return False
+
+                Dim drawModeProp = flagsObj.GetType().GetProperty("DrawMode")
+                If drawModeProp IsNot Nothing Then
+                    Dim drawModeObj = drawModeProp.GetValue(flagsObj, Nothing)
+                    If drawModeObj IsNot Nothing Then
+                        drawMode = Convert.ToInt32(drawModeObj)
+                        Return True
+                    End If
+                End If
+
+                drawMode = (Convert.ToInt32(flagsObj) And StencilDrawMask) >> StencilDrawShift
+                Return True
+            Catch
+                Return False
+            End Try
+        End Function
+
+        Private Shared Function ResolveEffectiveFaceMode(shape As Shape_class, materialBase As FO4UnifiedMaterial_Class) As EffectiveFaceMode
+            Dim fallback As EffectiveFaceMode = ResolveDefaultFaceMode(materialBase)
+
+            Dim drawMode As Integer
+            If Not TryGetStencilDrawMode(shape, drawMode) Then
+                Return fallback
+            End If
+
+            Select Case drawMode
+                Case 2 ' DRAW_CW
+                    Return EffectiveFaceMode.DrawCW
+                Case 3 ' DRAW_BOTH
+                    Return EffectiveFaceMode.DrawBoth
+                Case 1 ' DRAW_CCW
+                    Return EffectiveFaceMode.DrawCCW
+                Case Else ' DRAW_CCW_OR_BOTH
+                    Return fallback
+            End Select
+        End Function
+
+        Private Shared Sub ApplyFaceMode(faceMode As EffectiveFaceMode)
+            Select Case faceMode
+                Case EffectiveFaceMode.DrawBoth
+                    GL.Disable(EnableCap.CullFace)
+
+                Case EffectiveFaceMode.DrawCW
+                    GL.Enable(EnableCap.CullFace)
+                    GL.CullFace(TriangleFace.Front)
+
+                Case Else
+                    GL.Enable(EnableCap.CullFace)
+                    GL.CullFace(TriangleFace.Back)
+            End Select
+        End Sub
+
+
 
         Public Sub ApplyMaterial(material As PreviewModel.RenderableMesh.MaterialData)
 
@@ -1675,9 +1763,12 @@ Public Class PreviewModel
             Dim writeDepth As Boolean
             If hasAlphaBlend Or MeshData.Shape.Wireframe Then
                 writeDepth = False
+            ElseIf hasAlphaTest Then
+                writeDepth = True
             Else
                 writeDepth = materialBase.ZBufferWrite
             End If
+
             GL.DepthMask(writeDepth)
 
             ' === Blending / Alpha Test / Wireframe ===
@@ -1701,13 +1792,9 @@ Public Class PreviewModel
                 GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Fill)
                 GL.Disable(EnableCap.Blend)
             End If
-
             ' === Culling ===
-            If materialBase.TwoSided Then
-                GL.Disable(EnableCap.CullFace)
-            Else
-                GL.Enable(EnableCap.CullFace)
-            End If
+            ' Se resuelve en la etapa de draw según el face mode efectivo del shape.
+
         End Sub
         Public Sub ExportMeshToOBJ(rutaArchivo As String)
             Using sw As New StreamWriter(rutaArchivo, False, Encoding.UTF8)
