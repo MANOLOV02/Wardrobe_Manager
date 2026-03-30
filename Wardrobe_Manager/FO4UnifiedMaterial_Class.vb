@@ -1674,7 +1674,7 @@ Public Class FO4UnifiedMaterial_Class
                 .GrayscaleToPaletteScale = shad.GrayscaleToPaletteScale,
                 .FresnelPower = shad.FresnelPower,
                 .HairTintColor = ColorToUInteger(NifColorToColor(shad.HairTintColor)),
-                .Smoothness = shad.Smoothness,
+                .Smoothness = If(Nif.Header.Version.IsSSE, CSng(shad.Glossiness / 100.0F), shad.Smoothness),
                 .SubsurfaceLightingRolloff = shad.SubsurfaceRolloff
             }
             If Not IsNothing(shad.TextureSetRef) AndAlso shad.TextureSetRef.Index <> -1 Then
@@ -1724,7 +1724,7 @@ Public Class FO4UnifiedMaterial_Class
             .VScale = shad.UVScale.V,
             .EnvironmentMappingMaskScale = shad.EnvironmentMapScale,
             .EmittanceColor = ColorToUInteger(NifColorToColor(shad.EmittanceColor))
-            }
+                       }
         Else
             mat = New BGEM
         End If
@@ -1825,7 +1825,11 @@ Public Class FO4UnifiedMaterial_Class
         shad.Alpha = Mat.Alpha
         shad.HasEnvironmentMapping = Mat.EnvironmentMapping
         shad.EnvironmentMapScale = Mat.EnvironmentMappingMaskScale
-        shad.Smoothness = Mat.Smoothness
+        If Nif.Header.Version.IsSSE Then
+            shad.Glossiness = CSng(Mat.Smoothness * 100.0F)
+        Else
+            shad.Smoothness = Mat.Smoothness
+        End If
         shad.SubsurfaceRolloff = Mat.SubsurfaceLightingRolloff
         shad.ModelSpace = Mat.ModelSpaceNormals
         shad.HairTintColor = UIntegerToNifColor3(Mat.HairTintColor)
