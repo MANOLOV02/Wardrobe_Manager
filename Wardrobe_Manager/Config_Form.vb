@@ -116,6 +116,7 @@ Public Class Config_Form
         GridColor.Rellena()
         GridColor.SelectedColor = Config_App.Current.RenderGridColor
         Check_Folders()
+        Check_GameMismatch()
     End Sub
 
     Private Function Check_Folders() As Boolean
@@ -154,6 +155,7 @@ Public Class Config_Form
     Private Sub Button1_Click(sender As Object, e As EventArgs) Handles Button1.Click
         Config_App.Current.FO4ExePath = Search_exe(IO.Path.GetDirectoryName(TextBox1.Text))
         TextBox1.Text = Config_App.Current.FO4ExePath
+        Check_GameMismatch()
         Dim exe = IO.Path.GetFileName(Config_App.Current.FO4ExePath)
         If exe.ToLower.Contains("fallout4", StringComparison.CurrentCultureIgnoreCase) AndAlso Config_App.Current.Game <> Config_App.Game_Enum.Fallout4 Then ComboBoxGame.SelectedIndex = Config_App.Game_Enum.Fallout4
         If exe.ToLower.Contains("skyrimse", StringComparison.CurrentCultureIgnoreCase) AndAlso Config_App.Current.Game <> Config_App.Game_Enum.Skyrim Then ComboBoxGame.SelectedIndex = Config_App.Game_Enum.Skyrim
@@ -352,7 +354,18 @@ Public Class Config_Form
             Config_App.Current.Game = ComboBoxGame.SelectedIndex
             GroupBoxweights.Enabled = ComboBoxGame.SelectedIndex <> 0
             GroupBoxLooksmenu.Enabled = CheckBoxBuildTri.Checked And RadioButtonWMEngine.Checked AndAlso ComboBoxGame.SelectedIndex = 0
+            Check_GameMismatch()
         End If
+    End Sub
+
+    Private Sub Check_GameMismatch()
+        Dim exe = Config_App.Current.FO4ExePath.ToLowerInvariant()
+        Dim isFO4Exe = exe.Contains("fallout4", StringComparison.OrdinalIgnoreCase)
+        Dim isSkyrimExe = exe.Contains("skyrim", StringComparison.OrdinalIgnoreCase) Or exe.Contains("sse", StringComparison.OrdinalIgnoreCase)
+        Dim game = Config_App.Current.Game
+        Dim mismatch = (game = Config_App.Game_Enum.Fallout4 AndAlso isSkyrimExe) OrElse
+                       (game = Config_App.Game_Enum.Skyrim AndAlso isFO4Exe)
+        LabelGameMismatch.Visible = mismatch
     End Sub
 
     Private Sub CheckBoxweightignore_CheckedChanged(sender As Object, e As EventArgs) Handles CheckBoxweightignore.CheckedChanged

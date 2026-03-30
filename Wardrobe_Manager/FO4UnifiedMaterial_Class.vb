@@ -1,4 +1,4 @@
-﻿' Version Uploaded of Wardrobe 2.1.3
+' Version Uploaded of Wardrobe 2.1.3
 Imports System.Collections.Concurrent
 Imports System.ComponentModel
 Imports System.Drawing.Design
@@ -1643,20 +1643,40 @@ Public Class FO4UnifiedMaterial_Class
     End Function
     Public Sub Create_From_Shader(Nif As Nifcontent_Class_Manolo, shap As INiShape, shad As BSLightingShaderProperty)
         If Nif.Valid = False Then Exit Sub
+
         Dim mat As BGSM
+
         If Not IsNothing(shad) Then
+
             mat = New BGSM With {
-            .TwoSided = shad.DoubleSided,
-            .UOffset = shad.UVOffset.U,
-            .VOffset = shad.UVOffset.V,
-            .UScale = shad.UVScale.U,
-            .VScale = shad.UVScale.V,
-            .EmitEnabled = shad.Emissive,
-            .EmittanceColor = NifColorColorToUInteger(shad.EmissiveColor),
-            .EnvironmentMappingMaskScale = shad.EnvironmentMapScale,
-            .ModelSpaceNormals = shad.ModelSpace,
-            .BackLighting = shad.HasBacklight
-                                                      }
+                .TwoSided = shad.DoubleSided,
+                .UOffset = shad.UVOffset.U,
+                .VOffset = shad.UVOffset.V,
+                .UScale = shad.UVScale.U,
+                .VScale = shad.UVScale.V,
+                .EmitEnabled = shad.Emissive,
+                .EmittanceColor = NifColorColorToUInteger(shad.EmissiveColor),
+                .EmittanceMult = shad.EmissiveMultiple,
+                .Alpha = shad.Alpha,
+                .EnvironmentMapping = shad.HasEnvironmentMapping,
+                .EnvironmentMappingMaskScale = shad.EnvironmentMapScale,
+                .ModelSpaceNormals = shad.ModelSpace,
+                .BackLighting = shad.HasBacklight,
+                .BackLightPower = shad.BacklightPower,
+                .SpecularEnabled = shad.HasSpecular,
+                .SpecularColor = ColorToUInteger(NifColorToColor(shad.SpecularColor)),
+                .SpecularMult = shad.SpecularStrength,
+                .Glowmap = shad.HasGlowmap,
+                .SubsurfaceLighting = shad.HasSoftlight,
+                .RimLighting = shad.HasRimlight,
+                .RimPower = shad.RimlightPower,
+                .GrayscaleToPaletteColor = shad.HasGreyscaleToPaletteColor,
+                .GrayscaleToPaletteScale = shad.GrayscaleToPaletteScale,
+                .FresnelPower = shad.FresnelPower,
+                .HairTintColor = ColorToUInteger(NifColorToColor(shad.HairTintColor)),
+                .Smoothness = shad.Smoothness,
+                .SubsurfaceLightingRolloff = shad.SubsurfaceRolloff
+            }
             If Not IsNothing(shad.TextureSetRef) AndAlso shad.TextureSetRef.Index <> -1 Then
                 Dim texset = TryCast(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet)
                 ReadBgsmTexturesFromTextureSet(mat, texset)
@@ -1673,7 +1693,8 @@ Public Class FO4UnifiedMaterial_Class
             mat.AlphaTestRef = alp.Threshold
             If alp.Flags.AlphaBlend Then
                 mat.AlphaBlendMode = Determine_Alphablend(alp.Flags.SourceBlendMode, alp.Flags.DestinationBlendMode)
-                If alp.Flags.TestFunc = Enums.TestFunction.TEST_NEVER Or (alp.Flags.TestFunc = Enums.TestFunction.TEST_GREATER And mat.AlphaTestRef = 0) Then
+                If alp.Flags.TestFunc = Enums.TestFunction.TEST_NEVER OrElse
+                   (alp.Flags.TestFunc = Enums.TestFunction.TEST_GREATER AndAlso mat.AlphaTestRef = 0) Then
                     mat.AlphaBlendMode = AlphaBlendModeType.None
                 End If
             Else
@@ -1682,7 +1703,6 @@ Public Class FO4UnifiedMaterial_Class
         End If
         Underlying_Material = mat
     End Sub
-
 
     Public Sub Create_From_Shader(Nif As Nifcontent_Class_Manolo, shap As INiShape, shad As BSEffectShaderProperty)
         If Nif.Valid = False Then Exit Sub
@@ -1694,7 +1714,7 @@ Public Class FO4UnifiedMaterial_Class
             .GrayscaleTexture = If(shad.GreyscaleTexture?.Content, String.Empty),
             .NormalTexture = If(shad.NormalTexture?.Content, String.Empty),
             .EnvmapMaskTexture = If(shad.EnvMaskTexture?.Content, String.Empty),
-            .EnvmapTexture = If(shad.EnvMapTexture?.Content, String.Empty), ' ← ojo con esto
+            .EnvmapTexture = If(shad.EnvMapTexture?.Content, String.Empty), ' ojo con esto
             .LightingTexture = If(shad.LightingTexture?.Content, String.Empty),
             .SpecularTexture = If(shad.ReflectanceTexture?.Content, String.Empty),
             .GlowTexture = If(shad.EmitGradientTexture?.Content, String.Empty),
@@ -1796,15 +1816,31 @@ Public Class FO4UnifiedMaterial_Class
     End Sub
     Public Shared Sub Save_To_Shader(Nif As Nifcontent_Class_Manolo, shap As INiShape, shad As BSLightingShaderProperty, Mat As BGSM)
         If Nif.Valid = False Then Exit Sub
-
         shad.DoubleSided = Mat.TwoSided
         shad.UVOffset = New TexCoord(Mat.UOffset, Mat.VOffset)
         shad.UVScale = New TexCoord(Mat.UScale, Mat.VScale)
         shad.Emissive = Mat.EmitEnabled
         shad.EmissiveColor = UIntegerToNifColor4(Mat.EmittanceColor)
+        shad.EmissiveMultiple = Mat.EmittanceMult
+        shad.Alpha = Mat.Alpha
+        shad.HasEnvironmentMapping = Mat.EnvironmentMapping
         shad.EnvironmentMapScale = Mat.EnvironmentMappingMaskScale
+        shad.Smoothness = Mat.Smoothness
+        shad.SubsurfaceRolloff = Mat.SubsurfaceLightingRolloff
         shad.ModelSpace = Mat.ModelSpaceNormals
+        shad.HairTintColor = UIntegerToNifColor3(Mat.HairTintColor)
         shad.HasBacklight = Mat.BackLighting
+        shad.BacklightPower = Mat.BackLightPower
+        shad.HasSpecular = Mat.SpecularEnabled
+        shad.SpecularColor = UIntegerToNifColor3(Mat.SpecularColor)
+        shad.SpecularStrength = Mat.SpecularMult
+        shad.HasGlowmap = Mat.Glowmap
+        shad.HasSoftlight = Mat.SubsurfaceLighting
+        shad.HasRimlight = Mat.RimLighting
+        shad.RimlightPower = Mat.RimPower
+        shad.HasGreyscaleToPaletteColor = Mat.GrayscaleToPaletteColor
+        shad.GrayscaleToPaletteScale = Mat.GrayscaleToPaletteScale
+        shad.FresnelPower = Mat.FresnelPower
 
         If IsNothing(shad.TextureSetRef) OrElse shad.TextureSetRef.Index = -1 Then
             Dim texset1 = New BSShaderTextureSet
@@ -2038,3 +2074,5 @@ End Class
 Public Class InhertedBGSMshader
     Inherits BSLightingShaderProperty
 End Class
+
+

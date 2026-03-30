@@ -105,8 +105,17 @@ Public Class BuildingForm
 
 
                     If Sizecount = 0 Then
-                        ' Grabo archivo tri 
+                        ' Grabo archivo tri
                         If Config_App.Current.Settings_Build.SaveTri AndAlso (builder.PreventMorphFile = False OrElse Config_App.Current.Settings_Build.IgnorePreventri) Then TriFile.WriteMorphTRI(tri, builder)
+                        ' SSE: copia o borra XML de física HDT-SMP junto al NIF de salida (una sola vez, no depende del size)
+                        If Config_App.Current.Game = Config_App.Game_Enum.Skyrim Then
+                            Dim outXml = builder.OutputFullPathBase + ".xml"
+                            If Not String.IsNullOrEmpty(builder.PhysicsXmlContent) Then
+                                IO.File.WriteAllText(outXml, builder.PhysicsXmlContent, System.Text.Encoding.UTF8)
+                            ElseIf IO.File.Exists(outXml) Then
+                                IO.File.Delete(outXml)
+                            End If
+                        End If
                     End If
                     ProgressBar1.Value += 1
 

@@ -90,6 +90,14 @@ Public Class MergeShapesHelper
             mergedArrays.Append(SkinningHelper.SnapshotSeparateArrays(donor.RelatedNifShape))
         Next
 
+        ' ── 2b. Capture per-triangle body-part assignments BEFORE geometry changes ───
+        ' GetTriangleBodyParts returns Nothing for FO4 (BSSkin_Instance) — no-op for FO4.
+        Dim targetBodyParts = sliderSet.NIFContent.GetTriangleBodyParts(targetNif)
+        Dim donorBodyParts As New List(Of List(Of Integer))()
+        For Each donor In donorShapes
+            donorBodyParts.Add(sliderSet.NIFContent.GetTriangleBodyParts(donor.RelatedNifShape))
+        Next
+
         ' ── 3. Concatenate vertex data with bone index remapping ──────────────
         Dim allSSE As List(Of BSVertexDataSSE) = Nothing
         Dim allNon As List(Of BSVertexData) = Nothing
@@ -152,6 +160,108 @@ Public Class MergeShapesHelper
         End If
 
         targetNif.UpdateBounds()
+
+        ' ── 5b. Update NiSkinInstance + NiSkinData for SSE shapes ────────────────
+        ' BSSkin_Instance (FO4) was handled above.  For NiSkinInstance (SSE/Oblivion):
+        ' NiSkinData.BoneList is what UpdateSkinPartitions reads to build vertBoneWeights.
+        ' After merge, donor vertices are absent → crash.  Rebuild the bone list here.
+        Dim niSkinInst = sliderSet.NIFContent.GetBlock(Of NiSkinInstance)(targetNif.SkinInstanceRef)
+        If niSkinInst IsNot Nothing Then
+            ' Build merged NiSkinInstance bone list from the target + all donors.
+            Dim niMergedBoneNifIndices = niSkinInst.Bones.Indices.ToList()
+            Dim niDonorBoneRemaps As New List(Of Dictionary(Of Integer, Integer))()
+
+            For Each donor In donorShapes
+                Dim niRemap As New Dictionary(Of Integer, Integer)()
+                niDonorBoneRemaps.Add(niRemap)
+                Dim dNiSkinInst = sliderSet.NIFContent.GetBlock(Of NiSkinInstance)(
+                    donor.RelatedNifShape.SkinInstanceRef)
+                If dNiSkinInst Is Nothing Then Continue For
+                Dim dBoneIdxList = dNiSkinInst.Bones.Indices.ToList()
+                For localIdx = 0 To dBoneIdxList.Count - 1
+                    Dim nifBlockIdx = dBoneIdxList(localIdx)
+                    Dim mergedIdx = niMergedBoneNifIndices.IndexOf(nifBlockIdx)
+                    If mergedIdx = -1 Then
+                        mergedIdx = niMergedBoneNifIndices.Count
+                        niMergedBoneNifIndices.Add(nifBlockIdx)
+                    End If
+                    niRemap(localIdx) = mergedIdx
+                Next
+            Next
+
+            ' Write merged bone list back to NiSkinInstance.
+            niSkinInst.Bones.SetIndices(niMergedBoneNifIndices)
+            niSkinInst.NumBones = CUInt(niMergedBoneNifIndices.Count)
+
+            ' Update NiSkinData.BoneList with donor vertex weights.
+            Dim niSkinData = sliderSet.NIFContent.GetBlock(niSkinInst.Data)
+            If niSkinData IsNot Nothing Then
+                ' Grow BoneList to fit all merged bones.
+                Do While niSkinData.BoneList.Count < niMergedBoneNifIndices.Count
+                    niSkinData.BoneList.Add(New BoneData())
+                Loop
+                niSkinData.NumBones = CUInt(niSkinData.BoneList.Count)
+
+                ' Ensure all VertexWeights lists are initialized (BoneData is a struct).
+                For b = 0 To niSkinData.BoneList.Count - 1
+                    Dim bd = niSkinData.BoneList(b)
+                    If bd.VertexWeights Is Nothing Then
+                        bd.VertexWeights = New List(Of BoneVertData)()
+                        niSkinData.BoneList(b) = bd
+                    End If
+                Next
+
+                ' Append donor vertex weights, remapping bone index and offsetting vertex index.
+                For di = 0 To donorShapes.Count - 1
+                    Dim vertOffset = donorOffsets(di)
+                    Dim niRemap = niDonorBoneRemaps(di)
+                    Dim dNiSkinInst = sliderSet.NIFContent.GetBlock(Of NiSkinInstance)(
+                        donorShapes(di).RelatedNifShape.SkinInstanceRef)
+                    If dNiSkinInst Is Nothing Then Continue For
+                    Dim dNiSkinData = sliderSet.NIFContent.GetBlock(dNiSkinInst.Data)
+                    If dNiSkinData Is Nothing Then Continue For
+
+                    For localBoneIdx = 0 To dNiSkinData.BoneList.Count - 1
+                        Dim mergedBoneIdx As Integer
+                        If Not niRemap.TryGetValue(localBoneIdx, mergedBoneIdx) Then Continue For
+                        Dim dBoneData = dNiSkinData.BoneList(localBoneIdx)
+                        If dBoneData.VertexWeights Is Nothing Then Continue For
+                        For Each vw In dBoneData.VertexWeights
+                            niSkinData.BoneList(mergedBoneIdx).VertexWeights.Add(
+                                New BoneVertData() With {
+                                    .Index = CUShort(CInt(vw.Index) + vertOffset),
+                                    .Weight = vw.Weight
+                                })
+                        Next
+                    Next
+                Next
+
+                ' Update NumVertices per bone.
+                For b = 0 To niSkinData.BoneList.Count - 1
+                    Dim bd = niSkinData.BoneList(b)
+                    bd.NumVertices = CUShort(If(bd.VertexWeights IsNot Nothing, bd.VertexWeights.Count, 0))
+                    niSkinData.BoneList(b) = bd
+                Next
+            End If
+        End If
+
+        ' ── 5d. Restore body-part assignments for all triangles (target + donors) ───
+        ' targetBodyParts is Nothing for FO4 → SetTriangleBodyParts is skipped entirely.
+        If targetBodyParts IsNot Nothing Then
+            Dim mergedBP As New List(Of Integer)(allTris.Count)
+            mergedBP.AddRange(targetBodyParts)
+            For di = 0 To donorShapes.Count - 1
+                Dim dBP = donorBodyParts(di)
+                If dBP IsNot Nothing Then
+                    mergedBP.AddRange(dBP)
+                Else
+                    ' Donor had no NiSkinPartition — fall back to partition 0.
+                    mergedBP.AddRange(Enumerable.Repeat(-1, donorShapes(di).RelatedNifShape.Triangles.Count))
+                End If
+            Next
+            sliderSet.NIFContent.SetTriangleBodyParts(targetNif, mergedBP)
+        End If
+
         sliderSet.NIFContent.UpdateSkinPartitions(targetNif)
 
         ' ── 6. Merge OSD blocks: donor deltas offset into target blocks ───────

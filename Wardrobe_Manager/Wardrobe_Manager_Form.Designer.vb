@@ -545,7 +545,7 @@ Partial Class Wardrobe_Manager_Form
         PhysicsCheckbox.Size = New Size(189, 28)
         PhysicsCheckbox.TabIndex = 1
         PhysicsCheckbox.Text = "Keep physics"
-        ToolTip1.SetToolTip(PhysicsCheckbox, "Keep BSClothExtraData (physics) block during copy and merge operations.")
+        ToolTip1.SetToolTip(PhysicsCheckbox, "Keep physics during copy and merge operations (BSClothExtraData for FO4, HDT-SMP XML for SSE).")
         PhysicsCheckbox.UseVisualStyleBackColor = True
         ' 
         ' CloneMaterialsCheck

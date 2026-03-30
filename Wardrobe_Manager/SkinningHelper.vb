@@ -1,4 +1,4 @@
-﻿' Version Uploaded of Wardrobe 2.1.3
+' Version Uploaded of Wardrobe 2.1.3
 Imports NiflySharp
 Imports NiflySharp.Blocks
 Imports NiflySharp.Structs
@@ -73,10 +73,53 @@ Public Class SkinningHelper
         Else
             rawNormals = Enumerable.Repeat(New Vector3d(0.0F, 0.0F, 0.0F), rawVerts.Length).ToArray()
         End If
+        ' Raw vertex data loaded early for direct BitangentX extraction (bypasses NiflySharp byte-cast bug)
+        Dim allVD = Array.Empty(Of BSVertexData)
+        Dim allVDSSE = Array.Empty(Of BSVertexDataSSE)
+        If Nifversion.IsSSE = False Then If Not IsNothing(tri.VertexData) Then allVD = tri.VertexData.ToArray()
+        If Nifversion.IsSSE = True Then If Not IsNothing(tri.VertexDataSSE) Then allVDSSE = tri.VertexDataSSE.ToArray()
+
         If tri.HasTangents Then
-            ' INVERTIDAS!!!!!  PARA FO4 ES ASI
-            rawTangents = tri.Bitangents.Select(Function(t) Vector3d.Normalize(New Vector3d(t.X, t.Y, t.Z))).ToArray()
-            rawBitangs = tri.Tangents.Select(Function(b) Vector3d.Normalize(New Vector3d(b.X, b.Y, b.Z))).ToArray()
+            If Nifversion.IsSSE AndAlso allVDSSE.Length = rawVerts.Length Then
+                ' SSE: INVERTIDAS swap same as FO4. NIF_Bitangent (float X + sbyte Y/Z) -> rawTangents. NIF_Tangent (ByteVector3) -> rawBitangs.
+                rawBitangs = tri.Tangents.Select(Function(t) Vector3d.Normalize(New Vector3d(t.X, t.Y, t.Z))).ToArray()
+                rawTangents = New Vector3d(rawVerts.Length - 1) {}
+                Parallel.For(0, rawVerts.Length, Sub(i)
+                                                     Dim bx = CDbl(allVDSSE(i).BitangentX)
+                                                     Dim by = CDbl(CType(CInt(allVDSSE(i).BitangentY) And &HFF, Byte)) / 255.0 * 2.0 - 1.0
+                                                     Dim bz = CDbl(CType(CInt(allVDSSE(i).BitangentZ) And &HFF, Byte)) / 255.0 * 2.0 - 1.0
+                                                     rawTangents(i) = Vector3d.Normalize(New Vector3d(bx, by, bz))
+                                                 End Sub)
+            ElseIf Not Nifversion.IsSSE AndAlso tri.IsFullPrecision AndAlso allVD.Length = rawVerts.Length Then
+                ' FO4 full-precision: NIF_Bitangent uses float BitangentX (NiflySharp bug: cast to byte truncates).
+                ' INVERTIDAS swap: NIF_Bitangent -> rawTangents, NIF_Tangent -> rawBitangs.
+                ' Read NIF_Bitangent directly from BSVertexData for correct BitangentX.
+                rawBitangs = tri.Tangents.Select(Function(b) Vector3d.Normalize(New Vector3d(b.X, b.Y, b.Z))).ToArray()
+                rawTangents = New Vector3d(rawVerts.Length - 1) {}
+                Parallel.For(0, rawVerts.Length, Sub(i)
+                                                     Dim bx = CDbl(allVD(i).BitangentX)
+                                                     Dim by = CDbl(CType(CInt(allVD(i).BitangentY) And &HFF, Byte)) / 255.0 * 2.0 - 1.0
+                                                     Dim bz = CDbl(CType(CInt(allVD(i).BitangentZ) And &HFF, Byte)) / 255.0 * 2.0 - 1.0
+                                                     rawTangents(i) = Vector3d.Normalize(New Vector3d(bx, by, bz))
+                                                 End Sub)
+            Else
+                ' FO4 half-precision: uses BitangentXHalf (Half). Read directly from BSVertexData for consistency.
+                ' INVERTIDAS swap: NIF_Bitangent -> rawTangents, NIF_Tangent -> rawBitangs.
+                rawBitangs = New Vector3d(rawVerts.Length - 1) {}
+                rawTangents = New Vector3d(rawVerts.Length - 1) {}
+                Parallel.For(0, rawVerts.Length, Sub(i)
+                                                     ' NIF_Bitangent -> rawTangents (INVERTIDAS swap)
+                                                     Dim bx = CDbl(CSng(allVD(i).BitangentXHalf))
+                                                     Dim by = CDbl(CType(CInt(allVD(i).BitangentY) And &HFF, Byte)) / 255.0 * 2.0 - 1.0
+                                                     Dim bz = CDbl(CType(CInt(allVD(i).BitangentZ) And &HFF, Byte)) / 255.0 * 2.0 - 1.0
+                                                     rawTangents(i) = Vector3d.Normalize(New Vector3d(bx, by, bz))
+                                                     ' NIF_Tangent -> rawBitangs (INVERTIDAS swap); ByteVector3 has sbyte fields
+                                                     Dim tx = CDbl(CType(CInt(allVD(i).Tangent.X) And &HFF, Byte)) / 255.0 * 2.0 - 1.0
+                                                     Dim ty = CDbl(CType(CInt(allVD(i).Tangent.Y) And &HFF, Byte)) / 255.0 * 2.0 - 1.0
+                                                     Dim tz = CDbl(CType(CInt(allVD(i).Tangent.Z) And &HFF, Byte)) / 255.0 * 2.0 - 1.0
+                                                     rawBitangs(i) = Vector3d.Normalize(New Vector3d(tx, ty, tz))
+                                                 End Sub)
+            End If
         Else
             rawTangents = Enumerable.Repeat(New Vector3d(0.0F, 0.0F, 0.0F), rawVerts.Length).ToArray()
             rawBitangs = Enumerable.Repeat(New Vector3d(0.0F, 0.0F, 0.0F), rawVerts.Length).ToArray()
@@ -121,11 +164,6 @@ Public Class SkinningHelper
         ' Save NIF-local vertices BEFORE skinning (needed for correct morph-space application)
         Dim nifLocalVerts = rawVerts.ToArray()
         Dim perVertexMtot(vertexCount - 1) As Matrix4d
-        Dim allVD = Array.Empty(Of BSVertexData)
-        Dim allVDSSE = Array.Empty(Of BSVertexDataSSE)
-
-        If Nifversion.IsSSE = False Then If Not IsNothing(tri.VertexData) Then allVD = tri.VertexData.ToArray()
-        If Nifversion.IsSSE = True Then If Not IsNothing(tri.VertexDataSSE) Then allVDSSE = tri.VertexDataSSE.ToArray()
 
         Select Case True
             Case Not singleboneskinning AndAlso bones.Length > 0
@@ -436,10 +474,11 @@ Public Class SkinningHelper
         Dim uvN(nNew - 1) As System.Numerics.Vector3
         Dim colN(nNew - 1) As NiflySharp.Structs.Color4
 
+        ' INVERTIDAS: geo.Tangents=NIF_Bitangent, geo.Bitangents=NIF_Tangent (applies for both FO4 and SSE after extraction swap).
+        ' NIF_Tangent (ByteVector3) receives geo.Bitangents; NIF_Bitangent (float X) receives geo.Tangents.
         For i As Integer = 0 To nNew - 1
             Dim v1 = geom.Vertices(i) : posN(i) = New System.Numerics.Vector3(CSng(v1.X), CSng(v1.Y), CSng(v1.Z))
             Dim n1 = geom.Normals(i) : norN(i) = New System.Numerics.Vector3(CSng(n1.X), CSng(n1.Y), CSng(n1.Z))
-            ' OJOOO INVERTIDAS
             Dim t1 = geom.Bitangents(i) : tanN(i) = New System.Numerics.Vector3(CSng(t1.X), CSng(t1.Y), CSng(t1.Z))
             Dim b1 = geom.Tangents(i) : bitN(i) = New System.Numerics.Vector3(CSng(b1.X), CSng(b1.Y), CSng(b1.Z))
             Dim uv = geom.Uvs_Weight(i) : uvN(i) = New System.Numerics.Vector3(CSng(uv.X), CSng(uv.Y), 0)
@@ -819,6 +858,15 @@ Public Class MorphingHelper
         ' Cache TBN vaciar para recalcular
         geom.CachedTBN = Nothing
 
+        ' ==== 3b) Remap skin partition body-part assignments ====
+        ' After vertex compaction the partition's TrianglesCopy still holds old indices.
+        ' Remap them so UpdateSkinPartitions can match triangles to the correct body parts.
+        Dim remapDict As New Dictionary(Of Integer, Integer)(nNew)
+        For i As Integer = 0 To nOld - 1
+            If oldToNew(i) >= 0 Then remapDict(i) = oldToNew(i)
+        Next
+        shape.ParentSliderSet.NIFContent.RemapSkinPartitionTriangles(geom.TriShape, remapDict)
+
         ' ==== 4) Reindexado de morphs
         For Each dat In shape.Related_Slider_data
             For Each block In dat.RelatedOSDBlocks.ToList()
@@ -1194,6 +1242,9 @@ Public Class RecalcTBN
             End If
 
             ' Propagar a TODOS los miembros del grupo (sin alterar topología)
+            ' FO4 convention (uniform for both FO4 and SSE): T->geo.Tangents, B->geo.Bitangents.
+            ' T/B swap for SSE NIF format is handled at ExtractSkinnedGeometry / InjectToTrishape boundaries.
+
             Dim members As List(Of Integer) = Nothing
             If membersOf.TryGetValue(m, members) Then
                 For Each vi As Integer In members

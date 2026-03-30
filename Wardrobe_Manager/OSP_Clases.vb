@@ -1322,6 +1322,20 @@ Public Class OSP_Project_Class
             If externalOsdPaths.Length <> 0 Then Sliderset_Target.OSDContent_External.Load(externalOsdPaths)
 
             Sliderset_Target.NIFContent.Load_Manolo(Sliderset_Target.SourceFileFullPath)
+
+            ' SSE: load HDT-SMP XML physics — 1) shapedata folder, 2) fallback to game output folder
+            If Config_App.Current.Game = Config_App.Game_Enum.Skyrim Then
+                Dim xmlPath = IO.Path.ChangeExtension(Sliderset_Target.SourceFileFullPath, ".xml")
+                Dim fallbackPath = Sliderset_Target.OutputFullPathBase & ".xml"
+                Dim candidate = If(IO.File.Exists(xmlPath), xmlPath, If(IO.File.Exists(fallbackPath), fallbackPath, Nothing))
+                If candidate IsNot Nothing Then
+                    Dim raw = IO.File.ReadAllText(candidate, System.Text.Encoding.UTF8)
+                    Sliderset_Target.PhysicsXmlContent = If(SliderSet_Class.IsValidSmpXml(raw), raw, Nothing)
+                Else
+                    Sliderset_Target.PhysicsXmlContent = Nothing
+                End If
+            End If
+
             Sliderset_Target.ReadhighHeel()
 
             Sliderset_Target.ShapeDataLoaded = True
@@ -1436,8 +1450,11 @@ Public Class OSP_Project_Class
             If refShape IsNot Nothing Then Sliderset_Target.RemoveShape(refShape)
         End If
 
-        ' Saca Physics
-        If Not Keep_Physics Then Sliderset_Target.NIFContent.RemoveBlocksOfType(Of BSClothExtraData)()
+        ' Saca Physics — BSClothExtraData applies to both FO4 and SSE; sidecar XML is SSE HDT-SMP only
+        If Not Keep_Physics Then
+            Sliderset_Target.NIFContent.RemoveBlocksOfType(Of BSClothExtraData)()
+            Sliderset_Target.PhysicsXmlContent = Nothing
+        End If
 
         ' Make Local Sliders
         Make_Sliders_Local(Sliderset_Target)
@@ -1564,6 +1581,15 @@ Public Class OSP_Project_Class
         Nifcontent_Class_Manolo.Merge_Shapes_Original(Sliderset_Madre.NIFContent, Sliderset_Target.NIFContent, Keep_Physics)
         Sliderset_Madre.InvalidateAllLookupCaches()
 
+        ' SSE: merge HDT-SMP XML physics (take first, same behaviour as FO4 BSClothExtraData)
+        If Config_App.Current.Game = Config_App.Game_Enum.Skyrim AndAlso Keep_Physics Then
+            If String.IsNullOrEmpty(Sliderset_Madre.PhysicsXmlContent) Then
+                Sliderset_Madre.PhysicsXmlContent = Sliderset_Target.PhysicsXmlContent
+            ElseIf Not String.IsNullOrEmpty(Sliderset_Target.PhysicsXmlContent) Then
+                MsgBox("The destination mesh already has physics. Physics from the merged mesh will be omitted.", vbInformation, "Merge Physics")
+            End If
+        End If
+
         ' Make Local Sliders
         Make_Sliders_Local(Sliderset_Madre)
 
@@ -1643,6 +1669,8 @@ Public Class SliderSet_Class
     Private _LocalOsdBlocksByNameCache As New Dictionary(Of String, List(Of OSD_Block_Class))(StringComparer.OrdinalIgnoreCase)
     Private _ExternalOsdBlocksByNameCache As New Dictionary(Of String, List(Of OSD_Block_Class))(StringComparer.OrdinalIgnoreCase)
     Public Property BypassDiskShapeDataLoad As Boolean = False
+    ''' <summary>SSE HDT-SMP XML physics content. Nothing = no physics. Parallel to BSClothExtraData for FO4.</summary>
+    Public Property PhysicsXmlContent As String = Nothing
 
     Public Sub InvalidateMetadataLookupCache()
         _MetadataLookupCacheValid = False
@@ -1808,6 +1836,8 @@ Public Class SliderSet_Class
                 files.Add(Me.OutputFullPathBase & ".txt")
             Case Config_App.Game_Enum.Skyrim
                 files.Add(IO.Path.Combine(IO.Path.Combine(Directorios.ShapedataRoot, Me.ParentOSP.Nombre), Me.Nombre + ".hht"))
+                files.Add(IO.Path.ChangeExtension(SourceFileFullPath, ".xml"))
+                files.Add(OutputFullPathBase & ".xml")
         End Select
 
         Return String.Join(vbLf,
@@ -1833,6 +1863,7 @@ Public Class SliderSet_Class
         OSDContent_Local = New OSD_Class(Me)
         OSDContent_External = New OSD_Class(Me)
         NIFContent = New Nifcontent_Class_Manolo(Me)
+        PhysicsXmlContent = Nothing
         HighHeelHeight = 0
         ShapeDataLoaded = False
         InvalidateAllLookupCaches()
@@ -1885,6 +1916,8 @@ Public Class SliderSet_Class
     End Sub
     Public ReadOnly Property HasPhysics As Boolean
         Get
+            ' SSE can have BSClothExtraData (vanilla Havok) AND/OR sidecar HDT-SMP XML
+            If Not String.IsNullOrEmpty(PhysicsXmlContent) Then Return True
             Return Me.Shapes.Any(Function(pf) pf.HasPhysics)
         End Get
     End Property
@@ -2398,6 +2431,24 @@ Public Class SliderSet_Class
         Shapes.Remove(Shape)
         InvalidateAllLookupCaches()
     End Sub
+    ''' <summary>
+    ''' Returns True if the string is well-formed XML whose root element is a known
+    ''' HDT-SMP physics config root: &lt;system&gt; (classic SMP) or &lt;hdt-smp&gt; (SMP 3.x).
+    ''' </summary>
+    Public Shared Function IsValidSmpXml(content As String) As Boolean
+        If String.IsNullOrWhiteSpace(content) Then Return False
+        Try
+            Dim doc As New XmlDocument()
+            doc.LoadXml(content)
+            Dim root = doc.DocumentElement
+            If root Is Nothing Then Return False
+            Return root.LocalName.Equals("system", StringComparison.OrdinalIgnoreCase) OrElse
+                   root.LocalName.Equals("hdt-smp", StringComparison.OrdinalIgnoreCase)
+        Catch ex As XmlException
+            Return False
+        End Try
+    End Function
+
     Public Sub Save_Shapedatas(OverwriteShapeFiles As Boolean)
         Dim New_Nif = SourceFileFullPath
         Dim New_Osd = New_Nif.Replace(".nif", ".osd", StringComparison.OrdinalIgnoreCase)
@@ -2405,6 +2456,18 @@ Public Class SliderSet_Class
         OSDContent_Local.Save_As(New_Osd, OverwriteShapeFiles)
         NIFContent.Save_As_Manolo(New_Nif, OverwriteShapeFiles)
         SaveHighHeel(New_Nif.Replace(".nif", ".hht", StringComparison.OrdinalIgnoreCase), OverwriteShapeFiles)
+
+        ' SSE: save or delete HDT-SMP XML physics alongside NIF
+        If Config_App.Current.Game = Config_App.Game_Enum.Skyrim Then
+            Dim xmlPath = IO.Path.ChangeExtension(New_Nif, ".xml")
+            If Not String.IsNullOrEmpty(PhysicsXmlContent) Then
+                If OverwriteShapeFiles OrElse Not IO.File.Exists(xmlPath) Then
+                    IO.File.WriteAllText(xmlPath, PhysicsXmlContent, System.Text.Encoding.UTF8)
+                End If
+            ElseIf IO.File.Exists(xmlPath) Then
+                IO.File.Delete(xmlPath)
+            End If
+        End If
 
         ShapeDataLoaded = False
         LastShapeDataSignature = ""
@@ -2432,6 +2495,8 @@ Public Class Shape_class
 
     Public ReadOnly Property HasPhysics As Boolean
         Get
+            ' SSE can have BSClothExtraData (vanilla Havok) AND/OR sidecar HDT-SMP XML
+            If Not String.IsNullOrEmpty(ParentSliderSet.PhysicsXmlContent) Then Return True
             If IsNothing(ParentSliderSet.NIFContent) Then Return False
             If IsNothing(ParentSliderSet.NIFContent.Blocks) Then Return False
             Return ParentSliderSet.NIFContent.Blocks.Any(Function(pf) pf.GetType Is GetType(BSClothExtraData))

@@ -761,14 +761,25 @@ Public Class Editor_Form
 
     Private Sub ButtonRemovePhysics_Click(sender As Object, e As EventArgs) Handles ButtonRemovePhysics.Click
         If MsgBox("This cant be undone, do you want to delete all physics", vbYesNo, "Remove Physics") = MsgBoxResult.Yes Then
-            Dim report As String = ""
-            If MsgBox("do yow want to try to reweight vertex with physics to base skeleton", vbYesNo, "Remove Physics") = MsgBoxResult.Yes Then
-                If PhysicsWeightCollapseHelper.TryCollapseInjectedWeightsAndExpandPaletteBeforeRemovingPhysics(Selected_Slider, report) = False Then
-                    MsgBox(report, vbExclamation, "Remove Physics")
-                    Exit Sub
+            ' Weight collapse only makes sense for BSClothExtraData (FO4 and SSE vanilla Havok)
+            If Selected_Slider.NIFContent.Blocks.Any(Function(b) b.GetType Is GetType(BSClothExtraData)) Then
+                Dim report As String = ""
+                If MsgBox("do you want to try to reweight vertices with physics to base skeleton", vbYesNo, "Remove Physics") = MsgBoxResult.Yes Then
+                    If PhysicsWeightCollapseHelper.TryCollapseInjectedWeightsAndExpandPaletteBeforeRemovingPhysics(Selected_Slider, report) = False Then
+                        MsgBox(report, vbExclamation, "Remove Physics")
+                        Exit Sub
+                    End If
                 End If
+                Selected_Slider.NIFContent.RemoveBlocksOfType(Of BSClothExtraData)()
             End If
-            Selected_Slider.NIFContent.RemoveBlocksOfType(Of BSClothExtraData)()
+            ' SSE HDT-SMP sidecar XML — clear memory and delete both loose copies (shapedata + output)
+            If Not String.IsNullOrEmpty(Selected_Slider.PhysicsXmlContent) Then
+                Selected_Slider.PhysicsXmlContent = Nothing
+                Dim shapedataXml = IO.Path.ChangeExtension(Selected_Slider.SourceFileFullPath, ".xml")
+                Dim outputXml = Selected_Slider.OutputFullPathBase & ".xml"
+                If IO.File.Exists(shapedataXml) Then IO.File.Delete(shapedataXml)
+                If IO.File.Exists(outputXml) Then IO.File.Delete(outputXml)
+            End If
             Selected_Slider.InvalidateAllLookupCaches()
             Process_render_Changes(True)
             Lee_Bones()

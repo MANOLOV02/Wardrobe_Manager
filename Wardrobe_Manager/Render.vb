@@ -1,4 +1,4 @@
-﻿' Version Uploaded of Wardrobe 2.1.3
+' Version Uploaded of Wardrobe 2.1.3
 Imports System.Collections.Concurrent
 Imports System.ComponentModel
 Imports System.Drawing.Imaging
@@ -202,8 +202,15 @@ End Class
 Public Class PreviewControl
     Inherits OpenTK.GLControl.GLControl
     Private overlay As TextOverlayRenderer
-    Public SharedActiveShader As Shader_Class
+    Public SharedActiveShader As Shader_Class_Fo4
+    Public SharedSSEShader As Shader_Class_SSE
     Public SharedFloorShader As Floor_Shader_Class
+    Public ReadOnly Property CurrentShader As Shader_Base_Class
+        Get
+            If Config_App.Current.Game = Config_App.Game_Enum.Skyrim AndAlso SharedSSEShader IsNot Nothing Then Return SharedSSEShader
+            Return SharedActiveShader
+        End Get
+    End Property
 
 
     Public WithEvents RenderTimer As New System.Windows.Forms.Timer
@@ -464,7 +471,8 @@ Public Class PreviewControl
         If Me.IsInDesignMode Then Return
         ApplyResize(True)
         GenerateDefaultTextures()
-        SharedActiveShader = New Shader_Class
+        SharedActiveShader = New Shader_Class_Fo4
+        SharedSSEShader = New Shader_Class_SSE
         SharedFloorShader = New Floor_Shader_Class
 
         ' 1) Aseguramos que el contexto GL está activo
@@ -844,6 +852,11 @@ Public Class PreviewControl
         If SharedActiveShader IsNot Nothing Then
             SharedActiveShader.Dispose()
             SharedActiveShader = Nothing
+        End If
+
+        If SharedSSEShader IsNot Nothing Then
+            SharedSSEShader.Dispose()
+            SharedSSEShader = Nothing
         End If
 
         If SharedFloorShader IsNot Nothing Then
@@ -1460,13 +1473,14 @@ Public Class PreviewModel
 
 
             '=============================== SHADER ===============================
-            Me.ParentModel.ParentControl.SharedActiveShader.Use()
-            Me.ParentModel.ParentControl.SharedActiveShader.SetMatrix4("matProjection", projection)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetMatrix4("matView", view)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetMatrix4("matModel", model)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetMatrix4("matModelView", modelView)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetMatrix4("matModelViewInverse", modelViewInverse)
-            Me.ParentModel.ParentControl.SharedActiveShader.SetMatrix3("mv_normalMatrix", normalMatrix)
+            Dim shader = Me.ParentModel.ParentControl.CurrentShader
+            shader.Use()
+            shader.SetMatrix4("matProjection", projection)
+            shader.SetMatrix4("matView", view)
+            shader.SetMatrix4("matModel", model)
+            shader.SetMatrix4("matModelView", modelView)
+            shader.SetMatrix4("matModelViewInverse", modelViewInverse)
+            shader.SetMatrix3("mv_normalMatrix", normalMatrix)
             ApplyMaterial(MeshData.Material)
 
             '=============================== DRAW ===============================
@@ -1593,7 +1607,7 @@ Public Class PreviewModel
 
         Public Sub ApplyMaterial(material As PreviewModel.RenderableMesh.MaterialData)
 
-            Dim shader = Me.ParentModel.ParentControl.SharedActiveShader
+            Dim shader = Me.ParentModel.ParentControl.CurrentShader
             Dim materialBase = material.MaterialBase
 
             Dim diffuseTextureId = material.DiffuseTexture_ID
@@ -1603,6 +1617,9 @@ Public Class PreviewModel
             Dim smoothSpecTextureId = material.SmoothSpecTexture_ID
             Dim greyscaleTextureId = material.GreyscaleTexture_ID
             Dim glowTextureId = material.GlowTexture_ID
+            Dim lightingTextureId = material.LightingTexture_ID
+            Dim hasBacklightTexture As Boolean = materialBase.BackLighting
+            Dim hasSpecularSource As Boolean = (smoothSpecTextureId <> 0)
 
             Dim hasCubemap = material.HasCubemap
             Dim hasAlphaBlend = material.HasAlphaBlend
@@ -1613,14 +1630,14 @@ Public Class PreviewModel
             '===============================
             ' ?? PROPIEDADES DE COLOR BÁSICO
             '===============================
-            shader.SetVector3("color", Shader_Class.Color_to_Vector(MeshData.Shape.Wirecolor))
+            shader.SetVector3("color", Shader_Base_Class.Color_to_Vector(MeshData.Shape.Wirecolor))
             shader.SetFloat("WireAlpha", MeshData.Shape.WireAlpha)
             'If MeshData.Material.MaterialBase.SkinTint Then
             '    MeshData.Shape.TintColor = MeshData.Material.MaterialBase.HairTintColor
             'Else
             '    MeshData.Shape.TintColor = Color.White
             'End If
-            shader.SetVector3("subColor", Shader_Class.Color_to_Vector(MeshData.Shape.TintColor))
+            shader.SetVector3("subColor", Shader_Base_Class.Color_to_Vector(MeshData.Shape.TintColor))
 
             '===============================
             ' ?? TOGGLES DE VISUALIZACIÓN
@@ -1704,6 +1721,12 @@ Public Class PreviewModel
                 shader.BindTexture("texGlowmap", Me.ParentModel.ParentControl.defaultWhiteTex, TextureUnit.Texture6)
             End If
 
+            If lightingTextureId <> 0 Then
+                shader.BindTexture("texLightmask", lightingTextureId, TextureUnit.Texture7)
+            Else
+                shader.BindTexture("texLightmask", Me.ParentModel.ParentControl.defaultWhiteTex, TextureUnit.Texture7)
+            End If
+
             '===============================
             ' ?? PROPIEDADES DEL MATERIAL
             '===============================
@@ -1720,29 +1743,26 @@ Public Class PreviewModel
             shader.SetBool("bEnvMask", envmapMaskTextureId <> 0)
             shader.SetBool("bNormalMap", normalTextureId <> 0)
             shader.SetBool("bGreyscaleColor", materialBase.GrayscaleToPaletteColor AndAlso greyscaleTextureId <> 0)
-            shader.SetBool("bSpecular", materialBase.SpecularEnabled AndAlso smoothSpecTextureId <> 0)
+            shader.SetBool("bSpecular", materialBase.SpecularEnabled AndAlso hasSpecularSource)
             shader.SetBool("bModelSpace", materialBase.ModelSpaceNormals)
             shader.SetBool("bEmissive", materialBase.EmitEnabled)
             shader.SetBool("bSoftlight", materialBase.SubsurfaceLighting)
             shader.SetBool("bGlowmap", materialBase.Glowmap AndAlso glowTextureId <> 0)
+            shader.SetBool("bLightmask", lightingTextureId <> 0)
             shader.SetFloat("shininess", materialBase.Smoothness)
-            shader.SetVector3("specularColor", Shader_Class.Color_to_Vector(materialBase.SpecularColor))
+            shader.SetVector3("specularColor", Shader_Base_Class.Color_to_Vector(materialBase.SpecularColor))
             shader.SetFloat("specularStrength", materialBase.SpecularMult)
-            shader.SetVector3("emissiveColor", Shader_Class.Color_to_Vector(materialBase.EmittanceColor))
+            shader.SetVector3("emissiveColor", Shader_Base_Class.Color_to_Vector(materialBase.EmittanceColor))
             shader.SetFloat("emissiveMultiple", materialBase.EmittanceMult)
             shader.SetFloat("fresnelPower", materialBase.FresnelPower)
             shader.SetFloat("subsurfaceRolloff", materialBase.SubsurfaceLightingRolloff)
+            shader.SetFloat("softlighting", materialBase.SubsurfaceLighting)
             shader.SetFloat("paletteScale", materialBase.GrayscaleToPaletteScale)
             shader.SetFloat("envReflection", materialBase.EnvironmentMappingMaskScale)
-
             shader.SetBool("bBacklight", materialBase.BackLighting)
             shader.SetFloat("backlightPower", materialBase.BackLightPower)
             shader.SetBool("bRimlight", materialBase.RimLighting)
             shader.SetFloat("rimlightPower", materialBase.RimPower)
-
-            'SetVector3("softlightColor", New Vector3(1.0F, 1.0F, 1.0F))
-            'SetFloat("softlightPower", 0.4F)
-            'SetFloat("softlightDesaturation", 0.4F)
 
             ' === DebugMode ===
 

@@ -58,6 +58,7 @@ Partial Class Config_Form
         TabControl1 = New TabControl()
         TabPage1 = New TabPage()
         ComboBoxGame = New ComboBox()
+        LabelGameMismatch = New Label()
         Label7 = New Label()
         TabPage2 = New TabPage()
         GroupBox3 = New GroupBox()
@@ -484,6 +485,7 @@ Partial Class Config_Form
         ' 
         TabPage1.BackColor = SystemColors.Control
         TabPage1.Controls.Add(ComboBoxGame)
+        TabPage1.Controls.Add(LabelGameMismatch)
         TabPage1.Controls.Add(Label7)
         TabPage1.Controls.Add(Label1)
         TabPage1.Controls.Add(Button4)
@@ -518,7 +520,17 @@ Partial Class Config_Form
         ComboBoxGame.Size = New Size(168, 23)
         ComboBoxGame.TabIndex = 16
         ToolTip1.SetToolTip(ComboBoxGame, "Select the active target game. This affects paths, skeletons, and build logic.")
-        ' 
+        '
+        ' LabelGameMismatch
+        '
+        LabelGameMismatch.AutoSize = True
+        LabelGameMismatch.ForeColor = Color.Red
+        LabelGameMismatch.Location = New Point(373, 19)
+        LabelGameMismatch.Name = "LabelGameMismatch"
+        LabelGameMismatch.TabIndex = 17
+        LabelGameMismatch.Text = "Mismatch between game and folders"
+        LabelGameMismatch.Visible = False
+        '
         ' Label7
         ' 
         Label7.ImageAlign = ContentAlignment.MiddleRight
@@ -1180,6 +1192,7 @@ Partial Class Config_Form
     Friend WithEvents CheckBoxBuildInPose As CheckBox
     Friend WithEvents CheckBoxFreeze As CheckBox
     Friend WithEvents ComboBoxGame As ComboBox
+    Friend WithEvents LabelGameMismatch As Label
     Friend WithEvents Label7 As Label
     Friend WithEvents GroupBoxweights As GroupBox
     Friend WithEvents RadioButtonAllwaysWeight As RadioButton

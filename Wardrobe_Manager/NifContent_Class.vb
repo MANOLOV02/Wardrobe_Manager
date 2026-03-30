@@ -486,6 +486,7 @@ Public Class Nifcontent_Class_Manolo
     End Sub
     Public Shared Sub Merge_Shapes_Original(DestNif As Nifcontent_Class_Manolo, SrcNif As Nifcontent_Class_Manolo, MergeClothesData As Boolean)
         SrcNif.GetRootNode().Name.String = "Scene Root"
+        ' BSClothExtraData is used by both FO4 and SSE (vanilla Havok); sidecar XML (HDT-SMP) is handled separately by SliderSet_Class
         If Not MergeClothesData Then SrcNif.RemoveBlocksOfType(Of BSClothExtraData)()
         SrcNif.RemoveUnreferencedBlocks()
         For Each shap In SrcNif.GetShapes.ToList
@@ -562,250 +563,222 @@ Public Class Nifcontent_Class_Manolo
             Debugger.Break()
         End If
         Return Me.CloneShape(srcShape, destShapeName, srcNif)
-
-        '    ''Debugger.Break()
-        '    If srcShape Is Nothing Then Return Nothing
-        '    If srcNif Is Nothing Then srcNif = Me
-
-        '    If SupportedShape(srcShape.GetType) = False Then
-        '        Debugger.Break()
-        '        Throw New Exception
-        '    End If
-
-        '    Dim rootNode = GetRootNode()
-        '    Dim srcRootNode = srcNif.GetRootNode()
-
-        '    ' Geometry
-        '    Dim destShapeS As INiShape = srcShape.Clone ' ACA VA CLONE
-
-        '    If srcShape.GetType Is GetType(BSDynamicTriShape) Then
-        '        Dim idx = srcNif.Blocks.IndexOf(srcShape)
-        '        Dim clon = srcNif.CloneBrute
-        '        destShapeS = clon.Blocks(idx)
-        '        'revisar
-        '        ' El clone es bruto
-        '        Debugger.Break()
-        '    End If
-
-        '    Dim destShape As INiShape = destShapeS
-        '    destShape.Name.String = destShapeName
-
-        '    Dim destId As Integer = AddBlock(destShapeS)
-        '    If srcNif Is Me Then
-        '        ' Assign copied geometry to the same parent
-        '        Dim parentNode = GetParentNode(srcShape)
-        '        parentNode?.Children.AddBlockRef(destId)
-        '    ElseIf rootNode IsNot Nothing Then
-        '        rootNode.Children.AddBlockRef(destId)
-        '    End If
-
-        '    ' Children
-        '    CloneChildren_Manolo(destShape, srcNif)
-
-        '    ' Geometry Data
-        '    Dim destGeomData = CType(GetBlock(Of NiObject)(destShape.DataRef()), NiTriBasedGeomData)
-
-        '    If destGeomData IsNot Nothing Then
-        '        destShape.GeometryData = destGeomData
-        '    End If
-
-        '    ' Shader
-        '    If Not IsNothing(GetShader(destShape)) Then
-        '        If (GetShader(destShape).GetType Is GetType(BSLightingShaderProperty)) = True Then
-        '            Dim destShader As BSLightingShaderProperty = GetShader(destShape)
-        '            If destShader IsNot Nothing Then
-        '                If Header.Version().IsSK() OrElse Header.Version().IsSSE() Then
-        '                    ' Kill normals and tangents
-        '                    If destShader.ModelSpace Then
-        '                        destShape.HasNormals = False
-        '                        destShape.HasTangents = False
-        '                    End If
-        '                End If
-        '            End If
-        '        Else
-        '            If GetShader(destShape).GetType Is GetType(BSEffectShaderProperty) = False Then
-        '                Debugger.Break()
-        '            End If
-        '        End If
-        '    End If
-
-        '    ' Bones
-        '    Dim srcBoneList As New List(Of String)
-        '    Dim sourcBoneCont As NiObject = srcNif.GetBlock(Of NiObject)(srcShape.SkinInstanceRef())
-        '    If Not IsNothing(sourcBoneCont) Then
-        '        Select Case sourcBoneCont.GetType
-        '            Case GetType(BSSkin_Instance)
-        '                For Each bon In TryCast(sourcBoneCont, BSSkin_Instance).Bones.References
-        '                    Dim nod = srcNif.GetBlock(bon)
-        '                    srcBoneList.Add(CType(nod, NiNode).Name.String)
-        '                Next
-        '            Case GetType(BSDismemberSkinInstance)
-        '                For Each bon In TryCast(sourcBoneCont, BSDismemberSkinInstance).Bones.References
-        '                    Dim nod = srcNif.GetBlock(bon)
-        '                    srcBoneList.Add(CType(nod, NiNode).Name.String)
-        '                Next
-        '            Case GetType(NiSkinInstance)
-        '                For Each bon In TryCast(sourcBoneCont, NiSkinInstance).Bones.References
-        '                    Dim nod = srcNif.GetBlock(bon)
-        '                    srcBoneList.Add(CType(nod, NiNode).Name.String)
-        '                Next
-        '            Case Else
-        '                Throw New Exception
-        '        End Select
-        '    End If
-
-        '    Dim destBoneCont As NiObject = GetBlock(Of NiObject)(destShape.SkinInstanceRef())
-        '    If destBoneCont IsNot Nothing Then
-        '        If Not IsNothing(destBoneCont) Then
-        '            Select Case destBoneCont.GetType
-        '                Case GetType(BSSkin_Instance)
-        '                    TryCast(destBoneCont, BSSkin_Instance).Bones.Clear()
-        '                Case GetType(BSDismemberSkinInstance)
-        '                    TryCast(destBoneCont, BSDismemberSkinInstance).Bones.Clear()
-        '                Case GetType(NiSkinInstance)
-        '                    TryCast(destBoneCont, NiSkinInstance).Bones.Clear()
-        '                Case Else
-        '                    Throw New Exception
-        '            End Select
-        '        End If
-        '    End If
-
-        '    If rootNode IsNot Nothing AndAlso srcRootNode IsNot Nothing Then
-        '        For Each child In srcRootNode.References
-        '            Dim srcChildNode = srcNif.GetBlock(Of NiNode)(child)
-        '            If srcChildNode IsNot Nothing Then
-        '                CloneNodes_Action(srcChildNode, rootNode, srcNif)
-        '            End If
-        '        Next
-        '    End If
-
-        '    ' Add bones to container if used in skin
-        '    If destBoneCont IsNot Nothing Then
-        '        For Each boneName In srcBoneList
-        '            Dim node = FindBlockByName(Of NiNode)(boneName)
-        '            Dim boneID As Integer = Blocks.IndexOf(node)
-        '            If node IsNot Nothing Then
-        '                Select Case destBoneCont.GetType
-        '                    Case GetType(BSSkin_Instance)
-        '                        TryCast(destBoneCont, BSSkin_Instance).Bones.AddBlockRef(boneID)
-        '                    Case GetType(BSDismemberSkinInstance)
-        '                        TryCast(destBoneCont, BSDismemberSkinInstance).Bones.AddBlockRef(boneID)
-        '                    Case GetType(NiSkinInstance)
-        '                        TryCast(destBoneCont, NiSkinInstance).Bones.AddBlockRef(boneID)
-        '                    Case Else
-        '                        Throw New Exception
-        '                End Select
-        '            End If
-        '        Next
-        '    End If
-        '    Return destShape
     End Function
-    'Private Sub CloneChildren_Manolo(block As NiObject, srcNif As Nifcontent_Class_Manolo)
-    '    If srcNif Is Nothing Then srcNif = Me
-    '    ' Asignar nuevas referencias y cadenas, volver a enlazar punteros donde sea posible
-    '    CloneBlock_Action(block, -1, -1, srcNif)
-    'End Sub
-    'Private Sub CloneBlock_Action(b As NiObject, parentOldId As Integer, parentNewId As Integer, ByRef srcnif As Nifcontent_Class_Manolo)
-    '    For Each r In b.References
-    '        Dim srcChild = srcnif.GetBlock(Of NiObject)(r)
-    '        If srcChild IsNot Nothing Then
 
-    '            Dim destChildS = srcChild.Clone   ' ACA VA CLONE
-    '            Dim destChild = destChildS
-    '            Dim destId As Integer = AddBlock(destChildS)
 
-    '            Dim oldId As Integer = r.Index
-    '            r.Index = destId
+    ''' Returns the internal triParts list from a NiSkinPartition via reflection.
+    ''' triParts is internal to NiflySharp; reflection lets us read/write it without
+    ''' adding any public API to that library.
+    Private Shared Function GetTriParts(skinPart As NiflySharp.Blocks.NiSkinPartition) As List(Of Integer)
+        Static field As Reflection.FieldInfo = GetType(NiflySharp.Blocks.NiSkinPartition).GetField(
+            "triParts", Reflection.BindingFlags.NonPublic Or Reflection.BindingFlags.Instance)
+        Return CType(field.GetValue(skinPart), List(Of Integer))
+    End Function
 
-    '            For Each Str2 In destChild.StringRefs
-    '                Dim strId As Integer = Header.AddOrFindStringId(Str2.String, False)
-    '                Str2.Index = strId
-    '            Next
+    ''' Removes partitions with no triangle assignments from NiSkinPartition.Partitions
+    ''' and BSDismemberSkinInstance.Partitions, remapping triParts accordingly.
+    ''' Prevents the NiflySharp null-partBones crash for empty partitions.
+    Private Sub CompactEmptyPartitions(shape As INiShape)
+        Dim skinInst = GetBlock(Of NiSkinInstance)(shape.SkinInstanceRef)
+        If skinInst Is Nothing Then Return
+        Dim skinPart = GetBlock(skinInst.SkinPartition)
+        If skinPart Is Nothing OrElse skinPart.Partitions Is Nothing OrElse skinPart.Partitions.Count = 0 Then Return
+        Dim triPartsField = GetTriParts(skinPart)
 
-    '            If parentOldId <> -1 Then
-    '                For Each p In destChild.Pointers
-    '                    If p.Index = parentOldId Then
-    '                        p.Index = parentNewId
-    '                    End If
-    '                Next
+        Dim triCount(skinPart.Partitions.Count - 1) As Integer
+        If triPartsField.Count > 0 Then
+            ' triParts is populated — use it to count triangles per partition.
+            For Each partIdx In triPartsField
+                If partIdx >= 0 AndAlso partIdx < triCount.Length Then triCount(partIdx) += 1
+            Next
+        ElseIf skinPart.Partitions.Any(Function(p) p.TrianglesCopy IsNot Nothing) Then
+            ' triParts was cleared (e.g., after RemapSkinPartitionTriangles) but TrianglesCopy
+            ' is set — use TrianglesCopy counts directly.
+            For i As Integer = 0 To skinPart.Partitions.Count - 1
+                Dim p = skinPart.Partitions(i)
+                triCount(i) = If(p.TrianglesCopy IsNot Nothing, p.TrianglesCopy.Count, 0)
+            Next
+        Else
+            Return  ' truly fresh load; triParts not yet computed — let base handle
+        End If
 
-    '                CloneBlock_Action(destChild, parentOldId, parentNewId, srcnif)
-    '            Else
-    '                CloneBlock_Action(destChild, oldId, destId, srcnif)
-    '            End If
-    '        Else
-    '            Debugger.Break()
-    '        End If
-    '    Next
-    'End Sub
+        Dim oldToNew(triCount.Length - 1) As Integer
+        Dim newIdx As Integer = 0
+        For i As Integer = 0 To triCount.Length - 1
+            oldToNew(i) = If(triCount(i) > 0, newIdx, -1)
+            If triCount(i) > 0 Then newIdx += 1
+        Next
+        If newIdx = triCount.Length Then Return  ' nothing to compact
 
-    'Private Sub CloneNodes_Action(srcNode As NiNode, ByRef rootNode As NiNode, ByRef srcnif As NifFile)
-    '    Dim boneName As String = srcNode.Name.String
+        For i As Integer = 0 To triPartsField.Count - 1
+            Dim p = triPartsField(i)
+            If p >= 0 AndAlso p < oldToNew.Length Then triPartsField(i) = oldToNew(p)
+        Next
 
-    '    ' Insert as root child by default
-    '    Dim nodeParent As NiNode = rootNode
+        Dim newParts As New List(Of SkinPartition)(newIdx)
+        For i As Integer = 0 To skinPart.Partitions.Count - 1
+            If oldToNew(i) >= 0 Then newParts.Add(skinPart.Partitions(i))
+        Next
+        skinPart.Partitions = newParts
+        skinPart.NumPartitions = CUInt(newParts.Count)
 
-    '    ' Look for existing node to use as parent instead
-    '    Dim srcNodeParent = srcnif.GetParentNode(srcNode)
-    '    If srcNodeParent IsNot Nothing Then
-    '        Dim parent = FindBlockByName(Of NiNode)(srcNodeParent.Name.String)
-    '        If parent IsNot Nothing Then
-    '            nodeParent = parent
-    '        End If
-    '    End If
+        Dim bsdSkinInst = TryCast(skinInst, BSDismemberSkinInstance)
+        If bsdSkinInst?.Partitions IsNot Nothing Then
+            Dim newBsdParts As New List(Of BodyPartList)(newIdx)
+            For i As Integer = 0 To Math.Min(bsdSkinInst.Partitions.Count, oldToNew.Length) - 1
+                If oldToNew(i) >= 0 Then newBsdParts.Add(bsdSkinInst.Partitions(i))
+            Next
+            bsdSkinInst.Partitions = newBsdParts
+            bsdSkinInst.NumPartitions = CUInt(newBsdParts.Count)
+        End If
+    End Sub
 
-    '    Dim node = FindBlockByName(Of NiNode)(boneName)
-    '    Dim boneID As Integer = Blocks.IndexOf(node)
-    '    If node Is Nothing Then
-    '        ' Clone missing node into the right parent
-    '        boneID = CloneNamedNode_Manolo(boneName, srcnif)
-    '        nodeParent.Children.AddBlockRef(boneID)
-    '    Else
-    '        ' Move existing node to non-root parent
-    '        Dim oldParent = GetParentNode(node)
-    '        If oldParent IsNot Nothing AndAlso oldParent IsNot nodeParent AndAlso nodeParent IsNot rootNode Then
-    '            Dim sour = srcnif.FindBlockByName(Of NiNode)(boneName)
+    ''' Shadows NifFile.UpdateSkinPartitions: compacts empty partitions first so the
+    ''' unmodified NiflySharp code never encounters a null partBones entry.
+    Public Shadows Sub UpdateSkinPartitions(shape As INiShape)
+        CompactEmptyPartitions(shape)
+        MyBase.UpdateSkinPartitions(shape)
+    End Sub
 
-    '            For Each ref In oldParent.References
-    '                If ref.Index = boneID Then
-    '                    ref.Clear()
-    '                End If
-    '            Next
+    ''' <summary>
+    ''' Returns the BSDismemberBodyPartType value (cast to Integer) for each triangle in
+    ''' the shape's skin partition, in triangle-list order.  Returns -1 for unassigned
+    ''' triangles or when there is no BSDismemberSkinInstance.  Returns Nothing when the
+    ''' shape has no NiSkinInstance or no NiSkinPartition (e.g. FO4 shapes).
+    ''' </summary>
+    Public Function GetTriangleBodyParts(shape As INiShape) As List(Of Integer)
+        Dim skinInst = GetBlock(Of NiSkinInstance)(shape.SkinInstanceRef)
+        If skinInst Is Nothing Then Return Nothing
+        Dim skinPart = GetBlock(skinInst.SkinPartition)
+        If skinPart Is Nothing Then Return Nothing
 
-    '            Dim dest = FindBlockByName(Of NiNode)(boneName)
+        Dim tris = shape.Triangles.ToList()
 
-    '            nodeParent.Children.AddBlockRef(boneID)
-    '            dest.Scale = sour.Scale
-    '            dest.Translation = sour.Translation
-    '            dest.Rotation = sour.Rotation
-    '        End If
-    '    End If
+        ' Guard against the NiflySharp Count>0 bug in PrepareTrueTriangles:
+        ' only call it when TrianglesCopy is null (fresh load); skip if already set.
+        Dim triPartsField = GetTriParts(skinPart)
+        If triPartsField.Count <> tris.Count Then
+            If skinPart.Partitions.Any(Function(p) p.TrianglesCopy Is Nothing) Then
+                skinPart.PrepareTrueTriangles()
+            End If
+            skinPart.GenerateTriPartsFromTrueTriangles(tris)
+        End If
 
-    '    ' Recurse children
-    '    For Each child In srcNode.References
-    '        Dim childNodet = srcnif.GetBlock(Of NiAVObject)(child)
-    '        Dim childNode = TryCast(childNodet, NiNode)
-    '        If childNode IsNot Nothing Then
-    '            CloneNodes_Action(childNode, rootNode, srcnif)
-    '        End If
-    '    Next
-    'End Sub
-    'Private Function CloneNamedNode_Manolo(nodeName As String, srcnif As Nifcontent_Class_Manolo) As Integer
-    '    If srcnif Is Nothing Then
-    '        srcnif = Me
-    '    End If
-    '    Dim srcNode = srcnif.FindBlockByName(Of NiAVObject)(nodeName)
-    '    If srcNode Is Nothing Then
-    '        Debugger.Break()
-    '    End If
+        Dim bsdSkinInst = TryCast(skinInst, BSDismemberSkinInstance)
+        Dim bsdParts = If(bsdSkinInst IsNot Nothing, bsdSkinInst.Partitions, Nothing)
+        Dim result As New List(Of Integer)(tris.Count)
+        For Each partInd In triPartsField
+            If bsdParts IsNot Nothing AndAlso partInd >= 0 AndAlso partInd < bsdParts.Count Then
+                result.Add(CInt(bsdParts(partInd).BodyPart))
+            Else
+                result.Add(-1)
+            End If
+        Next
+        Return result
+    End Function
 
-    '    Dim destNode As NiNode = srcNode.Clone ' ACA VA CLONE
-    '    destNode.Name.String = nodeName
-    '    If Not IsNothing(destNode.CollisionObject) Then destNode.CollisionObject.Clear()
-    '    If Not IsNothing(destNode.Controller) Then destNode.Controller.Clear()
-    '    If Not IsNothing(destNode.Children) Then destNode.Children.Clear()
-    '    If Not IsNothing(destNode.Effects) Then destNode.Effects.Clear()
+    ''' <summary>
+    ''' Pre-sets body-part assignments per triangle before calling UpdateSkinPartitions.
+    ''' triangleBodyParts(i) is the BSDismemberBodyPartType value (cast to Integer) for
+    ''' triangle i; -1 means partition 0.  Missing body-part partitions are added to
+    ''' BSDismemberSkinInstance automatically.  No-op for FO4 shapes.
+    ''' </summary>
+    Public Sub SetTriangleBodyParts(shape As INiShape, triangleBodyParts As IReadOnlyList(Of Integer))
+        Dim skinInst = GetBlock(Of NiSkinInstance)(shape.SkinInstanceRef)
+        If skinInst Is Nothing Then Return
+        Dim skinPart = GetBlock(skinInst.SkinPartition)
+        If skinPart Is Nothing Then Return
 
-    '    Return AddBlock(destNode)
-    'End Function
+        Dim bsdSkinInst = TryCast(skinInst, BSDismemberSkinInstance)
+        Dim bsdParts = If(bsdSkinInst IsNot Nothing, bsdSkinInst.Partitions, Nothing)
+
+        ' Build body-part value → partition index map from existing partitions.
+        Dim bpToPartIndex As New Dictionary(Of Integer, Integer)()
+        If bsdParts IsNot Nothing Then
+            For i As Integer = 0 To bsdParts.Count - 1
+                bpToPartIndex(CInt(bsdParts(i).BodyPart)) = i
+            Next
+        End If
+
+        ' Build TriParts, adding new partitions to bsdSkinInst as needed.
+        Dim newTriParts As New List(Of Integer)(triangleBodyParts.Count)
+        For Each bp In triangleBodyParts
+            If bp < 0 Then
+                newTriParts.Add(0)
+                Continue For
+            End If
+            Dim partIdx As Integer
+            If Not bpToPartIndex.TryGetValue(bp, partIdx) Then
+                partIdx = If(bsdParts IsNot Nothing, bsdParts.Count, 0)
+                bpToPartIndex(bp) = partIdx
+                If bsdSkinInst IsNot Nothing Then
+                    If bsdParts Is Nothing Then
+                        bsdSkinInst.Partitions = New List(Of BodyPartList)()
+                        bsdParts = bsdSkinInst.Partitions
+                    End If
+                    bsdParts.Add(New BodyPartList() With {
+                        .PartFlag = BSPartFlag.PF_EDITOR_VISIBLE,
+                        .BodyPart = CType(bp, BSDismemberBodyPartType)
+                    })
+                    bsdSkinInst.NumPartitions = CUInt(bsdParts.Count)
+                End If
+            End If
+            newTriParts.Add(partIdx)
+        Next
+
+        ' Sync NiSkinPartition.Partitions count to match BSDismemberSkinInstance.
+        Dim numParts As Integer
+        If bsdParts IsNot Nothing Then
+            numParts = bsdParts.Count
+        Else
+            numParts = Math.Max(1, If(newTriParts.Count > 0, newTriParts.Max() + 1, 1))
+        End If
+        If skinPart.Partitions Is Nothing Then skinPart.Partitions = New List(Of SkinPartition)()
+        Do While skinPart.Partitions.Count < numParts
+            skinPart.Partitions.Add(New SkinPartition())
+        Loop
+        skinPart.NumPartitions = CUInt(skinPart.Partitions.Count)
+
+        ' Set TriParts directly so UpdateSkinPartitions skips PrepareTriParts.
+        GetTriParts(skinPart).Clear()
+        GetTriParts(skinPart).AddRange(newTriParts)
+    End Sub
+
+    ''' <summary>
+    ''' Remaps vertex indices in the shape's skin partition TrianglesCopy using oldToNew.
+    ''' Triangles whose vertices are absent from the map are dropped.
+    ''' Call before UpdateSkinPartitions whenever vertex compaction changes indices
+    ''' (e.g. zap removal or shape splitting).
+    ''' </summary>
+    Public Sub RemapSkinPartitionTriangles(shape As INiShape, oldToNew As IReadOnlyDictionary(Of Integer, Integer))
+        Dim skinInst = GetBlock(Of NiSkinInstance)(shape.SkinInstanceRef)
+        If skinInst Is Nothing Then Return
+        Dim skinPart = GetBlock(skinInst.SkinPartition)
+        If skinPart Is Nothing Then Return
+
+        ' Guard against the NiflySharp Count>0 bug: only call PrepareTrueTriangles
+        ' when TrianglesCopy is null (fresh load); empty [] means intentionally zapped.
+        If skinPart.Partitions.Any(Function(p) p.TrianglesCopy Is Nothing) Then
+            skinPart.PrepareTrueTriangles()
+        End If
+
+        For i As Integer = 0 To skinPart.Partitions.Count - 1
+            Dim p = skinPart.Partitions(i)
+            If p.TrianglesCopy Is Nothing OrElse p.TrianglesCopy.Count = 0 Then Continue For
+            Dim remapped As New List(Of Triangle)(p.TrianglesCopy.Count)
+            For Each t In p.TrianglesCopy
+                Dim nv1 As Integer, nv2 As Integer, nv3 As Integer
+                If oldToNew.TryGetValue(CInt(t.V1), nv1) AndAlso
+                   oldToNew.TryGetValue(CInt(t.V2), nv2) AndAlso
+                   oldToNew.TryGetValue(CInt(t.V3), nv3) Then
+                    remapped.Add(New Triangle(CUShort(nv1), CUShort(nv2), CUShort(nv3)))
+                End If
+            Next
+            p.TrianglesCopy = remapped
+            p.NumTriangles = CUShort(remapped.Count)
+            skinPart.Partitions(i) = p
+        Next
+        GetTriParts(skinPart).Clear()
+    End Sub
+
 End Class

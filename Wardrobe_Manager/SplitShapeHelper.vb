@@ -119,6 +119,10 @@ Public Class SplitShapeHelper
         splitNifRaw?.UpdateBounds()
 
         ' 8. Skin partitions.
+        ' Remap TrianglesCopy in each partition so body-part assignments survive vertex compaction.
+        ' origRemap/splitRemap already exclude vertices not belonging to that half.
+        sliderSet.NIFContent.RemapSkinPartitionTriangles(origNif, origRemap)
+        If splitBST IsNot Nothing Then sliderSet.NIFContent.RemapSkinPartitionTriangles(splitBST, splitRemap)
         sliderSet.NIFContent.UpdateSkinPartitions(origNif)
         If splitBST IsNot Nothing Then sliderSet.NIFContent.UpdateSkinPartitions(splitBST)
 

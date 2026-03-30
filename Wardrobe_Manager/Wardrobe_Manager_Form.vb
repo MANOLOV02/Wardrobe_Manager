@@ -1,13 +1,13 @@
-ï»¿' -----------------------------------------------------------------------------
-'  Nombre del programa:  Wardrobe Manager â€“ FO4 / SSE Wardrobe Manager
+' -----------------------------------------------------------------------------
+'  Nombre del programa:  Wardrobe Manager – FO4 / SSE Wardrobe Manager
 '  Copyright (C) 2025  ManoloV02 (https://github.com/MANOLOV02)
 '
-'  CrÃ©ditos:
-'   - Ousnius: NiflySharp â€“ Licensed under the GPL-3.0 License (https://github.com/ousnius/NiflySharp)
-'   - Ousnius: Material Editor â€“ Licensed under the MIT License (https://github.com/ousnius/Material-Editor)
-'   - OpenTK (GLControl) â€“ Licensed under the MIT License (https://github.com/opentk/opentk)
-'   - ICSharpCode.SharpZipLib.dll â€“ Licensed under the GPL-3.0 with linking exception (https://github.com/icsharpcode/SharpZipLib)
-'   - K4os.Compression.LZ4.Streams â€“ Licensed under the MIT License (https://github.com/MiloszKrajewski/K4os.Compression.LZ4)
+'  Créditos:
+'   - Ousnius: NiflySharp – Licensed under the GPL-3.0 License (https://github.com/ousnius/NiflySharp)
+'   - Ousnius: Material Editor – Licensed under the MIT License (https://github.com/ousnius/Material-Editor)
+'   - OpenTK (GLControl) – Licensed under the MIT License (https://github.com/opentk/opentk)
+'   - ICSharpCode.SharpZipLib.dll – Licensed under the GPL-3.0 with linking exception (https://github.com/icsharpcode/SharpZipLib)
+'   - K4os.Compression.LZ4.Streams – Licensed under the MIT License (https://github.com/MiloszKrajewski/K4os.Compression.LZ4)
 '
 '  This program is free software: you can redistribute it and/or modify
 '  it under the terms of the GNU General Public License as published by
@@ -488,7 +488,7 @@ Public Class Wardrobe_Manager_Form
             Rebuild_Packs_Combo(oldPackFilename)
             Rebuild_Source_List(oldList_Source)
 
-            ' 5) Restaurar selecciÃ³n
+            ' 5) Restaurar selección
             Dim Choosed_Source As ListViewItem = ListViewSources.Items.Find(oldList_Source, False).FirstOrDefault
             Dim Choosed_Target As ListViewItem = ListViewTargets.Items.Find(oldList_Target, False).FirstOrDefault
             If Not IsNothing(Choosed_Source) Then ListViewSources.FocusedItem = Choosed_Source : Choosed_Source.Selected = True
@@ -832,7 +832,7 @@ Public Class Wardrobe_Manager_Form
 
     Private Sub MovetoDiscardedButton_Click(sender As Object, e As EventArgs) Handles MovetoDiscardedButton.Click
         Empieza_Procesos(ListViewSources.SelectedItems.Count)
-        If MsgBox("Esta Seguro de mover " + ListViewSources.SelectedIndices.Count.ToString + " elementos a la categorÃ­a de descartados", vbYesNo) = MsgBoxResult.No Then
+        If MsgBox("Esta Seguro de mover " + ListViewSources.SelectedIndices.Count.ToString + " elementos a la categoría de descartados", vbYesNo) = MsgBoxResult.No Then
             Termina_Procesos()
             Exit Sub
         End If
@@ -845,7 +845,7 @@ Public Class Wardrobe_Manager_Form
     End Sub
     Private Sub MoveToProcessedButton_Click(sender As Object, e As EventArgs) Handles MoveToProcessedButton.Click
         Empieza_Procesos(ListViewSources.SelectedItems.Count)
-        If MsgBox("Esta Seguro de mover " + ListViewSources.SelectedIndices.Count.ToString + " elementos a la categorÃ­a de procesados", vbYesNo) = MsgBoxResult.No Then
+        If MsgBox("Esta Seguro de mover " + ListViewSources.SelectedIndices.Count.ToString + " elementos a la categoría de procesados", vbYesNo) = MsgBoxResult.No Then
             Termina_Procesos()
             Exit Sub
         End If
@@ -860,7 +860,7 @@ Public Class Wardrobe_Manager_Form
     Private Sub CopytoPackButton_Click(sender As Object, e As EventArgs) Handles CopytoPackButton.Click
         Empieza_Procesos(ListViewSources.SelectedItems.Count)
 
-        If MsgBox("Esta Seguro de agregar " + ListViewSources.SelectedIndices.Count.ToString + " elementos a la categorÃ­a " + ComboboxPacks.Items(ComboboxPacks.SelectedIndex).ToString, vbYesNo) = MsgBoxResult.No Then
+        If MsgBox("Esta Seguro de agregar " + ListViewSources.SelectedIndices.Count.ToString + " elementos a la categoría " + ComboboxPacks.Items(ComboboxPacks.SelectedIndex).ToString, vbYesNo) = MsgBoxResult.No Then
             Termina_Procesos()
             Exit Sub
         End If
@@ -871,7 +871,7 @@ Public Class Wardrobe_Manager_Form
     Private Sub MergeButton_Click(sender As Object, e As EventArgs) Handles MergeButton.Click
         Empieza_Procesos(ListViewSources.SelectedItems.Count)
         OSP_Project_Class.Default_Memory_Pause = True
-        If MsgBox("Esta Seguro de fusionar " + ListViewSources.SelectedIndices.Count.ToString + " elementos en la categorÃ­a " + ComboboxPacks.Items(ComboboxPacks.SelectedIndex).ToString, vbYesNo) = MsgBoxResult.No Then
+        If MsgBox("Esta Seguro de fusionar " + ListViewSources.SelectedIndices.Count.ToString + " elementos en la categoría " + ComboboxPacks.Items(ComboboxPacks.SelectedIndex).ToString, vbYesNo) = MsgBoxResult.No Then
             Termina_Procesos()
             Exit Sub
         End If
@@ -1233,10 +1233,10 @@ Public Class Wardrobe_Manager_Form
         Dim nombre = InputBox("Pack name", "New pack", "")
         nombre = nombre.Trim
         If nombre = "" Then Exit Sub
-        Dim selected_pÃ ck = OSP_Project_Class.Create_New(Path.Combine(Directorios.SliderSetsRoot, nombre + ".osp"), False, True)
-        If Not IsNothing(selected_pÃ ck) Then
-            ComboboxPacks.Items.Add(selected_pÃ ck)
-            ComboboxPacks.SelectedItem = selected_pÃ ck
+        Dim selected_pàck = OSP_Project_Class.Create_New(Path.Combine(Directorios.SliderSetsRoot, nombre + ".osp"), False, True)
+        If Not IsNothing(selected_pàck) Then
+            ComboboxPacks.Items.Add(selected_pàck)
+            ComboboxPacks.SelectedItem = selected_pàck
         End If
     End Sub
 
@@ -1400,9 +1400,9 @@ Public Class Wardrobe_Manager_Form
                     nombre = Source.Nombre
                 End If
                 If nombre.StartsWith(Origin_Pack.Nombre) Then nombre = nombre.Substring(Origin_Pack.Nombre.Length + 1)
-                Dim selected_pÃ ck = OSP_Project_Class.Create_New(Path.Combine(Directorios.SliderSetsRoot, nombre + ".osp"), False, False)
-                If Not IsNothing(selected_pÃ ck) Then
-                    Extract_Target(Source, selected_pÃ ck, nombre)
+                Dim selected_pàck = OSP_Project_Class.Create_New(Path.Combine(Directorios.SliderSetsRoot, nombre + ".osp"), False, False)
+                If Not IsNothing(selected_pàck) Then
+                    Extract_Target(Source, selected_pàck, nombre)
                 End If
                 ProgressBar1.Value += 1
             Next
@@ -1414,7 +1414,7 @@ Public Class Wardrobe_Manager_Form
     Private Sub MergeIntoTargetButton_Click(sender As Object, e As EventArgs) Handles MergeIntoTargetButton.Click
         Empieza_Procesos(ListViewSources.SelectedItems.Count * ListViewTargets.SelectedItems.Count)
         OSP_Project_Class.Default_Memory_Pause = True
-        If MsgBox("Esta Seguro de fusionar " + ListViewSources.SelectedIndices.Count.ToString + " elementos en " + ListViewTargets.SelectedIndices.Count.ToString + " elementos de la categorÃ­a " + ComboboxPacks.Items(ComboboxPacks.SelectedIndex).ToString, vbYesNo) = MsgBoxResult.Yes Then
+        If MsgBox("Esta Seguro de fusionar " + ListViewSources.SelectedIndices.Count.ToString + " elementos en " + ListViewTargets.SelectedIndices.Count.ToString + " elementos de la categoría " + ComboboxPacks.Items(ComboboxPacks.SelectedIndex).ToString, vbYesNo) = MsgBoxResult.Yes Then
             Dim selected_target As SliderSet_Class = Determina_Seleccionado_y_CambiaNombres(1)
             For Each it In ListViewTargets.SelectedItems
                 Dim target As SliderSet_Class = it.Tag
@@ -1720,6 +1720,12 @@ Public Class Wardrobe_Manager_Form
 
     Private Sub Button4_Click_2(sender As Object, e As EventArgs) Handles ButtonOpenConfig.Click
         Empieza_Procesos(0)
+        Dim old_game = Config_App.Current.Game
+        Dim old_Data = Config_App.Current.FO4EDataPath
+        Dim old_OS = Config_App.Current.OSExePath
+        Dim old_BS = Config_App.Current.BSExePath
+        Dim old_SK = Config_App.Current.SkeletonPath
+
         Dim Config As New Config_Form
         Dim Oldtheme = Config_App.Current.theme
         Config.ShowDialog(Me)
@@ -1737,6 +1743,13 @@ Public Class Wardrobe_Manager_Form
             preview_Control.Model.Floor.StepSize = Config_App.Current.Settings_RenderGrid.StepSize
             preview_Control.Model.Floor.Rebuild()
         End If
+        Dim reproces_dic As Boolean = False
+        If old_game <> Config_App.Current.Game Then reproces_dic = True
+        If old_Data <> Config_App.Current.FO4EDataPath Then reproces_dic = True
+        If old_OS <> Config_App.Current.OSExePath Then reproces_dic = True
+        If old_BS <> Config_App.Current.BSExePath Then reproces_dic = True
+        If old_SK <> Config_App.Current.SkeletonPath Then reproces_dic = True
+        CheckBoxReloadDict.Checked = reproces_dic
         Termina_Procesos()
         RefreshButton.PerformClick()
     End Sub
@@ -1879,11 +1892,11 @@ Public Class Wardrobe_Manager_Form
 
     Private Sub Wardrobe_Manager_Form_KeyDown(sender As Object, e As KeyEventArgs) Handles Me.KeyDown
 #If DEBUG Then
-        If e.KeyValue = Keys.F1 Then preview_Control.SharedActiveShader.Debugmode = 0
-        If e.KeyValue = Keys.F2 Then preview_Control.SharedActiveShader.Debugmode = 1
-        If e.KeyValue = Keys.F3 Then preview_Control.SharedActiveShader.Debugmode = 2
-        If e.KeyValue = Keys.F4 Then preview_Control.SharedActiveShader.Debugmode = 3
-        If e.KeyValue = Keys.F5 Then preview_Control.SharedActiveShader.Debugmode = 4
+        If e.KeyValue = Keys.F1 Then preview_Control.CurrentShader.Debugmode = 0
+        If e.KeyValue = Keys.F2 Then preview_Control.CurrentShader.Debugmode = 1
+        If e.KeyValue = Keys.F3 Then preview_Control.CurrentShader.Debugmode = 2
+        If e.KeyValue = Keys.F4 Then preview_Control.CurrentShader.Debugmode = 3
+        If e.KeyValue = Keys.F5 Then preview_Control.CurrentShader.Debugmode = 4
         preview_Control.updateRequired = True
 #End If
     End Sub
@@ -1932,7 +1945,7 @@ Public Class Wardrobe_Manager_Form
         ListViewSources.Columns(0).Text = "Name"
         ListViewSources.Columns(1).Text = "Description"
         ListViewSources.Columns(2).Text = "File"
-        ListViewSources.Columns(_Sourcesort).Text += IIf(ListViewSources.Sorting = SortOrder.Ascending, " â†“", " â†‘")
+        ListViewSources.Columns(_Sourcesort).Text += IIf(ListViewSources.Sorting = SortOrder.Ascending, " ?", " ?")
         ' Asignar el comparador y ordenar
         ListViewSources.ListViewItemSorter = New ListViewItemComparer(e.Column, ListViewSources.Sorting)
         ListViewSources.SuspendLayout()
@@ -1957,7 +1970,7 @@ Public Class Wardrobe_Manager_Form
         ListViewTargets.Columns(0).Text = "Name"
         ListViewTargets.Columns(1).Text = "Description"
         ListViewTargets.Columns(2).Text = "File"
-        ListViewTargets.Columns(_TargetSort).Text += IIf(ListViewTargets.Sorting = SortOrder.Ascending, " â†“", " â†‘")
+        ListViewTargets.Columns(_TargetSort).Text += IIf(ListViewTargets.Sorting = SortOrder.Ascending, " ?", " ?")
         ' Asignar el comparador y ordenar
         ListViewTargets.ListViewItemSorter = New ListViewItemComparer(e.Column, ListViewTargets.Sorting)
         ListViewTargets.SuspendLayout()
@@ -1983,7 +1996,7 @@ Public Class Wardrobe_Manager_Form
 
             Dim compareResult As Integer
 
-            ' Intentar comparar como nÃºmero
+            ' Intentar comparar como número
             ' Comparar como texto
             compareResult = String.Compare(itemX, itemY)
 
@@ -2009,5 +2022,6 @@ Public Class Wardrobe_Manager_Form
 
 
 End Class
+
 
 
