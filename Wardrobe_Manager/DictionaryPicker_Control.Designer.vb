@@ -1,4 +1,5 @@
-﻿<Global.Microsoft.VisualBasic.CompilerServices.DesignerGenerated()> _
+﻿' Version Uploaded of Wardrobe 2.1.3
+<Global.Microsoft.VisualBasic.CompilerServices.DesignerGenerated()> _
 Partial Class DictionaryPicker_Control
     Inherits System.Windows.Forms.UserControl
 

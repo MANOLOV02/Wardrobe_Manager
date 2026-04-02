@@ -1,4 +1,4 @@
-' Version Uploaded of Wardrobe 2.1.3
+﻿' Version Uploaded of Wardrobe 2.1.3
 Imports NiflySharp
 Imports NiflySharp.Blocks
 Imports NiflySharp.Structs

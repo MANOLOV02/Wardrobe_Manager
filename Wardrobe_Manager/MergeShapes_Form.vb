@@ -1,3 +1,4 @@
+﻿' Version Uploaded of Wardrobe 2.1.3
 Public Class MergeShapes_Form
 
     Private _currentShape As Shape_class

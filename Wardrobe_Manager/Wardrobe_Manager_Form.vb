@@ -1,13 +1,13 @@
-' -----------------------------------------------------------------------------
-'  Nombre del programa:  Wardrobe Manager – FO4 / SSE Wardrobe Manager
+ï»¿' -----------------------------------------------------------------------------
+'  Nombre del programa:  Wardrobe Manager â€“ FO4 / SSE Wardrobe Manager
 '  Copyright (C) 2025  ManoloV02 (https://github.com/MANOLOV02)
 '
-'  Créditos:
-'   - Ousnius: NiflySharp – Licensed under the GPL-3.0 License (https://github.com/ousnius/NiflySharp)
-'   - Ousnius: Material Editor – Licensed under the MIT License (https://github.com/ousnius/Material-Editor)
-'   - OpenTK (GLControl) – Licensed under the MIT License (https://github.com/opentk/opentk)
-'   - ICSharpCode.SharpZipLib.dll – Licensed under the GPL-3.0 with linking exception (https://github.com/icsharpcode/SharpZipLib)
-'   - K4os.Compression.LZ4.Streams – Licensed under the MIT License (https://github.com/MiloszKrajewski/K4os.Compression.LZ4)
+'  CrÃ©ditos:
+'   - Ousnius: NiflySharp â€“ Licensed under the GPL-3.0 License (https://github.com/ousnius/NiflySharp)
+'   - Ousnius: Material Editor â€“ Licensed under the MIT License (https://github.com/ousnius/Material-Editor)
+'   - OpenTK (GLControl) â€“ Licensed under the MIT License (https://github.com/opentk/opentk)
+'   - ICSharpCode.SharpZipLib.dll â€“ Licensed under the GPL-3.0 with linking exception (https://github.com/icsharpcode/SharpZipLib)
+'   - K4os.Compression.LZ4.Streams â€“ Licensed under the MIT License (https://github.com/MiloszKrajewski/K4os.Compression.LZ4)
 '
 '  This program is free software: you can redistribute it and/or modify
 '  it under the terms of the GNU General Public License as published by
@@ -488,7 +488,7 @@ Public Class Wardrobe_Manager_Form
             Rebuild_Packs_Combo(oldPackFilename)
             Rebuild_Source_List(oldList_Source)
 
-            ' 5) Restaurar selección
+            ' 5) Restaurar selecciÃ³n
             Dim Choosed_Source As ListViewItem = ListViewSources.Items.Find(oldList_Source, False).FirstOrDefault
             Dim Choosed_Target As ListViewItem = ListViewTargets.Items.Find(oldList_Target, False).FirstOrDefault
             If Not IsNothing(Choosed_Source) Then ListViewSources.FocusedItem = Choosed_Source : Choosed_Source.Selected = True
@@ -832,7 +832,7 @@ Public Class Wardrobe_Manager_Form
 
     Private Sub MovetoDiscardedButton_Click(sender As Object, e As EventArgs) Handles MovetoDiscardedButton.Click
         Empieza_Procesos(ListViewSources.SelectedItems.Count)
-        If MsgBox("Esta Seguro de mover " + ListViewSources.SelectedIndices.Count.ToString + " elementos a la categoría de descartados", vbYesNo) = MsgBoxResult.No Then
+        If MsgBox("Are you sure you want to move " + ListViewSources.SelectedIndices.Count.ToString + " items to the discarded category?", vbYesNo, "Confirm") = MsgBoxResult.No Then
             Termina_Procesos()
             Exit Sub
         End If
@@ -845,7 +845,7 @@ Public Class Wardrobe_Manager_Form
     End Sub
     Private Sub MoveToProcessedButton_Click(sender As Object, e As EventArgs) Handles MoveToProcessedButton.Click
         Empieza_Procesos(ListViewSources.SelectedItems.Count)
-        If MsgBox("Esta Seguro de mover " + ListViewSources.SelectedIndices.Count.ToString + " elementos a la categoría de procesados", vbYesNo) = MsgBoxResult.No Then
+        If MsgBox("Are you sure you want to move " + ListViewSources.SelectedIndices.Count.ToString + " items to the processed category?", vbYesNo, "Confirm") = MsgBoxResult.No Then
             Termina_Procesos()
             Exit Sub
         End If
@@ -860,7 +860,7 @@ Public Class Wardrobe_Manager_Form
     Private Sub CopytoPackButton_Click(sender As Object, e As EventArgs) Handles CopytoPackButton.Click
         Empieza_Procesos(ListViewSources.SelectedItems.Count)
 
-        If MsgBox("Esta Seguro de agregar " + ListViewSources.SelectedIndices.Count.ToString + " elementos a la categoría " + ComboboxPacks.Items(ComboboxPacks.SelectedIndex).ToString, vbYesNo) = MsgBoxResult.No Then
+        If MsgBox("Are you sure you want to add " + ListViewSources.SelectedIndices.Count.ToString + " items to category " + ComboboxPacks.Items(ComboboxPacks.SelectedIndex).ToString + "?", vbYesNo, "Confirm") = MsgBoxResult.No Then
             Termina_Procesos()
             Exit Sub
         End If
@@ -871,7 +871,7 @@ Public Class Wardrobe_Manager_Form
     Private Sub MergeButton_Click(sender As Object, e As EventArgs) Handles MergeButton.Click
         Empieza_Procesos(ListViewSources.SelectedItems.Count)
         OSP_Project_Class.Default_Memory_Pause = True
-        If MsgBox("Esta Seguro de fusionar " + ListViewSources.SelectedIndices.Count.ToString + " elementos en la categoría " + ComboboxPacks.Items(ComboboxPacks.SelectedIndex).ToString, vbYesNo) = MsgBoxResult.No Then
+        If MsgBox("Are you sure you want to merge " + ListViewSources.SelectedIndices.Count.ToString + " items into category " + ComboboxPacks.Items(ComboboxPacks.SelectedIndex).ToString + "?", vbYesNo, "Confirm") = MsgBoxResult.No Then
             Termina_Procesos()
             Exit Sub
         End If
@@ -882,7 +882,7 @@ Public Class Wardrobe_Manager_Form
     End Sub
     Private Sub ButtonDelete_Click_1(sender As Object, e As EventArgs) Handles ButtonDelete.Click
         Empieza_Procesos(ListViewTargets.SelectedItems.Count * 2)
-        If MsgBox("Esta seguro que quieres borrar " + ListViewTargets.SelectedIndices.Count.ToString + " elementos", vbCritical + vbOKCancel, "Confirmacion") = MsgBoxResult.Ok Then
+        If MsgBox("Are you sure you want to delete " + ListViewTargets.SelectedIndices.Count.ToString + " items?", vbCritical + vbOKCancel, "Confirm") = MsgBoxResult.Ok Then
             Dim toremove(ListViewTargets.SelectedItems.Count - 1) As ListViewItem
             ListViewTargets.SelectedItems.CopyTo(toremove, 0)
             For Each it In toremove
@@ -1015,9 +1015,10 @@ Public Class Wardrobe_Manager_Form
             Dim Nuevo As String = IO.Path.Combine(Directorio, slidertomove.ParentOSP.Filename_WithoutPath)
             If IO.Directory.Exists(IO.Path.GetDirectoryName(Nuevo)) = False Then IO.Directory.CreateDirectory(IO.Path.GetDirectoryName(Nuevo))
             If IO.File.Exists(actual) Then
-                If IO.File.Exists(Nuevo) Then If MsgBox("Desea reeplazar el archivo guardado", vbOKCancel) = MsgBoxResult.Ok Then IO.File.Delete(Nuevo)
+                If IO.File.Exists(Nuevo) Then If MsgBox("Do you want to replace the saved file?", vbOKCancel, "Replace file") = MsgBoxResult.Ok Then IO.File.Delete(Nuevo)
                 If slidertomove.ParentOSP.SliderSets.Count = 1 OrElse ListViewSources.SelectedItems.Cast(Of ListViewItem).Where(Function(pf) CType(pf.Tag, SliderSet_Class).ParentOSP Is slidertomove.ParentOSP).Count = 1 Then
                     IO.File.Move(actual, Nuevo)
+                    IO.File.SetLastWriteTime(Nuevo, DateTime.Now)
                 End If
             End If
             ListViewSources.Items.Remove(ind)
@@ -1233,10 +1234,10 @@ Public Class Wardrobe_Manager_Form
         Dim nombre = InputBox("Pack name", "New pack", "")
         nombre = nombre.Trim
         If nombre = "" Then Exit Sub
-        Dim selected_pàck = OSP_Project_Class.Create_New(Path.Combine(Directorios.SliderSetsRoot, nombre + ".osp"), False, True)
-        If Not IsNothing(selected_pàck) Then
-            ComboboxPacks.Items.Add(selected_pàck)
-            ComboboxPacks.SelectedItem = selected_pàck
+        Dim selected_pack = OSP_Project_Class.Create_New(Path.Combine(Directorios.SliderSetsRoot, nombre + ".osp"), False, True)
+        If Not IsNothing(selected_pack) Then
+            ComboboxPacks.Items.Add(selected_pack)
+            ComboboxPacks.SelectedItem = selected_pack
         End If
     End Sub
 
@@ -1342,42 +1343,31 @@ Public Class Wardrobe_Manager_Form
 
 
 
+    ' Debounce timer: fires RequestLeeShapes only after the user has stopped
+    ' changing selection for _selectionDebounceMs milliseconds.
+    ' WinForms Timer runs on the UI thread â€” no synchronization needed.
+    Private WithEvents TselectionDebounceTimer As New System.Windows.Forms.Timer With {.Interval = 180}
+
     Private Sub ListViewSources_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ListViewSources.SelectedIndexChanged
-        If seleccionPendiente Then Return
-
-        seleccionPendiente = True
-
-        ListViewSources.BeginInvoke(Sub()
-                                        seleccionPendiente = False
-                                        ProcesarSeleccionFinal()
-                                    End Sub)
-
-
+        TselectionDebounceTimer.Stop()
+        TselectionDebounceTimer.Start() ' restart debounce window
     End Sub
 
     Private Sub ListViewTargets_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ListViewTargets.SelectedIndexChanged
-        If seleccionPendiente Then Return
-
-        seleccionPendiente = True
-
-        ListViewTargets.BeginInvoke(Sub()
-                                        seleccionPendiente = False
-                                        ProcesarSeleccionFinal()
-                                    End Sub)
-
+        TselectionDebounceTimer.Stop()
+        TselectionDebounceTimer.Start()
     End Sub
 
-    Private seleccionPendiente As Boolean = False
+    Private Sub SelectionDebounceTimer_Tick(sender As Object, e As EventArgs) Handles TselectionDebounceTimer.Tick
+        TselectionDebounceTimer.Stop() ' one-shot
 
-
-    Private Sub ProcesarSeleccionFinal()
         RequestLeeShapes()
         Habilita_deshabilita()
     End Sub
 
     Private Sub RenameButton_Click(sender As Object, e As EventArgs) Handles RenameButton.Click
         Empieza_Procesos(1)
-        If MsgBox("Esta Seguro de renombrar " + ListViewTargets.SelectedIndices.Count.ToString + " elementos ", vbYesNo) = MsgBoxResult.No Then
+        If MsgBox("Are you sure you want to rename " + ListViewTargets.SelectedIndices.Count.ToString + " items?", vbYesNo, "Confirm") = MsgBoxResult.No Then
             Termina_Procesos()
             Exit Sub
         End If
@@ -1389,7 +1379,7 @@ Public Class Wardrobe_Manager_Form
 
     Private Async Sub ExtractSingleButton_Click(sender As Object, e As EventArgs) Handles ExtractSingleButton.Click
         Empieza_Procesos(ListViewTargets.SelectedItems.Count)
-        If MsgBox("Esta Seguro de extraer " + ListViewTargets.SelectedIndices.Count.ToString + " elementos ", vbYesNo) = MsgBoxResult.Yes Then
+        If MsgBox("Are you sure you want to extract " + ListViewTargets.SelectedIndices.Count.ToString + " items?", vbYesNo, "Confirm") = MsgBoxResult.Yes Then
             Dim Origin_Pack As OSP_Project_Class = ComboboxPacks.Items(ComboboxPacks.SelectedIndex)
             For Each it In ListViewTargets.SelectedItems
                 Dim Source As SliderSet_Class = it.Tag
@@ -1400,9 +1390,9 @@ Public Class Wardrobe_Manager_Form
                     nombre = Source.Nombre
                 End If
                 If nombre.StartsWith(Origin_Pack.Nombre) Then nombre = nombre.Substring(Origin_Pack.Nombre.Length + 1)
-                Dim selected_pàck = OSP_Project_Class.Create_New(Path.Combine(Directorios.SliderSetsRoot, nombre + ".osp"), False, False)
-                If Not IsNothing(selected_pàck) Then
-                    Extract_Target(Source, selected_pàck, nombre)
+                Dim selected_pack = OSP_Project_Class.Create_New(Path.Combine(Directorios.SliderSetsRoot, nombre + ".osp"), False, False)
+                If Not IsNothing(selected_pack) Then
+                    Extract_Target(Source, selected_pack, nombre)
                 End If
                 ProgressBar1.Value += 1
             Next
@@ -1414,7 +1404,7 @@ Public Class Wardrobe_Manager_Form
     Private Sub MergeIntoTargetButton_Click(sender As Object, e As EventArgs) Handles MergeIntoTargetButton.Click
         Empieza_Procesos(ListViewSources.SelectedItems.Count * ListViewTargets.SelectedItems.Count)
         OSP_Project_Class.Default_Memory_Pause = True
-        If MsgBox("Esta Seguro de fusionar " + ListViewSources.SelectedIndices.Count.ToString + " elementos en " + ListViewTargets.SelectedIndices.Count.ToString + " elementos de la categoría " + ComboboxPacks.Items(ComboboxPacks.SelectedIndex).ToString, vbYesNo) = MsgBoxResult.Yes Then
+        If MsgBox("Are you sure you want to merge " + ListViewSources.SelectedIndices.Count.ToString + " items into " + ListViewTargets.SelectedIndices.Count.ToString + " items in category " + ComboboxPacks.Items(ComboboxPacks.SelectedIndex).ToString + "?", vbYesNo, "Confirm") = MsgBoxResult.Yes Then
             Dim selected_target As SliderSet_Class = Determina_Seleccionado_y_CambiaNombres(1)
             For Each it In ListViewTargets.SelectedItems
                 Dim target As SliderSet_Class = it.Tag
@@ -1433,7 +1423,7 @@ Public Class Wardrobe_Manager_Form
 
     Private Sub CloneButton_Click(sender As Object, e As EventArgs) Handles CloneButton.Click
         Empieza_Procesos(ListViewTargets.SelectedIndices.Count)
-        If MsgBox("Esta Seguro de clonar " + ListViewTargets.SelectedIndices.Count.ToString + " elementos ", vbYesNo) = MsgBoxResult.Yes Then
+        If MsgBox("Are you sure you want to clone " + ListViewTargets.SelectedIndices.Count.ToString + " items?", vbYesNo, "Confirm") = MsgBoxResult.Yes Then
             For Each it In ListViewTargets.SelectedItems
                 Dim Source As SliderSet_Class = it.Tag
                 Dim nombre As String
@@ -1756,7 +1746,7 @@ Public Class Wardrobe_Manager_Form
 
     Private Sub ButtonDeleteSource_Click(sender As Object, e As EventArgs) Handles ButtonDeleteSource.Click
         Empieza_Procesos(ListViewSources.SelectedItems.Count * 2)
-        If MsgBox("Esta seguro que quieres borrar " + ListViewSources.SelectedIndices.Count.ToString + " elementos", vbCritical + vbYesNo, "Confirmacion") = MsgBoxResult.Yes Then
+        If MsgBox("Are you sure you want to delete " + ListViewSources.SelectedIndices.Count.ToString + " items?", vbCritical + vbYesNo, "Confirm") = MsgBoxResult.Yes Then
             Dim toremove(ListViewSources.SelectedItems.Count - 1) As ListViewItem
             ListViewSources.SelectedItems.CopyTo(toremove, 0)
             For Each it In toremove
@@ -1996,7 +1986,7 @@ Public Class Wardrobe_Manager_Form
 
             Dim compareResult As Integer
 
-            ' Intentar comparar como número
+            ' Intentar comparar como nï¿½mero
             ' Comparar como texto
             compareResult = String.Compare(itemX, itemY)
 

@@ -1,11 +1,11 @@
-' Version Uploaded of Wardrobe 2.1.3
+﻿' Version Uploaded of Wardrobe 2.1.3
 Imports OpenTK.Graphics.OpenGL4
 Imports OpenTK.Mathematics
 
 
 Public Class Floor_Shader_Class
     Inherits Shader_Base_Class
-    Private Const VertexShaderSourceString As String =
+    Private Const Vertex_Floor As String =
 "#version 440
 layout(location = 0) in vec3 vertexPosition;
 
@@ -18,7 +18,7 @@ void main()
     gl_Position = matProjection * matView * matModel * vec4(vertexPosition, 1.0);
 }"
 
-    Private Const FragmentShaderSourceString As String =
+    Private Const Fragment_Floor As String =
 "#version 440
 uniform vec3 gridColor;
 out vec4 FragColor;
@@ -28,13 +28,13 @@ void main()
     FragColor = vec4(gridColor, 1.0);
 }"
     Sub New()
-        MyBase.New(VertexShaderSourceString, FragmentShaderSourceString)
+        MyBase.New(Vertex_Floor, Fragment_Floor)
     End Sub
 End Class
 
 Public Class Shader_Class_Fo4
     Inherits Shader_Base_Class
-    Private Const VertexShaderSourceString As String = "
+    Private Const Vertex_FO4 As String = "
 #version 440
 uniform mat4 matProjection;
 uniform mat4 matView;
@@ -244,7 +244,7 @@ void main(void)
 	}
 }
 "
-    Private Const FragmentShaderSourceString As String = "
+    Private Const Fragment_FO4 As String = "
 #version 440
 
 /*
@@ -796,14 +796,14 @@ if (bHide)
 }
 "
     Sub New()
-        MyBase.New(VertexShaderSourceString, FragmentShaderSourceString)
+        MyBase.New(Vertex_FO4, Fragment_FO4)
     End Sub
 End Class
 
 
 Public Class Shader_Class_SSE
     Inherits Shader_Base_Class
-    Private Const VertexShaderSourceString As String = "
+    Private Const Vertex_SSE As String = "
 #version 440
 uniform mat4 matProjection;
 uniform mat4 matView;
@@ -1013,7 +1013,7 @@ void main(void)
 	}
 }
 "
-    Private Const FragmentShaderSourceString As String = "
+    Private Const Fragment_SSE As String = "
 #version 440
 
 /*
@@ -1467,6 +1467,7 @@ if (DebugMode > 0.0) {
     vec3 dbgBitangent= normalize(mv_tbn * vec3(0.0, 1.0, 0.0));
     vec3 dbgNormal   = normalize(mv_tbn * vec3(0.0, 0.0, 1.0));
 
+
     // Mapeo de -1..1 a 0..1 para visualizar en color
     dbgNormal    = dbgNormal    * 0.5 + 0.5;
     dbgTangent   = dbgTangent   * 0.5 + 0.5;
@@ -1564,7 +1565,7 @@ if (bHide)
 }
 "
     Sub New()
-        MyBase.New(VertexShaderSourceString, FragmentShaderSourceString)
+        MyBase.New(Vertex_SSE, Fragment_SSE)
     End Sub
 End Class
 Public MustInherit Class Shader_Base_Class

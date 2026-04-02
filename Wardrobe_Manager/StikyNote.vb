@@ -1,4 +1,5 @@
-﻿Public Class StikyNote
+﻿' Version Uploaded of Wardrobe 2.1.3
+Public Class StikyNote
 
     Private mouseDown2 As Boolean
     Private lastLocation As Point
