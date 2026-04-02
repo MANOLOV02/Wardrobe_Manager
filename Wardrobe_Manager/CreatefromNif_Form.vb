@@ -7,7 +7,7 @@ Imports NiflySharp
 Imports NiflySharp.Blocks
 
 Public Class Create_from_Nif_Form
-    Private WithEvents EditPreviewControl As New PreviewControl
+    Private WithEvents EditPreviewControl As PreviewControl = Nothing
     Private Selected_OSP As New OSP_Project_Class
     Private selected_slider As New SliderSet_Class(Selected_OSP)
     Private HasSaved As Boolean = False
@@ -174,6 +174,7 @@ Public Class Create_from_Nif_Form
         selected_slider.OutputFileValue = IO.Path.GetFileNameWithoutExtension(fil)
         selected_slider.SourceFileValue = fil
         EditPreviewControl.Model.Last_rendered = Nothing
+        EditPreviewControl.Model.FloorOffset = -selected_slider.HighHeelHeight
         EditPreviewControl.Update_Render(selected_slider, True, Nothing, Nothing, Config_App.SliderSize.Default)
     End Sub
     Private Last_key As String = ""

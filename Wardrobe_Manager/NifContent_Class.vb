@@ -15,29 +15,31 @@ Public Class Skeleton_Class
     Public Shared Property SkeletonStructure As New List(Of HierarchiBone_class)
     Public Shared Property SkeletonDictionary As New Dictionary(Of String, HierarchiBone_class)(StringComparer.OrdinalIgnoreCase)
     Private Shared ReadOnly SkeletonInjectedBones As New System.Collections.Generic.HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+    Private Shared ReadOnly _skeletonLock As New Object
     Public Shared Sub AppplyPoseToSkeleton(Pose As Poses_class)
-        If HasSkeleton = False Then Exit Sub
+        SyncLock _skeletonLock
+            If HasSkeleton = False Then Exit Sub
 
-        Reset()
+            Reset()
 
-        If IsNothing(Pose) Then Exit Sub
+            If IsNothing(Pose) Then Exit Sub
 
-        For Each posbon In Pose.Transforms
-            If Not SkeletonDictionary.ContainsKey(posbon.Key) Then Continue For
-            Dim bon = SkeletonDictionary(posbon.Key)
-            Dim Bonetrans = bon.OriginalLocaLTransform
-            Dim posetrans = New Transform_Class(posbon.Value, Pose.Source)
-            Dim trans As Transform_Class
+            For Each posbon In Pose.Transforms
+                If Not SkeletonDictionary.ContainsKey(posbon.Key) Then Continue For
+                Dim bon = SkeletonDictionary(posbon.Key)
+                Dim Bonetrans = bon.OriginalLocaLTransform
+                Dim posetrans = New Transform_Class(posbon.Value, Pose.Source)
+                Dim trans As Transform_Class
 
-            If Pose.Source = Poses_class.Pose_Source_Enum.ScreenArcher Then
-                trans = Bonetrans.Inverse.ComposeTransforms(posetrans)
-            Else
-                trans = posetrans
-            End If
-            bon.DeltaTransform = trans
-            SkeletonDictionary(posbon.Key) = bon   ' write-back explícito e intencional
-        Next
-
+                If Pose.Source = Poses_class.Pose_Source_Enum.ScreenArcher Then
+                    trans = Bonetrans.Inverse.ComposeTransforms(posetrans)
+                Else
+                    trans = posetrans
+                End If
+                bon.DeltaTransform = trans
+                SkeletonDictionary(posbon.Key) = bon   ' write-back explícito e intencional
+            Next
+        End SyncLock
     End Sub
     Public Class HierarchiBone_class
         Public ReadOnly Property LocaLTransform As Transform_Class
@@ -74,84 +76,87 @@ Public Class Skeleton_Class
     End Property
 
     Public Shared Function LoadSkeleton(Force As Boolean, relative As Boolean) As Boolean
-        Try
-            If Force = False AndAlso HasSkeleton Then Return True
-            Skeleton = New Nifcontent_Class_Manolo
-            SkeletonStructure.Clear()
-            SkeletonDictionary.Clear()
-            If relative = False Then
-                Skeleton.Load_Manolo(Directorios.SkeletonPath)
-            Else
-                Dim relativestr = IO.Path.GetRelativePath(Directorios.Fallout4data, Directorios.SkeletonPath)
-                Dim skel As FilesDictionary_class.File_Location = Nothing
-                If FilesDictionary_class.Dictionary.TryGetValue(relativestr, skel) Then
-                    Skeleton.Load_Manolo(skel.GetBytes)
-                End If
-            End If
-            ' Build parent lookup: childBlockIndex -> parent NiNode (includes BSFadeNode subclass)
-            Dim parentMap As New Dictionary(Of Integer, NiNode)
-            For Each block In Skeleton.Blocks.OfType(Of NiNode)()
-                For Each childRef In block.Children.References
-                    If childRef.Index >= 0 Then parentMap(childRef.Index) = block
-                Next
-            Next
-
-            For Each bon As NiNode In Skeleton.Blocks.Where(Function(pf) pf.GetType Is GetType(NiNode))
-                Dim bonIndex As Integer
-                Dim par As NiNode = Nothing
-                If Skeleton.GetBlockIndex(bon, bonIndex) Then
-                    parentMap.TryGetValue(bonIndex, par)
-                End If
-                If IsNothing(par) OrElse par.GetType Is GetType(NiflySharp.Blocks.BSFadeNode) Then
-                    If IsNothing(par) Then
-                        AddBone(Nothing, bon)
-                    Else
-                        AddBone(Nothing, par)
+        SyncLock _skeletonLock
+            Try
+                If Force = False AndAlso HasSkeleton Then Return True
+                Skeleton = New Nifcontent_Class_Manolo
+                SkeletonStructure.Clear()
+                SkeletonDictionary.Clear()
+                If relative = False Then
+                    Skeleton.Load_Manolo(Directorios.SkeletonPath)
+                Else
+                    Dim relativestr = IO.Path.GetRelativePath(Directorios.Fallout4data, Directorios.SkeletonPath)
+                    Dim skel As FilesDictionary_class.File_Location = Nothing
+                    If FilesDictionary_class.Dictionary.TryGetValue(relativestr, skel) Then
+                        Skeleton.Load_Manolo(skel.GetBytes)
                     End If
                 End If
-            Next
-            Return SkeletonDictionary.Count <> 0
-        Catch ex As Exception
-            Skeleton = Nothing
-            SkeletonInjectedBones.Clear()
-            Return False
-        End Try
+                ' Build parent lookup: childBlockIndex -> parent NiNode (includes BSFadeNode subclass)
+                Dim parentMap As New Dictionary(Of Integer, NiNode)
+                For Each block In Skeleton.Blocks.OfType(Of NiNode)()
+                    For Each childRef In block.Children.References
+                        If childRef.Index >= 0 Then parentMap(childRef.Index) = block
+                    Next
+                Next
+
+                For Each bon As NiNode In Skeleton.Blocks.Where(Function(pf) pf.GetType Is GetType(NiNode))
+                    Dim bonIndex As Integer
+                    Dim par As NiNode = Nothing
+                    If Skeleton.GetBlockIndex(bon, bonIndex) Then
+                        parentMap.TryGetValue(bonIndex, par)
+                    End If
+                    If IsNothing(par) OrElse par.GetType Is GetType(NiflySharp.Blocks.BSFadeNode) Then
+                        If IsNothing(par) Then
+                            AddBone(Nothing, bon)
+                        Else
+                            AddBone(Nothing, par)
+                        End If
+                    End If
+                Next
+                Return SkeletonDictionary.Count <> 0
+            Catch ex As Exception
+                Skeleton = Nothing
+                SkeletonInjectedBones.Clear()
+                Return False
+            End Try
+        End SyncLock
     End Function
     Public Shared Sub PrepareSkeletonForShapes(shapes As List(Of Shape_class), Optional pose As Poses_class = Nothing)
-        If HasSkeleton = False Then Exit Sub
+        SyncLock _skeletonLock
+            If HasSkeleton = False Then Exit Sub
 
-        Dim hasPose = Not IsNothing(pose) AndAlso pose.Source <> Poses_class.Pose_Source_Enum.None
+            Dim hasPose = Not IsNothing(pose) AndAlso pose.Source <> Poses_class.Pose_Source_Enum.None
 
-        ClearInjectedBones()
-        Try
-            ' Parse HKX skeleton once per unique NIFContent — all shapes from the same outfit
-            ' share the same BSClothExtraData so we avoid re-parsing the HKX N times.
-            Dim skeletonCache = shapes.
-                Where(Function(s) s.HasPhysics AndAlso s.ParentSliderSet?.NIFContent IsNot Nothing).
-                Select(Function(s) s.ParentSliderSet.NIFContent).
-                Distinct().
-                ToDictionary(
-                    Function(nif) nif,
-                    Function(nif) SkeletonClothOverlayHelper_Class.ParseClothSkeleton(nif))
-
-            For Each shape In shapes
-                Dim cached As HkaSkeletonGraph_Class = Nothing
-                If shape.ParentSliderSet?.NIFContent IsNot Nothing Then
-                    skeletonCache.TryGetValue(shape.ParentSliderSet.NIFContent, cached)
-                End If
-                SkeletonClothOverlayHelper_Class.InjectMissingBonesIntoLiveSkeleton(shape, SkeletonInjectedBones, cached)
-            Next
-        Catch ex As Exception
-            Debugger.Break()
             ClearInjectedBones()
-        End Try
+            Try
+                ' Parse HKX skeleton once per unique NIFContent — all shapes from the same outfit
+                ' share the same BSClothExtraData so we avoid re-parsing the HKX N times.
+                Dim skeletonCache = shapes.
+                    Where(Function(s) s.HasPhysics AndAlso s.ParentSliderSet?.NIFContent IsNot Nothing).
+                    Select(Function(s) s.ParentSliderSet.NIFContent).
+                    Distinct().
+                    ToDictionary(
+                        Function(nif) nif,
+                        Function(nif) SkeletonClothOverlayHelper_Class.ParseClothSkeleton(nif))
 
-        If hasPose Then
-            AppplyPoseToSkeleton(pose)
-        Else
-            Reset()
-        End If
+                For Each shape In shapes
+                    Dim cached As HkaSkeletonGraph_Class = Nothing
+                    If shape.ParentSliderSet?.NIFContent IsNot Nothing Then
+                        skeletonCache.TryGetValue(shape.ParentSliderSet.NIFContent, cached)
+                    End If
+                    SkeletonClothOverlayHelper_Class.InjectMissingBonesIntoLiveSkeleton(shape, SkeletonInjectedBones, cached)
+                Next
+            Catch ex As Exception
+                Debugger.Break()
+                ClearInjectedBones()
+            End Try
 
+            If hasPose Then
+                AppplyPoseToSkeleton(pose)
+            Else
+                Reset()
+            End If
+        End SyncLock
 
     End Sub
     Public Shared Function IsInjectedBone(boneName As String) As Boolean
@@ -159,28 +164,32 @@ Public Class Skeleton_Class
         Return SkeletonInjectedBones.Contains(boneName)
     End Function
     Private Shared Sub ClearInjectedBones()
-        If SkeletonInjectedBones.Count = 0 Then Exit Sub
+        SyncLock _skeletonLock
+            If SkeletonInjectedBones.Count = 0 Then Exit Sub
 
-        Dim injectedNames As New System.Collections.Generic.List(Of String)(SkeletonInjectedBones)
-        For Each boneName In injectedNames
-            Dim bone As HierarchiBone_class = Nothing
-            If Not SkeletonDictionary.TryGetValue(boneName, bone) Then Continue For
+            Dim injectedNames As New System.Collections.Generic.List(Of String)(SkeletonInjectedBones)
+            For Each boneName In injectedNames
+                Dim bone As HierarchiBone_class = Nothing
+                If Not SkeletonDictionary.TryGetValue(boneName, bone) Then Continue For
 
-            If IsNothing(bone.Parent) Then
-                SkeletonStructure.Remove(bone)
-            Else
-                bone.Parent.Childrens.Remove(bone)
-            End If
+                If IsNothing(bone.Parent) Then
+                    SkeletonStructure.Remove(bone)
+                Else
+                    bone.Parent.Childrens.Remove(bone)
+                End If
 
-            SkeletonDictionary.Remove(boneName)
-        Next
+                SkeletonDictionary.Remove(boneName)
+            Next
 
-        SkeletonInjectedBones.Clear()
+            SkeletonInjectedBones.Clear()
+        End SyncLock
     End Sub
     Public Shared Sub Reset()
-        For Each bon In SkeletonDictionary.Values
-            bon.DeltaTransform = Nothing
-        Next
+        SyncLock _skeletonLock
+            For Each bon In SkeletonDictionary.Values
+                bon.DeltaTransform = Nothing
+            Next
+        End SyncLock
     End Sub
     Private Shared Sub AddBone(Parent As HierarchiBone_class, Bone As NiNode)
         Dim Donde As HierarchiBone_class
@@ -297,7 +306,7 @@ Public Class Nifcontent_Class_Manolo
 
         For Each shap In Me.GetShapes
             If SupportedShape(shap.GetType) Then
-                BaseMaterials.Add(shap.Name.String, GetRelatedMaterial(shap))
+                BaseMaterials(shap.Name.String) = GetRelatedMaterial(shap)
             End If
         Next
 

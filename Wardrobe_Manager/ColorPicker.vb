@@ -74,8 +74,12 @@ Public Class ColorComboBox
     Public Property SelectedColor As Color
         Get
             If Me.SelectedIndex >= 0 Then
-                Dim kc As KnownColor = CType(Me.SelectedItem, KnownColor)
-                Return Color.FromKnownColor(kc)
+                If TypeOf Me.SelectedItem Is KnownColor Then
+                    Dim kc As KnownColor = CType(Me.SelectedItem, KnownColor)
+                    Return Color.FromKnownColor(kc)
+                Else
+                    Return Color.Empty
+                End If
             Else
                 Return Color.Black
             End If

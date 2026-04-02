@@ -24,5 +24,11 @@ Namespace My
 
     Partial Friend Class MyApplication
 
+        Private Sub MyApplication_UnhandledException(sender As Object, e As Microsoft.VisualBasic.ApplicationServices.UnhandledExceptionEventArgs) Handles Me.UnhandledException
+            Logger.Log("Unhandled exception: " & e.Exception.ToString)
+            MessageBox.Show("An unexpected error occurred: " & e.Exception.Message & vbCrLf & "Details have been logged.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            e.ExitApplication = False
+        End Sub
+
     End Class
 End Namespace

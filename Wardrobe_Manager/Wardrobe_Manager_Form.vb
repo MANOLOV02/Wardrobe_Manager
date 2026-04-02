@@ -702,6 +702,7 @@ Public Class Wardrobe_Manager_Form
         If ComboBoxPoses.SelectedIndex <> -1 Then FilesDictionary_class.SliderPresets.Poses.TryGetValue(ComboBoxPoses.Items(ComboBoxPoses.SelectedIndex), Selected_Combo_Pose)
 
         If IsNothing(Seleccionado) Then Exit Sub
+        preview_Control.Model.FloorOffset = -Seleccionado.HighHeelHeight
         If Seleccionado.Unreadable_Project Then
             preview_Control.Update_Render(Seleccionado, False, Selected_Combo_Preset, Selected_Combo_Pose, ComboBoxSize.SelectedIndex)
             Exit Sub
@@ -1015,7 +1016,13 @@ Public Class Wardrobe_Manager_Form
             Dim Nuevo As String = IO.Path.Combine(Directorio, slidertomove.ParentOSP.Filename_WithoutPath)
             If IO.Directory.Exists(IO.Path.GetDirectoryName(Nuevo)) = False Then IO.Directory.CreateDirectory(IO.Path.GetDirectoryName(Nuevo))
             If IO.File.Exists(actual) Then
-                If IO.File.Exists(Nuevo) Then If MsgBox("Do you want to replace the saved file?", vbOKCancel, "Replace file") = MsgBoxResult.Ok Then IO.File.Delete(Nuevo)
+                If IO.File.Exists(Nuevo) Then
+                    If MsgBox("Do you want to replace the saved file?", vbOKCancel, "Replace file") = MsgBoxResult.Ok Then
+                        IO.File.Delete(Nuevo)
+                    Else
+                        Return
+                    End If
+                End If
                 If slidertomove.ParentOSP.SliderSets.Count = 1 OrElse ListViewSources.SelectedItems.Cast(Of ListViewItem).Where(Function(pf) CType(pf.Tag, SliderSet_Class).ParentOSP Is slidertomove.ParentOSP).Count = 1 Then
                     IO.File.Move(actual, Nuevo)
                     IO.File.SetLastWriteTime(Nuevo, DateTime.Now)
@@ -1243,19 +1250,27 @@ Public Class Wardrobe_Manager_Form
 
     Public preview_Control As PreviewControl = Nothing
     Private Diccionario_Leido As Boolean = False
-    Private Sub OSPManager_Form_Shown(sender As Object, e As EventArgs) Handles Me.Shown
+    Private Async Sub OSPManager_Form_Shown(sender As Object, e As EventArgs) Handles Me.Shown
         preview_Control = New PreviewControl With {.Dock = DockStyle.Fill}
         Panel_Preview_Container.Controls.Add(preview_Control)
         'SingleBoneCheck.Checked = preview_Control.Model.SingleBoneSkinning
         'RecalculateNormalsCheck.Checked = preview_Control.Model.RecalculateNormals
         Pone_checks()
-        Dim xx = InicializarAsync()
+        Dim initTask = InicializarAsync()
         preview_Control.ApplyResize(True)
         preview_Control.Model.Floor.Enabled = Config_App.Current.Settings_RenderGrid.Enabled
         preview_Control.Model.Floor.Color = Config_App.Current.RenderGridColor
         preview_Control.Model.Floor.Size = Config_App.Current.Settings_RenderGrid.Size
         preview_Control.Model.Floor.StepSize = Config_App.Current.Settings_RenderGrid.StepSize
         preview_Control.Model.Floor.Rebuild()
+        AddHandler preview_Control.FloorToggled, Sub(s, enabled)
+                                                     Config_App.Current.Settings_RenderGrid = New Config_App.RenderGridSettings With {
+                                                         .Enabled = enabled,
+                                                         .Size = Config_App.Current.Settings_RenderGrid.Size,
+                                                         .StepSize = Config_App.Current.Settings_RenderGrid.StepSize
+                                                     }
+                                                 End Sub
+        Await initTask
     End Sub
     Private Async Function InicializarAsync() As Task
         If firstime Then
@@ -1406,6 +1421,11 @@ Public Class Wardrobe_Manager_Form
         OSP_Project_Class.Default_Memory_Pause = True
         If MsgBox("Are you sure you want to merge " + ListViewSources.SelectedIndices.Count.ToString + " items into " + ListViewTargets.SelectedIndices.Count.ToString + " items in category " + ComboboxPacks.Items(ComboboxPacks.SelectedIndex).ToString + "?", vbYesNo, "Confirm") = MsgBoxResult.Yes Then
             Dim selected_target As SliderSet_Class = Determina_Seleccionado_y_CambiaNombres(1)
+            If IsNothing(selected_target) Then
+                OSP_Project_Class.Default_Memory_Pause = False
+                Termina_Procesos()
+                Exit Sub
+            End If
             For Each it In ListViewTargets.SelectedItems
                 Dim target As SliderSet_Class = it.Tag
                 OSP_Project_Class.Load_and_Check_Shapedata(target, True)
@@ -1446,8 +1466,10 @@ Public Class Wardrobe_Manager_Form
 
     Private Sub Wardrobe_Manager_Form_FormClosing(sender As Object, e As FormClosingEventArgs) Handles Me.FormClosing
         Config_App.SaveConfig()
-        preview_Control.Clean()
-        preview_Control.Dispose()
+        If preview_Control IsNot Nothing Then
+            preview_Control.Clean()
+            preview_Control.Dispose()
+        End If
     End Sub
 
     Private Sub Wardrobe_Manager_Form_Load(sender As Object, e As EventArgs) Handles Me.Load
@@ -1543,6 +1565,10 @@ Public Class Wardrobe_Manager_Form
         Dim temposdfile = results(0)
         Dim TempGroupfile = results(1)
 
+        If IsNothing(ComboBoxPresets.SelectedItem) Then
+            MsgBox("Please select a preset before building.", vbOKOnly + vbExclamation, "No Preset Selected")
+            Exit Sub
+        End If
         Dim first = Chr(34) + "Temp_WM_Builder" + Chr(34)
         Dim second = Chr(34) + ComboBoxPresets.SelectedItem.ToString + Chr(34)
         Dim third = Chr(34) + Directorios.Fallout4data + Chr(34)
@@ -1553,7 +1579,8 @@ Public Class Wardrobe_Manager_Form
         Strat.Arguments += "/gbuild" + " " + first + " " + "/t" + " " + third + " " + " /p" + " " + second + IIf(Config_App.Current.Settings_Build.SaveTri, " /tri", "") + " "
         Strat.Arguments = Strat.Arguments.Trim
         Strat.FileName = Config_App.Current.BSExePath
-        Process.Start(Strat).WaitForExit()
+        Dim proc = Process.Start(Strat)
+        If proc IsNot Nothing Then proc.WaitForExit()
 
         If IO.File.Exists(temposdfile) Then IO.File.Delete(temposdfile)
         If IO.File.Exists(TempGroupfile) Then IO.File.Delete(TempGroupfile)
@@ -1586,18 +1613,18 @@ Public Class Wardrobe_Manager_Form
             Next
             DummyOSP.Save_Pack_As(TempOSDFile, False)
 
-            Dim writer = IO.File.CreateText(TempGroupFile)
-            writer.WriteLine("<?xml version=" + Chr(34) + "1.0" + Chr(34) + " encoding=" + Chr(34) + "UTF-8" + Chr(34) + "?>")
+            Using writer = IO.File.CreateText(TempGroupFile)
+                writer.WriteLine("<?xml version=" + Chr(34) + "1.0" + Chr(34) + " encoding=" + Chr(34) + "UTF-8" + Chr(34) + "?>")
 
-            writer.WriteLine("<SliderGroups>")
-            writer.WriteLine("<Group name =" + Chr(34) + "Temp_WM_Builder" + Chr(34) + ">")
-            For Each out In Otufits
-                writer.WriteLine("<Member name =" + Chr(34) + out + Chr(34) + "/>")
-            Next
-            writer.WriteLine("</Group>")
-            writer.WriteLine("</SliderGroups>")
-            writer.Flush()
-            writer.Close()
+                writer.WriteLine("<SliderGroups>")
+                writer.WriteLine("<Group name =" + Chr(34) + "Temp_WM_Builder" + Chr(34) + ">")
+                For Each out In Otufits
+                    writer.WriteLine("<Member name =" + Chr(34) + out + Chr(34) + "/>")
+                Next
+                writer.WriteLine("</Group>")
+                writer.WriteLine("</SliderGroups>")
+                writer.Flush()
+            End Using
 
         Catch ex As Exception
             Debugger.Break()
@@ -1653,6 +1680,10 @@ Public Class Wardrobe_Manager_Form
         Empieza_Procesos(1)
         Dim Editor As New Editor_Form
         Dim sliderset_Source = Determina_Seleccionado_y_CambiaNombres(0)
+        If IsNothing(sliderset_Source) Then
+            Termina_Procesos()
+            Exit Sub
+        End If
         If sliderset_Source.Unreadable_NIF Or sliderset_Source.Unreadable_Project Then
             MsgBox("The project is unreadable.", vbOKOnly + vbCritical, "Error")
             Termina_Procesos()
@@ -1663,6 +1694,10 @@ Public Class Wardrobe_Manager_Form
     Private Sub ButtonEditInternally_Click(sender As Object, e As EventArgs) Handles ButtonEditInternally.Click
         Empieza_Procesos(1)
         Dim sliderset_target = Determina_Seleccionado_y_CambiaNombres(1)
+        If IsNothing(sliderset_target) Then
+            Termina_Procesos()
+            Exit Sub
+        End If
         If sliderset_target.Unreadable_NIF Or sliderset_target.Unreadable_Project Then
             MsgBox("The project is unreadable.", vbOKOnly + vbCritical, "Error")
             Termina_Procesos()
@@ -1672,7 +1707,9 @@ Public Class Wardrobe_Manager_Form
     End Sub
     Private Sub Open_Editor(selected As SliderSet_Class, Grabable As Boolean)
         Dim Editor As New Editor_Form
-        Editor.Lee_Edit(selected, ComboBoxPresets.SelectedItem.ToString, ComboBoxPoses.SelectedItem.ToString)
+        Dim presetName As String = If(ComboBoxPresets.SelectedItem?.ToString, "")
+        Dim poseName As String = If(ComboBoxPoses.SelectedItem?.ToString, "")
+        Editor.Lee_Edit(selected, presetName, poseName)
         Editor.Grabable = Grabable
         Editor.SingleBoneCheck.Checked = SingleBoneCheck.Checked
         Editor.RecalculateNormalsCheck.Checked = RecalculateNormalsCheck.Checked
@@ -1935,7 +1972,7 @@ Public Class Wardrobe_Manager_Form
         ListViewSources.Columns(0).Text = "Name"
         ListViewSources.Columns(1).Text = "Description"
         ListViewSources.Columns(2).Text = "File"
-        ListViewSources.Columns(_Sourcesort).Text += IIf(ListViewSources.Sorting = SortOrder.Ascending, " ?", " ?")
+        ListViewSources.Columns(_Sourcesort).Text += IIf(ListViewSources.Sorting = SortOrder.Ascending, " (↓)", " (↑)")
         ' Asignar el comparador y ordenar
         ListViewSources.ListViewItemSorter = New ListViewItemComparer(e.Column, ListViewSources.Sorting)
         ListViewSources.SuspendLayout()
@@ -1960,7 +1997,7 @@ Public Class Wardrobe_Manager_Form
         ListViewTargets.Columns(0).Text = "Name"
         ListViewTargets.Columns(1).Text = "Description"
         ListViewTargets.Columns(2).Text = "File"
-        ListViewTargets.Columns(_TargetSort).Text += IIf(ListViewTargets.Sorting = SortOrder.Ascending, " ?", " ?")
+        ListViewTargets.Columns(_TargetSort).Text += IIf(ListViewTargets.Sorting = SortOrder.Ascending, " (↓)", " (↑)")
         ' Asignar el comparador y ordenar
         ListViewTargets.ListViewItemSorter = New ListViewItemComparer(e.Column, ListViewTargets.Sorting)
         ListViewTargets.SuspendLayout()

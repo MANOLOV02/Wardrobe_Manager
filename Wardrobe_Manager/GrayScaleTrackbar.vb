@@ -67,7 +67,9 @@ Public Class GrayScaleTrackbar
             New Point(p2.X + shadowOffset, p2.Y + shadowOffset),
             New Point(p3.X + shadowOffset, p3.Y + shadowOffset)
         }
-        g.FillPolygon(New SolidBrush(Color.FromArgb(60, Color.Black)), shadowTriangle)
+        Using shadowBrush As New SolidBrush(Color.FromArgb(60, Color.Black))
+            g.FillPolygon(shadowBrush, shadowTriangle)
+        End Using
 
         ' Fill: gray if disabled, otherwise gradient blue
         If Not Me.Enabled Then

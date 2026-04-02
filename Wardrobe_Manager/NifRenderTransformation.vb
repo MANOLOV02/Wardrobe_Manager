@@ -71,11 +71,10 @@ Public Class Transform_Class
         Dim sx = col0.Length
         Dim sy = col1.Length
         Dim sz = col2.Length
-        Scale = col0.Length
-        If Scale = 0 Then
-            Debugger.Break()
-            Scale = 1
-        End If
+        If sx = 0 Then sx = 1
+        If sy = 0 Then sy = 1
+        If sz = 0 Then sz = 1
+        Scale = sx
         ' 3) Formar la matriz de rotación normalizando esas columnas
         Rotation = New Matrix33 With {
         .M11 = m.M11 / sx, .M12 = m.M12 / sx, .M13 = m.M13 / sx,
@@ -94,11 +93,10 @@ Public Class Transform_Class
         Dim sx = col0.Length
         Dim sy = col1.Length
         Dim sz = col2.Length
-        Scale = col0.Length
-        If Scale = 0 Then
-            Debugger.Break()
-            Scale = 1
-        End If
+        If sx = 0 Then sx = 1
+        If sy = 0 Then sy = 1
+        If sz = 0 Then sz = 1
+        Scale = sx
         ' 3) Formar la matriz de rotación normalizando esas columnas
         Rotation = New Matrix33 With {
         .M11 = m.M11 / sx, .M12 = m.M12 / sx, .M13 = m.M13 / sx,

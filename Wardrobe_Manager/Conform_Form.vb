@@ -99,6 +99,7 @@ Public Class Conform_Form
         }
         _overwriteAtApply = chkOverwrite.Checked
 
+        _cts?.Dispose()
         _cts = New CancellationTokenSource()
         _state = RunState.Running
         _results = Nothing
@@ -239,6 +240,7 @@ Public Class Conform_Form
 
     Protected Overrides Sub OnFormClosing(e As FormClosingEventArgs)
         _cts?.Cancel()
+        _cts?.Dispose()
         MyBase.OnFormClosing(e)
     End Sub
 

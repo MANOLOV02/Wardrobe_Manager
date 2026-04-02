@@ -403,8 +403,8 @@ Public Class OSD_Class
                     fileLock = value
                 End SyncLock
                 SyncLock fileLock
-                    Dim stream = IO.File.Open(Filename, IO.FileMode.Open, FileAccess.Read)
-                    Dim reader As New IO.BinaryReader(stream)
+                    Using stream = IO.File.Open(Filename, IO.FileMode.Open, FileAccess.Read)
+                    Using reader As New IO.BinaryReader(stream)
                     Header = reader.ReadBytes(4)
                     Version = reader.ReadBytes(4)
                     Datablocks = CInt(reader.ReadUInt32 And &H7FFFFFFFL)
@@ -430,8 +430,8 @@ Public Class OSD_Class
                         Next
                         Blocks.Add(block)
                     Next
-                    reader.Close()
-                    stream.Close()
+                    End Using
+                    End Using
                 End SyncLock
             End If
         Next
@@ -463,8 +463,8 @@ Public Class OSD_Class
         End If
 
         If IsNothing(Me.Header) Then Exit Sub
-        Dim stream = IO.File.Open(Filename, IO.FileMode.Create)
-        Dim Writer As New IO.BinaryWriter(stream)
+        Using stream = IO.File.Open(Filename, IO.FileMode.Create)
+        Using Writer As New IO.BinaryWriter(stream)
 
         Writer.Write(Header)
         Writer.Write(Version)
@@ -493,7 +493,8 @@ Public Class OSD_Class
             End If
         Next
         Writer.Flush()
-        Writer.Close()
+        End Using
+        End Using
     End Sub
 End Class
 Public Class OSD_Block_Class
@@ -1283,12 +1284,12 @@ Public Class OSP_Project_Class
             MsgBox("Project name already exists, it will not be processed", vbCritical, "Duplicated")
             Return Nothing
         End If
-        Dim writer = IO.File.CreateText(Filename)
-        writer.WriteLine("<?xml version=" + Chr(34) + "1.0" + Chr(34) + " encoding=" + Chr(34) + "UTF-8" + Chr(34) + "?>")
-        writer.WriteLine("<SliderSetInfo version=" + Chr(34) + " 1" + Chr(34) + " ManoloPack=" + Chr(34) + IIf(ManoloPack, "true", "false") + Chr(34) + ">")
-        writer.WriteLine("</SliderSetInfo>")
-        writer.Flush()
-        writer.Close()
+        Using writer = IO.File.CreateText(Filename)
+            writer.WriteLine("<?xml version=" + Chr(34) + "1.0" + Chr(34) + " encoding=" + Chr(34) + "UTF-8" + Chr(34) + "?>")
+            writer.WriteLine("<SliderSetInfo version=" + Chr(34) + " 1" + Chr(34) + " ManoloPack=" + Chr(34) + IIf(ManoloPack, "true", "false") + Chr(34) + ">")
+            writer.WriteLine("</SliderSetInfo>")
+            writer.Flush()
+        End Using
         Return New OSP_Project_Class(Filename, True)
     End Function
     Public Function AddProject(ByRef Template As SliderSet_Class) As SliderSet_Class
@@ -2086,9 +2087,10 @@ Public Class SliderSet_Class
         InvalidateMetadataLookupCache()
     End Sub
     Public Shared Function ReadHighHeelTXT(archivoName As String) As Double
-        Dim archivo = New StreamReader(archivoName)
-        Dim lin As String = archivo.ReadLine
-        archivo.Close()
+        Dim lin As String
+        Using archivo = New StreamReader(archivoName)
+            lin = archivo.ReadLine
+        End Using
         If lin.Contains("="c) = False Then Return 0
         Dim sep = lin.Split("=")
         If sep.Length <> 2 Then Return 0
@@ -2170,7 +2172,7 @@ Public Class SliderSet_Class
                 Else
                     If Config_App.Current.Settings_Build.SaveHHS Then
                         Dim writer = IO.File.CreateText(hhfile)
-                        writer.WriteLine("Height=" + HighHeelHeight.ToString.Replace(System.Globalization.CultureInfo.CurrentUICulture.NumberFormat.NumberDecimalSeparator, "."))
+                        writer.WriteLine("Height=" + HighHeelHeight.ToString(System.Globalization.CultureInfo.InvariantCulture))
                         writer.Flush()
                         writer.Close()
                     End If
@@ -2227,10 +2229,10 @@ Public Class SliderSet_Class
         If HighHeelHeight = 0 Then
             If IO.File.Exists(filename) Then IO.File.Delete(filename)
         Else
-            Dim writer = IO.File.CreateText(filename)
-            writer.WriteLine("Height=" + HighHeelHeight.ToString.Replace(System.Globalization.CultureInfo.CurrentUICulture.NumberFormat.NumberDecimalSeparator, "."))
-            writer.Flush()
-            writer.Close()
+            Using writer = IO.File.CreateText(filename)
+                writer.WriteLine("Height=" + HighHeelHeight.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                writer.Flush()
+            End Using
         End If
 
     End Sub
@@ -2411,7 +2413,7 @@ Public Class SliderSet_Class
                     OutputFile.Attributes("GenWeights").Value = "false"
                 End If
             Else
-                If IsNothing(Nodo.Attributes("GenWeights")) Then
+                If IsNothing(OutputFile.Attributes("GenWeights")) Then
                     Dim attr As XmlAttribute = Me.ParentOSP.xml.CreateAttribute("GenWeights")
                     attr.Value = "true"
                     OutputFile.Attributes.Append(attr)
@@ -2850,7 +2852,7 @@ Public Class Slider_class
                 attr.Value = 0
                 Nodo.Attributes.Append(attr)
             End If
-            Nodo.Attributes("default").Value = value.ToString.ToString.Replace(System.Globalization.CultureInfo.CurrentUICulture.NumberFormat.NumberDecimalSeparator, ".")
+            Nodo.Attributes("default").Value = value.ToString(System.Globalization.CultureInfo.InvariantCulture)
         End Set
     End Property
     Public Property Default_Setting_SSE(size) As Single
@@ -2880,7 +2882,7 @@ Public Class Slider_class
                 attr.Value = 0
                 Nodo.Attributes.Append(attr)
             End If
-            Nodo.Attributes("big").Value = value.ToString.Replace(System.Globalization.CultureInfo.CurrentUICulture.NumberFormat.NumberDecimalSeparator, ".")
+            Nodo.Attributes("big").Value = value.ToString(System.Globalization.CultureInfo.InvariantCulture)
         End Set
     End Property
     Public Property Default_Small_Value As Single
@@ -2894,7 +2896,7 @@ Public Class Slider_class
                 attr.Value = 0
                 Nodo.Attributes.Append(attr)
             End If
-            Nodo.Attributes("small").Value = value.ToString.Replace(System.Globalization.CultureInfo.CurrentUICulture.NumberFormat.NumberDecimalSeparator, ".")
+            Nodo.Attributes("small").Value = value.ToString(System.Globalization.CultureInfo.InvariantCulture)
         End Set
     End Property
 
@@ -3059,7 +3061,8 @@ Public Class Slider_Data_class
     End Property
     Public Property TargetOsd As String
         Get
-            Return FullText.Split("\")(0)
+            Dim parts = FullText.Split("\"c)
+            Return parts(0)
         End Get
         Set(value As String)
             FullText = value + "\" + TargetSlider
@@ -3067,7 +3070,8 @@ Public Class Slider_Data_class
     End Property
     Public Property TargetSlider As String
         Get
-            Return FullText.Split("\")(1)
+            Dim parts = FullText.Split("\"c)
+            If parts.Length > 1 Then Return parts(1) Else Return ""
         End Get
         Set(value As String)
             FullText = TargetOsd + "\" + value

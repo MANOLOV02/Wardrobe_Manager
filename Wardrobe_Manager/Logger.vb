@@ -46,12 +46,12 @@ Public NotInheritable Class Logger
     ''' </summary>
     Public Shared Sub Log(message As String)
         If Enabled = False Then Exit Sub
-        If _writer Is Nothing Then
-            Throw New InvalidOperationException("Logger no inicializado.")
-        End If
         Dim timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss.fffZ")
         Dim line = $"[{timestamp}] {message}"
         SyncLock _lock
+            If _writer Is Nothing Then
+                Throw New InvalidOperationException("Logger no inicializado.")
+            End If
             _writer.WriteLine(line)
         End SyncLock
     End Sub

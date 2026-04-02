@@ -13,6 +13,7 @@ Public Class Config_Form
         Try
             RecalculateNormalsCheck.Checked = Config_App.Current.Setting_RecalculateNormals
             SingleBoneCheck.Checked = Config_App.Current.Setting_SingleBoneSkinning
+            CheckBoxGPUSkinning.Checked = Config_App.Current.Setting_GPUSkinning
 
             NormalsForceOrthogonal.Checked = Config_App.Current.Setting_TBN.ForceOrthogonalBitangent
             NormalsRepairNan.Checked = Config_App.Current.Setting_TBN.RepairNaNs
@@ -22,8 +23,8 @@ Public Class Config_Form
             NormalsNormalize.Checked = Config_App.Current.Setting_TBN.NormalizeOutputs
             RadioButtonWeldpsonly.Checked = Config_App.Current.Setting_TBN.WeldByPositionOnly
             RadioButtonWeldboth.Checked = Not Config_App.Current.Setting_TBN.WeldByPositionOnly
-            NumericUpDownWeldEpspos.Value = Config_App.Current.Setting_TBN.WeldUVEpsilon
-            NumericUpDownWeldEpsUv.Value = Config_App.Current.Setting_TBN.WeldPosEpsilon
+            NumericUpDownWeldEpspos.Value = Config_App.Current.Setting_TBN.WeldPosEpsilon
+            NumericUpDownWeldEpsUv.Value = Config_App.Current.Setting_TBN.WeldUVEpsilon
             RadioButtonByArea.Checked = (Config_App.Current.Setting_TBN.WeightMode = RecalcTBN.NormalWeightMode.AreaOnly)
             RadioButtonByangles.Checked = (Config_App.Current.Setting_TBN.WeightMode = RecalcTBN.NormalWeightMode.AngleOnly)
             RadioButtoncombined.Checked = (Config_App.Current.Setting_TBN.WeightMode = RecalcTBN.NormalWeightMode.AreaTimesAngle)
@@ -101,6 +102,7 @@ Public Class Config_Form
         Config_App.Current.Setting_TBN = opts
         Config_App.Current.Setting_RecalculateNormals = RecalculateNormalsCheck.Checked
         Config_App.Current.Setting_SingleBoneSkinning = SingleBoneCheck.Checked
+        Config_App.Current.Setting_GPUSkinning = CheckBoxGPUSkinning.Checked
     End Sub
 
     Private Sub Config_Form_Load(sender As Object, e As EventArgs) Handles MyBase.Load
@@ -153,7 +155,9 @@ Public Class Config_Form
     End Function
 
     Private Sub Button1_Click(sender As Object, e As EventArgs) Handles Button1.Click
-        Config_App.Current.FO4ExePath = Search_exe(IO.Path.GetDirectoryName(TextBox1.Text))
+        Dim result = Search_exe(IO.Path.GetDirectoryName(TextBox1.Text))
+        If String.IsNullOrEmpty(result) Then Return
+        Config_App.Current.FO4ExePath = result
         TextBox1.Text = Config_App.Current.FO4ExePath
         Check_GameMismatch()
         Dim exe = IO.Path.GetFileName(Config_App.Current.FO4ExePath)
@@ -218,12 +222,16 @@ Public Class Config_Form
         End Using
     End Function
     Private Sub Button2_Click(sender As Object, e As EventArgs) Handles Button2.Click
-        Config_App.Current.BSExePath = Search_exe(IO.Path.GetDirectoryName(TextBox2.Text))
+        Dim result = Search_exe(IO.Path.GetDirectoryName(TextBox2.Text))
+        If String.IsNullOrEmpty(result) Then Return
+        Config_App.Current.BSExePath = result
         TextBox2.Text = Config_App.Current.BSExePath
         Check_Folders()
     End Sub
     Private Sub Button3_Click(sender As Object, e As EventArgs) Handles Button3.Click
-        Config_App.Current.OSExePath = Search_exe(IO.Path.GetDirectoryName(TextBox3.Text))
+        Dim result = Search_exe(IO.Path.GetDirectoryName(TextBox3.Text))
+        If String.IsNullOrEmpty(result) Then Return
+        Config_App.Current.OSExePath = result
         TextBox3.Text = Config_App.Current.OSExePath
         Check_Folders()
     End Sub
@@ -240,7 +248,9 @@ Public Class Config_Form
     End Sub
 
     Private Sub Button4_Click(sender As Object, e As EventArgs) Handles Button4.Click
-        Config_App.Current.SkeletonPath = Search_Nif(IO.Path.GetDirectoryName(TextBox4.Text))
+        Dim result = Search_Nif(IO.Path.GetDirectoryName(TextBox4.Text))
+        If String.IsNullOrEmpty(result) Then Return
+        Config_App.Current.SkeletonPath = result
         TextBox4.Text = Config_App.Current.SkeletonPath
         Skeleton_Class.Skeleton = Nothing
         Check_Folders()
@@ -269,6 +279,7 @@ Public Class Config_Form
 
     Private Sub Button5_Click_1(sender As Object, e As EventArgs) Handles Button5.Click
         Config_App.Current.Setting_SingleBoneSkinning = False
+        Config_App.Current.Setting_GPUSkinning = True
         Config_App.Current.Setting_RecalculateNormals = True
         Config_App.Current.Setting_TBN = RecalcTBN.DefaultTBNOptions
         Config_App.Current.Settings_Camara = Config_App.Default_CameraSettings

@@ -5,6 +5,8 @@ Imports NiflySharp.Structs
 Imports OpenTK.Mathematics
 Imports Wardrobe_Manager.RecalcTBN
 Imports SysNumerics = System.Numerics
+Imports System.Collections.Concurrent
+Imports System.Threading.Tasks
 
 ' --- STRUCTURE PARA ALMACENAR GEOMETRÍA SKINEADA ---
 Public Structure SkinnedGeometry
@@ -51,10 +53,21 @@ End Structure
 
 
 Public Class SkinningHelper
-    ''' <summary>
-    ''' Blends precomputed bone matrices using per-vertex bone weights and indices.
-    ''' Shared by ExtractSkinnedGeometry (multibone case) and RecomputeGPUBoneMatrices.
-    ''' </summary>
+    ' ┌─────────────────────────────────────────────────────────────────────────┐
+    ' │ CPU SKINNING — SYNC CONTRACT                                          │
+    ' │                                                                       │
+    ' │ This function is the CPU-side bone blend (double precision).           │
+    ' │ The GPU equivalent is the vertex shader skinning block in             │
+    ' │ Shader_Class.vb (both FO4 and SSE variants).                          │
+    ' │                                                                       │
+    ' │ Formula: skinMatrix = Σ(bones[idx[j]] * weight[j]) / sumW             │
+    ' │ GPU version: same sum but weights are pre-normalized (sumW=1).        │
+    ' │ Fallback (sumW=0): bones[idx[0]] — same in both.                      │
+    ' │                                                                       │
+    ' │ If you change the blend logic, fallback, or weight handling here,     │
+    ' │ you MUST update the vertex shader skinning block to match.            │
+    ' │ See also: RecomputeGPUBoneMatrices, ExtractSkinnedGeometry.           │
+    ' └─────────────────────────────────────────────────────────────────────────┘
     Private Shared Function BlendBoneMatrices(boneWeights As System.Half(), boneIndices As Byte(), precomputed() As Matrix4d) As Matrix4d
         If boneWeights Is Nothing OrElse boneIndices Is Nothing OrElse precomputed.Length = 0 Then Return If(precomputed.Length > 0, precomputed(0), Matrix4d.Identity)
         Dim result As Matrix4d = Matrix4d.Zero
@@ -643,8 +656,9 @@ Public Class SkinningHelper
     ''' Must be called BEFORE SetVertexDataSSE/SetVertexData.
     ''' </summary>
     Public Shared Function SnapshotSeparateArrays(shape As BSTriShape) As ShapeArrays
-        Dim snap As New ShapeArrays()
-        snap.Positions = shape.VertexPositions?.ToList()
+        Dim snap As New ShapeArrays With {
+            .Positions = shape.VertexPositions?.ToList()
+        }
         If shape.HasNormals Then snap.Normals = shape.Normals?.ToList()
         If shape.HasTangents Then
             snap.Tangents = shape.Tangents?.ToList()
@@ -755,11 +769,15 @@ Public Class SkinningHelper
         geo.Maxv = maxV
     End Sub
 
-    ''' <summary>
-    ''' GPU Skinning: Recomputes GPUBoneMatrices in-place for a new pose without re-extracting geometry.
-    ''' Call after PrepareSkeletonForShapes has applied the new pose to the skeleton.
-    ''' Also invalidates the world-space cache and recomputes world bounds.
-    ''' </summary>
+    ' ┌─────────────────────────────────────────────────────────────────────────┐
+    ' │ GPU BONE MATRIX RECOMPUTATION — SYNC CONTRACT                         │
+    ' │                                                                       │
+    ' │ Recomputes GPUBoneMatrices (SSBO data) for a new pose.                │
+    ' │ Matrix composition: GlobalTransform * poseT.ComposeTransforms(localT) │
+    ' │ This MUST match the composition in ExtractSkinnedGeometry.            │
+    ' │ The resulting matrices are uploaded to the SSBO and consumed by the   │
+    ' │ vertex shader's bone blend loop. See Shader_Class.vb sync contract.   │
+    ' └─────────────────────────────────────────────────────────────────────────┘
     Public Shared Sub RecomputeGPUBoneMatrices(shape As Shape_class, ByRef geo As SkinnedGeometry, ApplyPose As Boolean, singleboneskinning As Boolean)
         If geo.GPUBoneMatrices Is Nothing Then Exit Sub
 
@@ -1395,154 +1413,166 @@ Public Class RecalcTBN
             Vertices_Adicionales.Add(masterOf(i2))
         Next
 
-        ' -------- 3) Acumuladores (del tamaño de nVerts; escribimos por "maestro") --------
-        Dim nAccum() As Vector3d = New Vector3d(nVerts - 1) {}
-        Dim tAccum() As Vector3d = New Vector3d(nVerts - 1) {}
-        Dim bAccum() As Vector3d = New Vector3d(nVerts - 1) {}
+        ' -------- 3) Acumuladores: sparse cuando el update es parcial, full cuando es masivo --------
+        Dim useFullArrays As Boolean = (affectedTris.Count > geo.CachedTBN.TriCount * 0.4)
+        Dim nAccum() As Vector3d = Nothing
+        Dim tAccum() As Vector3d = Nothing
+        Dim bAccum() As Vector3d = Nothing
+        Dim sparseN As Dictionary(Of Integer, Vector3d) = Nothing
+        Dim sparseT As Dictionary(Of Integer, Vector3d) = Nothing
+        Dim sparseB As Dictionary(Of Integer, Vector3d) = Nothing
 
-        ' -------- 4) Loop por triángulos afectados (usa UV-derivs cacheadas) --------
-        For Each t In affectedTris
-            Dim i0 As Integer = CInt(geo.CachedTBN.Indices(3 * t + 0))
-            Dim i1 As Integer = CInt(geo.CachedTBN.Indices(3 * t + 1))
-            Dim i2 As Integer = CInt(geo.CachedTBN.Indices(3 * t + 2))
+        If useFullArrays Then
+            nAccum = New Vector3d(nVerts - 1) {}
+            tAccum = New Vector3d(nVerts - 1) {}
+            bAccum = New Vector3d(nVerts - 1) {}
+        Else
+            Dim capacity = affectedVerts.Count
+            sparseN = New Dictionary(Of Integer, Vector3d)(capacity)
+            sparseT = New Dictionary(Of Integer, Vector3d)(capacity)
+            sparseB = New Dictionary(Of Integer, Vector3d)(capacity)
+        End If
 
-            Dim m0 As Integer = masterOf(i0)
-            Dim m1 As Integer = masterOf(i1)
-            Dim m2 As Integer = masterOf(i2)
+        ' -------- 4) Accumulate per-face contributions --------
+        ' Parallel when triangle count is large enough to amortize overhead.
+        ' Each thread accumulates into thread-local dictionaries, then merged.
+        Dim triArray = affectedTris.ToArray()
+        Dim useAngle As Boolean = (opts.WeightMode <> NormalWeightMode.AreaOnly)
+        Dim epsPos As Double = opts.EpsilonPos
+        Dim epsUV As Double = opts.EpsilonUV
+        Dim wMode As NormalWeightMode = opts.WeightMode
+        Dim localIndices = geo.CachedTBN.Indices
+        Dim localVerts = geo.Vertices
+        Dim localDu1 = geo.CachedTBN.Tri_du1
+        Dim localDv1 = geo.CachedTBN.Tri_dv1
+        Dim localDu2 = geo.CachedTBN.Tri_du2
+        Dim localDv2 = geo.CachedTBN.Tri_dv2
+        Dim localDet = geo.CachedTBN.Tri_det
+        Dim localMasterOf = masterOf
 
-            Dim p0 As Vector3d = geo.Vertices(i0)
-            Dim p1 As Vector3d = geo.Vertices(i1)
-            Dim p2 As Vector3d = geo.Vertices(i2)
+        If useFullArrays AndAlso triArray.Length >= 2000 Then
+            ' Parallel path: per-thread local arrays via ThreadLocal, merge at end
+            Dim x1 = New Vector3d(nVerts - 1) {}
+            Dim x2 = New Vector3d(nVerts - 1) {}
+            Dim x3 = New Vector3d(nVerts - 1) {}
+            Dim threadLocalN As New Threading.ThreadLocal(Of Vector3d())(Function() x1, trackAllValues:=True)
+            Dim threadLocalT As New Threading.ThreadLocal(Of Vector3d())(Function() x2, trackAllValues:=True)
+            Dim threadLocalB As New Threading.ThreadLocal(Of Vector3d())(Function() x3, trackAllValues:=True)
 
-            ' Aristas en espacio objeto (posiciones pueden haber cambiado por morph/pose)
-            Dim e1 As Vector3d = p1 - p0
-            Dim e2 As Vector3d = p2 - p0
+            Parallel.ForEach(Partitioner.Create(0, triArray.Length),
+                Sub(range As Tuple(Of Integer, Integer))
+                    Dim tlN = threadLocalN.Value
+                    Dim tlT = threadLocalT.Value
+                    Dim tlB = threadLocalB.Value
+                    For ti = range.Item1 To range.Item2 - 1
+                        AccumulateTriangle(triArray(ti), localIndices, localVerts, localMasterOf,
+                                           localDu1, localDv1, localDu2, localDv2, localDet,
+                                           useAngle, wMode, epsPos, epsUV,
+                                           tlN, tlT, tlB)
+                    Next
+                End Sub)
 
-            ' Normal de cara no normalizada (proporcional al área * 2)
-            Dim fn As Vector3d = Vector3d.Cross(e1, e2)
-            Dim area2 As Double = fn.Length
-            If area2 <= opts.EpsilonPos Then
-                ' Cara degenerada: omitimos contribución
-                Continue For
-            End If
+            ' Merge thread-local arrays into nAccum — only touch affected master vertices
+            For Each tlN In threadLocalN.Values
+                For Each vi In affectedVerts
+                    Dim m = localMasterOf(vi)
+                    nAccum(m) += tlN(m)
+                Next
+            Next
+            For Each tlT In threadLocalT.Values
+                For Each vi In affectedVerts
+                    Dim m = localMasterOf(vi)
+                    tAccum(m) += tlT(m)
+                Next
+            Next
+            For Each tlB In threadLocalB.Values
+                For Each vi In affectedVerts
+                    Dim m = localMasterOf(vi)
+                    bAccum(m) += tlB(m)
+                Next
+            Next
 
-            ' Pesos por ángulo (si corresponde)
-            Dim w0 As Double = 1.0, w1 As Double = 1.0, w2 As Double = 1.0
-            If opts.WeightMode <> NormalWeightMode.AreaOnly Then
-                w0 = AngleBetweenSafe(e1, e2, opts.EpsilonPos)
-                Dim a1 As Vector3d = p0 - p1, b1 As Vector3d = p2 - p1
-                w1 = AngleBetweenSafe(a1, b1, opts.EpsilonPos)
-                Dim a2 As Vector3d = p0 - p2, b2 As Vector3d = p1 - p2
-                w2 = AngleBetweenSafe(a2, b2, opts.EpsilonPos)
-            End If
-            Dim aw As Double = area2
-            Dim wn0 As Double, wn1 As Double, wn2 As Double
-            Select Case opts.WeightMode
-                Case NormalWeightMode.AreaOnly
-                    wn0 = aw : wn1 = aw : wn2 = aw
-                Case NormalWeightMode.AngleOnly
-                    wn0 = w0 : wn1 = w1 : wn2 = w2
-                Case Else ' AreaTimesAngle
-                    wn0 = aw * w0 : wn1 = aw * w1 : wn2 = aw * w2
-            End Select
-
-            ' ---- Tangente/Bitangente por cara (usando derivadas UV cacheadas) ----
-            Dim _du1 As Double = geo.CachedTBN.Tri_du1(t)
-            Dim _dv1 As Double = geo.CachedTBN.Tri_dv1(t)
-            Dim _du2 As Double = geo.CachedTBN.Tri_du2(t)
-            Dim _dv2 As Double = geo.CachedTBN.Tri_dv2(t)
-            Dim _det As Double = geo.CachedTBN.Tri_det(t)
-
-            Dim tFace As Vector3d
-            Dim bFace As Vector3d
-
-            If Math.Abs(_det) <= opts.EpsilonUV Then
-                ' UV degeneradas: fallback estable en el plano de la normal de cara
-                Dim nf As Vector3d = Vector3d.Normalize(fn)
-                Dim e1p As Vector3d = e1 - nf * Vector3d.Dot(nf, e1)
-                If e1p.LengthSquared <= opts.EpsilonPos Then
-                    e1p = e2 - nf * Vector3d.Dot(nf, e2)
-                End If
-                If e1p.LengthSquared <= opts.EpsilonPos Then
-                    tFace = Vector3d.Zero
-                    bFace = Vector3d.Zero
+            threadLocalN.Dispose()
+            threadLocalT.Dispose()
+            threadLocalB.Dispose()
+        Else
+            ' Sequential path: direct accumulation (full arrays or sparse)
+            For Each t In triArray
+                If useFullArrays Then
+                    AccumulateTriangle(t, localIndices, localVerts, localMasterOf,
+                                       localDu1, localDv1, localDu2, localDv2, localDet,
+                                       useAngle, wMode, epsPos, epsUV,
+                                       nAccum, tAccum, bAccum)
                 Else
-                    tFace = Vector3d.Normalize(e1p)
-                    bFace = Vector3d.Normalize(Vector3d.Cross(nf, tFace))
+                    AccumulateTriangleSparse(t, localIndices, localVerts, localMasterOf,
+                                             localDu1, localDv1, localDu2, localDv2, localDet,
+                                             useAngle, wMode, epsPos, epsUV,
+                                             sparseN, sparseT, sparseB)
                 End If
-            Else
-                Dim r As Double = 1.0 / _det
-                tFace = (e1 * _dv2 - e2 * _dv1) * r
-                bFace = (e2 * _du1 - e1 * _du2) * r
-            End If
+            Next
+        End If
 
-            ' ---- Acumulación en índices MAESTROS ----
-            nAccum(m0) += fn * wn0 : nAccum(m1) += fn * wn1 : nAccum(m2) += fn * wn2
-            tAccum(m0) += tFace * wn0 : tAccum(m1) += tFace * wn1 : tAccum(m2) += tFace * wn2
-            bAccum(m0) += bFace * wn0 : bAccum(m1) += bFace * wn1 : bAccum(m2) += bFace * wn2
-        Next
-
-        ' -------- 5) Finalización en maestros y propagación a TODOS los miembros del grupo --------
-        Dim processedMasters As New HashSet(Of Integer)()
-        ' candidatos = maestros de todos los vértices afectados
+        ' -------- 5) Finalize masters and propagate to all group members --------
         Dim candidates As New HashSet(Of Integer)()
         For Each vi In affectedVerts
-            candidates.Add(masterOf(vi))
+            candidates.Add(localMasterOf(vi))
         Next
 
         For Each m As Integer In candidates
-            If processedMasters.Contains(m) Then Continue For
+            Dim NX As Vector3d = Nothing
+            Dim TX As Vector3d = Nothing
+            Dim Tb As Vector3d = Nothing
+            If useFullArrays = False Then If sparseN.TryGetValue(m, NX) = False Then NX = Vector3d.Zero
+            If useFullArrays = False Then If sparseT.TryGetValue(m, TX) = False Then TX = Vector3d.Zero
+            If useFullArrays = False Then If sparseB.TryGetValue(m, Tb) = False Then Tb = Vector3d.Zero
 
-            Dim N As Vector3d = nAccum(m)
-            Dim T As Vector3d = tAccum(m)
-            Dim B As Vector3d = bAccum(m)
+            Dim N As Vector3d = If(useFullArrays, nAccum(m), NX)
+            Dim T As Vector3d = If(useFullArrays, tAccum(m), TX)
+            Dim B As Vector3d = If(useFullArrays, bAccum(m), Tb)
 
             ' Normal
-            If N.LengthSquared <= opts.EpsilonPos OrElse HasNaN(N) Then
+            If N.LengthSquared <= epsPos OrElse HasNaN(N) Then
                 N = New Vector3d(0, 0, 1)
             ElseIf opts.NormalizeOutputs Then
                 N = Vector3d.Normalize(N)
             End If
 
-            ' Tangente: Gram–Schmidt contra N
-            T += -N * Vector3d.Dot(N, T)
-            If T.LengthSquared <= opts.EpsilonPos OrElse HasNaN(T) Then
+            ' Tangent: Gram-Schmidt orthogonalization against N
+            T -= N * Vector3d.Dot(N, T)
+            If T.LengthSquared <= epsPos OrElse HasNaN(T) Then
                 T = OrthonormalTangentFromNormal(N)
             ElseIf opts.NormalizeOutputs Then
                 T = Vector3d.Normalize(T)
             End If
 
-            ' Bitangente
+            ' Bitangent: preserve handedness from accumulated B
             Dim Bcross As Vector3d = Vector3d.Cross(N, T)
             Dim s As Double = 1.0
-            ' Proyectar B acumulado sobre el plano de N para compararlo de forma estable
             Dim Bproj As Vector3d = B - N * Vector3d.Dot(N, B)
-            If Not HasNaN(Bproj) AndAlso Bproj.LengthSquared > opts.EpsilonPos Then
+            If Not HasNaN(Bproj) AndAlso Bproj.LengthSquared > epsPos Then
                 If Vector3d.Dot(Bcross, Bproj) < 0.0 Then s = -1.0
             End If
 
             If opts.ForceOrthogonalBitangent Then
                 B = Bcross * s
             Else
-                ' Ruta original (preserva B acumulado si es válido)
-                B += -N * Vector3d.Dot(N, B)
-                If B.LengthSquared <= opts.EpsilonPos OrElse HasNaN(B) Then
+                B -= N * Vector3d.Dot(N, B)
+                If B.LengthSquared <= epsPos OrElse HasNaN(B) Then
                     B = Bcross * s
                 End If
             End If
 
-            If opts.NormalizeOutputs AndAlso B.LengthSquared > opts.EpsilonPos Then
+            If opts.NormalizeOutputs AndAlso B.LengthSquared > epsPos Then
                 B = Vector3d.Normalize(B)
             End If
 
             If opts.RepairNaNs Then
-                If HasNaN(B) Then B = Bcross * s ' si aún falló, caer a cross(N,T) 
+                If HasNaN(B) Then B = Bcross * s
             End If
 
-            ' Propagar a TODOS los miembros del grupo (sin alterar topología)
+            ' Propagate to all members of the weld group
             ' FO4 convention (uniform for both FO4 and SSE): T->geo.Tangents, B->geo.Bitangents.
             ' T/B swap for SSE NIF format is handled at ExtractSkinnedGeometry / InjectToTrishape boundaries.
-
             Dim members As List(Of Integer) = Nothing
             If membersOf.TryGetValue(m, members) Then
                 For Each vi As Integer In members
@@ -1551,13 +1581,10 @@ Public Class RecalcTBN
                     geo.Bitangents(vi) = B
                 Next
             Else
-                ' fallback: escribir en m por si acaso
                 geo.Normals(m) = N
                 geo.Tangents(m) = T
                 geo.Bitangents(m) = B
             End If
-
-            processedMasters.Add(m)
         Next
         Return Vertices_Adicionales
     End Function
@@ -1696,16 +1723,122 @@ Public Class RecalcTBN
         Return Math.Abs(a.X - b.X) <= eps AndAlso Math.Abs(a.Y - b.Y) <= eps
     End Function
 
-    ' Ángulo seguro entre a y b (radianes); 0 si degenerado
+    ' Ángulo seguro entre a y b (radianes); 0 si degenerado.
+    ' Uses Atan2(|cross|, dot) instead of Acos(dot) for better numerical stability near 0° and 180°.
     Private Shared Function AngleBetweenSafe(a As Vector3d, b As Vector3d, eps As Double) As Double
-        Dim la As Double = a.Length
-        Dim lb As Double = b.Length
-        If la <= eps OrElse lb <= eps Then Return 0.0
-        Dim c As Double = Vector3d.Dot(a, b) / (la * lb)
-        If c > 1.0 Then c = 1.0
-        If c < -1.0 Then c = -1.0
-        Return Math.Acos(c)
+        Dim crossVec = Vector3d.Cross(a, b)
+        Dim sinVal = crossVec.Length
+        Dim cosVal = Vector3d.Dot(a, b)
+        If sinVal <= eps AndAlso Math.Abs(cosVal) <= eps Then Return 0.0
+        Return Math.Atan2(sinVal, cosVal)
     End Function
+
+    ' Core per-triangle accumulation logic — extracted to avoid duplication between sequential/parallel paths.
+    Private Shared Sub AccumulateTriangle(t As Integer,
+                                          indices As UInteger(), verts As Vector3d(), masterOf As Integer(),
+                                          du1 As Double(), dv1 As Double(), du2 As Double(), dv2 As Double(), det As Double(),
+                                          useAngle As Boolean, wMode As NormalWeightMode, epsPos As Double, epsUV As Double,
+                                          nAcc As Vector3d(), tAcc As Vector3d(), bAcc As Vector3d())
+        Dim i0 As Integer = CInt(indices(3 * t)), i1 As Integer = CInt(indices(3 * t + 1)), i2 As Integer = CInt(indices(3 * t + 2))
+        Dim m0 = masterOf(i0), m1 = masterOf(i1), m2 = masterOf(i2)
+        Dim p0 = verts(i0), p1 = verts(i1), p2 = verts(i2)
+        Dim e1 = p1 - p0, e2 = p2 - p0
+        Dim fn = Vector3d.Cross(e1, e2)
+        Dim area2 = fn.Length
+        If area2 <= epsPos Then Exit Sub
+
+        Dim wn0 As Double, wn1 As Double, wn2 As Double
+        If useAngle Then
+            Dim w0 = AngleBetweenSafe(e1, e2, epsPos)
+            Dim w1 = AngleBetweenSafe(p0 - p1, p2 - p1, epsPos)
+            Dim w2 = AngleBetweenSafe(p0 - p2, p1 - p2, epsPos)
+            If wMode = NormalWeightMode.AngleOnly Then
+                wn0 = w0 : wn1 = w1 : wn2 = w2
+            Else ' AreaTimesAngle
+                wn0 = area2 * w0 : wn1 = area2 * w1 : wn2 = area2 * w2
+            End If
+        Else ' AreaOnly
+            wn0 = area2 : wn1 = area2 : wn2 = area2
+        End If
+
+        Dim tFace As Vector3d, bFace As Vector3d
+        ComputeFaceTB(fn, e1, e2, du1(t), dv1(t), du2(t), dv2(t), det(t), epsPos, epsUV, tFace, bFace)
+
+        nAcc(m0) += fn * wn0 : nAcc(m1) += fn * wn1 : nAcc(m2) += fn * wn2
+        tAcc(m0) += tFace * wn0 : tAcc(m1) += tFace * wn1 : tAcc(m2) += tFace * wn2
+        bAcc(m0) += bFace * wn0 : bAcc(m1) += bFace * wn1 : bAcc(m2) += bFace * wn2
+    End Sub
+
+    ' Sparse variant for small partial updates — avoids allocating full-size arrays.
+    Private Shared Sub AccumulateTriangleSparse(t As Integer,
+                                                indices As UInteger(), verts As Vector3d(), masterOf As Integer(),
+                                                du1 As Double(), dv1 As Double(), du2 As Double(), dv2 As Double(), det As Double(),
+                                                useAngle As Boolean, wMode As NormalWeightMode, epsPos As Double, epsUV As Double,
+                                                nAcc As Dictionary(Of Integer, Vector3d),
+                                                tAcc As Dictionary(Of Integer, Vector3d),
+                                                bAcc As Dictionary(Of Integer, Vector3d))
+        Dim i0 As Integer = CInt(indices(3 * t)), i1 As Integer = CInt(indices(3 * t + 1)), i2 As Integer = CInt(indices(3 * t + 2))
+        Dim m0 = masterOf(i0), m1 = masterOf(i1), m2 = masterOf(i2)
+        Dim p0 = verts(i0), p1 = verts(i1), p2 = verts(i2)
+        Dim e1 = p1 - p0, e2 = p2 - p0
+        Dim fn = Vector3d.Cross(e1, e2)
+        Dim area2 = fn.Length
+        If area2 <= epsPos Then Exit Sub
+
+        Dim wn0 As Double, wn1 As Double, wn2 As Double
+        If useAngle Then
+            Dim w0 = AngleBetweenSafe(e1, e2, epsPos)
+            Dim w1 = AngleBetweenSafe(p0 - p1, p2 - p1, epsPos)
+            Dim w2 = AngleBetweenSafe(p0 - p2, p1 - p2, epsPos)
+            If wMode = NormalWeightMode.AngleOnly Then
+                wn0 = w0 : wn1 = w1 : wn2 = w2
+            Else
+                wn0 = area2 * w0 : wn1 = area2 * w1 : wn2 = area2 * w2
+            End If
+        Else
+            wn0 = area2 : wn1 = area2 : wn2 = area2
+        End If
+
+        Dim tFace As Vector3d, bFace As Vector3d
+        ComputeFaceTB(fn, e1, e2, du1(t), dv1(t), du2(t), dv2(t), det(t), epsPos, epsUV, tFace, bFace)
+
+        Dim vn0 As Vector3d, vn1 As Vector3d, vn2 As Vector3d
+        nAcc.TryGetValue(m0, vn0) : nAcc(m0) = vn0 + fn * wn0
+        nAcc.TryGetValue(m1, vn1) : nAcc(m1) = vn1 + fn * wn1
+        nAcc.TryGetValue(m2, vn2) : nAcc(m2) = vn2 + fn * wn2
+        Dim vt0 As Vector3d, vt1 As Vector3d, vt2 As Vector3d
+        tAcc.TryGetValue(m0, vt0) : tAcc(m0) = vt0 + tFace * wn0
+        tAcc.TryGetValue(m1, vt1) : tAcc(m1) = vt1 + tFace * wn1
+        tAcc.TryGetValue(m2, vt2) : tAcc(m2) = vt2 + tFace * wn2
+        Dim vb0 As Vector3d, vb1 As Vector3d, vb2 As Vector3d
+        bAcc.TryGetValue(m0, vb0) : bAcc(m0) = vb0 + bFace * wn0
+        bAcc.TryGetValue(m1, vb1) : bAcc(m1) = vb1 + bFace * wn1
+        bAcc.TryGetValue(m2, vb2) : bAcc(m2) = vb2 + bFace * wn2
+    End Sub
+
+    ' Computes per-face tangent and bitangent from edges + cached UV derivatives.
+    Private Shared Sub ComputeFaceTB(fn As Vector3d, e1 As Vector3d, e2 As Vector3d,
+                                      _du1 As Double, _dv1 As Double, _du2 As Double, _dv2 As Double, _det As Double,
+                                      epsPos As Double, epsUV As Double,
+                                      ByRef tFace As Vector3d, ByRef bFace As Vector3d)
+        If Math.Abs(_det) <= epsUV Then
+            ' Degenerate UV: stable fallback in face-normal plane
+            Dim nf = Vector3d.Normalize(fn)
+            Dim e1p = e1 - nf * Vector3d.Dot(nf, e1)
+            If e1p.LengthSquared <= epsPos Then e1p = e2 - nf * Vector3d.Dot(nf, e2)
+            If e1p.LengthSquared <= epsPos Then
+                tFace = Vector3d.Zero
+                bFace = Vector3d.Zero
+            Else
+                tFace = Vector3d.Normalize(e1p)
+                bFace = Vector3d.Normalize(Vector3d.Cross(nf, tFace))
+            End If
+        Else
+            Dim r As Double = 1.0 / _det
+            tFace = (e1 * _dv2 - e2 * _dv1) * r
+            bFace = (e2 * _du1 - e1 * _du2) * r
+        End If
+    End Sub
 
     ' Tangente ortonormal a partir de una normal: elige un eje auxiliar poco alineado
     Private Shared Function OrthonormalTangentFromNormal(n As Vector3d) As Vector3d

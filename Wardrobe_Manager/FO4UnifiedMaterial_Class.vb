@@ -129,6 +129,22 @@ Public Class FO4UnifiedMaterial_Class
             End Select
         End Set
     End Property
+    Public Function IsBGEM() As Boolean
+        Select Case Underlying_Material.GetType
+            Case GetType(BGEM)
+                Return True
+            Case Else
+                Return False
+        End Select
+    End Function
+    Public Function IsBGSM() As Boolean
+        Select Case Underlying_Material.GetType
+            Case GetType(BGSM)
+                Return True
+            Case Else
+                Return False
+        End Select
+    End Function
 
     <Category("Textures")>
     <Editor(GetType(DictionaryFilePickerEditor), GetType(UITypeEditor))>
@@ -1246,7 +1262,7 @@ Public Class FO4UnifiedMaterial_Class
     End Property
     ' Propiedades exclusivas BGEM
 
-    <Category("Falloff")>
+    <Category("Lighting")>
     <BGEMOnly>
     Public Property FalloffEnabled As Boolean
         Get
@@ -1271,7 +1287,7 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Falloff")>
+    <Category("Lighting")>
     <BGEMOnly>
     Public Property FalloffColorEnabled As Boolean
         Get
@@ -1296,7 +1312,7 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Falloff")>
+    <Category("Lighting")>
     <BGEMOnly>
     Public Property FalloffStartAngle As Single
         Get
@@ -1321,7 +1337,7 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Falloff")>
+    <Category("Lighting")>
     <BGEMOnly>
     Public Property FalloffStopAngle As Single
         Get
@@ -1346,7 +1362,7 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Falloff")>
+    <Category("Lighting")>
     <BGEMOnly>
     Public Property FalloffStartOpacity As Single
         Get
@@ -1371,7 +1387,7 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Falloff")>
+    <Category("Lighting")>
     <BGEMOnly>
     Public Property FalloffStopOpacity As Single
         Get
@@ -1415,6 +1431,81 @@ Public Class FO4UnifiedMaterial_Class
                     ' No action
                 Case GetType(BGEM)
                     CType(Underlying_Material, BGEM).LightingInfluence = value
+                Case Else
+                    Throw New Exception
+            End Select
+        End Set
+    End Property
+
+    <Category("Coloring")>
+    <BGEMOnly>
+    Public Property GrayscaleToPaletteAlpha As Boolean
+        Get
+            Select Case Underlying_Material.GetType
+                Case GetType(BGSM)
+                    Return False
+                Case GetType(BGEM)
+                    Return CType(Underlying_Material, BGEM).GrayscaleToPaletteAlpha
+                Case Else
+                    Throw New Exception
+            End Select
+        End Get
+        Set(value As Boolean)
+            Select Case Underlying_Material.GetType
+                Case GetType(BGSM)
+                    ' No action
+                Case GetType(BGEM)
+                    CType(Underlying_Material, BGEM).GrayscaleToPaletteAlpha = value
+                Case Else
+                    Throw New Exception
+            End Select
+        End Set
+    End Property
+
+    <Category("Coloring")>
+    <BGEMOnly>
+    Public Property BaseColor As Color
+        Get
+            Select Case Underlying_Material.GetType
+                Case GetType(BGSM)
+                    Return System.Drawing.Color.FromArgb(255, 255, 255, 255)
+                Case GetType(BGEM)
+                    Return UIntegerToColor(CType(Underlying_Material, BGEM).BaseColor)
+                Case Else
+                    Throw New Exception
+            End Select
+        End Get
+        Set(value As Color)
+            Select Case Underlying_Material.GetType
+                Case GetType(BGSM)
+                    ' No action
+                Case GetType(BGEM)
+                    CType(Underlying_Material, BGEM).BaseColor = ColorToUInteger(value)
+                Case Else
+                    Throw New Exception
+            End Select
+        End Set
+    End Property
+
+    <Category("Coloring")>
+    <BGEMOnly>
+    Public Property BaseColorScale As Single
+        Get
+            Select Case Underlying_Material.GetType
+                Case GetType(BGSM)
+                    Return 0
+                Case GetType(BGEM)
+                    Return CType(Underlying_Material, BGEM).BaseColorScale
+                Case Else
+                    Throw New Exception
+            End Select
+        End Get
+        Set(value As Single)
+            Select Case Underlying_Material.GetType
+                Case GetType(BGSM)
+                    ' No action
+                Case GetType(BGEM)
+                    CType(Underlying_Material, BGEM).BaseColorScale = value
                 Case Else
                     Throw New Exception
             End Select
@@ -1723,7 +1814,18 @@ Public Class FO4UnifiedMaterial_Class
             .UScale = shad.UVScale.U,
             .VScale = shad.UVScale.V,
             .EnvironmentMappingMaskScale = shad.EnvironmentMapScale,
-            .EmittanceColor = ColorToUInteger(NifColorToColor(shad.EmittanceColor))
+            .EmittanceColor = ColorToUInteger(NifColorToColor(shad.EmittanceColor)),
+            .FalloffEnabled = False,
+            .FalloffColorEnabled = False,
+            .GrayscaleToPaletteAlpha = shad.HasGreyscaleToPaletteAlpha,
+            .EffectLightingEnabled = False,
+            .BaseColor = NifColorColorToUInteger(shad.BaseColor),
+            .BaseColorScale = shad.BaseColorScale,
+            .FalloffStartAngle = shad.FalloffStartAngle,
+            .FalloffStopAngle = shad.FalloffStopAngle,
+            .FalloffStartOpacity = shad.FalloffStartOpacity,
+            .FalloffStopOpacity = shad.FalloffStopOpacity,
+            .LightingInfluence = shad.LightingInfluence / 255.0F
                        }
         Else
             mat = New BGEM
@@ -1965,14 +2067,17 @@ Public Class FO4UnifiedMaterial_Class
         Dim b = (color And &HFF)
         Return New Color4(r / 255, g / 255, b / 255, 1)
     End Function
+    Private Shared Function ClampByte(value As Single) As Integer
+        Return Math.Min(255, Math.Max(0, CInt(value)))
+    End Function
     Public Shared Function NifColorColorToUInteger(color As NiflySharp.Structs.Color4) As UInteger
-        Return ColorToUInteger(System.Drawing.Color.FromArgb(color.A * 255, color.R * 255, color.G * 255, color.B * 255))
+        Return ColorToUInteger(System.Drawing.Color.FromArgb(ClampByte(color.A * 255), ClampByte(color.R * 255), ClampByte(color.G * 255), ClampByte(color.B * 255)))
     End Function
     Public Shared Function NifColorToColor(color As NiflySharp.Structs.Color4) As Color
-        Return System.Drawing.Color.FromArgb(color.A * 255, color.R * 255, color.G * 255, color.B * 255)
+        Return System.Drawing.Color.FromArgb(ClampByte(color.A * 255), ClampByte(color.R * 255), ClampByte(color.G * 255), ClampByte(color.B * 255))
     End Function
     Public Shared Function NifColorToColor(color As NiflySharp.Structs.Color3) As Color
-        Return System.Drawing.Color.FromArgb(255, color.R * 255, color.G * 255, color.B * 255)
+        Return System.Drawing.Color.FromArgb(255, ClampByte(color.R * 255), ClampByte(color.G * 255), ClampByte(color.B * 255))
     End Function
 
     Public Shared Function ColorToUInteger(c As Color) As UInteger

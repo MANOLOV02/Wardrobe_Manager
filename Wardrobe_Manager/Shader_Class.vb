@@ -70,9 +70,23 @@ layout(location = 10) in vec4 boneWeightsIn; // normalized bone weights
 layout(std430, binding = 0) buffer BoneMatrices {
     mat4 bones[];
 };
-uniform bool bGPUSkinning;  // toggle: if false, vertices are already in world space (CPU fallback)
-// SYNC: this GPU skinning block (locations 9-10, BoneMatrices SSBO, bGPUSkinning) and the
-//       skinning code in main() are duplicated in Shader_Class_FO4 and Shader_Class_SSE. Keep both in sync.
+uniform bool bGPUSkinning;
+uniform int uBoneCount;
+// GPU SKINNING - SYNC CONTRACT
+// The blend formula here MUST match SkinningHelper.BlendBoneMatrices()
+// (CPU double-precision) and RecomputeGPUBoneMatrices() (bone matrix
+// composition). Any change to weights, fallback, or matrix composition
+// must be mirrored in all three locations:
+//   1. This shader (Shader_Class_FO4 vertex + Shader_Class_SSE vertex)
+//   2. SkinningHelper.BlendBoneMatrices()
+//   3. SkinningHelper.RecomputeGPUBoneMatrices()
+//   4. SkinningHelper.ExtractSkinnedGeometry() (GPU arrays extraction)
+// Differences by design:
+//   - GPU: float precision, pre-normalized weights (sum=1 at extract)
+//   - CPU: double precision, runtime normalization (1/sumW)
+//   - GPU applies transpose(inverse(mat3)) for N/T/B; CPU stores
+//     N/T/B in local space and lets the shader transform them.
+// This block is DUPLICATED in Shader_Class_FO4 and Shader_Class_SSE.
 
 struct DirectionalLight
 {
@@ -180,7 +194,7 @@ void main(void)
 
 	if (bGPUSkinning) {
 	    // GPU skinning: blend bone matrices
-	    ivec4 bIdx = ivec4(boneIndicesF);
+	    ivec4 bIdx = clamp(ivec4(boneIndicesF), ivec4(0), ivec4(max(uBoneCount - 1, 0)));
 	    vec4 bWgt = boneWeightsIn;
 
 	    mat4 skinMatrix = mat4(0.0);
@@ -190,14 +204,14 @@ void main(void)
 	    if (bWgt.z > 0.0) skinMatrix += bones[bIdx.z] * bWgt.z;
 	    if (bWgt.w > 0.0) skinMatrix += bones[bIdx.w] * bWgt.w;
 
-	    // If no weights at all, use identity
+	    // Zero-weight fallback: first bone (matches CPU BlendBoneMatrices), then identity if no bones
 	    float totalWeight = bWgt.x + bWgt.y + bWgt.z + bWgt.w;
-	    if (totalWeight < 0.001) skinMatrix = mat4(1.0);
+	    if (totalWeight < 0.001) skinMatrix = (uBoneCount > 0) ? bones[bIdx.x] : mat4(1.0);
 
 	    skinnedPos = vec3(skinMatrix * vec4(vertexPosition, 1.0));
 
-	    // Normal matrix from skin matrix (transpose of inverse of upper-left 3x3)
-	    mat3 skinNormalMat = mat3(skinMatrix);
+	    // Correct normal matrix: transpose of inverse of upper-left 3x3
+	    mat3 skinNormalMat = transpose(inverse(mat3(skinMatrix)));
 	    skinnedNormal = normalize(skinNormalMat * vertexNormal);
 	    skinnedTangent = normalize(skinNormalMat * vertexTangent);
 	    skinnedBitangent = normalize(skinNormalMat * vertexBitangent);
@@ -284,7 +298,18 @@ uniform bool bSoftlight;
 uniform bool bAlphaTest;
 uniform bool bGlowmap;
 uniform bool bGreyscaleColor;
+uniform bool bDoubleSided;
 uniform bool bHide;
+
+uniform bool bIsEffectShader;
+uniform bool bEffectFalloff;
+uniform bool bEffectFalloffColor;
+uniform bool bEffectGreyscaleAlpha;
+uniform float effectLightingInfluence;
+uniform vec4 effectFalloffParams;   // x=startAngle, y=stopAngle, z=startOpacity, w=stopOpacity
+uniform vec3 effectBaseColor;
+uniform float effectBaseColorAlpha;
+uniform float effectBaseColorScale;
 
 uniform mat4 matModel;
 uniform mat4 matModelViewInverse;
@@ -521,21 +546,21 @@ void directionalLight(in DirectionalLight light, in vec3 lightDir, inout vec3 ou
 		outSpec += cube.rgb * diff;
 	}
 
-	// Back lighting not really useful for the current light setup of multiple directional lights
-	//if (bBacklight)
-	//{
-	//	float NdotNegL = max(dot(normal, -lightDir), FLT_EPSILON);
-	//	vec3 backlight = albedo * NdotNegL * clamp(backlightPower, 0.0, 1.0);
-	//	emissive += backlight * light.diffuse;
-	//}
+	// Back lighting: simulates translucency (light through thin cloth/hair)
+	if (bBacklight)
+	{
+		float NdotNegL = max(dot(normal, -lightDir), FLT_EPSILON);
+		vec3 backlight = albedo * NdotNegL * clamp(backlightPower, 0.0, 1.0);
+		emissive += backlight * light.diffuse;
+	}
 
-	// Rim lighting not really useful for the current light setup of multiple directional lights
-	//if (bRimlight)
-	//{
-	//	vec3 rim = vec3(pow((1.0 - NdotV), rimlightPower));
-	//	rim *= smoothstep(-0.2, 1.0, dot(-lightDir, viewDir));
-	//	emissive += rim * light.diffuse * specMask;
-	//}
+	// Rim lighting: bright edge when backlit
+	if (bRimlight)
+	{
+		vec3 rim = vec3(pow((1.0 - NdotV), rimlightPower));
+		rim *= smoothstep(-0.2, 1.0, dot(-lightDir, viewDir));
+		emissive += rim * light.diffuse * specMask;
+	}
 
 	// Diffuse
 	diff = vec3(OrenNayarFull(lightDir, viewDir, normal, roughness, NdotL0));
@@ -560,6 +585,8 @@ void main(void)
     uv = vUV * uvScale + uvOffset;
 	vec4 color = vColor;
 	albedo = vColor.rgb;
+	vec3 outDiffuse = vec3(0.0);
+	vec3 outSpecular = vec3(0.0);
 
 	if (!bWireframe)
 	{
@@ -602,8 +629,8 @@ void main(void)
 		if (bLightEnabled)
 		{
 			// Lighting with or without textures
-			vec3 outDiffuse = vec3(0.0);
-			vec3 outSpecular = vec3(0.0);
+			outDiffuse = vec3(0.0);
+			outSpecular = vec3(0.0);
 
 			// Start off neutral
 			normal = normalize(mv_tbn * vec3(0.0, 0.0, 0.5));
@@ -632,10 +659,15 @@ void main(void)
 
 				if (bGreyscaleColor)
 				{
-                    float avg =(baseMap.r + baseMap.g + baseMap.b) / 3.0;
-                    vec4 luG = colorLookup(avg, paletteScale);
+                    vec4 luG = colorLookup(baseMap.g, paletteScale - (1.0 - vColor.r));
 					albedo = luG.rgb;
 				}
+			}
+
+			// Double-sided: flip normal for back faces
+			if (bDoubleSided && !gl_FrontFacing)
+			{
+				normal = -normal;
 			}
 
 			directionalLight(frontal, lightFrontal, outDiffuse, outSpecular);
@@ -662,6 +694,49 @@ void main(void)
 			color.rgb += ambient * albedo;
 		}
 
+		// Effect Shader (BGEM) overrides
+		if (bIsEffectShader)
+		{
+			// Base color replaces diffuse, but preserves specular/cubemap
+			vec3 effBase = baseMap.rgb * vColor.rgb * effectBaseColor * effectBaseColorScale;
+
+			// BGEM alpha: baseColor.a squared (Bethesda engine convention) * vertex alpha * texture alpha
+			// color.a already has vColor.a * baseMap.a from the standard path
+			float bcAlpha = effectBaseColorAlpha;
+			color.a *= bcAlpha * bcAlpha;
+
+			// Lighting influence: mix fullbright vs lit using all 4 accumulated lights
+			if (bLightEnabled)
+			{
+				vec3 effLit = effBase * (outDiffuse + vec3(ambient));
+				effBase = mix(effBase, effLit, effectLightingInfluence);
+			}
+
+			// Combine: effect base + specular/cubemap from lighting pass + emissive
+			color.rgb = effBase + outSpecular + emissive;
+
+			// Falloff (angle-based transparency)
+			if (bEffectFalloff || bEffectFalloffColor)
+			{
+				float NdotV_falloff = abs(dot(normal, normalize(viewDir)));
+				float falloff = smoothstep(effectFalloffParams.x, effectFalloffParams.y, NdotV_falloff);
+				falloff = mix(max(effectFalloffParams.z, 0.0), min(effectFalloffParams.w, 1.0), falloff);
+
+				if (bEffectFalloff)
+					color.a *= falloff;
+
+				if (bEffectFalloffColor)
+					color.rgb *= falloff;
+			}
+
+			// Greyscale alpha: transparency comes entirely from palette lookup, not texture
+			if (bEffectGreyscaleAlpha)
+			{
+				vec4 luA = colorLookup(1.0, color.a);
+				color.a = luA.a;
+			}
+		}
+
 		if (bShowMask)
 		{
           color.rgb *= maskFactor;
@@ -686,6 +761,7 @@ void main(void)
 	}
 
 	color = clamp(color, 0.0, 1.0);
+	color.a *= alpha;
 
 	fragColor = color;
 
@@ -839,9 +915,23 @@ layout(location = 10) in vec4 boneWeightsIn; // normalized bone weights
 layout(std430, binding = 0) buffer BoneMatrices {
     mat4 bones[];
 };
-uniform bool bGPUSkinning;  // toggle: if false, vertices are already in world space (CPU fallback)
-// SYNC: this GPU skinning block (locations 9-10, BoneMatrices SSBO, bGPUSkinning) and the
-//       skinning code in main() are duplicated in Shader_Class_FO4 and Shader_Class_SSE. Keep both in sync.
+uniform bool bGPUSkinning;
+uniform int uBoneCount;
+// GPU SKINNING - SYNC CONTRACT
+// The blend formula here MUST match SkinningHelper.BlendBoneMatrices()
+// (CPU double-precision) and RecomputeGPUBoneMatrices() (bone matrix
+// composition). Any change to weights, fallback, or matrix composition
+// must be mirrored in all three locations:
+//   1. This shader (Shader_Class_FO4 vertex + Shader_Class_SSE vertex)
+//   2. SkinningHelper.BlendBoneMatrices()
+//   3. SkinningHelper.RecomputeGPUBoneMatrices()
+//   4. SkinningHelper.ExtractSkinnedGeometry() (GPU arrays extraction)
+// Differences by design:
+//   - GPU: float precision, pre-normalized weights (sum=1 at extract)
+//   - CPU: double precision, runtime normalization (1/sumW)
+//   - GPU applies transpose(inverse(mat3)) for N/T/B; CPU stores
+//     N/T/B in local space and lets the shader transform them.
+// This block is DUPLICATED in Shader_Class_FO4 and Shader_Class_SSE.
 
 struct DirectionalLight
 {
@@ -949,7 +1039,7 @@ void main(void)
 
 	if (bGPUSkinning) {
 	    // GPU skinning: blend bone matrices
-	    ivec4 bIdx = ivec4(boneIndicesF);
+	    ivec4 bIdx = clamp(ivec4(boneIndicesF), ivec4(0), ivec4(max(uBoneCount - 1, 0)));
 	    vec4 bWgt = boneWeightsIn;
 
 	    mat4 skinMatrix = mat4(0.0);
@@ -959,14 +1049,14 @@ void main(void)
 	    if (bWgt.z > 0.0) skinMatrix += bones[bIdx.z] * bWgt.z;
 	    if (bWgt.w > 0.0) skinMatrix += bones[bIdx.w] * bWgt.w;
 
-	    // If no weights at all, use identity
+	    // Zero-weight fallback: first bone (matches CPU BlendBoneMatrices), then identity if no bones
 	    float totalWeight = bWgt.x + bWgt.y + bWgt.z + bWgt.w;
-	    if (totalWeight < 0.001) skinMatrix = mat4(1.0);
+	    if (totalWeight < 0.001) skinMatrix = (uBoneCount > 0) ? bones[bIdx.x] : mat4(1.0);
 
 	    skinnedPos = vec3(skinMatrix * vec4(vertexPosition, 1.0));
 
-	    // Normal matrix from skin matrix (transpose of inverse of upper-left 3x3)
-	    mat3 skinNormalMat = mat3(skinMatrix);
+	    // Correct normal matrix: transpose of inverse of upper-left 3x3
+	    mat3 skinNormalMat = transpose(inverse(mat3(skinMatrix)));
 	    skinnedNormal = normalize(skinNormalMat * vertexNormal);
 	    skinnedTangent = normalize(skinNormalMat * vertexTangent);
 	    skinnedBitangent = normalize(skinNormalMat * vertexBitangent);
@@ -1053,7 +1143,18 @@ uniform bool bSoftlight;
 uniform bool bAlphaTest;
 uniform bool bGlowmap;
 uniform bool bGreyscaleColor;
+uniform bool bDoubleSided;
 uniform bool bHide;
+
+uniform bool bIsEffectShader;
+uniform bool bEffectFalloff;
+uniform bool bEffectFalloffColor;
+uniform bool bEffectGreyscaleAlpha;
+uniform float effectLightingInfluence;
+uniform vec4 effectFalloffParams;   // x=startAngle, y=stopAngle, z=startOpacity, w=stopOpacity
+uniform vec3 effectBaseColor;
+uniform float effectBaseColorAlpha;
+uniform float effectBaseColorScale;
 
 uniform mat4 matModel;
 uniform mat4 matModelViewInverse;
@@ -1290,21 +1391,21 @@ void directionalLight(in DirectionalLight light, in vec3 lightDir, inout vec3 ou
 		outSpec += cube.rgb * diff;
 	}
 
-	// Back lighting not really useful for the current light setup of multiple directional lights
-	//if (bBacklight)
-	//{
-	//	float NdotNegL = max(dot(normal, -lightDir), FLT_EPSILON);
-	//	vec3 backlight = albedo * NdotNegL * clamp(backlightPower, 0.0, 1.0);
-	//	emissive += backlight * light.diffuse;
-	//}
+	// Back lighting: simulates translucency (light through thin cloth/hair)
+	if (bBacklight)
+	{
+		float NdotNegL = max(dot(normal, -lightDir), FLT_EPSILON);
+		vec3 backlight = albedo * NdotNegL * clamp(backlightPower, 0.0, 1.0);
+		emissive += backlight * light.diffuse;
+	}
 
-	// Rim lighting not really useful for the current light setup of multiple directional lights
-	//if (bRimlight)
-	//{
-	//	vec3 rim = vec3(pow((1.0 - NdotV), rimlightPower));
-	//	rim *= smoothstep(-0.2, 1.0, dot(-lightDir, viewDir));
-	//	emissive += rim * light.diffuse * specMask;
-	//}
+	// Rim lighting: bright edge when backlit
+	if (bRimlight)
+	{
+		vec3 rim = vec3(pow((1.0 - NdotV), rimlightPower));
+		rim *= smoothstep(-0.2, 1.0, dot(-lightDir, viewDir));
+		emissive += rim * light.diffuse * specMask;
+	}
 
 	// Diffuse
 	diff = vec3(OrenNayarFull(lightDir, viewDir, normal, roughness, NdotL0));
@@ -1329,6 +1430,8 @@ void main(void)
     uv = vUV * uvScale + uvOffset;
 	vec4 color = vColor;
 	albedo = vColor.rgb;
+	vec3 outDiffuse = vec3(0.0);
+	vec3 outSpecular = vec3(0.0);
 
 	if (!bWireframe)
 	{
@@ -1371,8 +1474,8 @@ void main(void)
 		if (bLightEnabled)
 		{
 			// Lighting with or without textures
-			vec3 outDiffuse = vec3(0.0);
-			vec3 outSpecular = vec3(0.0);
+			outDiffuse = vec3(0.0);
+			outSpecular = vec3(0.0);
 
 			// Start off neutral
 			normal = normalize(mv_tbn * vec3(0.0, 0.0, 0.5));
@@ -1401,10 +1504,15 @@ void main(void)
 
 				if (bGreyscaleColor)
 				{
-                    float avg =(baseMap.r + baseMap.g + baseMap.b) / 3.0;
-                    vec4 luG = colorLookup(avg, paletteScale);
+                    vec4 luG = colorLookup(baseMap.g, paletteScale - (1.0 - vColor.r));
 					albedo = luG.rgb;
 				}
+			}
+
+			// Double-sided: flip normal for back faces
+			if (bDoubleSided && !gl_FrontFacing)
+			{
+				normal = -normal;
 			}
 
 			directionalLight(frontal, lightFrontal, outDiffuse, outSpecular);
@@ -1431,6 +1539,49 @@ void main(void)
 			color.rgb += ambient * albedo;
 		}
 
+		// Effect Shader (BGEM) overrides
+		if (bIsEffectShader)
+		{
+			// Base color replaces diffuse, but preserves specular/cubemap
+			vec3 effBase = baseMap.rgb * vColor.rgb * effectBaseColor * effectBaseColorScale;
+
+			// BGEM alpha: baseColor.a squared (Bethesda engine convention) * vertex alpha * texture alpha
+			// color.a already has vColor.a * baseMap.a from the standard path
+			float bcAlpha = effectBaseColorAlpha;
+			color.a *= bcAlpha * bcAlpha;
+
+			// Lighting influence: mix fullbright vs lit using all 4 accumulated lights
+			if (bLightEnabled)
+			{
+				vec3 effLit = effBase * (outDiffuse + vec3(ambient));
+				effBase = mix(effBase, effLit, effectLightingInfluence);
+			}
+
+			// Combine: effect base + specular/cubemap from lighting pass + emissive
+			color.rgb = effBase + outSpecular + emissive;
+
+			// Falloff (angle-based transparency)
+			if (bEffectFalloff || bEffectFalloffColor)
+			{
+				float NdotV_falloff = abs(dot(normal, normalize(viewDir)));
+				float falloff = smoothstep(effectFalloffParams.x, effectFalloffParams.y, NdotV_falloff);
+				falloff = mix(max(effectFalloffParams.z, 0.0), min(effectFalloffParams.w, 1.0), falloff);
+
+				if (bEffectFalloff)
+					color.a *= falloff;
+
+				if (bEffectFalloffColor)
+					color.rgb *= falloff;
+			}
+
+			// Greyscale alpha: transparency comes entirely from palette lookup, not texture
+			if (bEffectGreyscaleAlpha)
+			{
+				vec4 luA = colorLookup(1.0, color.a);
+				color.a = luA.a;
+			}
+		}
+
 		if (bShowMask)
 		{
           color.rgb *= maskFactor;
@@ -1455,6 +1606,7 @@ void main(void)
 	}
 
 	color = clamp(color, 0.0, 1.0);
+	color.a *= alpha;
 
 	fragColor = color;
 
@@ -1605,6 +1757,8 @@ Public MustInherit Class Shader_Base_Class
         GL.AttachShader(program, vertexShader)
         GL.AttachShader(program, fragmentShader)
         GL.LinkProgram(program)
+        Dim linkInfo = GL.GetProgramInfoLog(program)
+        If Not String.IsNullOrWhiteSpace(linkInfo) Then Throw New Exception($"Shader program link error: {linkInfo}")
 
         GL.DetachShader(program, vertexShader)
         GL.DetachShader(program, fragmentShader)
@@ -1693,6 +1847,20 @@ Public MustInherit Class Shader_Base_Class
         Else
             '#If DEBUG Then
             '            Debug.Print($"⚠️ [Uniform] {name} not found!")
+            '#End If
+        End If
+    End Sub
+
+    Public Sub SetVector4(name As String, value As Vector4)
+        Dim loc As Integer = GetUniformLocationCached(name)
+        If loc <> -1 Then
+            GL.Uniform4(loc, value.X, value.Y, value.Z, value.W)
+            '#If DEBUG Then
+            '            Debug.Print($"[Uniform] {name} = {value}")
+            '#End If
+        Else
+            '#If DEBUG Then
+            '            Debug.Print($"[Uniform] {name} not found!")
             '#End If
         End If
     End Sub

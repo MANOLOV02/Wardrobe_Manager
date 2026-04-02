@@ -60,7 +60,6 @@ Partial Public Class LightRigForm
         AddHandler tbFillL.Scroll, AddressOf ActualizarEtiquetas
         AddHandler tbFillR.Scroll, AddressOf ActualizarEtiquetas
         AddHandler tbBack.Scroll, AddressOf ActualizarEtiquetas
-        AddHandler tbBack.Scroll, AddressOf ActualizarEtiquetas
         AddHandler tambient.Scroll, AddressOf ActualizarEtiquetas
 
         Dim nudChanged As EventHandler = Sub(sender, e) VolcarUIenModelo()

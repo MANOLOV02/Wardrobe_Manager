@@ -61,6 +61,7 @@ Public Class OcclusionMask_Form
             .SelfMinDistance = CSng(nudSelfMinDist.Value)
         }
 
+        _cts?.Dispose()
         _cts = New CancellationTokenSource()
         _state = RunState.Running
         btnAction.Text = "Cancel"
@@ -90,42 +91,47 @@ Public Class OcclusionMask_Form
             End Function).
             ContinueWith(Sub(t)
                              If Me.IsDisposed Then Return
-                             Me.Invoke(Sub()
-                                           _state = RunState.Done
-                                           btnClose.Enabled = True
-                                           cboQuality.Enabled = True
-                                           nudThreshold.Enabled = True
-                                           nudBias.Enabled = True
-                                           chkTriangles.Enabled = True
-                                           chkSelfOcclusion.Enabled = True
-                                           nudSelfMinDist.Enabled = chkSelfOcclusion.Checked
+                             Try
+                                 Me.Invoke(Sub()
+                                               _state = RunState.Done
+                                               btnClose.Enabled = True
+                                               cboQuality.Enabled = True
+                                               nudThreshold.Enabled = True
+                                               nudBias.Enabled = True
+                                               chkTriangles.Enabled = True
+                                               chkSelfOcclusion.Enabled = True
+                                               nudSelfMinDist.Enabled = chkSelfOcclusion.Checked
 
-                                           If token.IsCancellationRequested Then
-                                               progressBar1.Value = 0
-                                               lblStatus.Text = "Cancelled."
-                                               lblStatus.ForeColor = SystemColors.GrayText
-                                               _state = RunState.Ready
-                                               btnAction.Text = "Start"
-                                           ElseIf t.IsFaulted Then
-                                               lblStatus.Text = $"Error: {t.Exception?.InnerException?.Message}"
-                                               lblStatus.ForeColor = Color.DarkRed
-                                               btnAction.Text = "Start"
-                                               _state = RunState.Ready
-                                           Else
-                                               ResultVertices = t.Result
-                                               Dim count = If(ResultVertices IsNot Nothing, ResultVertices.Count, 0)
-                                               progressBar1.Value = 100
-                                               lblStatus.Text = $"Done: {count} vertices to mask."
-                                               lblStatus.ForeColor = If(count > 0, Color.DarkGreen, SystemColors.GrayText)
-                                               btnAction.Text = "Start"
-                                               btnApply.Enabled = True
-                                           End If
-                                       End Sub)
+                                               If token.IsCancellationRequested Then
+                                                   progressBar1.Value = 0
+                                                   lblStatus.Text = "Cancelled."
+                                                   lblStatus.ForeColor = SystemColors.GrayText
+                                                   _state = RunState.Ready
+                                                   btnAction.Text = "Start"
+                                               ElseIf t.IsFaulted Then
+                                                   lblStatus.Text = $"Error: {t.Exception?.InnerException?.Message}"
+                                                   lblStatus.ForeColor = Color.DarkRed
+                                                   btnAction.Text = "Start"
+                                                   _state = RunState.Ready
+                                               Else
+                                                   ResultVertices = t.Result
+                                                   Dim count = If(ResultVertices IsNot Nothing, ResultVertices.Count, 0)
+                                                   progressBar1.Value = 100
+                                                   lblStatus.Text = $"Done: {count} vertices to mask."
+                                                   lblStatus.ForeColor = If(count > 0, Color.DarkGreen, SystemColors.GrayText)
+                                                   btnAction.Text = "Start"
+                                                   btnApply.Enabled = True
+                                               End If
+                                           End Sub)
+                             Catch ex As ObjectDisposedException
+                                 ' Form was disposed between IsDisposed check and Invoke call; safe to ignore.
+                             End Try
                          End Sub)
     End Sub
 
     Protected Overrides Sub OnFormClosing(e As FormClosingEventArgs)
         _cts?.Cancel()
+        _cts?.Dispose()
         MyBase.OnFormClosing(e)
     End Sub
 

@@ -54,6 +54,7 @@ Partial Class Config_Form
         Label8 = New Label()
         NumericUpDownPositionEps = New NumericUpDown()
         SingleBoneCheck = New CheckBox()
+        CheckBoxGPUSkinning = New CheckBox()
         RecalculateNormalsCheck = New CheckBox()
         TabControl1 = New TabControl()
         TabPage1 = New TabPage()
@@ -247,7 +248,7 @@ Partial Class Config_Form
         ' 
         ' Label4
         ' 
-        Label4.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label4.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Label4.ImageAlign = ContentAlignment.MiddleRight
         Label4.ImageIndex = 0
         Label4.Location = New Point(6, 165)
@@ -259,7 +260,7 @@ Partial Class Config_Form
         ' 
         ' Label5
         ' 
-        Label5.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label5.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Label5.ForeColor = Color.IndianRed
         Label5.ImageAlign = ContentAlignment.MiddleRight
         Label5.ImageIndex = 0
@@ -313,7 +314,7 @@ Partial Class Config_Form
         GroupBox1.Controls.Add(Label9)
         GroupBox1.Controls.Add(Label8)
         GroupBox1.Controls.Add(NumericUpDownPositionEps)
-        GroupBox1.Location = New Point(3, 52)
+        GroupBox1.Location = New Point(3, 58)
         GroupBox1.Name = "GroupBox1"
         GroupBox1.Size = New Size(935, 105)
         GroupBox1.TabIndex = 15
@@ -454,12 +455,25 @@ Partial Class Config_Form
         ToolTip1.SetToolTip(SingleBoneCheck, "Use single-bone skinning in rendering and preview.")
         SingleBoneCheck.UseVisualStyleBackColor = True
         ' 
+        ' CheckBoxGPUSkinning
+        ' 
+        CheckBoxGPUSkinning.AutoSize = True
+        CheckBoxGPUSkinning.Checked = True
+        CheckBoxGPUSkinning.CheckState = CheckState.Checked
+        CheckBoxGPUSkinning.Location = New Point(3, 31)
+        CheckBoxGPUSkinning.Name = "CheckBoxGPUSkinning"
+        CheckBoxGPUSkinning.Size = New Size(98, 19)
+        CheckBoxGPUSkinning.TabIndex = 34
+        CheckBoxGPUSkinning.Text = "GPU Skinning"
+        ToolTip1.SetToolTip(CheckBoxGPUSkinning, "Toggles GPU Skinning (otherwise CPU Skinning) best performance will depend on your computer specs")
+        CheckBoxGPUSkinning.UseVisualStyleBackColor = True
+        ' 
         ' RecalculateNormalsCheck
         ' 
         RecalculateNormalsCheck.AutoSize = True
         RecalculateNormalsCheck.Checked = True
         RecalculateNormalsCheck.CheckState = CheckState.Checked
-        RecalculateNormalsCheck.Location = New Point(3, 27)
+        RecalculateNormalsCheck.Location = New Point(277, 6)
         RecalculateNormalsCheck.Name = "RecalculateNormalsCheck"
         RecalculateNormalsCheck.Size = New Size(134, 19)
         RecalculateNormalsCheck.TabIndex = 10
@@ -520,17 +534,18 @@ Partial Class Config_Form
         ComboBoxGame.Size = New Size(168, 23)
         ComboBoxGame.TabIndex = 16
         ToolTip1.SetToolTip(ComboBoxGame, "Select the active target game. This affects paths, skeletons, and build logic.")
-        '
+        ' 
         ' LabelGameMismatch
-        '
+        ' 
         LabelGameMismatch.AutoSize = True
         LabelGameMismatch.ForeColor = Color.Red
         LabelGameMismatch.Location = New Point(373, 19)
         LabelGameMismatch.Name = "LabelGameMismatch"
+        LabelGameMismatch.Size = New Size(203, 15)
         LabelGameMismatch.TabIndex = 17
         LabelGameMismatch.Text = "Mismatch between game and folders"
         LabelGameMismatch.Visible = False
-        '
+        ' 
         ' Label7
         ' 
         Label7.ImageAlign = ContentAlignment.MiddleRight
@@ -552,6 +567,7 @@ Partial Class Config_Form
         TabPage2.Controls.Add(CheckBoxWelding)
         TabPage2.Controls.Add(GroupBox1)
         TabPage2.Controls.Add(RecalculateNormalsCheck)
+        TabPage2.Controls.Add(CheckBoxGPUSkinning)
         TabPage2.Controls.Add(SingleBoneCheck)
         TabPage2.ImageKey = "thumbnail.ico"
         TabPage2.Location = New Point(4, 27)
@@ -567,7 +583,7 @@ Partial Class Config_Form
         GroupBox3.Controls.Add(CheckBoxFreeze)
         GroupBox3.Controls.Add(CheckBoxzoomreset)
         GroupBox3.Controls.Add(CheckBoxanglereset)
-        GroupBox3.Location = New Point(3, 360)
+        GroupBox3.Location = New Point(3, 366)
         GroupBox3.Name = "GroupBox3"
         GroupBox3.Size = New Size(687, 82)
         GroupBox3.TabIndex = 30
@@ -619,7 +635,7 @@ Partial Class Config_Form
         GroupBox4.Controls.Add(NumericUpDownRenderGridSize)
         GroupBox4.Controls.Add(Label14)
         GroupBox4.Controls.Add(NumericUpDownRenderGridStep)
-        GroupBox4.Location = New Point(3, 276)
+        GroupBox4.Location = New Point(3, 282)
         GroupBox4.Name = "GroupBox4"
         GroupBox4.Size = New Size(935, 78)
         GroupBox4.TabIndex = 31
@@ -711,7 +727,7 @@ Partial Class Config_Form
         ' 
         Button6.ImageKey = "thumbnail.ico"
         Button6.ImageList = ImageList1
-        Button6.Location = New Point(696, 408)
+        Button6.Location = New Point(696, 414)
         Button6.Name = "Button6"
         Button6.Size = New Size(240, 34)
         Button6.TabIndex = 29
@@ -724,7 +740,7 @@ Partial Class Config_Form
         ' 
         Button5.ImageKey = "agt_action_success.ico"
         Button5.ImageList = ImageList1
-        Button5.Location = New Point(696, 368)
+        Button5.Location = New Point(696, 374)
         Button5.Name = "Button5"
         Button5.Size = New Size(240, 34)
         Button5.TabIndex = 28
@@ -741,7 +757,7 @@ Partial Class Config_Form
         GroupBox2.Controls.Add(Label10)
         GroupBox2.Controls.Add(Label11)
         GroupBox2.Controls.Add(NumericUpDownWeldEpspos)
-        GroupBox2.Location = New Point(3, 186)
+        GroupBox2.Location = New Point(3, 192)
         GroupBox2.Name = "GroupBox2"
         GroupBox2.Size = New Size(935, 84)
         GroupBox2.TabIndex = 27
@@ -825,7 +841,7 @@ Partial Class Config_Form
         CheckBoxWelding.AutoSize = True
         CheckBoxWelding.Checked = True
         CheckBoxWelding.CheckState = CheckState.Checked
-        CheckBoxWelding.Location = New Point(3, 161)
+        CheckBoxWelding.Location = New Point(3, 167)
         CheckBoxWelding.Name = "CheckBoxWelding"
         CheckBoxWelding.Size = New Size(160, 19)
         CheckBoxWelding.TabIndex = 26
@@ -1079,7 +1095,7 @@ Partial Class Config_Form
         ' 
         ' Label12
         ' 
-        Label12.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label12.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Label12.ImageAlign = ContentAlignment.MiddleRight
         Label12.Location = New Point(8, 11)
         Label12.Name = "Label12"
@@ -1090,7 +1106,7 @@ Partial Class Config_Form
         ' 
         ' Config_Form
         ' 
-        AutoScaleDimensions = New SizeF(7.0F, 15.0F)
+        AutoScaleDimensions = New SizeF(7F, 15F)
         AutoScaleMode = AutoScaleMode.Font
         ClientSize = New Size(952, 480)
         Controls.Add(TabControl1)
@@ -1207,4 +1223,5 @@ Partial Class Config_Form
     Friend WithEvents NumericUpDownRenderGridStep As NumericUpDown
     Friend WithEvents Label16 As Label
     Friend WithEvents GridColor As ColorComboBox
+    Friend WithEvents CheckBoxGPUSkinning As CheckBox
 End Class

@@ -714,12 +714,14 @@ Public Class Editor_Form
     End Sub
 
     Private Sub CheckBox1_CheckedChanged(sender As Object, e As EventArgs) Handles RenderCheckTexture.CheckedChanged
+        If Selected_Shape Is Nothing Then Exit Sub
         Selected_Shape.ShowTexture = RenderCheckTexture.Checked
         ColorComboBox1.Enabled = RenderCheckWireframe.Checked Or Not RenderCheckTexture.Checked
         RequestPreviewRedraw()
     End Sub
 
     Private Sub RenderCheckWireframe_CheckedChanged(sender As Object, e As EventArgs) Handles RenderCheckWireframe.CheckedChanged
+        If Selected_Shape Is Nothing Then Exit Sub
         Selected_Shape.Wireframe = RenderCheckWireframe.Checked
         ColorComboBox1.Enabled = RenderCheckWireframe.Checked Or Not RenderCheckTexture.Checked
         TrackBar1.Enabled = RenderCheckWireframe.Checked
@@ -727,6 +729,7 @@ Public Class Editor_Form
     End Sub
 
     Private Sub RenderCheckMasks_CheckedChanged(sender As Object, e As EventArgs) Handles RenderCheckMasks.CheckedChanged
+        If Selected_Shape Is Nothing Then Exit Sub
         Selected_Shape.ShowMask = RenderCheckMasks.Checked
         Habilita_Mask_Buttons()
         RequestPreviewRedraw()
@@ -745,17 +748,20 @@ Public Class Editor_Form
     End Sub
 
     Private Sub RenderCheckZap_CheckedChanged(sender As Object, e As EventArgs) Handles RenderCheckZap.CheckedChanged
+        If Selected_Shape Is Nothing Then Exit Sub
         Selected_Shape.ApplyZaps = RenderCheckZap.Checked
         Process_render_Changes(False)
 
     End Sub
 
     Private Sub RenderCheckWeights_CheckedChanged(sender As Object, e As EventArgs) Handles RenderCheckWeights.CheckedChanged
+        If Selected_Shape Is Nothing Then Exit Sub
         Selected_Shape.ShowWeight = RenderCheckWeights.Checked
         RequestPreviewRedraw()
     End Sub
 
     Private Sub CRenderCheckHide_CheckedChanged_1(sender As Object, e As EventArgs) Handles RenderCheckHide.CheckedChanged
+        If Selected_Shape Is Nothing Then Exit Sub
         Selected_Shape.RenderHide = RenderCheckHide.Checked
         RequestPreviewRedraw()
     End Sub
@@ -899,6 +905,9 @@ Public Class Editor_Form
         EditPreviewControl.Model.Floor.Size = Config_App.Current.Settings_RenderGrid.Size
         EditPreviewControl.Model.Floor.StepSize = Config_App.Current.Settings_RenderGrid.StepSize
         EditPreviewControl.Model.Floor.Rebuild()
+        AddHandler EditPreviewControl.FloorToggled, Sub(s, enabled)
+                                                        CheckBoxRenderFloor.Checked = enabled
+                                                    End Sub
         Process_render_Changes(True)
     End Sub
 
@@ -923,8 +932,10 @@ Public Class Editor_Form
             Next
         End If
         DisposeLastBitmap()
-        EditPreviewControl.Clean()
-        EditPreviewControl.Dispose()
+        If EditPreviewControl IsNot Nothing AndAlso Not EditPreviewControl.IsDisposed Then
+            EditPreviewControl.Clean()
+            EditPreviewControl.Dispose()
+        End If
     End Sub
     Private Sub ButtonRenderScreenshot_Click(sender As Object, e As EventArgs) Handles ButtonRenderScreenshot.Click
         If IsNothing(EditPreviewControl) OrElse EditPreviewControl.IsDisposed Then Exit Sub
@@ -1496,12 +1507,12 @@ Public Class Editor_Form
                 IO.Directory.CreateDirectory(IO.Path.GetDirectoryName(path))
             End If
             If IO.File.Exists(path) = False Then
-                Dim writer = IO.File.CreateText(path)
-                writer.WriteLine("<?xml version=" + Chr(34) + "1.0" + Chr(34) + " encoding=" + Chr(34) + "UTF-8" + Chr(34) + "?>")
-                writer.WriteLine("<SliderPresets>")
-                writer.WriteLine("</SliderPresets>")
-                writer.Flush()
-                writer.Close()
+                Using writer = IO.File.CreateText(path)
+                    writer.WriteLine("<?xml version=" + Chr(34) + "1.0" + Chr(34) + " encoding=" + Chr(34) + "UTF-8" + Chr(34) + "?>")
+                    writer.WriteLine("<SliderPresets>")
+                    writer.WriteLine("</SliderPresets>")
+                    writer.Flush()
+                End Using
             End If
 
             Dim doc = XDocument.Load(path)
@@ -1596,12 +1607,12 @@ Public Class Editor_Form
                 End If
 
                 If IO.File.Exists(path) = False Then
-                    Dim writer = IO.File.CreateText(path)
-                    writer.WriteLine("<?xml version=" + Chr(34) + "1.0" + Chr(34) + " encoding=" + Chr(34) + "UTF-8" + Chr(34) + "?>")
-                    writer.WriteLine("<PoseData>")
-                    writer.WriteLine("</PoseData>")
-                    writer.Flush()
-                    writer.Close()
+                    Using writer = IO.File.CreateText(path)
+                        writer.WriteLine("<?xml version=" + Chr(34) + "1.0" + Chr(34) + " encoding=" + Chr(34) + "UTF-8" + Chr(34) + "?>")
+                        writer.WriteLine("<PoseData>")
+                        writer.WriteLine("</PoseData>")
+                        writer.Flush()
+                    End Using
                 End If
 
                 Dim doc = XDocument.Load(path)
@@ -1611,8 +1622,7 @@ Public Class Editor_Form
                     doc.Root.Add(sel)
                 Else
                     If IsNothing(sel.Attribute("WMPose")) Then
-                        Dim el As New XAttribute("WMPose", "true")
-                        el = sel.Attributes.Append(el)
+                        sel.Add(New XAttribute("WMPose", "true"))
                     Else
                         sel.Attribute("WMPose").Value = "true"
                     End If
@@ -2210,7 +2220,7 @@ Public Class Editor_Form
                 Dim cloned = ComboSelected_Pose.Clone
                 Dim key As String
                 key = TreeViewSkeleton.SelectedNode?.Text
-                If key <> "" Then
+                If Not String.IsNullOrEmpty(key) AndAlso cloned.Transforms.ContainsKey(key) Then
                     Dim TR As New Transform_Class(cloned.Transforms(key), cloned.Source)
                     Dim degs = Transform_Class.Matrix33ToBSRotation(TR.Rotation)
                     Selected_Pose_Transform.Roll = degs.Z

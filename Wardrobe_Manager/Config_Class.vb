@@ -107,11 +107,29 @@ Public Class Config_App
     Public Property BSExePath As String = ""
     Public Property SkeletonPath As String = ""
     Public Property OSExePath As String = ""
-    Public Property BSAFiles As New List(Of String)
-    Public Property BSAFiles_Clonables As New List(Of Boolean)
+    ' Per-game BSA/BA2 cloning permissions persisted separately
+    Public Property BSAFiles_FO4 As New List(Of String)
+    Public Property BSAFiles_Clonables_FO4 As New List(Of Boolean)
+    Public Property BSAFiles_SSE As New List(Of String)
+    Public Property BSAFiles_Clonables_SSE As New List(Of Boolean)
+
+    <System.Text.Json.Serialization.JsonIgnore>
+    Public ReadOnly Property BSAFiles As List(Of String)
+        Get
+            Return If(Game = Game_Enum.Fallout4, BSAFiles_FO4, BSAFiles_SSE)
+        End Get
+    End Property
+
+    <System.Text.Json.Serialization.JsonIgnore>
+    Public ReadOnly Property BSAFiles_Clonables As List(Of Boolean)
+        Get
+            Return If(Game = Game_Enum.Fallout4, BSAFiles_Clonables_FO4, BSAFiles_Clonables_SSE)
+        End Get
+    End Property
     Public Property Default_Preset As String = ""
     Public Property Setting_OverWrite As Boolean = False
     Public Property Setting_SingleBoneSkinning As Boolean = False
+    Public Property Setting_GPUSkinning As Boolean = True
     Public Property Setting_RecalculateNormals As Boolean = True
     Public Property Setting_KeepPhysics As Boolean = True
     Public Property Setting_ChangeOutDir As Boolean = False
@@ -129,11 +147,11 @@ Public Class Config_App
     Private _colorGrod As Color = Color.LightGray
 
     Public Function Setting_BackColor() As Color
-        If IsNothing(_color) Then _color = Color.FromName(Setting_BackColorName)
+        If _color = Color.Empty Then _color = Color.FromName(Setting_BackColorName)
         Return _color
     End Function
     Public Function RenderGridColor() As Color
-        If IsNothing(_colorGrod) Then _colorGrod = Color.FromName(Setting_RenderGridColor)
+        If _colorGrod = Color.Empty Then _colorGrod = Color.FromName(Setting_RenderGridColor)
         Return _colorGrod
     End Function
     Public Property Setting_RenderGridColor As String
@@ -231,6 +249,7 @@ Public Class Config_App
                 Dim cfg As Config_App = JsonSerializer.Deserialize(Of Config_App)(jsonString)
                 If cfg IsNot Nothing Then
                     Current = cfg
+                    If Current.Settings_RenderGrid.Size = 0 Then Current.Settings_RenderGrid = Default_RenderGrid_Settings()
                 End If
             End If
         Catch ex As Exception

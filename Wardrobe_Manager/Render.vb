@@ -359,6 +359,7 @@ Public Class PreviewControl
     Private _Model As PreviewModel
     Public camera As New OrbitCamera()
     Private projection As Matrix4
+    Public LastUpdateMs As Double = 0
     ' Backing field for updateRequired — Integer (not Boolean) so Volatile.Read/Write overloads resolve cleanly.
     ' 0 = False, 1 = True. Use the property from all call sites; direct field access is intentionally avoided.
     Private _updateRequired As Integer = 1
@@ -421,6 +422,7 @@ Public Class PreviewControl
 
 
     Public Sub Update_Render(seleccionado As SliderSet_Class, Force As Boolean, Preset As SlidersPreset_Class, Pose As Poses_class, weight As Config_App.SliderSize)
+        Dim _sw As New System.Diagnostics.Stopwatch() : _sw.Start()
         If Me.Disposing = True Or Me.IsDisposed Then Exit Sub
 
         If Visible = False Then Exit Sub
@@ -482,15 +484,26 @@ Public Class PreviewControl
                 For Each mesh In Model.meshes
                     MorphingHelper.ApplyMorph_CPU(mesh.MeshData.Shape, mesh.MeshData.Meshgeometry, Model.RecalculateNormals, AllowMask)
                     SkinningHelper.RecomputeGPUBoneMatrices(mesh.MeshData.Shape, mesh.MeshData.Meshgeometry, Model.HasPose, Model.SingleBoneSkinning)
+                    If Not Config_App.Current.Setting_GPUSkinning Then
+                        ' CPU skinning: pose changed all PerVertexSkinMatrix, force full re-upload
+                        mesh.MeshData.Meshgeometry.dirtyVertexIndices = New HashSet(Of Integer)(Enumerable.Range(0, mesh.MeshData.Meshgeometry.Vertices.Length))
+                        Array.Fill(mesh.MeshData.Meshgeometry.dirtyVertexFlags, True)
+                    End If
                     mesh.UpdateSkinBuffers_GL()
                     mesh.UpdateBoneMatricesSSBO()
                     mesh.ComputeBounds()
                 Next
             Else
-                ' Pose-only change: update bone matrices via SSBO, no morph re-extract needed
+                ' Pose-only change: update bone matrices
                 For Each mesh In Model.meshes
                     SkinningHelper.RecomputeGPUBoneMatrices(mesh.MeshData.Shape, mesh.MeshData.Meshgeometry, Model.HasPose, Model.SingleBoneSkinning)
                     mesh.UpdateBoneMatricesSSBO()
+                    If Not Config_App.Current.Setting_GPUSkinning Then
+                        ' CPU skinning: PerVertexSkinMatrix changed, VBOs need full re-upload
+                        mesh.MeshData.Meshgeometry.dirtyVertexIndices = New HashSet(Of Integer)(Enumerable.Range(0, mesh.MeshData.Meshgeometry.Vertices.Length))
+                        Array.Fill(mesh.MeshData.Meshgeometry.dirtyVertexFlags, True)
+                        mesh.UpdateSkinBuffers_GL()
+                    End If
                     mesh.ComputeBounds()
                 Next
             End If
@@ -545,6 +558,8 @@ Public Class PreviewControl
             If ResetCamerabool Then ResetCamera()
             RefreshRender()
         End If
+        _sw.Stop()
+        LastUpdateMs = _sw.Elapsed.TotalMilliseconds
         Cursor.Current = Cursors.Default
     End Sub
     Protected Overrides Sub OnLoad(e As EventArgs)
@@ -650,7 +665,7 @@ Public Class PreviewControl
         projection = Matrix4.CreatePerspectiveFieldOfView(fovY, aspect, nearZ, farZ)
         lastNear = nearZ
         lastFar = farZ
-        updateRequired = True
+        UpdateRequired = True
     End Sub
     Private Sub RenderScene()
         If Me.IsDisposed Then Exit Sub
@@ -672,10 +687,10 @@ Public Class PreviewControl
         Me.MakeCurrent()
         ApplyResize(True)
 
-        If updateRequired Then
+        If UpdateRequired Then
             ' Consume the current render request up front so any new request raised
             ' during RenderScene survives this frame and schedules the next one.
-            updateRequired = False
+            UpdateRequired = False
             RenderScene()
             SwapBuffers()
             FinishRenderFrame()
@@ -697,26 +712,18 @@ Public Class PreviewControl
     End Function
 
     Protected Overrides Sub OnPaint(e As PaintEventArgs)
-        If Me.IsInDesignMode OrElse Not updateRequired Then Exit Sub
+        If Me.IsInDesignMode OrElse Not UpdateRequired Then Exit Sub
         MyBase.OnPaint(e)
         ' Consume the current render request up front so any new request raised
         ' during RenderScene survives this frame and schedules the next one.
-        updateRequired = False
+        UpdateRequired = False
         RenderScene()
         SwapBuffers()
         FinishRenderFrame()
     End Sub
     Protected Overrides Sub OnMouseDown(e As MouseEventArgs)
         MyBase.OnMouseDown(e)
-        If e.Button = MouseButtons.Left AndAlso (Control.ModifierKeys And Keys.Control) = 0 Then
-            lastX = e.X
-            lastY = e.Y
-        End If
-        If e.Button = MouseButtons.Left AndAlso (Control.ModifierKeys And Keys.Control) <> 0 Then
-            lastX = e.X
-            lastY = e.Y
-        End If
-        If e.Button = MouseButtons.Left AndAlso (Control.ModifierKeys And Keys.Alt) <> 0 Then
+        If e.Button = MouseButtons.Left OrElse e.Button = MouseButtons.Middle Then
             lastX = e.X
             lastY = e.Y
         End If
@@ -739,19 +746,18 @@ Public Class PreviewControl
             lastY = e.Y
 
             camera.Rotate(dx, dy)
-            updateRequired = True
+            UpdateRequired = True
             Return
         End If
 
-        If e.Button = MouseButtons.Left AndAlso (Control.ModifierKeys And Keys.Alt) <> 0 Then
-            ' Calcula delta de ratón
-            ' Calcula delta de ratón
+        If (e.Button = MouseButtons.Left AndAlso (Control.ModifierKeys And Keys.Alt) <> 0) OrElse
+            e.Button = MouseButtons.Middle Then
             Dim dx = e.X - lastX
             Dim dy = e.Y - lastY
             lastX = e.X
             lastY = e.Y
-            camera.PanScreen(dx, dy)
-            updateRequired = True
+            camera.Pan(dx, dy)
+            UpdateRequired = True
             Return
         End If
 
@@ -806,7 +812,7 @@ Public Class PreviewControl
                         mesh.MeshData.Meshgeometry.dirtyMaskFlags(i) = True
                         mesh.MeshData.Meshgeometry.VertexMask(i) = 1 - mesh.MeshData.Meshgeometry.VertexMask(i)
                         If InvertMasking Then mesh.MeshData.Shape.MaskedVertices.Remove(i) Else mesh.MeshData.Shape.MaskedVertices.Add(i)
-                        Me.updateRequired = True
+                        Me.UpdateRequired = True
                     End If
                 Next
                 mesh.UpdateUpdateSkinBuffersMask_GL()
@@ -819,7 +825,53 @@ Public Class PreviewControl
     Protected Overrides Sub OnMouseUp(e As MouseEventArgs)
         MyBase.OnMouseUp(e)
         Cursor.Current = Cursors.Default
+        If e.Button = MouseButtons.Right Then
+            ShowPreviewContextMenu(e.Location)
+        End If
+    End Sub
 
+    Public Event FloorToggled As EventHandler(Of Boolean)
+
+    Private Sub ShowPreviewContextMenu(location As Point)
+        Dim menu As New ContextMenuStrip()
+
+        Dim resetFull As New ToolStripMenuItem("Reset Camera")
+        AddHandler resetFull.Click, Sub()
+                                        ResetCamera(True)
+                                        UpdateRequired = True
+                                    End Sub
+
+        menu.Items.Add(resetFull)
+        menu.Items.Add(New ToolStripSeparator())
+
+        Dim floorEnabled = Model IsNot Nothing AndAlso Model.Floor IsNot Nothing AndAlso Model.Floor.Enabled
+        Dim toggleFloor As New ToolStripMenuItem("Render Floor") With {
+            .Checked = floorEnabled,
+            .CheckOnClick = True
+        }
+        AddHandler toggleFloor.Click, Sub()
+                                          If Model IsNot Nothing AndAlso Model.Floor IsNot Nothing Then
+                                              Model.Floor.Enabled = toggleFloor.Checked
+                                              RaiseEvent FloorToggled(Me, toggleFloor.Checked)
+                                              UpdateRequired = True
+                                          End If
+                                      End Sub
+
+        menu.Items.Add(toggleFloor)
+        menu.Items.Add(New ToolStripSeparator())
+        Dim toggleSkinning As New ToolStripMenuItem("GPU Skinning") With {
+            .Checked = Config_App.Current.Setting_GPUSkinning,
+            .CheckOnClick = True
+        }
+        AddHandler toggleSkinning.Click, Sub()
+                                             Config_App.Current.Setting_GPUSkinning = toggleSkinning.Checked
+                                             Update_Render_LastLoaded(True)
+                                         End Sub
+        menu.Items.Add(toggleSkinning)
+        menu.Items.Add(New ToolStripSeparator())
+        Dim timeLabel As New ToolStripMenuItem($"Last update: {LastUpdateMs:F1} ms") With {.Enabled = False}
+        menu.Items.Add(timeLabel)
+        menu.Show(Me, location)
     End Sub
 
     Protected Overrides Sub OnMouseWheel(e As MouseEventArgs)
@@ -827,11 +879,11 @@ Public Class PreviewControl
         MyBase.OnMouseWheel(e)
         camera.Zoom(e.Delta / 120.0F)
         UpdateProjection(False)
-        updateRequired = True
+        UpdateRequired = True
     End Sub
 
     Public Sub RefreshRender()
-        updateRequired = True
+        UpdateRequired = True
         Me.Invalidate()
     End Sub
     Public Sub ResetCamera(Optional Force As Boolean = False)
@@ -909,18 +961,18 @@ Public Class PreviewControl
         camera.angleX = 0F
         camera.angleY = 0F
         camera.UpdateDirectionFromAngles()
-        camera.Up = Vector3.UnitZ
         UpdateProjection(True)
     End Sub
 
     Protected Overrides Sub Dispose(disposing As Boolean)
+        If disposing Then Clean()
         MyBase.Dispose(disposing)
     End Sub
     Private Sub RenderTimer_Tick(sender As Object, e As EventArgs) Handles RenderTimer.Tick
         ' Also keep ticking while textures are loading (TexturesReady=False) or pending uploads exist
         Dim texturesPending As Boolean = (Model IsNot Nothing AndAlso Not Model.TexturesReady)
-        If (updateRequired OrElse texturesPending) AndAlso RenderTimer.Enabled = True Then
-            updateRequired = True  ' ensure OnPaint won't skip
+        If (UpdateRequired OrElse texturesPending) AndAlso RenderTimer.Enabled = True Then
+            UpdateRequired = True  ' ensure OnPaint won't skip
             Me.Invalidate()  ' disparará OnPaint
         End If
     End Sub
@@ -1084,6 +1136,10 @@ Public Class PreviewModel
         Private ssbo_BoneMatrices As Integer = 0  ' SSBO for bone matrices
         Private vboBoneIndices As Integer = 0     ' VBO for per-vertex bone indices
         Private vboBoneWeights As Integer = 0     ' VBO for per-vertex bone weights
+
+        ' Tracks which skinning mode was used for the last VBO upload.
+        ' When the mode changes, all vertices must be re-uploaded.
+        Private _lastUploadWasGPU As Boolean = True
 
         ' O3.3: Cached AABB for frustum culling
         Public BoundsMin As Vector3
@@ -1373,19 +1429,77 @@ Public Class PreviewModel
         End Sub
 
         Public Sub UpdateSkinBuffers_GL()
-            ' Actualiza VBOs de Normales, Tangentes, Bitangentes y Posiciones usando MapBufferRange en un solo bucle
+            ' Actualiza VBOs de Normales, Tangentes, Bitangentes y Posiciones
+            ' Detect skinning mode change: if the toggle changed since last upload, force ALL dirty
+            Dim gpuMode As Boolean = Config_App.Current.Setting_GPUSkinning
+            If gpuMode <> _lastUploadWasGPU Then
+                _lastUploadWasGPU = gpuMode
+                If MeshData.Meshgeometry.Vertices IsNot Nothing AndAlso MeshData.Meshgeometry.Vertices.Length > 0 Then
+                    MeshData.Meshgeometry.dirtyVertexIndices = New HashSet(Of Integer)(Enumerable.Range(0, MeshData.Meshgeometry.Vertices.Length))
+                    Array.Fill(MeshData.Meshgeometry.dirtyVertexFlags, True)
+                End If
+            End If
+
             If MeshData.Meshgeometry.dirtyVertexIndices.Count > 0 Then
-                Const elementSize As Integer = 3 * 4  ' bytes por vértice y por atributo
+                Const elementSize As Integer = 3 * 4
                 Dim vertexCount As Integer = MeshData.Meshgeometry.Vertices.Length
                 Dim totalBytes As Integer = vertexCount * elementSize
+                Dim cpuSkin As Boolean = Not gpuMode AndAlso MeshData.Meshgeometry.PerVertexSkinMatrix IsNot Nothing
 
                 ' O3.1: Smart threshold — full BufferSubData upload when >60% vertices are dirty
-                ' This avoids per-index overhead of sparse MapBufferRange when most vertices changed
                 If MeshData.Meshgeometry.dirtyVertexIndices.Count > vertexCount * 0.6 Then
-                    Dim posF() As Vector3 = Array.ConvertAll(MeshData.Meshgeometry.Vertices, Function(v) New Vector3(CSng(v.X), CSng(v.Y), CSng(v.Z)))
-                    Dim nrmF() As Vector3 = Array.ConvertAll(MeshData.Meshgeometry.Normals, Function(v) New Vector3(CSng(v.X), CSng(v.Y), CSng(v.Z)))
-                    Dim tanF() As Vector3 = Array.ConvertAll(MeshData.Meshgeometry.Tangents, Function(v) New Vector3(CSng(v.X), CSng(v.Y), CSng(v.Z)))
-                    Dim bitanF() As Vector3 = Array.ConvertAll(MeshData.Meshgeometry.Bitangents, Function(v) New Vector3(CSng(v.X), CSng(v.Y), CSng(v.Z)))
+                    Dim posF(vertexCount - 1) As Vector3
+                    Dim nrmF(vertexCount - 1) As Vector3
+                    Dim tanF(vertexCount - 1) As Vector3
+                    Dim bitanF(vertexCount - 1) As Vector3
+
+                    If cpuSkin Then
+                        ' CPU skinning: transform local → world using PerVertexSkinMatrix
+                        Dim mats = MeshData.Meshgeometry.PerVertexSkinMatrix
+                        Dim lv = MeshData.Meshgeometry.Vertices
+                        Dim ln = MeshData.Meshgeometry.Normals
+                        Dim lt = MeshData.Meshgeometry.Tangents
+                        Dim lb = MeshData.Meshgeometry.Bitangents
+                        ' Cache normal matrix for single-bone (all per-vertex matrices identical)
+                        Dim isSingle As Boolean = vertexCount > 1 AndAlso mats(0) = mats(vertexCount - 1)
+                        Dim singleNM As Matrix4d = Matrix4d.Identity
+                        If isSingle Then
+                            Dim s3 As New Matrix3d(mats(0)) : s3.Invert() : s3.Transpose()
+                            singleNM = New Matrix4d(s3.Row0.X, s3.Row0.Y, s3.Row0.Z, 0, s3.Row1.X, s3.Row1.Y, s3.Row1.Z, 0, s3.Row2.X, s3.Row2.Y, s3.Row2.Z, 0, 0, 0, 0, 1)
+                        End If
+                        Dim body As Action(Of Integer) = Sub(i)
+                                                             Dim m = mats(i)
+                                                             Dim wp = Vector3d.TransformPosition(lv(i), m)
+                                                             posF(i) = New Vector3(CSng(wp.X), CSng(wp.Y), CSng(wp.Z))
+                                                             Dim nm As Matrix4d
+                                                             If isSingle Then
+                                                                 nm = singleNM
+                                                             Else
+                                                                 Dim nm3 As New Matrix3d(m) : nm3.Invert() : nm3.Transpose()
+                                                                 nm = New Matrix4d(nm3.Row0.X, nm3.Row0.Y, nm3.Row0.Z, 0, nm3.Row1.X, nm3.Row1.Y, nm3.Row1.Z, 0, nm3.Row2.X, nm3.Row2.Y, nm3.Row2.Z, 0, 0, 0, 0, 1)
+                                                             End If
+                                                             Dim wn = Vector3d.Normalize(Vector3d.TransformNormal(ln(i), nm))
+                                                             nrmF(i) = New Vector3(CSng(wn.X), CSng(wn.Y), CSng(wn.Z))
+                                                             Dim wt = Vector3d.Normalize(Vector3d.TransformNormal(lt(i), nm))
+                                                             tanF(i) = New Vector3(CSng(wt.X), CSng(wt.Y), CSng(wt.Z))
+                                                             Dim wb = Vector3d.Normalize(Vector3d.TransformNormal(lb(i), nm))
+                                                             bitanF(i) = New Vector3(CSng(wb.X), CSng(wb.Y), CSng(wb.Z))
+                                                         End Sub
+                        If vertexCount >= 500 Then Parallel.For(0, vertexCount, body) Else For i = 0 To vertexCount - 1 : body(i) : Next
+                    Else
+                        ' GPU skinning: upload local-space as-is
+                        Dim gv = MeshData.Meshgeometry.Vertices
+                        Dim gn = MeshData.Meshgeometry.Normals
+                        Dim gt = MeshData.Meshgeometry.Tangents
+                        Dim gb = MeshData.Meshgeometry.Bitangents
+                        Dim gpuBody As Action(Of Integer) = Sub(i)
+                                                                Dim vv = gv(i) : posF(i) = New Vector3(CSng(vv.X), CSng(vv.Y), CSng(vv.Z))
+                                                                Dim nn = gn(i) : nrmF(i) = New Vector3(CSng(nn.X), CSng(nn.Y), CSng(nn.Z))
+                                                                Dim tt = gt(i) : tanF(i) = New Vector3(CSng(tt.X), CSng(tt.Y), CSng(tt.Z))
+                                                                Dim bb = gb(i) : bitanF(i) = New Vector3(CSng(bb.X), CSng(bb.Y), CSng(bb.Z))
+                                                            End Sub
+                        If vertexCount >= 2000 Then Parallel.For(0, vertexCount, gpuBody) Else For i = 0 To vertexCount - 1 : gpuBody(i) : Next
+                    End If
 
                     GL.BindBuffer(BufferTarget.ArrayBuffer, vboPosition)
                     GL.BufferSubData(BufferTarget.ArrayBuffer, IntPtr.Zero, totalBytes, posF)
@@ -1428,6 +1542,16 @@ Public Class PreviewModel
                 Dim ptrP As IntPtr = GL.MapBufferRange(BufferTarget.ArrayBuffer, IntPtr.Zero, totalBytes, mapMask)
 
                 ' Un solo bucle para actualizar todos los atributos
+                Dim buf(2) As Single
+                Dim sparseMats = If(cpuSkin, MeshData.Meshgeometry.PerVertexSkinMatrix, Nothing)
+                ' Cache normal matrix for single-bone (all matrices identical)
+                Dim singleBone As Boolean = cpuSkin AndAlso vertexCount > 1 AndAlso sparseMats(0) = sparseMats(vertexCount - 1)
+                Dim cachedNM As Matrix4d = Matrix4d.Identity
+                If singleBone Then
+                    Dim nm3 As New Matrix3d(sparseMats(0)) : nm3.Invert() : nm3.Transpose()
+                    cachedNM = New Matrix4d(nm3.Row0.X, nm3.Row0.Y, nm3.Row0.Z, 0, nm3.Row1.X, nm3.Row1.Y, nm3.Row1.Z, 0, nm3.Row2.X, nm3.Row2.Y, nm3.Row2.Z, 0, 0, 0, 0, 1)
+                End If
+
                 For Each i As Integer In MeshData.Meshgeometry.dirtyVertexIndices
                     Dim offsetBytes As Int64 = CLng(i) * elementSize
                     Dim baseN As IntPtr = ptrN + offsetBytes
@@ -1435,22 +1559,44 @@ Public Class PreviewModel
                     Dim baseB As IntPtr = ptrB + offsetBytes
                     Dim baseP As IntPtr = ptrP + offsetBytes
 
-                    ' Normales
-                    Dim n = MeshData.Meshgeometry.Normals(i)
-                    Marshal.Copy(New Single() {n.X, n.Y, n.Z}, 0, baseN, 3)
+                    If cpuSkin Then
+                        Dim m = sparseMats(i)
+                        Dim nm As Matrix4d
+                        If singleBone Then
+                            nm = cachedNM
+                        Else
+                            Dim nm3 As New Matrix3d(m) : nm3.Invert() : nm3.Transpose()
+                            nm = New Matrix4d(nm3.Row0.X, nm3.Row0.Y, nm3.Row0.Z, 0, nm3.Row1.X, nm3.Row1.Y, nm3.Row1.Z, 0, nm3.Row2.X, nm3.Row2.Y, nm3.Row2.Z, 0, 0, 0, 0, 1)
+                        End If
+
+                        Dim wp = Vector3d.TransformPosition(MeshData.Meshgeometry.Vertices(i), m)
+                        buf(0) = CSng(wp.X) : buf(1) = CSng(wp.Y) : buf(2) = CSng(wp.Z)
+                        Marshal.Copy(buf, 0, baseP, 3)
+                        Dim wn = Vector3d.Normalize(Vector3d.TransformNormal(MeshData.Meshgeometry.Normals(i), nm))
+                        buf(0) = CSng(wn.X) : buf(1) = CSng(wn.Y) : buf(2) = CSng(wn.Z)
+                        Marshal.Copy(buf, 0, baseN, 3)
+                        Dim wt = Vector3d.Normalize(Vector3d.TransformNormal(MeshData.Meshgeometry.Tangents(i), nm))
+                        buf(0) = CSng(wt.X) : buf(1) = CSng(wt.Y) : buf(2) = CSng(wt.Z)
+                        Marshal.Copy(buf, 0, baseT, 3)
+                        Dim wb = Vector3d.Normalize(Vector3d.TransformNormal(MeshData.Meshgeometry.Bitangents(i), nm))
+                        buf(0) = CSng(wb.X) : buf(1) = CSng(wb.Y) : buf(2) = CSng(wb.Z)
+                        Marshal.Copy(buf, 0, baseB, 3)
+                    Else
+                        Dim v = MeshData.Meshgeometry.Vertices(i)
+                        buf(0) = v.X : buf(1) = v.Y : buf(2) = v.Z
+                        Marshal.Copy(buf, 0, baseP, 3)
+                        Dim n = MeshData.Meshgeometry.Normals(i)
+                        buf(0) = n.X : buf(1) = n.Y : buf(2) = n.Z
+                        Marshal.Copy(buf, 0, baseN, 3)
+                        Dim t = MeshData.Meshgeometry.Tangents(i)
+                        buf(0) = t.X : buf(1) = t.Y : buf(2) = t.Z
+                        Marshal.Copy(buf, 0, baseT, 3)
+                        Dim b = MeshData.Meshgeometry.Bitangents(i)
+                        buf(0) = b.X : buf(1) = b.Y : buf(2) = b.Z
+                        Marshal.Copy(buf, 0, baseB, 3)
+                    End If
+
                     MeshData.Meshgeometry.dirtyVertexFlags(i) = False
-
-                    ' Tangentes
-                    Dim t = MeshData.Meshgeometry.Tangents(i)
-                    Marshal.Copy(New Single() {t.X, t.Y, t.Z}, 0, baseT, 3)
-
-                    ' Bitangentes
-                    Dim b = MeshData.Meshgeometry.Bitangents(i)
-                    Marshal.Copy(New Single() {b.X, b.Y, b.Z}, 0, baseB, 3)
-
-                    ' Posiciones
-                    Dim v = MeshData.Meshgeometry.Vertices(i)
-                    Marshal.Copy(New Single() {v.X, v.Y, v.Z}, 0, baseP, 3)
                 Next
 
                 ' Flush y desmapear en orden inverso
@@ -1739,8 +1885,10 @@ Public Class PreviewModel
             shader.SetMatrix3("mv_normalMatrix", normalMatrix)
             ApplyMaterial(MeshData.Material)
 
-            ' GPU Skinning: bind SSBO and set uniform
-            shader.SetBool("bGPUSkinning", ssbo_BoneMatrices > 0)
+            ' GPU Skinning: bind SSBO and set uniforms
+            shader.SetBool("bGPUSkinning", ssbo_BoneMatrices > 0 AndAlso Config_App.Current.Setting_GPUSkinning)
+            Dim boneCount As Integer = If(MeshData.Meshgeometry.GPUBoneMatrices IsNot Nothing, MeshData.Meshgeometry.GPUBoneMatrices.Length, 0)
+            shader.SetInt("uBoneCount", boneCount)
             If ssbo_BoneMatrices > 0 Then
                 GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 0, ssbo_BoneMatrices)
             End If
@@ -2030,6 +2178,19 @@ Public Class PreviewModel
             shader.SetFloat("backlightPower", materialBase.BackLightPower)
             shader.SetBool("bRimlight", materialBase.RimLighting)
             shader.SetFloat("rimlightPower", materialBase.RimPower)
+            shader.SetBool("bDoubleSided", materialBase.TwoSided)
+
+            ' Effect Shader (BGEM) properties
+            Dim isBGEM As Boolean = materialBase.IsBGEM
+            shader.SetBool("bIsEffectShader", isBGEM)
+            shader.SetBool("bEffectFalloff", materialBase.FalloffEnabled)
+            shader.SetBool("bEffectFalloffColor", materialBase.FalloffColorEnabled)
+            shader.SetBool("bEffectGreyscaleAlpha", materialBase.GrayscaleToPaletteAlpha)
+            shader.SetFloat("effectLightingInfluence", materialBase.LightingInfluence)
+            shader.SetVector4("effectFalloffParams", New OpenTK.Mathematics.Vector4(materialBase.FalloffStartAngle, materialBase.FalloffStopAngle, materialBase.FalloffStartOpacity, materialBase.FalloffStopOpacity))
+            shader.SetVector3("effectBaseColor", Shader_Base_Class.Color_to_Vector(materialBase.BaseColor))
+            shader.SetFloat("effectBaseColorAlpha", materialBase.BaseColor.A / 255.0F)
+            shader.SetFloat("effectBaseColorScale", materialBase.BaseColorScale)
 
             ' === DebugMode ===
 
@@ -2397,15 +2558,15 @@ Public Class PreviewModel
                             Textures_Dictionary(path) = result
                             Last_Loaded_Textures.Add(path)
                         Else
-                            ' Failed to upload — don't add to dictionary, remove from Last_Loaded
+                            ' Failed to upload — mark as "attempted" to prevent re-enqueue loop
                             Textures_Dictionary.Remove(path)
-                            Last_Loaded_Textures.Remove(path)
+                            Last_Loaded_Textures.Add(path)
                         End If
                     Catch ex As Exception
-                        ' Silently skip this texture on error — mesh will use fallback
+                        ' Upload failed — mark as "attempted" so Process_Textures_GL won't re-enqueue
                         Debug.Print($"[O4.1] GL upload failed for '{path}': {ex.Message}")
                         Textures_Dictionary.Remove(path)
-                        Last_Loaded_Textures.Remove(path)
+                        Last_Loaded_Textures.Add(path)
                     End Try
 
                     ' Remove from pending tracking
@@ -2750,78 +2911,67 @@ Public Class FloorRenderer
 End Class
 
     Public Class OrbitCamera
-    ' Para modo orbit
-    Friend angleX As Single
-    Friend angleY As Single
-    Public distance As Single
+        Private Const RotateScale As Single = 0.01F
+        Private Shared ReadOnly MaxElevation As Single = MathF.PI / 2.0F - 0.02F
 
-    Public Optimaldistance As Single = 0
-    Public Property FocusPosition As Vector3
-    Public Property MinDistance As Single = 20
-    Public Property MaxDistance As Single = 900
+        Friend angleX As Single
+        Friend angleY As Single
+        Public distance As Single
+        Public Optimaldistance As Single = 0
 
-    Public Property Forward As Vector3
-    Public upWorld As Vector3 = Vector3.UnitZ
-    Public right As Vector3 = Vector3.Normalize(Vector3.Cross(Forward, upWorld))
-    Public upPlane As Vector3 = Vector3.Normalize(Vector3.Cross(right, Forward))
+        Public Property FocusPosition As Vector3
+        Public Property MinDistance As Single = 20
+        Public Property MaxDistance As Single = 900
 
-    Public Property Up As Vector3
+        Public Property Forward As Vector3
+        Public right As Vector3
+        Public upPlane As Vector3
 
-    Public Sub New()
-        angleX = 0
-        angleY = 0
-        distance = 167
-        FocusPosition = Vector3.Zero
-        UpdateDirectionFromAngles()
-        Up = Vector3.UnitZ         ' ? cambio aquí: Z-up
-    End Sub
+        Public Sub New()
+            angleX = 0
+            angleY = 0
+            distance = 167
+            FocusPosition = Vector3.Zero
+            UpdateDirectionFromAngles()
+        End Sub
 
-    Public Sub UpdateDirectionFromAngles()
-        Dim cosElev = CSng(Math.Cos(angleY))
-        Dim sinElev = CSng(Math.Sin(angleY))
-        Dim cosAz = CSng(Math.Cos(angleX))
-        Dim sinAz = CSng(Math.Sin(angleX))
-        Forward = Vector3.Normalize(New Vector3(cosElev * sinAz, cosElev * cosAz, sinElev))
-        right = Vector3.Normalize(Vector3.Cross(Forward, upWorld))
-        upPlane = Vector3.Normalize(Vector3.Cross(right, Forward))
-    End Sub
+        Public Sub UpdateDirectionFromAngles()
+            Dim cosElev = CSng(Math.Cos(angleY))
+            Dim sinElev = CSng(Math.Sin(angleY))
+            Dim cosAz = CSng(Math.Cos(angleX))
+            Dim sinAz = CSng(Math.Sin(angleX))
+            Forward = Vector3.Normalize(New Vector3(cosElev * sinAz, cosElev * cosAz, sinElev))
+            right = Vector3.Normalize(Vector3.Cross(Forward, Vector3.UnitZ))
+            upPlane = Vector3.Normalize(Vector3.Cross(right, Forward))
+        End Sub
 
-    Public Sub Rotate(dx As Single, dy As Single)
-        angleX += dx * pixelScale
-        angleY = Math.Clamp(angleY + dy * pixelScale, -1.5F, 1.5F)
-        UpdateDirectionFromAngles()
-    End Sub
-    Public Sub PanWorld(dx As Single, dy As Single)
-        FocusPosition += (-dx) * right + dy * upPlane
-    End Sub
+        Public Sub Rotate(dx As Single, dy As Single)
+            angleX += dx * RotateScale
+            angleY = Math.Clamp(angleY + dy * RotateScale, -MaxElevation, MaxElevation)
+            UpdateDirectionFromAngles()
+        End Sub
 
-    ' Variante: pan a partir de arrastre en pantalla (dx,dy en píxeles).
-    ' pixelScale: cuánto vale 1 píxel en unidades de mundo a la distancia actual.
-    Public Sub PanScreen(dxPixels As Single, dyPixels As Single)
-        Dim pixelScale2 As Single = distance * pixelScale * 0.2F
-        PanWorld(-dxPixels * pixelScale2, dyPixels * pixelScale2)
-    End Sub
+        ''' <summary>
+        ''' Pan en pixels de pantalla. Grab-and-drag: mouse derecha mueve modelo derecha.
+        ''' </summary>
+        Public Sub Pan(dxPixels As Single, dyPixels As Single)
+            Dim scale As Single = distance * RotateScale * 0.2F
+            FocusPosition += (dxPixels * scale) * right + (dyPixels * scale) * upPlane
+        End Sub
 
-    Const pixelScale As Single = 0.01F
+        Public Sub Zoom(delta As Single)
+            Dim factor As Single = MathF.Exp(-RotateScale * 5 * delta)
+            distance = Math.Clamp(distance * factor, MinDistance, MaxDistance)
+        End Sub
 
-    Public Sub Zoom(delta As Single)
-        Dim factor As Single = MathF.Exp(-pixelScale * 5 * delta)   ' acercar: steps>0 ? reduce distancia
-        distance = Math.Clamp(distance * factor, MinDistance, MaxDistance)
-    End Sub
+        Public Function GetViewMatrix() As Matrix4
+            Dim eye = FocusPosition + Forward * distance
+            Return Matrix4.LookAt(eye, FocusPosition, Vector3.UnitZ)
+        End Function
 
-    Public Function GetViewMatrix() As Matrix4
-        Dim upDir As New Vector3(0, 0, 1)   ' Z-up
-        Dim eye, target As Vector3
-
-        eye = FocusPosition + Forward * distance
-        target = FocusPosition
-
-        Return Matrix4.LookAt(eye, target, upDir)
-    End Function
-
-    Public Function GetEyePosition() As Vector3
-        Return FocusPosition + Forward * distance
-    End Function
-End Class
+        Public Function GetEyePosition() As Vector3
+            Return FocusPosition + Forward * distance
+        End Function
+    End Class
 
 

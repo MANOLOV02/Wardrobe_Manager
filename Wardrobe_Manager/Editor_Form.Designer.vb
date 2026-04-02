@@ -458,7 +458,7 @@ Partial Class Editor_Form
         ColorComboBox1.DrawMode = DrawMode.OwnerDrawFixed
         ColorComboBox1.DropDownStyle = ComboBoxStyle.DropDownList
         ColorComboBox1.FormattingEnabled = True
-        ColorComboBox1.Items.AddRange(New Object() {"None", "None", "None", "None", "None"})
+        ColorComboBox1.Items.AddRange(New Object() {"None"})
         ColorComboBox1.Location = New Point(177, 55)
         ColorComboBox1.Name = "ColorComboBox1"
         ColorComboBox1.SelectedColor = Color.Black

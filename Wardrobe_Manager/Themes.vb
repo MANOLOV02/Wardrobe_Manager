@@ -50,8 +50,10 @@ Public Module ThemeManager
     End Sub
 
     Private Sub HookControlAddedRecursively(parent As Control)
+        RemoveHandler parent.ControlAdded, AddressOf OnControlAdded
         AddHandler parent.ControlAdded, AddressOf OnControlAdded
         For Each c As Control In parent.Controls
+            RemoveHandler c.ControlAdded, AddressOf OnControlAdded
             AddHandler c.ControlAdded, AddressOf OnControlAdded
             If c.HasChildren Then
                 HookControlAddedRecursively(c)

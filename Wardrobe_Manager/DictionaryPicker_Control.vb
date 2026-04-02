@@ -50,7 +50,7 @@ Public Class DictionaryPicker_Control
         AddHandler lvFiles.DoubleClick, AddressOf LvFiles_DoubleClick
         AddHandler btnOk.Click, AddressOf BtnOk_Click
         AddHandler panelBottom.Resize, AddressOf PanelBottom_Resize
-        AddHandler Me.ParentForm.Shown, AddressOf DictionaryFilePickerForm_Shown
+        If Me.ParentForm IsNot Nothing Then AddHandler Me.ParentForm.Shown, AddressOf DictionaryFilePickerForm_Shown
 
         BuildTree()
     End Sub

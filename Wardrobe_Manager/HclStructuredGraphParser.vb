@@ -476,10 +476,6 @@ Public NotInheritable Class HclStructuredGraphParser_Class
         result.Field40TerminalQuadSlots.AddRange(BuildVolumeTerminalQuadSlots(result.Field40QuadSlots, result.Field40BridgeSlots))
         result.Field30UniformParameter = ResolveUniformParameter(result.Field30ParameterValues)
         result.Field50UniformParameter = ResolveUniformParameter(result.Field50ParameterValues)
-        result.Field20BatchParameterMatchesField30Parameter = result.Field20BatchUniformParameter.HasValue AndAlso result.Field30UniformParameter.HasValue AndAlso Math.Abs(CDbl(result.Field20BatchUniformParameter.Value - result.Field30UniformParameter.Value)) <= 0.0001R
-        result.Field40BatchParameterMatchesField50Parameter = result.Field40BatchUniformParameter.HasValue AndAlso result.Field50UniformParameter.HasValue AndAlso Math.Abs(CDbl(result.Field40BatchUniformParameter.Value - result.Field50UniformParameter.Value)) <= 0.0001R
-        result.Field20AndField40ParametersDistinct = result.Field20BatchUniformParameter.HasValue AndAlso result.Field40BatchUniformParameter.HasValue AndAlso Math.Abs(CDbl(result.Field20BatchUniformParameter.Value - result.Field40BatchUniformParameter.Value)) > 0.0001R
-        result.HasDistinctParameterGroups = result.Field20AndField40ParametersDistinct AndAlso result.Field20BatchParameterMatchesField30Parameter AndAlso result.Field40BatchParameterMatchesField50Parameter
         result.Field50PivotReuseOffset = ResolvePivotReuseOffset(result.Field50ToField30PivotMatches)
         result.Field50PivotReuseCount = result.Field50ToField30PivotMatches.Count
         result.Field20MidVectorsLookZeroish = result.Field20Batches.All(Function(batch) batch Is Nothing OrElse batch.MidVectorsLookZeroish)
@@ -488,6 +484,10 @@ Public NotInheritable Class HclStructuredGraphParser_Class
         result.Field40BatchUniformParameter = ResolveUniformParameter(result.Field40Batches.Where(Function(batch) batch IsNot Nothing AndAlso batch.UniformLaneParameter.HasValue).Select(Function(batch) batch.UniformLaneParameter.Value))
         result.Field20LaneParametersUniformAcrossBatches = result.Field20BatchUniformParameter.HasValue
         result.Field40LaneParametersUniformAcrossBatches = result.Field40BatchUniformParameter.HasValue
+        result.Field20BatchParameterMatchesField30Parameter = result.Field20BatchUniformParameter.HasValue AndAlso result.Field30UniformParameter.HasValue AndAlso Math.Abs(CDbl(result.Field20BatchUniformParameter.Value - result.Field30UniformParameter.Value)) <= 0.0001R
+        result.Field40BatchParameterMatchesField50Parameter = result.Field40BatchUniformParameter.HasValue AndAlso result.Field50UniformParameter.HasValue AndAlso Math.Abs(CDbl(result.Field40BatchUniformParameter.Value - result.Field50UniformParameter.Value)) <= 0.0001R
+        result.Field20AndField40ParametersDistinct = result.Field20BatchUniformParameter.HasValue AndAlso result.Field40BatchUniformParameter.HasValue AndAlso Math.Abs(CDbl(result.Field20BatchUniformParameter.Value - result.Field40BatchUniformParameter.Value)) > 0.0001R
+        result.HasDistinctParameterGroups = result.Field20AndField40ParametersDistinct AndAlso result.Field20BatchParameterMatchesField30Parameter AndAlso result.Field40BatchParameterMatchesField50Parameter
         result.Field40BridgeCountMatchesField50Count = (result.Field40BridgeSlots.Count > 0 AndAlso result.Field40BridgeSlots.Count = result.Field50Entries.Count)
         result.Field40BridgeSlotsExact = result.Field40BridgeSlots.All(Function(slot) slot IsNot Nothing AndAlso slot.SharedParticlesFirst.Count = 2 AndAlso slot.SharedParticlesSecond.Count = 2 AndAlso slot.BridgeParticles.Count = 6)
         result.Field40BridgeFormsSequentialChain = ResolveVolumeBridgeSequentialChain(result.Field40BridgeSlots)
@@ -1309,17 +1309,22 @@ Public NotInheritable Class HclStructuredGraphParser_Class
     Private Shared Function ReadBytes(graph As HkxObjectGraph_Class, relativeOffset As Integer, byteCount As Integer) As Byte()
         If IsNothing(graph) OrElse byteCount <= 0 Then Return Array.Empty(Of Byte)()
         Dim absoluteOffset = graph.ContentsSection.AbsoluteDataStart + relativeOffset
+        If absoluteOffset < 0 OrElse absoluteOffset + byteCount > graph.Packfile.RawBytes.Length Then Return Array.Empty(Of Byte)()
         Dim result(byteCount - 1) As Byte
         Array.Copy(graph.Packfile.RawBytes, absoluteOffset, result, 0, byteCount)
         Return result
     End Function
 
     Private Shared Function ReadUInt16(graph As HkxObjectGraph_Class, relativeOffset As Integer) As UShort
-        Return BitConverter.ToUInt16(graph.Packfile.RawBytes, graph.ContentsSection.AbsoluteDataStart + relativeOffset)
+        Dim absoluteOffset = graph.ContentsSection.AbsoluteDataStart + relativeOffset
+        If absoluteOffset < 0 OrElse absoluteOffset + 2 > graph.Packfile.RawBytes.Length Then Return 0
+        Return BitConverter.ToUInt16(graph.Packfile.RawBytes, absoluteOffset)
     End Function
 
     Private Shared Function ReadUInt32(graph As HkxObjectGraph_Class, relativeOffset As Integer) As UInteger
-        Return BitConverter.ToUInt32(graph.Packfile.RawBytes, graph.ContentsSection.AbsoluteDataStart + relativeOffset)
+        Dim absoluteOffset = graph.ContentsSection.AbsoluteDataStart + relativeOffset
+        If absoluteOffset < 0 OrElse absoluteOffset + 4 > graph.Packfile.RawBytes.Length Then Return 0
+        Return BitConverter.ToUInt32(graph.Packfile.RawBytes, absoluteOffset)
     End Function
 End Class
 
