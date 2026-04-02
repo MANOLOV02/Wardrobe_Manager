@@ -11,7 +11,7 @@ Imports DirectXTexWrapperCLI
 
 
 ''' <summary>
-''' Helpers VB.NET para consumir la API robusta de conversiÃ³n por subrecurso del wrapper.
+''' Helpers VB.NET para consumir la API robusta de conversión por subrecurso del wrapper.
 ''' Reglas importantes:
 ''' - El orden siempre es mip-major y luego array/face-major.
 ''' - Si AutoGenerateMipMaps = False, deben venir todos los mipmaps solicitados.
@@ -613,7 +613,7 @@ Public Module DirectXTextureConversionHelper
 
         For Each subresource In subresources
             If subresource Is Nothing Then
-                Throw New InvalidDataException("Hay un subrecurso Nothing en la colecciÃ³n.")
+                Throw New InvalidDataException("Hay un subrecurso Nothing en la colección.")
             End If
 
             Dim data = If(subresource.Data, Array.Empty(Of Byte)())

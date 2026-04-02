@@ -5,7 +5,7 @@ Imports System.Threading.Tasks
 ''' <summary>
 ''' CPU BVH-based occlusion raytracer. Builds once from occluder meshes, then
 ''' ComputeOccludedVertices can be called to find hidden vertices on a target mesh.
-''' All positions are world-space (Meshgeometry.Vertices / Normals).
+''' All positions are world-space (obtained via SkinningHelper.GetWorldVertices/GetWorldNormals cache).
 ''' Uses BvhHelper for shared AABB/BvhNode/BuildBvh infrastructure.
 ''' </summary>
 Public Class OcclusionRaytracer
@@ -84,7 +84,7 @@ Public Class OcclusionRaytracer
     ' ─── Mesh ingestion ──────────────────────────────────────────────────────
 
     Private Shared Sub AppendMeshTris(triList As List(Of TriData), mesh As PreviewModel.RenderableMesh)
-        Dim verts = mesh?.MeshData?.Meshgeometry.Vertices
+        Dim verts = If(mesh?.MeshData?.Meshgeometry.Vertices IsNot Nothing, SkinningHelper.GetWorldVertices(mesh.MeshData.Meshgeometry), Nothing)
         Dim idx = mesh?.MeshData?.Meshgeometry.Indices
         If verts Is Nothing OrElse idx Is Nothing OrElse idx.Length < 3 Then Exit Sub
 
@@ -110,7 +110,8 @@ Public Class OcclusionRaytracer
             bounds(i) = tris(i).Bounds
             centroids(i) = tris(i).Centroid
         Next
-        Return BvhHelper.BuildBvh(bounds, centroids, Enumerable.Range(0, tris.Length).ToList(), 0)
+        Dim indices = Enumerable.Range(0, tris.Length).ToArray()
+        Return BvhHelper.BuildBvh(bounds, centroids, indices, 0, indices.Length, 0)
     End Function
 
     ' ─── Ray–BVH traversal ───────────────────────────────────────────────────
@@ -255,8 +256,8 @@ Public Class OcclusionRaytracer
         Dim result As New HashSet(Of Integer)
         If _root Is Nothing Then Return result
 
-        Dim verts = targetMesh?.MeshData?.Meshgeometry.Vertices
-        Dim norms = targetMesh?.MeshData?.Meshgeometry.Normals
+        Dim verts = If(targetMesh?.MeshData?.Meshgeometry.Vertices IsNot Nothing, SkinningHelper.GetWorldVertices(targetMesh.MeshData.Meshgeometry), Nothing)
+        Dim norms = If(targetMesh?.MeshData?.Meshgeometry.Normals IsNot Nothing, SkinningHelper.GetWorldNormals(targetMesh.MeshData.Meshgeometry), Nothing)
         If verts Is Nothing OrElse norms Is Nothing OrElse verts.Length = 0 Then Return result
 
         Dim vertCount = verts.Length
@@ -279,6 +280,7 @@ Public Class OcclusionRaytracer
                 If settings.SelfMinDistance > 0 Then
                     selfMinDist = settings.SelfMinDistance
                 Else
+                    SkinningHelper.ComputeWorldBounds(targetMesh.MeshData.Meshgeometry)
                     Dim selfMin = ToV3(targetMesh.MeshData.Meshgeometry.Minv)
                     Dim selfMax = ToV3(targetMesh.MeshData.Meshgeometry.Maxv)
                     selfMinDist = Math.Max(1.0F, (selfMax - selfMin).Length * 0.05F)

@@ -1,4 +1,4 @@
-﻿' Version Uploaded of Wardrobe 2.1.3
+' Version Uploaded of Wardrobe 2.1.3
 Imports System.DirectoryServices.ActiveDirectory
 Imports System.Globalization
 Imports System.IO
@@ -56,7 +56,7 @@ Public Class HighHeels_Plugins_values
 
             Dim kvp = New HHJsonItem With {
         .ItemKey = IO.Path.GetFileNameWithoutExtension(archivo) + ".nif",
-        .ItemValue = CDbl(sep(1).Replace(".", System.Globalization.CultureInfo.CurrentUICulture.NumberFormat.NumberDecimalSeparator))}
+        .ItemValue = Double.Parse(sep(1).Trim(), System.Globalization.CultureInfo.InvariantCulture)}
 
             HighHeelsKeys(kvp.ItemKey) = kvp.ItemValue
         Next
@@ -202,7 +202,7 @@ Public Class SliderPresetCollection
                     Dim pos As New Poses_class With {
                 .Source = Poses_class.Pose_Source_Enum.BodySlide,
                 .Name = pose.Attribute("name").Value.ToString,
-                .Version = "1",
+                .Version = 1,
                 .Skeleton = "CBBE",
                 .Transforms = New Dictionary(Of String, PoseTransformData)
             }
@@ -237,7 +237,7 @@ Public Class SliderPresetCollection
         Dim pos As New Poses_class With {
             .Source = Poses_class.Pose_Source_Enum.None,
             .Name = "None",
-            .Version = "1",
+            .Version = 1,
             .Skeleton = "CBBE",
             .Transforms = New Dictionary(Of String, PoseTransformData)
         }
@@ -289,9 +289,9 @@ Public Class SliderPresetCollection
                         Dim valname As String = CStr(sliderElem.Attribute("name").Value)
                         Dim valdisplay As String = CStr(sliderElem.Attribute("displayname").Value)
                         Dim sliderName As String() = {valname, valdisplay}
-                        If sliderNames.Count > 0 AndAlso sliderNames.Any(Function(pf) valname.ToUpper.Equals(pf(0).ToUpper)) Then
-                            sliderName = sliderNames.First(Function(pf) valname.ToUpper.Equals(pf(0).ToUpper))
-                            sliderName(1) = valdisplay
+                        Dim match = sliderNames.FirstOrDefault(Function(pf) valname.Equals(pf(0), StringComparison.OrdinalIgnoreCase))
+                        If match IsNot Nothing Then
+                            match(1) = valdisplay
                         Else
                             sliderNames.Add(sliderName)
                         End If
@@ -407,15 +407,26 @@ Public Class OSD_Class
                     Dim reader As New IO.BinaryReader(stream)
                     Header = reader.ReadBytes(4)
                     Version = reader.ReadBytes(4)
-                    Datablocks = reader.ReadUInt32
+                    Datablocks = CInt(reader.ReadUInt32 And &H7FFFFFFFL)
                     For x = 0 To Datablocks - 1
                         Dim Namelenght As Byte = reader.ReadByte
                         Dim namebytes As Byte() = reader.ReadBytes(Namelenght)
                         Dim block As New OSD_Block_Class(Me) With {.BlockName = (System.Text.Encoding.UTF8.GetString(namebytes))}
-                        Dim DifDatas = reader.ReadUInt16
-                        For y As Int32 = 0 To CType(DifDatas, Int32) - 1
-                            Dim Dif As New OSD_DataDiff_Class With {.Index = reader.ReadUInt16(), .X = reader.ReadSingle, .Y = reader.ReadSingle, .Z = reader.ReadSingle}
-                            block.DataDiff.Add(Dif)
+                        Dim DifDatas = CType(reader.ReadUInt16, Int32)
+                        ' O5.1: Pre-allocate compact arrays + DataDiff list in one pass
+                        block.IndicesCompact = New Integer(DifDatas - 1) {}
+                        block.DeltasCompact = New Single(DifDatas * 3 - 1) {}
+                        block.DataDiff = New List(Of OSD_DataDiff_Class)(DifDatas)
+                        For y As Int32 = 0 To DifDatas - 1
+                            Dim idx = reader.ReadUInt16()
+                            Dim vx = reader.ReadSingle()
+                            Dim vy = reader.ReadSingle()
+                            Dim vz = reader.ReadSingle()
+                            block.IndicesCompact(y) = idx
+                            block.DeltasCompact(y * 3) = vx
+                            block.DeltasCompact(y * 3 + 1) = vy
+                            block.DeltasCompact(y * 3 + 2) = vz
+                            block.DataDiff.Add(New OSD_DataDiff_Class With {.Index = idx, .X = vx, .Y = vy, .Z = vz})
                         Next
                         Blocks.Add(block)
                     Next
@@ -432,6 +443,13 @@ Public Class OSD_Class
         For Each dat In source.DataDiff
             nuewblock.DataDiff.Add(New OSD_DataDiff_Class() With {.Index = dat.Index, .X = dat.X, .Y = dat.Y, .Z = dat.Z})
         Next
+        ' O5.1: Clone compact arrays if available
+        If source.IndicesCompact IsNot Nothing Then
+            nuewblock.IndicesCompact = CType(source.IndicesCompact.Clone(), Integer())
+            nuewblock.DeltasCompact = CType(source.DeltasCompact.Clone(), Single())
+        Else
+            nuewblock.RebuildCompactArrays()
+        End If
         Me.Blocks.Add(nuewblock)
         If Not IsNothing(ParentSlider) Then ParentSlider.InvalidateShapeDataLookupCache()
 
@@ -452,17 +470,27 @@ Public Class OSD_Class
         Writer.Write(Version)
         Writer.Write(CType(Blocks.Count, UInt32))
         For x = 0 To Blocks.Count - 1
-            Writer.Write(CType(Blocks(x).BlockName.Length, Byte))
-            Writer.Write(System.Text.Encoding.UTF8.GetBytes(Blocks(x).BlockName))
-            Dim DifDatas = Blocks(x).DataDiff.Count
+            Dim blk = Blocks(x)
+            Writer.Write(CType(blk.BlockName.Length, Byte))
+            Writer.Write(System.Text.Encoding.UTF8.GetBytes(blk.BlockName))
+            Dim DifDatas = blk.DataDiff.Count
             Writer.Write(CType(DifDatas, UInt16))
-            For y = 0 To CInt(DifDatas) - 1
-                Writer.Write(CType(Blocks(x).DataDiff(y).Index, UInt16))
-                Writer.Write(CType(Blocks(x).DataDiff(y).X, Single))
-                Writer.Write(CType(Blocks(x).DataDiff(y).Y, Single))
-                Writer.Write(CType(Blocks(x).DataDiff(y).Z, Single))
-            Next
-
+            ' O5.1: Use compact arrays when available for faster sequential write
+            If blk.IndicesCompact IsNot Nothing AndAlso blk.IndicesCompact.Length = DifDatas Then
+                For y = 0 To DifDatas - 1
+                    Writer.Write(CType(blk.IndicesCompact(y), UInt16))
+                    Writer.Write(blk.DeltasCompact(y * 3))
+                    Writer.Write(blk.DeltasCompact(y * 3 + 1))
+                    Writer.Write(blk.DeltasCompact(y * 3 + 2))
+                Next
+            Else
+                For y = 0 To DifDatas - 1
+                    Writer.Write(CType(blk.DataDiff(y).Index, UInt16))
+                    Writer.Write(CType(blk.DataDiff(y).X, Single))
+                    Writer.Write(CType(blk.DataDiff(y).Y, Single))
+                    Writer.Write(CType(blk.DataDiff(y).Z, Single))
+                Next
+            End If
         Next
         Writer.Flush()
         Writer.Close()
@@ -472,14 +500,51 @@ Public Class OSD_Block_Class
     Public Property BlockName As String
     Public Property DataDiff As New List(Of OSD_DataDiff_Class)
     Public Property ParentOSDContent As OSD_Class
+
+    ' --- O5.1: Compact array storage for cache-friendly access ---
+    ' Populated during binary Load; avoids per-element object traversal in hot paths.
+    ' IndicesCompact(i) corresponds to DeltasCompact(i*3), DeltasCompact(i*3+1), DeltasCompact(i*3+2)
+    Public IndicesCompact() As Integer
+    Public DeltasCompact() As Single ' interleaved [x0,y0,z0, x1,y1,z1, ...]
+
     Sub New(Parent As OSD_Class)
         Me.ParentOSDContent = Parent
     End Sub
+
+    ''' <summary>
+    ''' Rebuilds compact arrays from the current DataDiff list.
+    ''' Call after modifying DataDiff externally (editor, conform, merge, etc.).
+    ''' </summary>
+    Public Sub RebuildCompactArrays()
+        Dim n = DataDiff.Count
+        If n = 0 Then
+            IndicesCompact = Array.Empty(Of Integer)()
+            DeltasCompact = Array.Empty(Of Single)()
+            Exit Sub
+        End If
+
+        IndicesCompact = New Integer(n - 1) {}
+        DeltasCompact = New Single(n * 3 - 1) {}
+        For i = 0 To n - 1
+            Dim d = DataDiff(i)
+            IndicesCompact(i) = d.Index
+            DeltasCompact(i * 3) = d.X
+            DeltasCompact(i * 3 + 1) = d.Y
+            DeltasCompact(i * 3 + 2) = d.Z
+        Next
+    End Sub
+
     Public ReadOnly Property RelatedData As IEnumerable(Of Slider_Data_class)
         Get
+            If IsNothing(ParentOSDContent) OrElse IsNothing(ParentOSDContent.ParentSlider) OrElse IsNothing(ParentOSDContent.ParentSlider.Sliders) Then Return Enumerable.Empty(Of Slider_Data_class)()
             Return ParentOSDContent.ParentSlider.Sliders.SelectMany(Function(pf) pf.Datas).Where(Function(pf) pf.Nombre.Equals(BlockName, StringComparison.OrdinalIgnoreCase))
         End Get
     End Property
+
+    ''' <summary>Deep copy of DataDiff list (snapshot before mutation).</summary>
+    Public Function SnapshotDiffs() As List(Of OSD_DataDiff_Class)
+        Return DataDiff.Select(Function(d) New OSD_DataDiff_Class() With {.Index = d.Index, .X = d.X, .Y = d.Y, .Z = d.Z}).ToList()
+    End Function
 
 End Class
 Public Class OSD_DataDiff_Class
@@ -1147,8 +1212,13 @@ Public Class OSP_Project_Class
             LoadedShapeDataSlots.Remove(slider)
         End SyncLock
     End Sub
-    Public Shared Property Default_Memory As Integer = 2
+    Public Shared Property Default_Memory As Integer = 3
     Public Shared Property Default_Memory_Pause As Boolean = False
+    ''' <summary>
+    ''' The sliderset currently shown in the preview. Set by the preview control before
+    ''' rendering so the LRU never evicts it even when other slidersets are loaded.
+    ''' </summary>
+    Public Shared Property PinnedForPreview As SliderSet_Class = Nothing
     Public Shared Sub RememberLoadedShapeDataSlot(slider As SliderSet_Class)
         If IsNothing(slider) Then Exit Sub
 
@@ -1161,13 +1231,16 @@ Public Class OSP_Project_Class
                 While LoadedShapeDataSlots.Count > Default_Memory
                     evicted = LoadedShapeDataSlots(0)
                     LoadedShapeDataSlots.RemoveAt(0)
-                    If Not IsNothing(evicted) AndAlso Not Object.ReferenceEquals(evicted, slider) Then
+                    ' Never evict the sliderset currently shown in the preview —
+                    ' its VBOs depend on shapedata being live (RelatedNifShape, materials).
+                    If Not IsNothing(evicted) AndAlso
+                       Not Object.ReferenceEquals(evicted, slider) AndAlso
+                       Not Object.ReferenceEquals(evicted, PinnedForPreview) Then
                         evicted.UnloadShapeData(False)
                     End If
                 End While
             End If
         End SyncLock
-
 
     End Sub
 
@@ -1207,7 +1280,7 @@ Public Class OSP_Project_Class
 
     Public Shared Function Create_New(Filename As String, Overwrite_If_Exist As Boolean, ManoloPack As Boolean) As OSP_Project_Class
         If IO.File.Exists(Filename) AndAlso Overwrite_If_Exist = False Then
-            MsgBox("El nombre del proyecto ya existe, no se procesará", vbCritical)
+            MsgBox("Project name already exists, it will not be processed", vbCritical, "Duplicated")
             Return Nothing
         End If
         Dim writer = IO.File.CreateText(Filename)
@@ -1323,7 +1396,7 @@ Public Class OSP_Project_Class
 
             Sliderset_Target.NIFContent.Load_Manolo(Sliderset_Target.SourceFileFullPath)
 
-            ' SSE: load HDT-SMP XML physics — 1) shapedata folder, 2) fallback to game output folder
+            ' SSE: load HDT-SMP XML physics - 1) shapedata folder, 2) fallback to game output folder
             If Config_App.Current.Game = Config_App.Game_Enum.Skyrim Then
                 Dim xmlPath = IO.Path.ChangeExtension(Sliderset_Target.SourceFileFullPath, ".xml")
                 Dim fallbackPath = Sliderset_Target.OutputFullPathBase & ".xml"
@@ -1417,7 +1490,7 @@ Public Class OSP_Project_Class
 
     Private Function Check_repeated(Nombre As String) As Boolean
         If SliderSets.Any(Function(pf) pf.Nombre.Equals(Nombre, StringComparison.OrdinalIgnoreCase)) Then
-            MsgBox("El nombre del proyecto ya existe, no se procesará", vbCritical)
+            MsgBox("Project name already exists, it will not be processed", vbCritical, "Duplicated")
             Return False
         End If
         Return True
@@ -1658,6 +1731,12 @@ Public Class SliderSet_Class
     Public Property LastShapeDataSignature As String = ""
     Public Property LastShapeDataAccessUtc As Date = Date.MinValue
     Public Property LastProjectFileSignature As String = ""
+    ''' <summary>
+    ''' Paths of .bgsm/.bgem files referenced by the NIF, captured after each successful load.
+    ''' Persisted across UnloadShapeData so GetShapeDataSignature can detect material changes
+    ''' between loads (the file-state signature includes these paths starting from the second load).
+    ''' </summary>
+    Public CachedMaterialPaths As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
     Private _MetadataLookupCacheValid As Boolean = False
     Private _ShapeDataLookupCacheValid As Boolean = False
 
@@ -1678,6 +1757,10 @@ Public Class SliderSet_Class
 
     Public Sub InvalidateShapeDataLookupCache()
         _ShapeDataLookupCacheValid = False
+        ' C-3: Invalidate cached morph diffs so LoadMorphTargets rebuilds them on next use
+        For Each shp In Shapes
+            shp.MorphDiffs = Nothing
+        Next
     End Sub
     Public Sub RebuildShapeDataLookupCache()
         _ShapeDataLookupCacheValid = False
@@ -1685,7 +1768,7 @@ Public Class SliderSet_Class
     End Sub
     Public Sub InvalidateAllLookupCaches()
         _MetadataLookupCacheValid = False
-        _ShapeDataLookupCacheValid = False
+        InvalidateShapeDataLookupCache()  ' also clears MorphDiffs on all shapes
     End Sub
 
     Private Sub EnsureMetadataLookupCache()
@@ -1840,6 +1923,12 @@ Public Class SliderSet_Class
                 files.Add(OutputFullPathBase & ".xml")
         End Select
 
+        ' Include .bgsm/.bgem paths captured at last load time so that material edits on
+        ' disk invalidate the cache without requiring a NIF change (Finding 4).
+        ' CachedMaterialPaths is empty on the very first load; from the second load onward
+        ' it reflects the materials the NIF referenced when it was last deserialized.
+        files.AddRange(CachedMaterialPaths)
+
         Return String.Join(vbLf,
         files _
         .Where(Function(pf) Not String.IsNullOrWhiteSpace(pf)) _
@@ -1850,6 +1939,16 @@ Public Class SliderSet_Class
     End Function
 
     Public Sub MarkShapeDataAsLoaded()
+        ' Capture material file paths from the newly loaded NIF so that future calls to
+        ' GetShapeDataSignature() can detect .bgsm/.bgem changes without reloading the NIF first.
+        CachedMaterialPaths.Clear()
+        If NIFContent IsNot Nothing Then
+            For Each rm In NIFContent.BaseMaterials.Values
+                If rm IsNot Nothing AndAlso Not String.IsNullOrWhiteSpace(rm.path) Then
+                    CachedMaterialPaths.Add(rm.path)
+                End If
+            Next
+        End If
         LastShapeDataSignature = GetShapeDataSignature()
         ShapeDataLoaded = True
         LastShapeDataAccessUtc = Date.UtcNow
@@ -1993,7 +2092,7 @@ Public Class SliderSet_Class
         If lin.Contains("="c) = False Then Return 0
         Dim sep = lin.Split("=")
         If sep.Length <> 2 Then Return 0
-        Return CDbl(sep(1).Replace(".", System.Globalization.CultureInfo.CurrentUICulture.NumberFormat.NumberDecimalSeparator))
+        Return Double.Parse(sep(1).Trim(), System.Globalization.CultureInfo.InvariantCulture)
     End Function
     Public Sub ReadhighHeel()
         Select Case Config_App.Current.Game
@@ -2051,7 +2150,7 @@ Public Class SliderSet_Class
                     Exit Sub
                 End If
 
-                HighHeelHeight = CDbl(sep(1).Replace(".", System.Globalization.CultureInfo.CurrentUICulture.NumberFormat.NumberDecimalSeparator))
+                HighHeelHeight = Double.Parse(sep(1).Trim(), System.Globalization.CultureInfo.InvariantCulture)
         End Select
 
     End Sub
@@ -2619,7 +2718,7 @@ Public Class Shape_class
                     Throw New Exception
             End Select
             Return regreso
-                    End Get
+        End Get
     End Property
 
     Public ReadOnly Property RelatedBones As List(Of NiNode)
@@ -2743,7 +2842,7 @@ Public Class Slider_class
     Public Property Default_Setting_FO As Single
         Get
             If IsNothing(Nodo.Attributes("default")) Then Return 0
-            Return CSng(Nodo.Attributes("default").Value)
+            Return Single.Parse(Nodo.Attributes("default").Value, System.Globalization.CultureInfo.InvariantCulture)
         End Get
         Set(value As Single)
             If IsNothing(Nodo.Attributes("default")) Then
@@ -2773,7 +2872,7 @@ Public Class Slider_class
     Public Property Default_Big_Value As Single
         Get
             If IsNothing(Nodo.Attributes("big")) Then Return 0
-            Return CSng(Nodo.Attributes("big").Value)
+            Return Single.Parse(Nodo.Attributes("big").Value, System.Globalization.CultureInfo.InvariantCulture)
         End Get
         Set(value As Single)
             If IsNothing(Nodo.Attributes("big")) Then
@@ -2787,7 +2886,7 @@ Public Class Slider_class
     Public Property Default_Small_Value As Single
         Get
             If IsNothing(Nodo.Attributes("small")) Then Return 0
-            Return CSng(Nodo.Attributes("small").Value)
+            Return Single.Parse(Nodo.Attributes("small").Value, System.Globalization.CultureInfo.InvariantCulture)
         End Get
         Set(value As Single)
             If IsNothing(Nodo.Attributes("small")) Then
@@ -3002,5 +3101,66 @@ Public Class Slider_Data_class
         End Get
     End Property
 
+    ''' <summary>
+    ''' If this data is already local, returns its local OSD blocks.
+    ''' Otherwise clones the external blocks into the local OSD, marks the data as local,
+    ''' and returns the new local blocks. Avoids creating duplicate local blocks by name.
+    ''' </summary>
+    Public Function MaterializeEditableLocalBlocks() As List(Of OSD_Block_Class)
+        If Islocal Then Return RelatedLocalOSDBlocks.ToList()
+
+        Dim sourceBlocks = RelatedExternalOSDBlocks.ToList()
+        If sourceBlocks.Count = 0 Then Return New List(Of OSD_Block_Class)()
+
+        Dim sliderSet = ParentSlider.ParentSliderSet
+        Dim osdFilename = IO.Path.GetFileName(sliderSet.SourceFileFullPath).Replace(".nif", ".osd", StringComparison.OrdinalIgnoreCase)
+        Dim clones As New List(Of OSD_Block_Class)()
+
+        For Each sourceBlock In sourceBlocks
+            Dim existing = sliderSet.OSDContent_Local.Blocks.FirstOrDefault(
+                Function(b) b.BlockName.Equals(sourceBlock.BlockName, StringComparison.OrdinalIgnoreCase))
+            If existing IsNot Nothing Then
+                clones.Add(existing)
+            Else
+                Dim clone = New OSD_Block_Class(sliderSet.OSDContent_Local) With {.BlockName = sourceBlock.BlockName}
+                clone.DataDiff.AddRange(sourceBlock.SnapshotDiffs())
+                clone.RebuildCompactArrays()
+                sliderSet.OSDContent_Local.Blocks.Add(clone)
+                clones.Add(clone)
+            End If
+        Next
+
+        Islocal = True
+        TargetOsd = osdFilename
+        Return clones
+    End Function
+    Public Shared Function GetEditableTargetBlock(targetShape As Shape_class,
+                                                slider As Slider_class,
+                                                sliderSet As SliderSet_Class,
+                                                osdFilename As String) As OSD_Block_Class
+        Dim targetDatas = slider.Datas.Where(
+            Function(d) d.Target.Equals(targetShape.Target, StringComparison.OrdinalIgnoreCase)).ToList()
+        If targetDatas.Any(Function(d) d.Islocal) Then
+            targetDatas = targetDatas.Where(Function(d) d.Islocal).ToList()
+        End If
+
+        For Each dat In targetDatas
+            dat.MaterializeEditableLocalBlocks()
+        Next
+
+        Dim blockName = targetShape.Target.Replace(":", "_") & slider.Nombre
+        Dim targetBlock = sliderSet.OSDContent_Local.Blocks.FirstOrDefault(
+            Function(b) b.BlockName.Equals(blockName, StringComparison.OrdinalIgnoreCase))
+
+        If targetBlock IsNot Nothing Then Return targetBlock
+        targetBlock = New OSD_Block_Class(sliderSet.OSDContent_Local) With {.BlockName = blockName}
+        sliderSet.OSDContent_Local.Blocks.Add(targetBlock)
+
+        If targetDatas.Count = 0 Then
+            slider.Datas.Add(New Slider_Data_class(blockName, slider, targetShape.Target, osdFilename))
+        End If
+
+        Return targetBlock
+    End Function
 End Class
 

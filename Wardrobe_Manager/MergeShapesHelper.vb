@@ -3,13 +3,16 @@ Imports NiflySharp.Structs
 
 ''' <summary>
 ''' Merges donorShapes into targetShape in-memory:
-'''   · NIF: vertex data concatenated (target first), triangles offset, bones union-remapped.
-'''   · OSD: donor deltas offset by cumulative vertex count and merged into target blocks.
-'''   · OSP: donor Shape_class objects removed via SliderSet.RemoveShape (handles XML, datas, OSD blocks).
-''' Vertices at seams are NOT welded — duplicates are kept for safety and morph correctness.
+'''   � NIF: vertex data concatenated (target first), triangles offset, bones union-remapped.
+'''   � OSD: donor deltas offset by cumulative vertex count and merged into target blocks.
+'''   � OSP: donor Shape_class objects removed via SliderSet.RemoveShape (handles XML, datas, OSD blocks).
+''' Vertices at seams are NOT welded � duplicates are kept for safety and morph correctness.
 ''' Call InvalidateAllLookupCaches + Process_render_Changes(True) after this returns.
 ''' </summary>
 Public Class MergeShapesHelper
+
+
+
 
     Public Shared Function GetShaderType(shape As Shape_class) As Type
         Dim shader = shape.ParentSliderSet.NIFContent.GetShader(shape.RelatedNifShape)
@@ -107,11 +110,14 @@ Public Class MergeShapesHelper
                 Dim remap = donorBoneRemaps(di)
                 For Each vd In donorShapes(di).RelatedNifShape.VertexDataSSE
                     Dim nv = vd   ' struct copy
+
+                    Dim value As Integer = Nothing
+
                     If nv.BoneIndices IsNot Nothing Then
                         nv.BoneIndices = nv.BoneIndices.ToArray()   ' clone ref array before mutating
                         For b = 0 To nv.BoneIndices.Length - 1
                             Dim orig = CInt(nv.BoneIndices(b))
-                            If remap.ContainsKey(orig) Then nv.BoneIndices(b) = CByte(remap(orig))
+                            If remap.TryGetValue(orig, value) Then nv.BoneIndices(b) = CByte(value)
                         Next
                     End If
                     allSSE.Add(nv)
@@ -123,11 +129,14 @@ Public Class MergeShapesHelper
                 Dim remap = donorBoneRemaps(di)
                 For Each vd In donorShapes(di).RelatedNifShape.VertexData
                     Dim nv = vd   ' struct copy
+
+                    Dim value As Integer = Nothing
+
                     If nv.BoneIndices IsNot Nothing Then
                         nv.BoneIndices = nv.BoneIndices.ToArray()   ' clone ref array before mutating
                         For b = 0 To nv.BoneIndices.Length - 1
                             Dim orig = CInt(nv.BoneIndices(b))
-                            If remap.ContainsKey(orig) Then nv.BoneIndices(b) = CByte(remap(orig))
+                            If remap.TryGetValue(orig, value) Then nv.BoneIndices(b) = CByte(value)
                         Next
                     End If
                     allNon.Add(nv)
@@ -269,36 +278,32 @@ Public Class MergeShapesHelper
             sliderSet.SourceFileFullPath).Replace(".nif", ".osd", StringComparison.OrdinalIgnoreCase)
 
         For Each slider In sliderSet.Sliders
-            ' Find or create a single local target block to receive all donor diffs.
-            Dim targetBlock As OSD_Block_Class =
-                slider.Datas.Where(Function(d) d.Target.Equals(targetShape.Target, StringComparison.OrdinalIgnoreCase)).
-                    SelectMany(Function(d) d.RelatedOSDBlocks).
-                    Where(Function(b) b.ParentOSDContent Is sliderSet.OSDContent_Local).
-                    FirstOrDefault()
+            Dim targetBlock = Slider_Data_class.GetEditableTargetBlock(targetShape, slider, sliderSet, osdFilename)
 
             For di = 0 To donorShapes.Count - 1
                 Dim donor = donorShapes(di)
                 Dim vertOffset = donorOffsets(di)
 
                 ' Collect diffs from ALL donor entries (local + external).
-                Dim diffs = slider.Datas.Where(
-                        Function(d) d.Target.Equals(donor.Target, StringComparison.OrdinalIgnoreCase)).
+                Dim donorDatas = slider.Datas.Where(
+                Function(d) d.Target.Equals(donor.Target, StringComparison.OrdinalIgnoreCase)).
+                                ToList()
+                If donorDatas.Any(Function(d) d.Islocal) Then
+                    donorDatas = donorDatas.Where(Function(d) d.Islocal).ToList()
+                End If
+
+                Dim diffs = donorDatas.
                     SelectMany(Function(d) d.RelatedOSDBlocks).
-                    SelectMany(Function(b) b.DataDiff).
+                    SelectMany(Function(b) b.SnapshotDiffs()).
                     Select(Function(d) New OSD_DataDiff_Class() With {
                         .Index = d.Index + vertOffset, .X = d.X, .Y = d.Y, .Z = d.Z}).
                     ToList()
                 If diffs.Count = 0 Then Continue For
 
-                If targetBlock Is Nothing Then
-                    Dim blockName = targetShape.Target.Replace(":", "_") & slider.Nombre
-                    targetBlock = New OSD_Block_Class(sliderSet.OSDContent_Local) With {.BlockName = blockName}
-                    sliderSet.OSDContent_Local.Blocks.Add(targetBlock)
-                    slider.Datas.Add(New Slider_Data_class(blockName, slider, targetShape.Target, osdFilename))
-                End If
-
                 targetBlock.DataDiff.AddRange(diffs)
             Next
+
+            targetBlock.RebuildCompactArrays()
         Next
 
         ' ── 7. Remove donor entries from BaseMaterials ────────────────────────

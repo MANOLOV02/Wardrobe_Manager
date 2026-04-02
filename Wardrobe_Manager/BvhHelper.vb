@@ -76,20 +76,22 @@ Friend Module BvhHelper
     ''' <summary>
     ''' Builds a median-split BVH from pre-computed per-element bounds and centroids.
     ''' <paramref name="bounds"/> and <paramref name="centroids"/> must have the same length.
-    ''' <paramref name="indices"/> lists which elements to partition (sub-range at each level).
+    ''' <paramref name="indices"/> is sorted in-place; the sub-range [offset, offset+count) is partitioned at each level.
     ''' Leaf LeafIndices store original element indices (same indexing as bounds/centroids).
     ''' </summary>
     Friend Function BuildBvh(bounds As AABB(), centroids As Vector3(),
-                              indices As List(Of Integer), depth As Integer) As BvhNode
+                              indices() As Integer, offset As Integer, count As Integer, depth As Integer) As BvhNode
         Dim node As New BvhNode
-        Dim b = bounds(indices(0))
-        For i = 1 To indices.Count - 1
-            b = AABB.Merge(b, bounds(indices(i)))
+        Dim b = bounds(indices(offset))
+        For i = 1 To count - 1
+            b = AABB.Merge(b, bounds(indices(offset + i)))
         Next
         node.Bounds = b
 
-        If indices.Count <= 8 OrElse depth >= 24 Then
-            node.LeafIndices = indices.ToArray()
+        If count <= 8 OrElse depth >= 24 Then
+            Dim leaf(count - 1) As Integer
+            Array.Copy(indices, offset, leaf, 0, count)
+            node.LeafIndices = leaf
             Return node
         End If
 
@@ -98,14 +100,11 @@ Friend Module BvhHelper
         If ext.Y > ext.X Then axis = 1
         If ext.Z > If(axis = 0, ext.X, ext.Y) Then axis = 2
 
-        Dim sorted = indices.OrderBy(Function(i2)
-                                         Dim c = centroids(i2)
-                                         Return If(axis = 0, CDbl(c.X), If(axis = 1, CDbl(c.Y), CDbl(c.Z)))
-                                     End Function).ToList()
+        Array.Sort(indices, offset, count, Comparer(Of Integer).Create(Function(a, ab) centroids(a)(axis).CompareTo(centroids(ab)(axis))))
 
-        Dim mid = sorted.Count \ 2
-        node.Left = BuildBvh(bounds, centroids, sorted.Take(mid).ToList(), depth + 1)
-        node.Right = BuildBvh(bounds, centroids, sorted.Skip(mid).ToList(), depth + 1)
+        Dim mid = count \ 2
+        node.Left = BuildBvh(bounds, centroids, indices, offset, mid, depth + 1)
+        node.Right = BuildBvh(bounds, centroids, indices, offset + mid, count - mid, depth + 1)
         Return node
     End Function
 

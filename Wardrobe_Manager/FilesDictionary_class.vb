@@ -4,6 +4,7 @@ Imports System.IO
 Imports System.Runtime.CompilerServices
 Imports System.Text
 Imports System.Threading
+Imports System.Timers
 Imports NiflySharp.Enums
 
 Module Extensiones
@@ -101,20 +102,48 @@ Public Class FilesDictionary_class
             End Get
         End Property
         Public Function GetBytes() As Byte()
+            ' O1.1: Check WeakReference byte cache first
+            Dim cached As Byte() = Nothing
+            Dim weakRef As WeakReference(Of Byte()) = Nothing
+            If FilesDictionary_class._bytesCache.TryGetValue(FullPath, weakRef) Then
+                If weakRef.TryGetTarget(cached) Then Return cached
+            End If
+
+            Dim result As Byte()
+
             If IsLosseFile Then
                 If IO.File.Exists(IO.Path.Combine(FO4Path, Me.FullPath)) = False Then Return Array.Empty(Of Byte)
-                Return IO.File.ReadAllBytes(IO.Path.Combine(FO4Path, Me.FullPath))
+                result = IO.File.ReadAllBytes(IO.Path.Combine(FO4Path, Me.FullPath))
             Else
+                ' O1.2: Use archive reader pool instead of opening/closing each time
+                Dim archivePath = IO.Path.Combine(FO4Path, Me.BA2File)
+                Dim leased As (Reader As BSA_BA2_Library_DLL.BethesdaArchive.Core.BethesdaReader, Stream As FileStream) = Nothing
+                Dim returned As Boolean = False
                 Try
-                    Using fs As FileStream = File.OpenRead(IO.Path.Combine(FO4Path, Me.BA2File))
-                        Using pack As New BSA_BA2_Library_DLL.BethesdaArchive.Core.BethesdaReader(fs)
-                            Return pack.ExtractToMemory(Index)
-                        End Using
-                    End Using
+                    leased = FilesDictionary_class.LeaseReader(archivePath)
+                    result = leased.Reader.ExtractToMemory(Index)
+                    FilesDictionary_class.ReturnReader(archivePath, leased)
+                    returned = True
                 Catch ex As Exception
+                    ' On error, dispose the leased reader rather than returning it
+                    If Not returned Then
+                        If leased.Reader IsNot Nothing Then
+                            Try : leased.Reader.Dispose() : Catch : End Try
+                        End If
+                        If leased.Stream IsNot Nothing Then
+                            Try : leased.Stream.Dispose() : Catch : End Try
+                        End If
+                    End If
                     Return Array.Empty(Of Byte)
                 End Try
             End If
+
+            ' O1.1: Store result in WeakReference cache
+            If result IsNot Nothing AndAlso result.Length > 0 Then
+                FilesDictionary_class._bytesCache(FullPath) = New WeakReference(Of Byte())(result)
+            End If
+
+            Return result
         End Function
 
     End Class
@@ -123,6 +152,90 @@ Public Class FilesDictionary_class
     Private Shared _dictionary As New ConcurrentDictionary(Of String, File_Location)(StringComparer.OrdinalIgnoreCase)
     Private Shared ReadOnly Extensiones As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase) From {".dds", ".bgsm", ".bgem", ".nif", ".tri"}
     Private Shared _HighHeels_Plugin_Values As New HighHeels_Plugins_values
+
+    ' O1.1: Lazy byte cache with WeakReference — allows GC to reclaim when memory is needed
+    Private Shared ReadOnly _bytesCache As New ConcurrentDictionary(Of String, WeakReference(Of Byte()))(StringComparer.OrdinalIgnoreCase)
+
+    ' O1.2: Archive reader pool — reuses BethesdaReader instances to avoid repeated open/close
+    Private Shared ReadOnly _archivePool As New ConcurrentDictionary(Of String, ConcurrentBag(Of (Reader As BSA_BA2_Library_DLL.BethesdaArchive.Core.BethesdaReader, Stream As FileStream)))(StringComparer.OrdinalIgnoreCase)
+    Private Shared ReadOnly MaxPooledReadersPerArchive As Integer = 2
+    Private Shared _poolCleanupTimer As System.Timers.Timer
+
+    Private Shared Sub InitPoolCleanupTimer()
+        If _poolCleanupTimer IsNot Nothing Then Return
+        _poolCleanupTimer = New System.Timers.Timer(30000) ' 30 seconds
+        AddHandler _poolCleanupTimer.Elapsed, Sub(sender, e) DisposeIdleReaders()
+        _poolCleanupTimer.AutoReset = True
+        _poolCleanupTimer.Start()
+    End Sub
+
+    Private Shared _poolTimerInitialized As Boolean = False
+
+    ''' <summary>Lease a BethesdaReader from the pool, or create a new one if pool is empty.</summary>
+    Private Shared Function LeaseReader(archivePath As String) As (Reader As BSA_BA2_Library_DLL.BethesdaArchive.Core.BethesdaReader, Stream As FileStream)
+        ' Lazy-init the pool cleanup timer on first use
+        If Not _poolTimerInitialized Then
+            _poolTimerInitialized = True
+            InitPoolCleanupTimer()
+        End If
+
+        Dim bag As ConcurrentBag(Of (Reader As BSA_BA2_Library_DLL.BethesdaArchive.Core.BethesdaReader, Stream As FileStream)) = Nothing
+        Dim entry As (Reader As BSA_BA2_Library_DLL.BethesdaArchive.Core.BethesdaReader, Stream As FileStream) = Nothing
+
+        If _archivePool.TryGetValue(archivePath, bag) Then
+            If bag.TryTake(entry) Then
+                Return entry
+            End If
+        End If
+
+        ' Create new reader
+        Dim fs As FileStream = File.OpenRead(archivePath)
+        Dim reader As New BSA_BA2_Library_DLL.BethesdaArchive.Core.BethesdaReader(fs)
+        Return (reader, fs)
+    End Function
+
+    ''' <summary>Return a reader to the pool if below cap, otherwise dispose it.</summary>
+    Private Shared Sub ReturnReader(archivePath As String, entry As (Reader As BSA_BA2_Library_DLL.BethesdaArchive.Core.BethesdaReader, Stream As FileStream))
+        Dim bag = _archivePool.GetOrAdd(archivePath, Function(key) New ConcurrentBag(Of (Reader As BSA_BA2_Library_DLL.BethesdaArchive.Core.BethesdaReader, Stream As FileStream))())
+
+        If bag.Count < MaxPooledReadersPerArchive Then
+            bag.Add(entry)
+        Else
+            ' Over capacity — dispose
+            Try
+                entry.Reader.Dispose()
+            Catch
+            End Try
+            Try
+                entry.Stream.Dispose()
+            Catch
+            End Try
+        End If
+    End Sub
+
+    ''' <summary>Dispose all pooled readers. Called by the 30-second cleanup timer.</summary>
+    Private Shared Sub DisposeIdleReaders()
+        For Each kvp In _archivePool
+            Dim bag = kvp.Value
+            Dim entry As (Reader As BSA_BA2_Library_DLL.BethesdaArchive.Core.BethesdaReader, Stream As FileStream) = Nothing
+            While bag.TryTake(entry)
+                Try
+                    entry.Reader.Dispose()
+                Catch
+                End Try
+                Try
+                    entry.Stream.Dispose()
+                Catch
+                End Try
+            End While
+        Next
+        _archivePool.Clear()
+    End Sub
+
+    ''' <summary>Clear the byte cache (call when dictionary is rebuilt).</summary>
+    Public Shared Sub ClearBytesCache()
+        _bytesCache.Clear()
+    End Sub
 
     Private Shared ReadOnly _KeysByExtension As New ConcurrentDictionary(Of String, ConcurrentDictionary(Of String, Byte))(StringComparer.OrdinalIgnoreCase)
     Private Shared ReadOnly _KeysByDirectory As New ConcurrentDictionary(Of String, ConcurrentDictionary(Of String, Byte))(StringComparer.OrdinalIgnoreCase)
@@ -190,7 +303,13 @@ Public Class FilesDictionary_class
                                                Using fs As FileStream = File.OpenRead(archivePath)
                                                    Using pack As New BSA_BA2_Library_DLL.BethesdaArchive.Core.BethesdaReader(fs)
                                                        For Each item In group.Value
-                                                           output(item.OutputIndex) = item.Location.GetBytesFromOpenArchive(pack)
+                                                           Dim bytes = item.Location.GetBytesFromOpenArchive(pack)
+                                                           output(item.OutputIndex) = bytes
+                                                           ' Populate _bytesCache so subsequent GetBytes() calls hit the cache
+                                                           ' instead of re-opening the archive (prefetch only warms OS cache otherwise)
+                                                           If bytes IsNot Nothing AndAlso bytes.Length > 0 Then
+                                                               _bytesCache(item.Location.FullPath) = New WeakReference(Of Byte())(bytes)
+                                                           End If
                                                        Next
                                                    End Using
                                                End Using
@@ -250,7 +369,8 @@ Public Class FilesDictionary_class
     End Property
     Private Shared Function NormalizeDictionaryKey(fullPath As String) As String
         If IsNothing(fullPath) Then Return ""
-        Return fullPath.Correct_Path_Separator
+        ' O5.4: Intern dictionary keys to reduce GC pressure and enable reference equality
+        Return String.Intern(fullPath.Correct_Path_Separator)
     End Function
 
     Private Shared Function NormalizeDirectoryKey(directoryPath As String) As String
@@ -319,6 +439,9 @@ Public Class FilesDictionary_class
         Dim normalized = NormalizeDictionaryKey(fullPath)
         If _dictionary.TryAdd(normalized, location) Then
             IndexDictionaryKey(normalized)
+            ' Clear stale byte cache for this entry
+            Dim dummy As WeakReference(Of Byte()) = Nothing
+            _bytesCache.TryRemove(normalized, dummy)
             Return True
         End If
         Return False
@@ -410,10 +533,18 @@ Public Class FilesDictionary_class
             Dictionary.Clear()
             ClearSearchIndexes()
 
+            ' O1.1: Clear byte cache when dictionary is rebuilt
+            ClearBytesCache()
+
+            ' O1.2: Dispose idle readers and initialize pool cleanup timer
+            DisposeIdleReaders()
+            InitPoolCleanupTimer()
+
             Dim ba2Files = EnumerateFilesWithSymlinkSupport(Fo4DataPath, "*.ba2;*.bsa", False).
             OrderBy(Function(p) p, StringComparer.OrdinalIgnoreCase).
             ToList()
 
+            ' O1.3: EnumerateSupportedLooseFiles already uses Directory.EnumerateFiles (lazy enumeration)
             Dim looseFiles = EnumerateSupportedLooseFiles(Fo4DataPath).
             OrderBy(Function(p) p, StringComparer.OrdinalIgnoreCase).
             ToList()
@@ -468,6 +599,10 @@ Public Class FilesDictionary_class
             ToArray()
 
             Await Task.WhenAll(workers).ConfigureAwait(False)
+
+            ' O1.3: Build all secondary indexes in a single batch pass after the parallel scan completes.
+            ' This avoids lock contention on ConcurrentDictionary secondary indexes during parallel insert.
+            RebuildSearchIndexesFromDictionary()
 
         Catch ex As Exception
             MsgBox(ex.ToString)
@@ -589,17 +724,22 @@ Public Class FilesDictionary_class
     End Function
     Private Shared Sub ProcessBa2File(ba2 As String, sourceOrder As Integer, progress As IProgress(Of (String, Integer, Integer)))
         Try
+            ' O5.4: Intern the BA2 filename since it is stored in many File_Location instances
+            Dim ba2FileName = String.Intern(Path.GetFileName(ba2))
+
             Using fs As FileStream = File.OpenRead(ba2)
                 Using arc As New BSA_BA2_Library_DLL.BethesdaArchive.Core.BethesdaReader(fs)
                     For Each fil In arc.EntriesFiles
-                        Dim standardized = fil.FullPath.Correct_Path_Separator
+                        ' O5.4: Intern the standardized path — stored long-term as dictionary key and File_Location.FullPath
+                        Dim standardized = String.Intern(fil.FullPath.Correct_Path_Separator)
                         Dim entry As New File_Location With {
-                        .BA2File = Path.GetFileName(ba2),
+                        .BA2File = ba2FileName,
                         .Index = fil.Index,
                         .FullPath = standardized,
                         .SourceOrder = sourceOrder
                     }
 
+                        ' O1.3: During scan, only populate _dictionary; indexes are built in batch after scan
                         Dictionary.AddOrUpdate(
                         standardized,
                         entry,
@@ -610,8 +750,6 @@ Public Class FilesDictionary_class
                                 Return existing
                             End If
                         End Function)
-
-                        IndexDictionaryKey(standardized)
                     Next
                 End Using
             End Using
@@ -640,7 +778,8 @@ Public Class FilesDictionary_class
 
     Private Shared Sub ProcessLooseFile(file As String, basePath As String, progress As IProgress(Of (String, Integer, Integer)))
         Try
-            Dim standardized = Path.GetRelativePath(basePath, file).Correct_Path_Separator
+            ' O5.4: Intern the standardized path — stored long-term as dictionary key and File_Location.FullPath
+            Dim standardized = String.Intern(Path.GetRelativePath(basePath, file).Correct_Path_Separator)
 
             Dim entry As New File_Location With {
             .BA2File = String.Empty,
@@ -649,6 +788,7 @@ Public Class FilesDictionary_class
             .SourceOrder = Integer.MaxValue
         }
 
+            ' O1.3: During scan, only populate _dictionary; indexes are built in batch after scan
             Dictionary.AddOrUpdate(
             standardized,
             entry,
@@ -659,8 +799,6 @@ Public Class FilesDictionary_class
                     Return existing
                 End If
             End Function)
-
-            IndexDictionaryKey(standardized)
 
         Catch ex As Exception
             MsgBox("Error procesing Loose file " + file + " :" + ex.ToString)

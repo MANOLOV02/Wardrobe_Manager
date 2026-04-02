@@ -32,7 +32,7 @@ Public Class MergeShapes_Form
         ValidateCompatibility()
     End Sub
 
-    Private Sub clbShapes_ItemCheck(sender As Object, e As ItemCheckEventArgs) Handles clbShapes.ItemCheck
+    Private Sub ClbShapes_ItemCheck(sender As Object, e As ItemCheckEventArgs) Handles clbShapes.ItemCheck
         ' ItemCheck fires before the state changes, so defer update
         BeginInvoke(Sub()
                         UpdateTargetCombo()
@@ -40,7 +40,7 @@ Public Class MergeShapes_Form
                     End Sub)
     End Sub
 
-    Private Sub cboTarget_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cboTarget.SelectedIndexChanged
+    Private Sub CboTarget_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cboTarget.SelectedIndexChanged
         ValidateCompatibility()
     End Sub
 
@@ -61,7 +61,7 @@ Public Class MergeShapes_Form
 
         ' Restore previous selection or default to first
         Dim restored = cboTarget.Items.Cast(Of ShapeItem)().FirstOrDefault(Function(si) si.Shape Is previousTarget)
-        cboTarget.SelectedItem = If(restored IsNot Nothing, restored, If(cboTarget.Items.Count > 0, cboTarget.Items(0), Nothing))
+        cboTarget.SelectedItem = If(restored, If(cboTarget.Items.Count > 0, cboTarget.Items(0), Nothing))
     End Sub
 
     Private Sub ValidateCompatibility()
@@ -92,7 +92,7 @@ Public Class MergeShapes_Form
         Return If(st Is GetType(NiflySharp.Blocks.BSLightingShaderProperty), "BGSM", If(st Is GetType(NiflySharp.Blocks.BSEffectShaderProperty), "BGEM", "?"))
     End Function
 
-    Private Sub btnMerge_Click(sender As Object, e As EventArgs) Handles btnMerge.Click
+    Private Sub BtnMerge_Click(sender As Object, e As EventArgs) Handles btnMerge.Click
         Dim targetItem = TryCast(cboTarget.SelectedItem, ShapeItem)
         If targetItem Is Nothing Then Return
 

@@ -79,7 +79,8 @@ Public Class ConformHelper
             bounds(i) = arr(i).Bounds
             centroids(i) = arr(i).Centroid
         Next
-        Dim root = BvhHelper.BuildBvh(bounds, centroids, Enumerable.Range(0, arr.Length).ToList(), 0)
+        Dim indices = Enumerable.Range(0, arr.Length).ToArray()
+        Dim root = BvhHelper.BuildBvh(bounds, centroids, indices, 0, indices.Length, 0)
         Return (root, arr)
     End Function
 
@@ -219,6 +220,34 @@ Public Class ConformHelper
         Return results
     End Function
 
+    Private Shared Function EnsureEditableLocalConformBlock(slider As Slider_class,
+                                                            targetName As String,
+                                                            blockName As String,
+                                                            sliderSet As SliderSet_Class,
+                                                            osdFilename As String) As OSD_Block_Class
+        Dim dat = slider.Datas.FirstOrDefault(
+            Function(d) d.Target.Equals(targetName, StringComparison.OrdinalIgnoreCase) AndAlso d.Islocal)
+        If dat Is Nothing Then
+            dat = slider.Datas.FirstOrDefault(
+                Function(d) d.Target.Equals(targetName, StringComparison.OrdinalIgnoreCase))
+        End If
+        If dat Is Nothing Then
+            slider.Datas.Add(New Slider_Data_class(blockName, slider, targetName, osdFilename))
+            dat = slider.Datas.Last()
+        ElseIf Not dat.Islocal Then
+            dat.MaterializeEditableLocalBlocks()
+        End If
+
+        Dim block = sliderSet.OSDContent_Local.Blocks.FirstOrDefault(
+            Function(b) b.BlockName.Equals(blockName, StringComparison.OrdinalIgnoreCase))
+        If block Is Nothing Then
+            block = New OSD_Block_Class(sliderSet.OSDContent_Local) With {.BlockName = blockName}
+            sliderSet.OSDContent_Local.Blocks.Add(block)
+        End If
+
+        Return block
+    End Function
+
     ''' <summary>
     ''' Applies computed conform results to the OSD structure.  Call on the UI thread.
     ''' Follow with sliderSet.InvalidateAllLookupCaches() and Save_Shapedatas().
@@ -241,28 +270,16 @@ Public Class ConformHelper
             If slider Is Nothing Then Continue For
 
             Dim blockName = targetName.Replace(":", "_") & slider.Nombre
+            Dim block = EnsureEditableLocalConformBlock(slider, targetName, blockName, sliderSet, osdFilename)
 
-            Dim dat = slider.Datas.FirstOrDefault(
-                Function(d) d.Target.Equals(targetName, StringComparison.OrdinalIgnoreCase))
-            If dat Is Nothing Then
-                slider.Datas.Add(New Slider_Data_class(blockName, slider, targetName, osdFilename))
-                dat = slider.Datas.Last()
-            End If
+            If Not overwrite AndAlso block.DataDiff.Count > 0 Then Continue For
 
-            Dim block = sliderSet.OSDContent_Local.Blocks.FirstOrDefault(
-                Function(b) b.BlockName.Equals(blockName, StringComparison.OrdinalIgnoreCase))
-            If block IsNot Nothing Then
-                If Not overwrite AndAlso block.DataDiff.Count > 0 Then Continue For
-                block.DataDiff.Clear()
-            Else
-                block = New OSD_Block_Class(sliderSet.OSDContent_Local) With {.BlockName = blockName}
-                sliderSet.OSDContent_Local.Blocks.Add(block)
-            End If
-
+            block.DataDiff.Clear()
             For Each d In res.Deltas
                 block.DataDiff.Add(New OSD_DataDiff_Class() With {
                     .Index = d.Index, .X = d.X, .Y = d.Y, .Z = d.Z})
             Next
+            block.RebuildCompactArrays()
         Next
     End Sub
 

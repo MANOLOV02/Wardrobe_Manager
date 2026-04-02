@@ -1699,7 +1699,7 @@ Public Class Wardrobe_Manager_Form
             RequestLeeShapes(True)
         Else
             Termina_Procesos()
-            RequestLeeShapes()
+            preview_Control.RefreshRender()
         End If
     End Sub
     Private Sub ListViewTargets_DoubleClick(sender As Object, e As EventArgs) Handles ListViewTargets.DoubleClick
@@ -1855,7 +1855,7 @@ Public Class Wardrobe_Manager_Form
             If frm.ShowDialog() = DialogResult.Yes Then
                 RefreshButton.PerformClick()
             Else
-                RequestLeeShapes(True)
+                preview_Control.RefreshRender()
             End If
         End Using
     End Sub

@@ -11,6 +11,15 @@ Imports NiflySharp.Structs
 ''' </summary>
 Public Class SplitShapeHelper
 
+    Private Shared Function RemapDiffs(sourceDiffs As IEnumerable(Of OSD_DataDiff_Class),
+                                       remap As IReadOnlyDictionary(Of Integer, Integer)) As List(Of OSD_DataDiff_Class)
+        Return sourceDiffs.
+            Where(Function(d) remap.ContainsKey(d.Index)).
+            Select(Function(d) New OSD_DataDiff_Class() With {
+                .Index = remap(d.Index), .X = d.X, .Y = d.Y, .Z = d.Z
+            }).ToList()
+    End Function
+
     Public Shared Function CanSplit(shape As Shape_class) As Boolean
         Return shape IsNot Nothing AndAlso
                shape.MaskedVertices.Count > 0 AndAlso
@@ -96,7 +105,7 @@ Public Class SplitShapeHelper
         Dim splitNifRaw = sliderSet.NIFContent.CloneShape_Original(origNif, splitName, sliderSet.NIFContent)
         Dim splitBST = TryCast(splitNifRaw, BSTriShape)
 
-        ' 7. Update vertex data via centralized helper (snapshot → filter → apply).
+        ' 7. Update vertex data via centralized helper (snapshot -> filter -> apply).
         Dim snap = SkinningHelper.SnapshotSeparateArrays(origNif)
         Dim origArrays = snap.FilterByIndices(usedOrig)
         Dim splitArrays = snap.FilterByIndices(usedSplit)
@@ -119,18 +128,22 @@ Public Class SplitShapeHelper
         splitNifRaw?.UpdateBounds()
 
         ' 8. Skin partitions.
-        ' Remap TrianglesCopy in each partition so body-part assignments survive vertex compaction.
-        ' origRemap/splitRemap already exclude vertices not belonging to that half.
         sliderSet.NIFContent.RemapSkinPartitionTriangles(origNif, origRemap)
         If splitBST IsNot Nothing Then sliderSet.NIFContent.RemapSkinPartitionTriangles(splitBST, splitRemap)
         sliderSet.NIFContent.UpdateSkinPartitions(origNif)
         If splitBST IsNot Nothing Then sliderSet.NIFContent.UpdateSkinPartitions(splitBST)
 
         ' 9. Register split shape in BaseMaterials.
+        ' Create a new RelatedMaterial_Class wrapper (not an alias) so that changing the
+        ' material path/reference on the split does not mutate the original and vice versa.
         Dim bm = sliderSet.NIFContent.BaseMaterials
         Dim origNifName = origNif.Name.String
         If bm.ContainsKey(origNifName) AndAlso Not bm.ContainsKey(splitName) Then
-            bm.Add(splitName, bm(origNifName))
+            Dim orig = bm(origNifName)
+            bm.Add(splitName, New Nifcontent_Class_Manolo.RelatedMaterial_Class With {
+                .path = orig.path,
+                .material = orig.material
+            })
         End If
 
         ' 10. Add Shape_class entry in OSP XML.
@@ -140,77 +153,67 @@ Public Class SplitShapeHelper
         splitShapeNode.AppendChild(xml.CreateTextNode(splitName))
         sliderSet.Nodo.InsertAfter(splitShapeNode, shape.Nodo)
         Dim splitShape As New Shape_class(splitShapeNode, sliderSet)
+        splitShape.Datafolder = shape.Datafolder.ToList()
         sliderSet.Shapes.Insert(sliderSet.Shapes.IndexOf(shape) + 1, splitShape)
 
-        ' 11. OSD: remap original blocks, create split blocks.
-        ' We collect ALL Slider_Data entries for this shape (may be both local and external).
-        ' External blocks are converted to local so they survive Save_Shapedatas.
+        ' 11. OSD: external blocks are read-only. Any remap happens on local copies.
         Dim osdFilename = IO.Path.GetFileName(
             sliderSet.SourceFileFullPath).Replace(".nif", ".osd", StringComparison.OrdinalIgnoreCase)
         Dim osdContent = sliderSet.OSDContent_Local
 
         For Each slider In sliderSet.Sliders
-            ' Get ALL data entries for this shape/slider (local + external).
             Dim origDats = slider.Datas.Where(
                 Function(d) d.Target.Equals(shape.Target, StringComparison.OrdinalIgnoreCase)).ToList()
+            If origDats.Any(Function(d) d.Islocal) Then
+                origDats = origDats.Where(Function(d) d.Islocal).ToList()
+            End If
             If origDats.Count = 0 Then Continue For
 
-            ' Collect all diffs from all blocks across all entries (snapshot before any mutation).
-            Dim allDiff = origDats.SelectMany(Function(dat) dat.RelatedOSDBlocks).
-                SelectMany(Function(b) b.DataDiff).
-                Select(Function(d) New OSD_DataDiff_Class() With {
-                    .Index = d.Index, .X = d.X, .Y = d.Y, .Z = d.Z
-                }).ToList()
-            If allDiff.Count = 0 Then Continue For
+            Dim allDiff As New List(Of OSD_DataDiff_Class)()
 
-            ' Remap each entry's blocks.  External entries are converted to local
-            ' so the remapped data is persisted by Save_Shapedatas.
             For Each dat In origDats
-                Dim datBlocks = dat.RelatedOSDBlocks.ToList()
-                If datBlocks.Count = 0 Then Continue For
+                Dim sourceBlocks = If(dat.Islocal,
+                    dat.RelatedLocalOSDBlocks.ToList(),
+                    dat.RelatedExternalOSDBlocks.ToList())
+                Dim sourceDiffs = sourceBlocks.Select(Function(block) block.SnapshotDiffs()).ToList()
+                Dim editableBlocks = dat.MaterializeEditableLocalBlocks()
 
-                If dat.Islocal Then
-                    ' Local: remap in-place.
-                    For Each block In datBlocks
-                        Dim kept = allDiff.
-                            Where(Function(d) origRemap.ContainsKey(d.Index)).
-                            Select(Function(d) New OSD_DataDiff_Class() With {
-                                .Index = origRemap(d.Index), .X = d.X, .Y = d.Y, .Z = d.Z
-                            }).ToList()
-                        block.DataDiff.Clear()
-                        block.DataDiff.AddRange(kept)
-                    Next
-                Else
-                    ' External: clone each block into local OSD with remapped indices,
-                    ' then switch dat to local (same pattern as merge_project MakeInternal).
-                    For Each block In datBlocks
-                        Dim localBlock As New OSD_Block_Class(osdContent) With {.BlockName = block.BlockName}
-                        localBlock.DataDiff.AddRange(
-                            allDiff.Where(Function(d) origRemap.ContainsKey(d.Index)).
-                            Select(Function(d) New OSD_DataDiff_Class() With {
-                                .Index = origRemap(d.Index), .X = d.X, .Y = d.Y, .Z = d.Z}))
-                        osdContent.Blocks.Add(localBlock)
-                        block.DataDiff.Clear()   ' neutralize stale external data in memory
-                    Next
-                    dat.Islocal = True
-                    dat.TargetOsd = osdFilename   ' keeps dat.TargetSlider (block name) unchanged
-                End If
+                For Each diffList In sourceDiffs
+                    allDiff.AddRange(diffList)
+                Next
+
+                For i = 0 To editableBlocks.Count - 1
+                    Dim kept = RemapDiffs(sourceDiffs(i), origRemap)
+                    editableBlocks(i).DataDiff.Clear()
+                    editableBlocks(i).DataDiff.AddRange(kept)
+                    editableBlocks(i).RebuildCompactArrays()
+                Next
             Next
 
-            ' Create split shape blocks (always local).
-            Dim splitDiff = allDiff.
-                Where(Function(d) splitRemap.ContainsKey(d.Index)).
-                Select(Function(d) New OSD_DataDiff_Class() With {
-                    .Index = splitRemap(d.Index), .X = d.X, .Y = d.Y, .Z = d.Z
-                }).ToList()
+            Dim splitDiff = RemapDiffs(allDiff, splitRemap)
             If splitDiff.Count = 0 Then Continue For
 
             Dim splitBlockName = splitName.Replace(":", "_") & slider.Nombre
-            Dim splitBlock As New OSD_Block_Class(osdContent) With {.BlockName = splitBlockName}
-            splitBlock.DataDiff.AddRange(splitDiff)
-            osdContent.Blocks.Add(splitBlock)
+            Dim splitBlock = osdContent.Blocks.FirstOrDefault(
+                Function(b) b.BlockName.Equals(splitBlockName, StringComparison.OrdinalIgnoreCase))
+            If splitBlock Is Nothing Then
+                splitBlock = New OSD_Block_Class(osdContent) With {.BlockName = splitBlockName}
+                osdContent.Blocks.Add(splitBlock)
+            End If
 
-            slider.Datas.Add(New Slider_Data_class(splitBlockName, slider, splitName, osdFilename))
+            splitBlock.DataDiff.Clear()
+            splitBlock.DataDiff.AddRange(splitDiff)
+            splitBlock.RebuildCompactArrays()
+
+            Dim splitDat = slider.Datas.FirstOrDefault(
+                Function(d) d.Target.Equals(splitName, StringComparison.OrdinalIgnoreCase) AndAlso
+                            d.Nombre.Equals(splitBlockName, StringComparison.OrdinalIgnoreCase))
+            If splitDat Is Nothing Then
+                slider.Datas.Add(New Slider_Data_class(splitBlockName, slider, splitName, osdFilename))
+            Else
+                splitDat.Islocal = True
+                splitDat.TargetOsd = osdFilename
+            End If
         Next
 
         ' 12. Clear mask on original and rebuild caches.

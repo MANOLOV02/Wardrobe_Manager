@@ -4,6 +4,7 @@ Imports NiflySharp.Blocks
 Imports NiflySharp.Structs
 Imports OpenTK.Mathematics
 Imports Wardrobe_Manager.RecalcTBN
+Imports SysNumerics = System.Numerics
 
 ' --- STRUCTURE PARA ALMACENAR GEOMETRÍA SKINEADA ---
 Public Structure SkinnedGeometry
@@ -34,6 +35,14 @@ Public Structure SkinnedGeometry
     Public Maxv As Vector3d
     Public CachedTBN As TBNCache
     Public Version As NiVersion
+    ' GPU Skinning: flat arrays for VBO upload
+    Public GPUBoneIndices() As Byte        ' 4 bytes per vertex, flattened: [v0b0,v0b1,v0b2,v0b3, v1b0,...]
+    Public GPUBoneWeights() As Single      ' 4 floats per vertex, flattened: [v0w0,v0w1,v0w2,v0w3, v1w0,...]
+    Public GPUBoneMatrices() As Matrix4    ' one Matrix4 per bone in the palette for SSBO
+    ' Lazy world-space cache (computed on demand, invalidated by pose/morph changes)
+    Public CachedWorldVertices() As Vector3d
+    Public CachedWorldNormals() As Vector3d
+    Public WorldCacheValid As Boolean
 End Structure
 Public Structure MorphData
     Public index As UInteger
@@ -42,6 +51,29 @@ End Structure
 
 
 Public Class SkinningHelper
+    ''' <summary>
+    ''' Blends precomputed bone matrices using per-vertex bone weights and indices.
+    ''' Shared by ExtractSkinnedGeometry (multibone case) and RecomputeGPUBoneMatrices.
+    ''' </summary>
+    Private Shared Function BlendBoneMatrices(boneWeights As System.Half(), boneIndices As Byte(), precomputed() As Matrix4d) As Matrix4d
+        If boneWeights Is Nothing OrElse boneIndices Is Nothing OrElse precomputed.Length = 0 Then Return If(precomputed.Length > 0, precomputed(0), Matrix4d.Identity)
+        Dim result As Matrix4d = Matrix4d.Zero
+        Dim sumW As Double = 0
+        Dim cnt = Math.Min(boneWeights.Length, boneIndices.Length) - 1
+        ' Single pass: accumulate weighted matrices and sum of weights simultaneously
+        For j = 0 To cnt
+            Dim w = CType(boneWeights(j), Double)
+            sumW += w
+            Dim idx = boneIndices(j)
+            If idx >= 0 AndAlso idx < precomputed.Length Then result += precomputed(idx) * w
+        Next
+        If sumW = 0 Then
+            Dim idx0 = If(boneIndices.Length > 0, boneIndices(0), 0)
+            Return precomputed(Math.Max(0, Math.Min(idx0, precomputed.Length - 1)))
+        End If
+        Return result * (1.0 / sumW)
+    End Function
+
     ''' <summary>
     ''' Extrae vértices, normales, tangentes y bitangentes del shape,
     ''' aplicando el mismo skinning que LoadShapeSafe.
@@ -69,7 +101,11 @@ Public Class SkinningHelper
         Dim rawBitangs() As Vector3d
 
         If tri.HasNormals Then
-            rawNormals = tri.Normals.Select(Function(n) Vector3d.Normalize(New Vector3d(n.X, n.Y, n.Z))).ToArray()
+            rawNormals = tri.Normals.Select(Function(n)
+                                                Dim v As New Vector3d(n.X, n.Y, n.Z)
+                                                Dim l = v.Length
+                                                Return If(l > 0.000001, v / l, Vector3d.Zero)
+                                            End Function).ToArray()
         Else
             rawNormals = Enumerable.Repeat(New Vector3d(0.0F, 0.0F, 0.0F), rawVerts.Length).ToArray()
         End If
@@ -81,26 +117,39 @@ Public Class SkinningHelper
 
         If tri.HasTangents Then
             If Nifversion.IsSSE AndAlso allVDSSE.Length = rawVerts.Length Then
-                ' SSE: INVERTIDAS swap same as FO4. NIF_Bitangent (float X + sbyte Y/Z) -> rawTangents. NIF_Tangent (ByteVector3) -> rawBitangs.
-                rawBitangs = tri.Tangents.Select(Function(t) Vector3d.Normalize(New Vector3d(t.X, t.Y, t.Z))).ToArray()
+                ' SSE: INVERTIDAS swap same as FO4 — produces correct effective TBN: mat3(NIF_Bitangent, NIF_Tangent, N).
+                ' NIF_Tangent (ByteVector3) -> rawBitangs. NIF_Bitangent (float X + sbyte Y/Z) -> rawTangents.
+                rawBitangs = tri.Tangents.Select(Function(t)
+                                                     Dim v As New Vector3d(t.X, t.Y, t.Z)
+                                                     Dim l = v.Length
+                                                     Return If(l > 0.000001, v / l, Vector3d.Zero)
+                                                 End Function).ToArray()
                 rawTangents = New Vector3d(rawVerts.Length - 1) {}
                 Parallel.For(0, rawVerts.Length, Sub(i)
                                                      Dim bx = CDbl(allVDSSE(i).BitangentX)
                                                      Dim by = CDbl(CType(CInt(allVDSSE(i).BitangentY) And &HFF, Byte)) / 255.0 * 2.0 - 1.0
                                                      Dim bz = CDbl(CType(CInt(allVDSSE(i).BitangentZ) And &HFF, Byte)) / 255.0 * 2.0 - 1.0
-                                                     rawTangents(i) = Vector3d.Normalize(New Vector3d(bx, by, bz))
+                                                     Dim tempVec As New Vector3d(bx, by, bz)
+                                                     Dim tempLen = tempVec.Length
+                                                     rawTangents(i) = If(tempLen > 0.000001, tempVec / tempLen, Vector3d.Zero)
                                                  End Sub)
             ElseIf Not Nifversion.IsSSE AndAlso tri.IsFullPrecision AndAlso allVD.Length = rawVerts.Length Then
                 ' FO4 full-precision: NIF_Bitangent uses float BitangentX (NiflySharp bug: cast to byte truncates).
                 ' INVERTIDAS swap: NIF_Bitangent -> rawTangents, NIF_Tangent -> rawBitangs.
                 ' Read NIF_Bitangent directly from BSVertexData for correct BitangentX.
-                rawBitangs = tri.Tangents.Select(Function(b) Vector3d.Normalize(New Vector3d(b.X, b.Y, b.Z))).ToArray()
+                rawBitangs = tri.Tangents.Select(Function(b)
+                                                     Dim v As New Vector3d(b.X, b.Y, b.Z)
+                                                     Dim l = v.Length
+                                                     Return If(l > 0.000001, v / l, Vector3d.Zero)
+                                                 End Function).ToArray()
                 rawTangents = New Vector3d(rawVerts.Length - 1) {}
                 Parallel.For(0, rawVerts.Length, Sub(i)
                                                      Dim bx = CDbl(allVD(i).BitangentX)
                                                      Dim by = CDbl(CType(CInt(allVD(i).BitangentY) And &HFF, Byte)) / 255.0 * 2.0 - 1.0
                                                      Dim bz = CDbl(CType(CInt(allVD(i).BitangentZ) And &HFF, Byte)) / 255.0 * 2.0 - 1.0
-                                                     rawTangents(i) = Vector3d.Normalize(New Vector3d(bx, by, bz))
+                                                     Dim tempVec As New Vector3d(bx, by, bz)
+                                                     Dim tempLen = tempVec.Length
+                                                     rawTangents(i) = If(tempLen > 0.000001, tempVec / tempLen, Vector3d.Zero)
                                                  End Sub)
             Else
                 ' FO4 half-precision: uses BitangentXHalf (Half). Read directly from BSVertexData for consistency.
@@ -112,12 +161,16 @@ Public Class SkinningHelper
                                                      Dim bx = CDbl(CSng(allVD(i).BitangentXHalf))
                                                      Dim by = CDbl(CType(CInt(allVD(i).BitangentY) And &HFF, Byte)) / 255.0 * 2.0 - 1.0
                                                      Dim bz = CDbl(CType(CInt(allVD(i).BitangentZ) And &HFF, Byte)) / 255.0 * 2.0 - 1.0
-                                                     rawTangents(i) = Vector3d.Normalize(New Vector3d(bx, by, bz))
+                                                     Dim tempVecT As New Vector3d(bx, by, bz)
+                                                     Dim tempLenT = tempVecT.Length
+                                                     rawTangents(i) = If(tempLenT > 0.000001, tempVecT / tempLenT, Vector3d.Zero)
                                                      ' NIF_Tangent -> rawBitangs (INVERTIDAS swap); ByteVector3 has sbyte fields
                                                      Dim tx = CDbl(CType(CInt(allVD(i).Tangent.X) And &HFF, Byte)) / 255.0 * 2.0 - 1.0
                                                      Dim ty = CDbl(CType(CInt(allVD(i).Tangent.Y) And &HFF, Byte)) / 255.0 * 2.0 - 1.0
                                                      Dim tz = CDbl(CType(CInt(allVD(i).Tangent.Z) And &HFF, Byte)) / 255.0 * 2.0 - 1.0
-                                                     rawBitangs(i) = Vector3d.Normalize(New Vector3d(tx, ty, tz))
+                                                     Dim tempVecB As New Vector3d(tx, ty, tz)
+                                                     Dim tempLenB = tempVecB.Length
+                                                     rawBitangs(i) = If(tempLenB > 0.000001, tempVecB / tempLenB, Vector3d.Zero)
                                                  End Sub)
             End If
         Else
@@ -165,94 +218,143 @@ Public Class SkinningHelper
         Dim nifLocalVerts = rawVerts.ToArray()
         Dim perVertexMtot(vertexCount - 1) As Matrix4d
 
+        ' O2.4: Parallel options — use regular For for small meshes, bound parallelism for large ones
+        Dim useParallel As Boolean = vertexCount >= 500
+        Dim parallelOpts As New ParallelOptions With {.MaxDegreeOfParallelism = Environment.ProcessorCount}
+
+        ' GPU Skinning: allocate flat arrays for per-vertex bone data
+        Dim gpuBoneIdx(vertexCount * 4 - 1) As Byte
+        Dim gpuBoneWgt(vertexCount * 4 - 1) As Single
+        Dim gpuBoneMats() As Matrix4 = Nothing
+
         Select Case True
             Case Not singleboneskinning AndAlso bones.Length > 0
-                ' Multibone
-                Parallel.For(0, vertexCount, Sub(i)
-                                                 Dim Mskin As Matrix4d = Matrix4d.Zero
-                                                 Dim sumW As Double = 0
-                                                 Dim Boneweights As System.Half()
-                                                 Dim Boneindices As Byte()
-                                                 If Nifversion.IsSSE Then
-                                                     Boneweights = allVDSSE(i).BoneWeights
-                                                     Boneindices = allVDSSE(i).BoneIndices
-                                                 Else
-                                                     Boneweights = allVD(i).BoneWeights
-                                                     Boneindices = allVD(i).BoneIndices
-                                                 End If
-                                                 If Boneweights IsNot Nothing AndAlso Boneindices IsNot Nothing Then
-                                                     Dim cnt = Math.Min(Boneweights.Length, Boneindices.Length) - 1
-                                                     For j = 0 To cnt
-                                                         sumW += CType(Boneweights(j), Double)
-                                                     Next
-                                                     If sumW = 0F Then
-                                                         Dim idx0 = If(Boneindices.Length > 0, Boneindices(0), 0)
-                                                         idx0 = Math.Max(0, Math.Min(idx0, matsBind.Length - 1))
-                                                         Mskin = matsPose(idx0)
-                                                     Else
-                                                         For j = 0 To cnt
-                                                             Dim w = CType(Boneweights(j), Double) / sumW
-                                                             Dim idx = Boneindices(j)
-                                                             If idx >= 0 AndAlso idx < matsBind.Length Then
-                                                                 Mskin += matsPose(idx) * w
-                                                             End If
-                                                         Next
-                                                     End If
-                                                 Else
-                                                     ' Sin datos de skinning
-                                                     Mskin = matsPose(0)
-                                                 End If
-                                                 Dim Mtot = GlobalTransform * Mskin
-                                                 perVertexMtot(i) = Mtot
-                                                 Dim NormalsMat = Create_Normal_Matrix(Mtot)
+                ' Pre-compute bone matrices (shapeGlobalTransform * matsPose(k))
+                Dim precomputedBoneMatrices(bones.Length - 1) As Matrix4d
+                For k = 0 To bones.Length - 1
+                    precomputedBoneMatrices(k) = GlobalTransform * matsPose(k)
+                Next
 
-                                                 rawVerts(i) = Vector3d.TransformPosition(rawVerts(i), Mtot)
-                                                 If Not RecalculateNormals Then
-                                                     rawNormals(i) = Vector3d.Normalize(Vector3d.TransformNormal(rawNormals(i), NormalsMat))
-                                                     rawTangents(i) = Vector3d.Normalize(Vector3d.TransformNormal(rawTangents(i), NormalsMat))
-                                                     rawBitangs(i) = Vector3d.Normalize(Vector3d.TransformNormal(rawBitangs(i), NormalsMat))
-                                                 End If
-                                             End Sub)
+                ' GPU Skinning: compute float-precision bone matrices for SSBO upload
+                gpuBoneMats = New Matrix4(bones.Length - 1) {}
+                For k = 0 To bones.Length - 1
+                    Dim m = precomputedBoneMatrices(k)
+                    gpuBoneMats(k) = New Matrix4(
+                        CSng(m.M11), CSng(m.M12), CSng(m.M13), CSng(m.M14),
+                        CSng(m.M21), CSng(m.M22), CSng(m.M23), CSng(m.M24),
+                        CSng(m.M31), CSng(m.M32), CSng(m.M33), CSng(m.M34),
+                        CSng(m.M41), CSng(m.M42), CSng(m.M43), CSng(m.M44))
+                Next
+
+                ' Multibone skinning inner loop — GPU path: store perVertexMtot + extract bone data, do NOT transform rawVerts/N/T/B
+                Dim skinningBody As Action(Of Integer) = Sub(i)
+                                                             Dim Boneweights As System.Half()
+                                                             Dim Boneindices As Byte()
+                                                             If Nifversion.IsSSE Then
+                                                                 Boneweights = allVDSSE(i).BoneWeights
+                                                                 Boneindices = allVDSSE(i).BoneIndices
+                                                             Else
+                                                                 Boneweights = allVD(i).BoneWeights
+                                                                 Boneindices = allVD(i).BoneIndices
+                                                             End If
+                                                             Dim Mtot = BlendBoneMatrices(Boneweights, Boneindices, precomputedBoneMatrices)
+                                                             ' Store double-precision Mtot for world-space cache / bake
+                                                             perVertexMtot(i) = Mtot
+
+                                                             ' Extract per-vertex bone indices and weights into flat GPU arrays
+                                                             Dim baseIdx = i * 4
+                                                             If Boneweights IsNot Nothing AndAlso Boneindices IsNot Nothing Then
+                                                                 Dim boneSlots = Math.Min(Boneweights.Length, Boneindices.Length) - 1
+                                                                 If boneSlots < 0 Then
+                                                                     ' Empty arrays: same fallback as Nothing — bind to bone 0 with full weight
+                                                                     gpuBoneIdx(baseIdx) = 0 : gpuBoneWgt(baseIdx) = 1.0F
+                                                                 Else
+                                                                     Dim localSumW As Double = 0
+                                                                     For j = 0 To boneSlots
+                                                                         localSumW += CType(Boneweights(j), Double)
+                                                                     Next
+                                                                     For j = 0 To 3
+                                                                         If j <= boneSlots Then
+                                                                             gpuBoneIdx(baseIdx + j) = Boneindices(j)
+                                                                             gpuBoneWgt(baseIdx + j) = CSng(If(localSumW > 0, CType(Boneweights(j), Double) / localSumW, 0))
+                                                                         Else
+                                                                             gpuBoneIdx(baseIdx + j) = 0
+                                                                             gpuBoneWgt(baseIdx + j) = 0.0F
+                                                                         End If
+                                                                     Next
+                                                                 End If
+                                                             Else
+                                                                 gpuBoneIdx(baseIdx) = 0 : gpuBoneWgt(baseIdx) = 1.0F
+                                                                 gpuBoneIdx(baseIdx + 1) = 0 : gpuBoneWgt(baseIdx + 1) = 0.0F
+                                                                 gpuBoneIdx(baseIdx + 2) = 0 : gpuBoneWgt(baseIdx + 2) = 0.0F
+                                                                 gpuBoneIdx(baseIdx + 3) = 0 : gpuBoneWgt(baseIdx + 3) = 0.0F
+                                                             End If
+                                                         End Sub
+
+                If useParallel Then
+                    Parallel.For(0, vertexCount, parallelOpts, skinningBody)
+                Else
+                    For i As Integer = 0 To vertexCount - 1
+                        skinningBody(i)
+                    Next
+                End If
 
             Case singleboneskinning AndAlso bones.Length > 0
-                ' Single-bone
+                ' Single-bone: pre-compute once — GPU path: do NOT transform rawVerts/N/T/B
                 Dim Mtot = GlobalTransform * matsPose(0)
                 Array.Fill(perVertexMtot, Mtot)
-                Dim NormalsMat = Create_Normal_Matrix(Mtot)
-                Parallel.For(0, vertexCount, Sub(i)
-                                                 rawVerts(i) = Vector3d.TransformPosition(rawVerts(i), Mtot)
-                                                 If Not RecalculateNormals Then
-                                                     rawNormals(i) = Vector3d.Normalize(Vector3d.TransformNormal(rawNormals(i), NormalsMat))
-                                                     rawTangents(i) = Vector3d.Normalize(Vector3d.TransformNormal(rawTangents(i), NormalsMat))
-                                                     rawBitangs(i) = Vector3d.Normalize(Vector3d.TransformNormal(rawBitangs(i), NormalsMat))
-                                                 End If
-                                             End Sub)
+
+                ' GPU Skinning: single bone matrix for SSBO
+                gpuBoneMats = New Matrix4(0) {}
+                gpuBoneMats(0) = New Matrix4(
+                    CSng(Mtot.M11), CSng(Mtot.M12), CSng(Mtot.M13), CSng(Mtot.M14),
+                    CSng(Mtot.M21), CSng(Mtot.M22), CSng(Mtot.M23), CSng(Mtot.M24),
+                    CSng(Mtot.M31), CSng(Mtot.M32), CSng(Mtot.M33), CSng(Mtot.M34),
+                    CSng(Mtot.M41), CSng(Mtot.M42), CSng(Mtot.M43), CSng(Mtot.M44))
+
+                ' All vertices reference bone 0 with weight 1.0
+                For i As Integer = 0 To vertexCount - 1
+                    Dim baseIdx = i * 4
+                    gpuBoneIdx(baseIdx) = 0 : gpuBoneWgt(baseIdx) = 1.0F
+                    gpuBoneIdx(baseIdx + 1) = 0 : gpuBoneWgt(baseIdx + 1) = 0.0F
+                    gpuBoneIdx(baseIdx + 2) = 0 : gpuBoneWgt(baseIdx + 2) = 0.0F
+                    gpuBoneIdx(baseIdx + 3) = 0 : gpuBoneWgt(baseIdx + 3) = 0.0F
+                Next
 
             Case Else
-                ' Sin huesos
+                ' Sin huesos — GPU path: GlobalTransform is the single "bone", do NOT transform rawVerts/N/T/B
                 Dim Mtot = GlobalTransform
                 Array.Fill(perVertexMtot, Mtot)
-                Dim NormalsMat = Create_Normal_Matrix(Mtot)
-                Parallel.For(0, vertexCount, Sub(i)
-                                                 rawVerts(i) = Vector3d.TransformPosition(rawVerts(i), Mtot)
-                                                 If Not RecalculateNormals Then
-                                                     rawNormals(i) = Vector3d.Normalize(Vector3d.TransformNormal(rawNormals(i), NormalsMat))
-                                                     rawTangents(i) = Vector3d.Normalize(Vector3d.TransformNormal(rawTangents(i), NormalsMat))
-                                                     rawBitangs(i) = Vector3d.Normalize(Vector3d.TransformNormal(rawBitangs(i), NormalsMat))
-                                                 End If
-                                             End Sub)
+
+                ' GPU Skinning: single bone matrix (GlobalTransform) for SSBO
+                gpuBoneMats = New Matrix4(0) {}
+                gpuBoneMats(0) = New Matrix4(
+                    CSng(Mtot.M11), CSng(Mtot.M12), CSng(Mtot.M13), CSng(Mtot.M14),
+                    CSng(Mtot.M21), CSng(Mtot.M22), CSng(Mtot.M23), CSng(Mtot.M24),
+                    CSng(Mtot.M31), CSng(Mtot.M32), CSng(Mtot.M33), CSng(Mtot.M34),
+                    CSng(Mtot.M41), CSng(Mtot.M42), CSng(Mtot.M43), CSng(Mtot.M44))
+
+                ' All vertices reference bone 0 with weight 1.0
+                For i As Integer = 0 To vertexCount - 1
+                    Dim baseIdx = i * 4
+                    gpuBoneIdx(baseIdx) = 0 : gpuBoneWgt(baseIdx) = 1.0F
+                    gpuBoneIdx(baseIdx + 1) = 0 : gpuBoneWgt(baseIdx + 1) = 0.0F
+                    gpuBoneIdx(baseIdx + 2) = 0 : gpuBoneWgt(baseIdx + 2) = 0.0F
+                    gpuBoneIdx(baseIdx + 3) = 0 : gpuBoneWgt(baseIdx + 3) = 0.0F
+                Next
         End Select
-        ' 7) Bounding center en UN solo bucle
+        ' 7) Bounding center — rawVerts is now local-space, compute world-space bounds via PerVertexSkinMatrix
         Dim minV As New Vector3d(Double.MaxValue)
         Dim maxV As New Vector3d(Double.MinValue)
-        For Each v In rawVerts
-            If v.X < minV.X Then minV.X = v.X
-            If v.Y < minV.Y Then minV.Y = v.Y
-            If v.Z < minV.Z Then minV.Z = v.Z
+        For i As Integer = 0 To rawVerts.Length - 1
+            Dim wv = Vector3d.TransformPosition(rawVerts(i), perVertexMtot(i))
+            If wv.X < minV.X Then minV.X = wv.X
+            If wv.Y < minV.Y Then minV.Y = wv.Y
+            If wv.Z < minV.Z Then minV.Z = wv.Z
 
-            If v.X > maxV.X Then maxV.X = v.X
-            If v.Y > maxV.Y Then maxV.Y = v.Y
-            If v.Z > maxV.Z Then maxV.Z = v.Z
+            If wv.X > maxV.X Then maxV.X = wv.X
+            If wv.Y > maxV.Y Then maxV.Y = wv.Y
+            If wv.Z > maxV.Z Then maxV.Z = wv.Z
         Next
         Dim center = (minV + maxV) * 0.5
         Dim geo = New SkinnedGeometry With {
@@ -281,13 +383,17 @@ Public Class SkinningHelper
              .Minv = minV,
              .Maxv = maxV,
              .CachedTBN = Nothing,
-             .Version = Nifversion
+             .Version = Nifversion,
+             .GPUBoneIndices = gpuBoneIdx,
+             .GPUBoneWeights = gpuBoneWgt,
+             .GPUBoneMatrices = gpuBoneMats,
+             .WorldCacheValid = False
         }
 
         If tri.HasUVs = True Then
-            geo.Uvs_Weight = IIf(Nifversion.IsSSE, allVDSSE.Select(Function(vd) New Vector3(vd.UV.U, vd.UV.V, If(vd.BoneWeights?.Length > 0, CType(vd.BoneWeights(0), Single), 0.0F))).ToArray(), allVD.Select(Function(vd) New Vector3(vd.UV.U, vd.UV.V, If(vd.BoneWeights?.Length > 0, CType(vd.BoneWeights(0), Single), 0.0F))).ToArray())
+            geo.Uvs_Weight = If(Nifversion.IsSSE, allVDSSE.Select(Function(vd) New Vector3(vd.UV.U, vd.UV.V, If(vd.BoneWeights?.Length > 0, CType(vd.BoneWeights(0), Single), 0.0F))).ToArray(), allVD.Select(Function(vd) New Vector3(vd.UV.U, vd.UV.V, If(vd.BoneWeights?.Length > 0, CType(vd.BoneWeights(0), Single), 0.0F))).ToArray())
         Else
-            geo.Uvs_Weight = IIf(Nifversion.IsSSE, allVDSSE.Select(Function(vd) New Vector3(0, 0, If(vd.BoneWeights?.Length > 0, CType(vd.BoneWeights(0), Single), 0.0F))).ToArray(), allVD.Select(Function(vd) New Vector3(0, 0, If(vd.BoneWeights?.Length > 0, CType(vd.BoneWeights(0), Single), 0.0F))).ToArray())
+            geo.Uvs_Weight = If(Nifversion.IsSSE, allVDSSE.Select(Function(vd) New Vector3(0, 0, If(vd.BoneWeights?.Length > 0, CType(vd.BoneWeights(0), Single), 0.0F))).ToArray(), allVD.Select(Function(vd) New Vector3(0, 0, If(vd.BoneWeights?.Length > 0, CType(vd.BoneWeights(0), Single), 0.0F))).ToArray())
         End If
 
 
@@ -297,6 +403,35 @@ Public Class SkinningHelper
         End If
         Return geo
     End Function
+    ''' <summary>
+    ''' Converts an OpenTK Matrix4d (double, row-major) to a System.Numerics.Matrix4x4 (float, row-major SIMD).
+    ''' Both use row-vector convention so this is a direct element-wise cast.
+    ''' </summary>
+    Private Shared Function ToNumericsMatrix(m As Matrix4d) As SysNumerics.Matrix4x4
+        Return New SysNumerics.Matrix4x4(
+            CSng(m.M11), CSng(m.M12), CSng(m.M13), CSng(m.M14),
+            CSng(m.M21), CSng(m.M22), CSng(m.M23), CSng(m.M24),
+            CSng(m.M31), CSng(m.M32), CSng(m.M33), CSng(m.M34),
+            CSng(m.M41), CSng(m.M42), CSng(m.M43), CSng(m.M44))
+    End Function
+
+    ''' <summary>
+    ''' Computes the normal matrix (inverse-transpose of upper-left 3x3) using SIMD-accelerated System.Numerics.
+    ''' Returns a 4x4 with the 3x3 normal matrix in the upper-left and zero translation.
+    ''' </summary>
+    Private Shared Function CreateNormalMatrix_SIMD(mtot As SysNumerics.Matrix4x4) As SysNumerics.Matrix4x4
+        Dim success As Boolean
+        Dim inv As SysNumerics.Matrix4x4
+        success = SysNumerics.Matrix4x4.Invert(mtot, inv)
+        If Not success Then Return SysNumerics.Matrix4x4.Identity
+        ' Transpose the 3x3 part, zero out translation
+        Return New SysNumerics.Matrix4x4(
+            inv.M11, inv.M21, inv.M31, 0,
+            inv.M12, inv.M22, inv.M32, 0,
+            inv.M13, inv.M23, inv.M33, 0,
+            0, 0, 0, 1)
+    End Function
+
     Private Shared Function Create_Normal_Matrix(Origen As Matrix4d) As Matrix4d
         Dim L As New Matrix3d(Origen)
         Dim nm3 = L.Inverted().Transposed()
@@ -318,7 +453,7 @@ Public Class SkinningHelper
         Dim InverseGlobal As Matrix4d = GlobalTransform
         InverseGlobal.Invert()
 
-        ' 4) Vértices resultantes de ExtractSkinnedGeometry (world-space)
+        ' 4) Vértices resultantes de ExtractSkinnedGeometry (now local-space with GPU skinning)
         Dim worldV() As Vector3d
 
         ' 4b) Remove Zaps
@@ -341,65 +476,57 @@ Public Class SkinningHelper
         If geom.Version.IsSSE = True Then If Not IsNothing(geom.VertexDataSSE) Then allVDSSE = geom.VertexDataSSE.ToArray()
         Dim nifversion = geom.Version
         'A - REVIERTE Skinning y Bakea
+        ' Pre-compute inverted pose matrices and bind*invPose products (avoid redundant inversion per vertex)
+        Dim bindTimesInvPose(matsBind.Length - 1) As Matrix4d
+        For k = 0 To matsBind.Length - 1
+            bindTimesInvPose(k) = matsBind(k) * Matrix4d.Invert(matsPose(k))
+        Next
+
         Select Case True
             Case Not singleBoneSkinning AndAlso matsBind.Length > 0
-                ' Multibone
+                ' Multibone — vertices are already in local space, skip revert, only bake if needed
                 Parallel.For(0, worldV.Length, Sub(i)
-
-                                                   Dim Mskin_Recovery As Matrix4d = Matrix4d.Zero
-                                                   Dim Mskin As Matrix4d = Matrix4d.Zero
-                                                   Dim Boneweights As System.Half()
-                                                   Dim Boneindices As Byte()
-                                                   If nifversion.IsSSE Then
-                                                       Boneweights = allVDSSE(i).BoneWeights
-                                                       Boneindices = allVDSSE(i).BoneIndices
-                                                   Else
-                                                       Boneweights = allVD(i).BoneWeights
-                                                       Boneindices = allVD(i).BoneIndices
-                                                   End If
-                                                   Dim sumW As Double = 0
-
-                                                   If Boneweights IsNot Nothing AndAlso Boneindices IsNot Nothing Then
-                                                       Dim cnt = Math.Min(Boneweights.Length, Boneindices.Length) - 1
-                                                       For j = 0 To cnt
-                                                           sumW += CType(Boneweights(j), Double)
-                                                       Next
-                                                       If sumW = 0F Then
-                                                           Dim idx0 = If(Boneindices.Length > 0, Boneindices(0), 0)
-                                                           idx0 = Math.Max(0, Math.Min(idx0, matsBind.Length - 1))
-                                                           Mskin_Recovery = matsPose(idx0)
-                                                           Mskin = matsBind(idx0) * Matrix4d.Invert(matsPose(idx0))
-                                                       Else
-                                                           For j = 0 To cnt
-                                                               Dim w = CType(Boneweights(j), Double) / sumW
-                                                               Dim idx = Boneindices(j)
-                                                               If idx >= 0 AndAlso idx < matsBind.Length Then
-                                                                   Mskin_Recovery += matsPose(idx) * w
-                                                                   Mskin += (matsBind(idx) * Matrix4d.Invert(matsPose(idx))) * w
-                                                               End If
-                                                           Next
-                                                       End If
-                                                   Else
-                                                       ' Sin datos de skinning
-                                                       Mskin_Recovery = matsPose(0)
-                                                       Mskin = matsBind(0) * Matrix4d.Invert(matsPose(0))
-                                                   End If
-
-                                                   Dim Mtot_Inverse = GlobalTransform * Mskin_Recovery
-                                                   Mtot_Inverse.Invert()
-                                                   Dim skinMat = Mskin
-                                                   If Not inverse Then skinMat.Invert()
-                                                   Dim totalSkinMat As Matrix4d = InverseGlobal * skinMat * GlobalTransform
-                                                   Dim NormalsMat_Inverse = Create_Normal_Matrix(Mtot_Inverse)
-                                                   Dim NormalsMat = Create_Normal_Matrix(totalSkinMat)
-
-                                                   ' Revert
-                                                   worldV(i) = Vector3d.TransformPosition(worldV(i), Mtot_Inverse)
-                                                   worldN(i) = Vector3d.Normalize(Vector3d.TransformNormal(worldN(i), NormalsMat_Inverse))
-                                                   worldT(i) = Vector3d.Normalize(Vector3d.TransformNormal(worldT(i), NormalsMat_Inverse))
-                                                   worldB(i) = Vector3d.Normalize(Vector3d.TransformNormal(worldB(i), NormalsMat_Inverse))
-                                                   ' Bake
                                                    If ApplyPose Then
+                                                       Dim Mskin As Matrix4d = Matrix4d.Zero
+                                                       Dim Boneweights As System.Half()
+                                                       Dim Boneindices As Byte()
+                                                       If nifversion.IsSSE Then
+                                                           Boneweights = allVDSSE(i).BoneWeights
+                                                           Boneindices = allVDSSE(i).BoneIndices
+                                                       Else
+                                                           Boneweights = allVD(i).BoneWeights
+                                                           Boneindices = allVD(i).BoneIndices
+                                                       End If
+                                                       Dim sumW As Double = 0
+
+                                                       If Boneweights IsNot Nothing AndAlso Boneindices IsNot Nothing Then
+                                                           Dim cnt = Math.Min(Boneweights.Length, Boneindices.Length) - 1
+                                                           For j = 0 To cnt
+                                                               sumW += CType(Boneweights(j), Double)
+                                                           Next
+                                                           If sumW = 0F Then
+                                                               Dim idx0 = If(Boneindices.Length > 0, Boneindices(0), 0)
+                                                               idx0 = Math.Max(0, Math.Min(idx0, matsBind.Length - 1))
+                                                               Mskin = bindTimesInvPose(idx0)
+                                                           Else
+                                                               For j = 0 To cnt
+                                                                   Dim w = CType(Boneweights(j), Double) / sumW
+                                                                   Dim idx = Boneindices(j)
+                                                                   If idx >= 0 AndAlso idx < matsBind.Length Then
+                                                                       Mskin += bindTimesInvPose(idx) * w
+                                                                   End If
+                                                               Next
+                                                           End If
+                                                       Else
+                                                           Mskin = bindTimesInvPose(0)
+                                                       End If
+
+                                                       Dim skinMat = Mskin
+                                                       If Not inverse Then skinMat.Invert()
+                                                       Dim totalSkinMat As Matrix4d = InverseGlobal * skinMat * GlobalTransform
+                                                       Dim NormalsMat = Create_Normal_Matrix(totalSkinMat)
+
+                                                       ' Bake (local -> new-local)
                                                        worldV(i) = Vector3d.TransformPosition(worldV(i), totalSkinMat)
                                                        worldN(i) = Vector3d.Normalize(Vector3d.TransformNormal(worldN(i), NormalsMat))
                                                        worldT(i) = Vector3d.Normalize(Vector3d.TransformNormal(worldT(i), NormalsMat))
@@ -408,50 +535,35 @@ Public Class SkinningHelper
                                                End Sub)
 
             Case singleBoneSkinning AndAlso matsBind.Length > 0
-                ' Single-bone
-                Dim Mtot_Inverse = GlobalTransform * matsPose(0)
-                Mtot_Inverse.Invert()
-                Dim skinMat = matsBind(0) * Matrix4d.Invert(matsPose(0))
-                If Not inverse Then skinMat.Invert()
-                Dim totalSkinMat As Matrix4d = InverseGlobal * skinMat * GlobalTransform
-                Dim NormalsMat_Inverse = Create_Normal_Matrix(Mtot_Inverse)
-                Dim NormalsMat = Create_Normal_Matrix(totalSkinMat)
+                ' Single-bone — vertices are already in local space, skip revert, only bake if needed
+                If ApplyPose Then
+                    Dim skinMat = bindTimesInvPose(0)
+                    If Not inverse Then skinMat.Invert()
+                    Dim totalSkinMat As Matrix4d = InverseGlobal * skinMat * GlobalTransform
+                    Dim NormalsMat = Create_Normal_Matrix(totalSkinMat)
 
-                Parallel.For(0, worldV.Length, Sub(i)
-                                                   ' Revert
-                                                   worldV(i) = Vector3d.TransformPosition(worldV(i), Mtot_Inverse)
-                                                   worldN(i) = Vector3d.Normalize(Vector3d.TransformNormal(worldN(i), NormalsMat_Inverse))
-                                                   worldT(i) = Vector3d.Normalize(Vector3d.TransformNormal(worldT(i), NormalsMat_Inverse))
-                                                   worldB(i) = Vector3d.Normalize(Vector3d.TransformNormal(worldB(i), NormalsMat_Inverse))
-                                                   ' Bake
-                                                   If ApplyPose Then
+                    Parallel.For(0, worldV.Length, Sub(i)
+                                                       ' Bake (local -> new-local)
                                                        worldV(i) = Vector3d.TransformPosition(worldV(i), totalSkinMat)
                                                        worldN(i) = Vector3d.Normalize(Vector3d.TransformNormal(worldN(i), NormalsMat))
                                                        worldT(i) = Vector3d.Normalize(Vector3d.TransformNormal(worldT(i), NormalsMat))
                                                        worldB(i) = Vector3d.Normalize(Vector3d.TransformNormal(worldB(i), NormalsMat))
-                                                   End If
-                                               End Sub)
+                                                   End Sub)
+                End If
 
             Case Else
-                ' Sin huesos
-                Dim Mtot_Inverse = InverseGlobal
-                Dim totalSkinMat = GlobalTransform
-                Dim NormalsMat_Inverse = Create_Normal_Matrix(Mtot_Inverse)
-                Dim NormalsMat = Create_Normal_Matrix(totalSkinMat)
-                Parallel.For(0, worldV.Length, Sub(i)
-                                                   ' Revert
-                                                   worldV(i) = Vector3d.TransformPosition(worldV(i), Mtot_Inverse)
-                                                   worldN(i) = Vector3d.Normalize(Vector3d.TransformNormal(worldN(i), NormalsMat_Inverse))
-                                                   worldT(i) = Vector3d.Normalize(Vector3d.TransformNormal(worldT(i), NormalsMat_Inverse))
-                                                   worldB(i) = Vector3d.Normalize(Vector3d.TransformNormal(worldB(i), NormalsMat_Inverse))
-                                                   ' Bake
-                                                   If ApplyPose Then
+                ' Sin huesos — vertices are already in local space, skip revert, only bake if needed
+                If ApplyPose Then
+                    Dim totalSkinMat = GlobalTransform
+                    Dim NormalsMat = Create_Normal_Matrix(totalSkinMat)
+                    Parallel.For(0, worldV.Length, Sub(i)
+                                                       ' Bake (local -> new-local)
                                                        worldV(i) = Vector3d.TransformPosition(worldV(i), totalSkinMat)
                                                        worldN(i) = Vector3d.Normalize(Vector3d.TransformNormal(worldN(i), NormalsMat))
                                                        worldT(i) = Vector3d.Normalize(Vector3d.TransformNormal(worldT(i), NormalsMat))
                                                        worldB(i) = Vector3d.Normalize(Vector3d.TransformNormal(worldB(i), NormalsMat))
-                                                   End If
-                                               End Sub)
+                                                   End Sub)
+                End If
         End Select
 
         If ApplyMorph Then
@@ -579,6 +691,173 @@ Public Class SkinningHelper
         shape.SetTriangles(version, triangles)
     End Sub
 
+    ' =========================================================================
+    ' World-space cache functions (GPU skinning: vertices are local-space,
+    ' world-space is computed lazily on demand)
+    ' =========================================================================
+
+    ''' <summary>
+    ''' Lazily computes and caches world-space vertex positions from local-space + PerVertexSkinMatrix.
+    ''' </summary>
+    Public Shared Function GetWorldVertices(ByRef geo As SkinnedGeometry) As Vector3d()
+        If geo.WorldCacheValid AndAlso geo.CachedWorldVertices IsNot Nothing Then Return geo.CachedWorldVertices
+        ComputeWorldSpaceCache(geo)
+        Return geo.CachedWorldVertices
+    End Function
+
+    Public Shared Function GetWorldNormals(ByRef geo As SkinnedGeometry) As Vector3d()
+        If geo.WorldCacheValid AndAlso geo.CachedWorldNormals IsNot Nothing Then Return geo.CachedWorldNormals
+        ComputeWorldSpaceCache(geo)
+        Return geo.CachedWorldNormals
+    End Function
+
+    Public Shared Sub ComputeWorldSpaceCache(ByRef geo As SkinnedGeometry)
+        Dim count = geo.Vertices.Length
+        ' Capture arrays as locals — VB.NET cannot capture ByRef params in lambdas
+        Dim localVerts = geo.Vertices
+        Dim localNorms = geo.Normals
+        Dim localMats = geo.PerVertexSkinMatrix
+        Dim wv(count - 1) As Vector3d
+        Dim wn(count - 1) As Vector3d
+        Parallel.For(0, count, Sub(i)
+                                   wv(i) = Vector3d.TransformPosition(localVerts(i), localMats(i))
+                                   Dim nm = Create_Normal_Matrix(localMats(i))
+                                   wn(i) = Vector3d.Normalize(Vector3d.TransformNormal(localNorms(i), nm))
+                               End Sub)
+        geo.CachedWorldVertices = wv
+        geo.CachedWorldNormals = wn
+        geo.WorldCacheValid = True
+    End Sub
+
+    Public Shared Sub InvalidateWorldCache(ByRef geo As SkinnedGeometry)
+        geo.WorldCacheValid = False
+        geo.CachedWorldVertices = Nothing
+        geo.CachedWorldNormals = Nothing
+    End Sub
+
+    ''' <summary>
+    ''' Computes world-space bounding box from the world-space cache.
+    ''' </summary>
+    Public Shared Sub ComputeWorldBounds(ByRef geo As SkinnedGeometry)
+        Dim wv = GetWorldVertices(geo)
+        Dim minV As New Vector3d(Double.MaxValue)
+        Dim maxV As New Vector3d(Double.MinValue)
+        For Each v In wv
+            If v.X < minV.X Then minV.X = v.X
+            If v.Y < minV.Y Then minV.Y = v.Y
+            If v.Z < minV.Z Then minV.Z = v.Z
+            If v.X > maxV.X Then maxV.X = v.X
+            If v.Y > maxV.Y Then maxV.Y = v.Y
+            If v.Z > maxV.Z Then maxV.Z = v.Z
+        Next
+        geo.Boundingcenter = (minV + maxV) * 0.5
+        geo.Minv = minV
+        geo.Maxv = maxV
+    End Sub
+
+    ''' <summary>
+    ''' GPU Skinning: Recomputes GPUBoneMatrices in-place for a new pose without re-extracting geometry.
+    ''' Call after PrepareSkeletonForShapes has applied the new pose to the skeleton.
+    ''' Also invalidates the world-space cache and recomputes world bounds.
+    ''' </summary>
+    Public Shared Sub RecomputeGPUBoneMatrices(shape As Shape_class, ByRef geo As SkinnedGeometry, ApplyPose As Boolean, singleboneskinning As Boolean)
+        If geo.GPUBoneMatrices Is Nothing Then Exit Sub
+
+        Dim bones = shape.RelatedBones.ToArray()
+        Dim boneTrans = shape.RelatedBoneTransforms.ToArray()
+        If boneTrans.Length <> bones.Length Then Exit Sub
+
+        ' Recompute GlobalTransform
+        Dim tri = CType(shape.RelatedNifShape, BSTriShape)
+        Dim shapeNode = TryCast(shape.ParentSliderSet.NIFContent.GetParentNode(tri), NiNode)
+        If IsNothing(shapeNode) Then shapeNode = shape.ParentSliderSet.NIFContent.GetRootNode()
+        Dim GlobalTransform = If(shapeNode IsNot Nothing, Transform_Class.GetGlobalTransform(shapeNode, shape.ParentSliderSet.NIFContent).ToMatrix4d(), Matrix4d.Identity)
+
+        If Not singleboneskinning AndAlso bones.Length > 0 Then
+            ' Multi-bone path: recompute bone matrices once, use for both SSBO and per-vertex blending
+            Dim precomputedBoneMatrices(bones.Length - 1) As Matrix4d
+            For k = 0 To bones.Length - 1
+                Dim localT = boneTrans(k)
+                Dim boneName = bones(k).Name.String
+                Dim SkeletonBone As Skeleton_Class.HierarchiBone_class = Nothing
+                Dim poseT As Transform_Class
+                Dim bindT As Transform_Class
+
+                If Skeleton_Class.SkeletonDictionary.TryGetValue(boneName, SkeletonBone) Then
+                    bindT = SkeletonBone.OriginalGetGlobalTransform
+                Else
+                    bindT = Transform_Class.GetGlobalTransform(bones(k), shape.ParentSliderSet.NIFContent)
+                End If
+
+                If ApplyPose AndAlso Not IsNothing(SkeletonBone) Then
+                    poseT = SkeletonBone.GetGlobalTransform()
+                Else
+                    poseT = bindT
+                End If
+
+                Dim m = GlobalTransform * poseT.ComposeTransforms(localT).ToMatrix4d()
+                precomputedBoneMatrices(k) = m
+                geo.GPUBoneMatrices(k) = New Matrix4(
+                    CSng(m.M11), CSng(m.M12), CSng(m.M13), CSng(m.M14),
+                    CSng(m.M21), CSng(m.M22), CSng(m.M23), CSng(m.M24),
+                    CSng(m.M31), CSng(m.M32), CSng(m.M33), CSng(m.M34),
+                    CSng(m.M41), CSng(m.M42), CSng(m.M43), CSng(m.M44))
+            Next
+
+            ' Also update perVertexSkinMatrix for world-space cache
+            ' (Recompute per-vertex blended matrices using the same precomputed bone matrices)
+
+            Dim Nifversion = shape.ParentSliderSet.NIFContent.Header.Version
+            Dim allVD = Array.Empty(Of BSVertexData)
+            Dim allVDSSE = Array.Empty(Of BSVertexDataSSE)
+            If Not Nifversion.IsSSE Then If tri.VertexData IsNot Nothing Then allVD = tri.VertexData.ToArray()
+            If Nifversion.IsSSE Then If tri.VertexDataSSE IsNot Nothing Then allVDSSE = tri.VertexDataSSE.ToArray()
+
+            Dim vertexCount = geo.Vertices.Length
+            ' Capture arrays as locals for safe parallel access (geo is ByRef)
+            Dim perVertexSkinMatrix = geo.PerVertexSkinMatrix
+            Dim localAllVD = allVD
+            Dim localAllVDSSE = allVDSSE
+            Dim localIsSSE = Nifversion.IsSSE
+            Dim localPrecomputed = precomputedBoneMatrices
+
+            Dim skinBody As Action(Of Integer) = Sub(i)
+                                                     Dim Boneweights As System.Half()
+                                                     Dim Boneindices As Byte()
+                                                     If localIsSSE Then
+                                                         Boneweights = localAllVDSSE(i).BoneWeights
+                                                         Boneindices = localAllVDSSE(i).BoneIndices
+                                                     Else
+                                                         Boneweights = localAllVD(i).BoneWeights
+                                                         Boneindices = localAllVD(i).BoneIndices
+                                                     End If
+                                                     perVertexSkinMatrix(i) = BlendBoneMatrices(Boneweights, Boneindices, localPrecomputed)
+                                                 End Sub
+
+            If vertexCount >= 500 Then
+                Parallel.For(0, vertexCount, skinBody)
+            Else
+                For i = 0 To vertexCount - 1
+                    skinBody(i)
+                Next
+            End If
+        Else
+            ' Single-bone or no-bone path
+            Dim Mtot = GlobalTransform
+            geo.GPUBoneMatrices(0) = New Matrix4(
+                CSng(Mtot.M11), CSng(Mtot.M12), CSng(Mtot.M13), CSng(Mtot.M14),
+                CSng(Mtot.M21), CSng(Mtot.M22), CSng(Mtot.M23), CSng(Mtot.M24),
+                CSng(Mtot.M31), CSng(Mtot.M32), CSng(Mtot.M33), CSng(Mtot.M34),
+                CSng(Mtot.M41), CSng(Mtot.M42), CSng(Mtot.M43), CSng(Mtot.M44))
+            Array.Fill(geo.PerVertexSkinMatrix, Mtot)
+        End If
+
+        ' Invalidate world-space cache so it gets recomputed on next access
+        InvalidateWorldCache(geo)
+        ' Recompute world bounds from new pose
+        ComputeWorldBounds(geo)
+    End Sub
+
 End Class
 
 ''' <summary>
@@ -642,26 +921,40 @@ End Class
 
 Public Class MorphingHelper
     Private Shared Sub LoadMorphTargets(shape As Shape_class, ByRef Geometry As SkinnedGeometry)
+        ' C-3: Skip rebuild if morph data is already cached (invalidated via InvalidateShapeDataLookupCache)
+        If shape.MorphDiffs IsNot Nothing Then Exit Sub
+
         ' 1) Inicializar el diccionario
         shape.MorphDiffs = New Dictionary(Of String, List(Of MorphData))
         ' 2) Número de vértices en el mesh base
         Dim count = Geometry.BaseVertices.Length
         ' 3) Para cada elemento de Related_Slider_data (uno por slider aplicado a esta shape)
-        For Each sd In shape.Related_Slider_data
+        For Each sd In shape.Related_Slider_data.
+            GroupBy(Function(pf) pf.ParentSlider.Nombre, StringComparer.OrdinalIgnoreCase).
+            Select(Function(g) g.OrderByDescending(Function(pf) pf.Islocal).First()).
+            ToList()
             Dim sliderName = sd.ParentSlider.Nombre
             Dim lista As New List(Of MorphData)
             shape.MorphDiffs.Add(sliderName, lista)
             ' 5) Cada bloque OSD aporta DataDiff con (Index, X,Y,Z)
+            ' D-2: Use compact arrays when available for cache-friendly iteration
             For Each block As OSD_Block_Class In sd.RelatedOSDBlocks
-                For Each d As OSD_DataDiff_Class In block.DataDiff
-                    Dim i = CInt(d.Index)
-                    If i >= 0 AndAlso i < count Then
-                        ' Guardamos solo la diferencia de posición
-                        Dim posDiff As New Vector3(d.X, d.Y, d.Z)
-                        lista.Add(New MorphData With {.index = i, .PosDiff = posDiff})
-                    End If
-                Next
-
+                If block.IndicesCompact IsNot Nothing AndAlso block.IndicesCompact.Length = block.DataDiff.Count Then
+                    Dim idx = block.IndicesCompact
+                    Dim dlt = block.DeltasCompact
+                    For j = 0 To idx.Length - 1
+                        If idx(j) >= 0 AndAlso idx(j) < count Then
+                            lista.Add(New MorphData With {.index = CUInt(idx(j)), .PosDiff = New Vector3(dlt(j * 3), dlt(j * 3 + 1), dlt(j * 3 + 2))})
+                        End If
+                    Next
+                Else
+                    For Each d As OSD_DataDiff_Class In block.DataDiff
+                        Dim i = CInt(d.Index)
+                        If i >= 0 AndAlso i < count Then
+                            lista.Add(New MorphData With {.index = CUInt(i), .PosDiff = New Vector3(d.X, d.Y, d.Z)})
+                        End If
+                    Next
+                End If
             Next
         Next
     End Sub
@@ -697,15 +990,18 @@ Public Class MorphingHelper
                 Next
             Else
                 ' Morph normal: mueve vértice en espacio local NIF
+                ' O2.3: Skip morph deltas with negligible magnitude
                 For Each morph In shape.MorphDiffs(s.Nombre)
                     Dim i = CInt(morph.index)
-                    verts(i) = verts(i) + morph.PosDiff * t
+                    Dim delta = morph.PosDiff * t
+                    If delta.X * delta.X + delta.Y * delta.Y + delta.Z * delta.Z < 0.000001F Then Continue For
+                    verts(i) = verts(i) + delta
                 Next
             End If
         Next
 
-        ' Transform morphed local verts to world space using the stored skin matrices
-        ApplySkinningToLocalVerts(verts, Geometry)
+        ' GPU skinning: morphed verts stay in local space — GPU will transform them
+        ' (ApplySkinningToLocalVerts removed — no longer needed)
 
         For i = 0 To count - 1
             If Geometry.Vertices(i) <> verts(i) Then
@@ -715,7 +1011,18 @@ Public Class MorphingHelper
                 Geometry.dirtyVertexFlags(i) = False
             End If
         Next
+        ' O2.3: If dirty count exceeds 60% of vertex count, mark all dirty (full update is cheaper than sparse HashSet lookups)
+        If Geometry.dirtyVertexIndices.Count > count * 0.6 Then
+            Geometry.dirtyVertexIndices = New HashSet(Of Integer)(Enumerable.Range(0, count))
+            For i = 0 To count - 1
+                Geometry.dirtyVertexFlags(i) = True
+            Next
+        End If
         Geometry.Vertices = verts
+        ' Invalidate world-space cache since local positions changed
+        Geometry.WorldCacheValid = False
+        Geometry.CachedWorldVertices = Nothing
+        Geometry.CachedWorldNormals = Nothing
         If RecalculateNormals And Geometry.dirtyVertexIndices.Count > 0 Then
             Dim opt As RecalcTBN.TBNOptions = Config_App.Current.Setting_TBN
             Dim adicionales = RecalcTBN.RecalculateNormalsTangentsBitangents(Geometry, opt)
@@ -725,20 +1032,6 @@ Public Class MorphingHelper
                 Geometry.dirtyVertexFlags(ad) = True
             Next
         End If
-    End Sub
-
-    ''' <summary>
-    ''' Applies the same per-vertex skinning used in ExtractSkinnedGeometry to an array of
-    ''' NIF-local-space vertices, transforming them to world space in-place.
-    ''' Used by ApplyMorph_CPU so that morph deltas are applied before skinning.
-    ''' </summary>
-    ''' Applies the cached per-vertex skin matrices (filled by ExtractSkinnedGeometry) to an array
-    ''' of NIF-local-space vertices, transforming them to world space in-place.
-    Private Shared Sub ApplySkinningToLocalVerts(verts As Vector3d(), geom As SkinnedGeometry)
-        Dim mats = geom.PerVertexSkinMatrix
-        Parallel.For(0, verts.Length, Sub(i)
-                                          verts(i) = Vector3d.TransformPosition(verts(i), mats(i))
-                                      End Sub)
     End Sub
 
     Public Shared Sub RemoveZaps(shape As Shape_class, ByRef geom As SkinnedGeometry)
@@ -868,8 +1161,11 @@ Public Class MorphingHelper
         shape.ParentSliderSet.NIFContent.RemapSkinPartitionTriangles(geom.TriShape, remapDict)
 
         ' ==== 4) Reindexado de morphs
-        For Each dat In shape.Related_Slider_data
-            For Each block In dat.RelatedOSDBlocks.ToList()
+        For Each dat In shape.Related_Slider_data.
+            GroupBy(Function(pf) pf.Nombre, StringComparer.OrdinalIgnoreCase).
+            Select(Function(g) g.OrderByDescending(Function(pf) pf.Islocal).First()).
+            ToList()
+            For Each block In dat.MaterializeEditableLocalBlocks().ToList()
                 For Each ddiff In block.DataDiff.ToList()
                     Dim oldIdx As Integer = CInt(ddiff.Index)
                     If oldIdx < 0 OrElse oldIdx >= oldToNew.Length Then
@@ -884,6 +1180,8 @@ Public Class MorphingHelper
                 Next
                 If block.DataDiff.Count = 0 Then
                     block.ParentOSDContent.Blocks.Remove(block)
+                Else
+                    block.RebuildCompactArrays()
                 End If
             Next
         Next

@@ -1,5 +1,6 @@
 ﻿' Version Uploaded of Wardrobe 2.1.3
 
+Imports System.Threading.Tasks
 Imports Wardrobe_Manager.Wardrobe_Manager_Form
 
 Public Class BuildingForm
@@ -34,8 +35,7 @@ Public Class BuildingForm
             Try
                 Dim NodoClone = DummyOSP.xml.ImportNode(sliderset_target.Nodo.Clone, True)
                 Dim builder As New SliderSet_Class(NodoClone, DummyOSP)
-                OSP_Project_Class.Load_and_Check_Shapedata(sliderset_target, True)
-
+                ' Shapedata loaded on the builder clone below, not on sliderset_target
                 Dim size As Config_App.SliderSize = Config_App.SliderSize.Default
                 For Sizecount = 0 To CInt(IIf(sliderset_target.Multisize, 1, 0))
                     ProgressBar1.Value = 0
@@ -59,26 +59,43 @@ Public Class BuildingForm
                     ' 0 - cargo morph
                     builder.SetPreset(_Preset, size)
                     ProgressBar1.Value += 1
-                    For Each shap In builder.Shapes.ToList
-                        If Not IsNothing(shap.RelatedNifShape) Then
-                            ' 1- cargo geometria 
-                            Dim geom = SkinningHelper.ExtractSkinnedGeometry(shap, ApplyPose:=has_pose, singleboneskinning:=Config_App.Current.Setting_SingleBoneSkinning, RecalculateNormals:=False) ' Los normales los calculo despues
-                            ProgressBar1.Value += 1
+                    ' --- O6.1: Parallel shape processing (compute-heavy part) ---
+                    Dim shapeList = builder.Shapes.ToList
+                    Dim shapeResults As New System.Collections.Concurrent.ConcurrentDictionary(Of Shape_class, SkinnedGeometry)
+                    Dim localHasPose = has_pose
+                    Dim localSingleBone = Config_App.Current.Setting_SingleBoneSkinning
+                    Dim localRecalcNormals = Config_App.Current.Setting_RecalculateNormals
+
+                    ' Phase 1: parallel compute (Extract + Morph + Bake/InjectToTrishape)
+                    Parallel.ForEach(shapeList.Where(Function(s) s.RelatedNifShape IsNot Nothing),
+                        Sub(shap)
+                            ' 1- cargo geometria
+                            Dim geom = SkinningHelper.ExtractSkinnedGeometry(shap, ApplyPose:=localHasPose, singleboneskinning:=localSingleBone, RecalculateNormals:=False)
                             ' 3- aplico morph (y recalculo normales si esta elegido)
-                            MorphingHelper.ApplyMorph_CPU(shap, geom, Config_App.Current.Setting_RecalculateNormals, AllowMask:=False)
-                            ProgressBar1.Value += 1
-                            ' 4- Borro zaps y revierto bakeo
-                            SkinningHelper.BakeFromMemoryUsingOriginal(shap, geom, ApplyPose:=has_pose, inverse:=False, ApplyMorph:=True, RemoveZaps:=True, singleBoneSkinning:=Config_App.Current.Setting_SingleBoneSkinning)
-                            ProgressBar1.Value += 1
+                            MorphingHelper.ApplyMorph_CPU(shap, geom, localRecalcNormals, AllowMask:=False)
+                            ' 4- Borro zaps y revierto bakeo (includes InjectToTrishape per-shape)
+                            SkinningHelper.BakeFromMemoryUsingOriginal(shap, geom, ApplyPose:=localHasPose, inverse:=False, ApplyMorph:=True, RemoveZaps:=True, singleBoneSkinning:=localSingleBone)
+                            shapeResults(shap) = geom
+                        End Sub)
 
-                            If builder.KeepZappedShapes = False AndAlso geom.Vertices.Length = 0 Then
-                                builder.RemoveShape(shap)
-                                ProgressBar1.Value += 1
+                    ' Phase 2: sequential NIF structure updates + progress
+                    For Each shap In shapeList
+                        If shap.RelatedNifShape IsNot Nothing Then
+                            Dim geom As SkinnedGeometry = Nothing
+                            If shapeResults.TryGetValue(shap, geom) Then
+                                ProgressBar1.Value += 3 ' account for extract+morph+bake steps
+                                If builder.KeepZappedShapes = False AndAlso geom.Vertices.Length = 0 Then
+                                    builder.RemoveShape(shap)
+                                    ProgressBar1.Value += 1
+                                Else
+                                    builder.NIFContent.UpdateSkinPartitions(shap.RelatedNifShape)
+                                    ProgressBar1.Value += 1
+                                End If
                             Else
-                                builder.NIFContent.UpdateSkinPartitions(shap.RelatedNifShape)
-                                ProgressBar1.Value += 1
+                                ' Shape was filtered or failed silently in the parallel phase
+                                Debugger.Break()
+                                ProgressBar1.Value += 4
                             End If
-
                         Else
                             ProgressBar1.Value += 4
                         End If

@@ -6,6 +6,7 @@ Imports System.IO
 Imports System.Runtime.InteropServices
 Imports System.Security.Cryptography
 Imports System.Text
+Imports System.Threading.Tasks
 Imports Material_Editor.BaseMaterialFile
 Imports OpenTK.GLControl
 Imports OpenTK.Graphics.OpenGL4
@@ -175,15 +176,16 @@ void main()
     Private Shared Function GenerateTextBitmap(text As String, fontSize As Integer, fontName As String) As Bitmap
         Using testBmp As New Bitmap(1, 1)
             Using g As Graphics = Graphics.FromImage(testBmp)
-                Dim fnt As New Font(fontName, fontSize, FontStyle.Bold)
-                Dim size As SizeF = g.MeasureString(text, fnt)
-                Dim bmp As New Bitmap(CInt(Math.Ceiling(size.Width)), CInt(Math.Ceiling(size.Height)), Imaging.PixelFormat.Format32bppArgb)
-                Using g2 As Graphics = Graphics.FromImage(bmp)
-                    g2.Clear(Color.Transparent)
-                    g2.TextRenderingHint = Drawing.Text.TextRenderingHint.AntiAliasGridFit
-                    g2.DrawString(text, fnt, Brushes.Gray, 0, 0)
+                Using fnt As New Font(fontName, fontSize, FontStyle.Bold)
+                    Dim size As SizeF = g.MeasureString(text, fnt)
+                    Dim bmp As New Bitmap(CInt(Math.Ceiling(size.Width)), CInt(Math.Ceiling(size.Height)), Imaging.PixelFormat.Format32bppArgb)
+                    Using g2 As Graphics = Graphics.FromImage(bmp)
+                        g2.Clear(Color.Transparent)
+                        g2.TextRenderingHint = Drawing.Text.TextRenderingHint.AntiAliasGridFit
+                        g2.DrawString(text, fnt, Brushes.Gray, 0, 0)
+                    End Using
+                    Return bmp
                 End Using
-                Return bmp
             End Using
         End Using
     End Function
@@ -357,7 +359,17 @@ Public Class PreviewControl
     Private _Model As PreviewModel
     Public camera As New OrbitCamera()
     Private projection As Matrix4
-    Public updateRequired As Boolean = True
+    ' Backing field for updateRequired — Integer (not Boolean) so Volatile.Read/Write overloads resolve cleanly.
+    ' 0 = False, 1 = True. Use the property from all call sites; direct field access is intentionally avoided.
+    Private _updateRequired As Integer = 1
+    Public Property UpdateRequired As Boolean
+        Get
+            Return Threading.Volatile.Read(_updateRequired) <> 0
+        End Get
+        Set(value As Boolean)
+            Threading.Volatile.Write(_updateRequired, If(value, 1, 0))
+        End Set
+    End Property
 
     Public Sub Processing_Status(Texto As String)
         If Me.IsDisposed Then Exit Sub
@@ -369,7 +381,9 @@ Public Class PreviewControl
             overlay.RenderCentered(Me.Width, Me.Height)
         End If
         SwapBuffers()
-        Application.DoEvents()
+        ' Keep the status frame on screen until some later step explicitly requests
+        ' another render; pumping the message loop here can re-enter selection/render.
+        updateRequired = False
     End Sub
 
 
@@ -432,16 +446,56 @@ Public Class PreviewControl
 
         Model.FloorOffset = -seleccionado.HighHeelHeight
         Cursor.Current = Cursors.WaitCursor
+        ' Pin this sliderset so the LRU cannot evict its shapedata while it is being previewed.
+        OSP_Project_Class.PinnedForPreview = seleccionado
+
+        ' Snapshot previous state BEFORE overwriting — needed to detect combined preset+pose changes.
+        ' Without these, the branch below can't distinguish "only pose changed" from "both changed",
+        ' causing the pose-only path to skip ApplyMorph_CPU when the preset also changed.
+        Dim prevPreset = Model.Last_Preset
+        Dim prevSize = Model.Last_size
+
         seleccionado.SetPreset(Preset, weight)
         Model.Last_size = weight
         Model.Last_Preset = Preset
-        If (Model.Last_rendered Is seleccionado AndAlso Model.Last_Pose Is Pose AndAlso Force = False) AndAlso Model.Cleaned = False Then
+
+        Dim sameSet = (Model.Last_rendered Is seleccionado) AndAlso Model.Cleaned = False AndAlso Force = False
+        Dim poseChanged = Not (Model.Last_Pose Is Pose)
+        Dim presetChanged = Not (prevPreset Is Preset) OrElse (prevSize <> weight)
+
+        If sameSet AndAlso Not poseChanged Then
+            ' Same sliderset, same pose — reapply morphs (preset or size may have changed)
             Model.Process_Textures_GL()
             For Each mesh In Model.meshes
                 MorphingHelper.ApplyMorph_CPU(mesh.MeshData.Shape, mesh.MeshData.Meshgeometry, Model.RecalculateNormals, AllowMask)
                 mesh.UpdateSkinBuffers_GL()
             Next
             Model.MarkRenderBucketsDirty()
+            RefreshRender()
+        ElseIf sameSet AndAlso poseChanged Then
+            ' Same sliderset, pose changed.
+            ' If preset also changed, morphs must be reapplied before updating bone matrices.
+            Skeleton_Class.PrepareSkeletonForShapes(seleccionado.Shapes, Pose)
+            Model.Last_Pose = Pose
+            If presetChanged Then
+                ' Combined change: apply morphs first, then recompute GPU bone data
+                For Each mesh In Model.meshes
+                    MorphingHelper.ApplyMorph_CPU(mesh.MeshData.Shape, mesh.MeshData.Meshgeometry, Model.RecalculateNormals, AllowMask)
+                    SkinningHelper.RecomputeGPUBoneMatrices(mesh.MeshData.Shape, mesh.MeshData.Meshgeometry, Model.HasPose, Model.SingleBoneSkinning)
+                    mesh.UpdateSkinBuffers_GL()
+                    mesh.UpdateBoneMatricesSSBO()
+                    mesh.ComputeBounds()
+                Next
+            Else
+                ' Pose-only change: update bone matrices via SSBO, no morph re-extract needed
+                For Each mesh In Model.meshes
+                    SkinningHelper.RecomputeGPUBoneMatrices(mesh.MeshData.Shape, mesh.MeshData.Meshgeometry, Model.HasPose, Model.SingleBoneSkinning)
+                    mesh.UpdateBoneMatricesSSBO()
+                    mesh.ComputeBounds()
+                Next
+            End If
+            Model.MarkRenderBucketsDirty()
+            ResetCamera()
             RefreshRender()
         Else
             Dim ResetCamerabool As Boolean = True
@@ -455,6 +509,33 @@ Public Class PreviewControl
                 If Not (Pose Is Model.Last_Pose) Then ResetCamerabool = True
             End If
             Model.Last_Pose = Pose
+
+            ' O1.4: Pre-fetch texture bytes in background while geometry is loading.
+            ' This resolves all texture paths and fires a background task to pull the DDS bytes
+            ' from the files dictionary, so they will be warm in cache when Process_Textures_GL runs.
+            Dim prefetchShapes = seleccionado.Shapes
+            If prefetchShapes IsNot Nothing AndAlso prefetchShapes.Count > 0 Then
+                Dim texturePaths As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+                For Each shape In prefetchShapes
+                    If shape.RelatedMaterial?.material IsNot Nothing Then
+                        Dim mat = shape.RelatedMaterial.material
+                        Dim paths = {mat.Diffuse_or_Base_Texture, mat.NormalTexture, mat.SmoothSpecTexture,
+                                     mat.GreyscaleTexture, mat.EnvmapTexture, mat.FlowTexture,
+                                     mat.GlowTexture, mat.DisplacementTexture, mat.InnerLayerTexture,
+                                     mat.LightingTexture, mat.SpecularTexture, mat.WrinklesTexture,
+                                     mat.DistanceFieldAlphaTexture, mat.EnvmapMaskTexture}
+                        For Each p In paths
+                            Dim corrected = FO4UnifiedMaterial_Class.CorrectTexturePath(p)
+                            If corrected <> "" Then texturePaths.Add(corrected)
+                        Next
+                    End If
+                Next
+                If texturePaths.Count > 0 Then
+                    Dim pathsArray = texturePaths.ToArray()
+                    Task.Run(Sub() FilesDictionary_class.GetMultipleFilesBytes(pathsArray))
+                End If
+            End If
+
             Model.LoadShapesParallel(seleccionado.Shapes)
             Model.Setup_GL()
             For Each mesh In Model.meshes
@@ -572,17 +653,17 @@ Public Class PreviewControl
         updateRequired = True
     End Sub
     Private Sub RenderScene()
+        If Me.IsDisposed Then Exit Sub
+        Me.MakeCurrent()
         GL.ClearColor(Config_App.Current.Setting_BackColor)
         GL.Clear(ClearBufferMask.ColorBufferBit Or ClearBufferMask.DepthBufferBit)
         If Model.Can_Render Then
             Model.RenderAll(projection, camera)
         End If
     End Sub
-
-    Private Sub FinishRenderFrame()
+    Private Shared Sub FinishRenderFrame()
         GL.DepthMask(True)
         GL.Disable(EnableCap.Blend)
-        updateRequired = False
     End Sub
 
     Public Function CaptureBitmap() As Bitmap
@@ -592,6 +673,9 @@ Public Class PreviewControl
         ApplyResize(True)
 
         If updateRequired Then
+            ' Consume the current render request up front so any new request raised
+            ' during RenderScene survives this frame and schedules the next one.
+            updateRequired = False
             RenderScene()
             SwapBuffers()
             FinishRenderFrame()
@@ -615,6 +699,9 @@ Public Class PreviewControl
     Protected Overrides Sub OnPaint(e As PaintEventArgs)
         If Me.IsInDesignMode OrElse Not updateRequired Then Exit Sub
         MyBase.OnPaint(e)
+        ' Consume the current render request up front so any new request raised
+        ' during RenderScene survives this frame and schedules the next one.
+        updateRequired = False
         RenderScene()
         SwapBuffers()
         FinishRenderFrame()
@@ -681,8 +768,9 @@ Public Class PreviewControl
             Dim camPos = camera.GetEyePosition()
             For Each mesh In Model.meshes.Where(Function(pf) pf.MeshData.Shape.ShowMask)
                 Dim key = mesh.MeshData.Shape
-                Dim verts = mesh.MeshData.Meshgeometry.Vertices
-                Dim norms = mesh.MeshData.Meshgeometry.Normals
+                ' GPU Skinning: use world-space cache (Vertices are now local-space)
+                Dim verts = SkinningHelper.GetWorldVertices(mesh.MeshData.Meshgeometry)
+                Dim norms = SkinningHelper.GetWorldNormals(mesh.MeshData.Meshgeometry)
 
                 For i = 0 To verts.Length - 1
                     If mesh.MeshData.Meshgeometry.VertexMask(i) = -1 And mesh.MeshData.Shape.ApplyZaps Then Continue For
@@ -761,7 +849,7 @@ Public Class PreviewControl
         If Not Config_App.Current.Settings_Camara.ResetZoom And Not Force Then
             If oldcamera.Optimaldistance <> 0 Then
                 camera.distance *= (oldcamera.distance / oldcamera.Optimaldistance)
-                camera.distance = Math.Clamp(camera.Optimaldistance, camera.MinDistance, camera.MaxDistance)
+                camera.distance = Math.Clamp(camera.distance, camera.MinDistance, camera.MaxDistance)
             End If
         End If
 
@@ -829,7 +917,10 @@ Public Class PreviewControl
         MyBase.Dispose(disposing)
     End Sub
     Private Sub RenderTimer_Tick(sender As Object, e As EventArgs) Handles RenderTimer.Tick
-        If updateRequired AndAlso RenderTimer.Enabled = True Then
+        ' Also keep ticking while textures are loading (TexturesReady=False) or pending uploads exist
+        Dim texturesPending As Boolean = (Model IsNot Nothing AndAlso Not Model.TexturesReady)
+        If (updateRequired OrElse texturesPending) AndAlso RenderTimer.Enabled = True Then
+            updateRequired = True  ' ensure OnPaint won't skip
             Me.Invalidate()  ' disparará OnPaint
         End If
     End Sub
@@ -880,8 +971,9 @@ Public Class PreviewControl
 End Class
 Public Class PreviewModel
 
-    Public Textures_Dictionary As New Dictionary(Of String, Texture_Loaded_Class)(StringComparison.OrdinalIgnoreCase)
+    Public Textures_Dictionary As New Dictionary(Of String, Texture_Loaded_Class)(StringComparer.OrdinalIgnoreCase)
     Public Can_Render As Boolean = False
+    Public Property TexturesReady As Boolean = True
     Public meshes As New List(Of RenderableMesh)
     Private ReadOnly ParentControl As PreviewControl
     Public Floor As FloorRenderer
@@ -987,6 +1079,16 @@ Public Class PreviewModel
 
         ' Añade **sólo** estas dos líneas:
         Private vboMask As Integer                                    ' VBO dedicado a máscara
+
+        ' GPU Skinning: SSBO for bone matrices + VBOs for per-vertex bone indices/weights
+        Private ssbo_BoneMatrices As Integer = 0  ' SSBO for bone matrices
+        Private vboBoneIndices As Integer = 0     ' VBO for per-vertex bone indices
+        Private vboBoneWeights As Integer = 0     ' VBO for per-vertex bone weights
+
+        ' O3.3: Cached AABB for frustum culling
+        Public BoundsMin As Vector3
+        Public BoundsMax As Vector3
+
         Public MeshData As MeshData_Class
         Private indexCount As Integer
         Public Class MaterialData
@@ -1128,100 +1230,77 @@ Public Class PreviewModel
                                               }
                 End Get
             End Property
+            Private Function GetTextureID(texturePath As String) As UInteger
+                If String.IsNullOrEmpty(texturePath) Then Return 0
+                Dim tex As Texture_Loaded_Class = Nothing
+                If ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary.TryGetValue(texturePath, tex) Then Return tex.Texture_ID
+                Return 0
+            End Function
+            Private Function TryGetTexture(texturePath As String, ByRef tex As Texture_Loaded_Class) As Boolean
+                If String.IsNullOrEmpty(texturePath) Then
+                    tex = Nothing
+                    Return False
+                End If
+                Return ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary.TryGetValue(texturePath, tex)
+            End Function
             Public ReadOnly Property DiffuseTexture_ID As UInteger
                 Get
-                    Dim key As String = FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.Diffuse_or_Base_Texture)
-                    If key = "" Then Return 0
-                    If ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary.ContainsKey(key) = False Then Return 0
-                    Return ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary(key).Texture_ID
+                    Return GetTextureID(FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.Diffuse_or_Base_Texture))
                 End Get
             End Property
             Public ReadOnly Property NormalTexture_ID As UInteger
                 Get
-                    Dim key As String = FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.NormalTexture)
-                    If key = "" Then Return 0
-                    If ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary.ContainsKey(key) = False Then Return 0
-                    Return ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary(key).Texture_ID
+                    Return GetTextureID(FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.NormalTexture))
                 End Get
             End Property
             Public ReadOnly Property SpecularTexture_ID As UInteger
                 Get
-                    Dim key As String = FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.SpecularTexture)
-                    If key = "" Then Return 0
-                    If ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary.ContainsKey(key) = False Then Return 0
-                    Return ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary(key).Texture_ID
+                    Return GetTextureID(FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.SpecularTexture))
                 End Get
             End Property
             Public ReadOnly Property SmoothSpecTexture_ID As UInteger
                 Get
-                    Dim key As String = FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.SmoothSpecTexture)
-                    If key = "" Then Return 0
-                    If ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary.ContainsKey(key) = False Then Return 0
-                    Return ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary(key).Texture_ID
+                    Return GetTextureID(FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.SmoothSpecTexture))
                 End Get
             End Property
             Public ReadOnly Property EnvmapTexture_ID As UInteger
                 Get
-                    Dim key As String = FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.EnvmapTexture)
-                    If key = "" Then Return 0
-                    If ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary.ContainsKey(key) = False Then Return 0
-                    Return ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary(key).Texture_ID
+                    Return GetTextureID(FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.EnvmapTexture))
                 End Get
             End Property
             Public ReadOnly Property GreyscaleTexture_ID As UInteger
                 Get
-                    Dim key As String = FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.GreyscaleTexture)
-                    If key = "" Then Return 0
-                    If ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary.ContainsKey(key) = False Then Return 0
-                    Return ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary(key).Texture_ID
+                    Return GetTextureID(FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.GreyscaleTexture))
                 End Get
             End Property
             Public ReadOnly Property GlowTexture_ID As UInteger
                 Get
-                    Dim key As String = FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.GlowTexture)
-                    If key = "" Then Return 0
-                    If ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary.ContainsKey(key) = False Then Return 0
-                    Return ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary(key).Texture_ID
+                    Return GetTextureID(FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.GlowTexture))
                 End Get
             End Property
             Public ReadOnly Property WrinklesTexture_ID As UInteger
                 Get
-                    Dim key As String = FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.WrinklesTexture)
-                    If key = "" Then Return 0
-                    If ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary.ContainsKey(key) = False Then Return 0
-                    Return ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary(key).Texture_ID
+                    Return GetTextureID(FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.WrinklesTexture))
                 End Get
             End Property
             Public ReadOnly Property DisplacementTexture_ID As UInteger
                 Get
-                    Dim key As String = FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.DisplacementTexture)
-                    If key = "" Then Return 0
-                    If ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary.ContainsKey(key) = False Then Return 0
-                    Return ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary(key).Texture_ID
+                    Return GetTextureID(FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.DisplacementTexture))
                 End Get
             End Property
             Public ReadOnly Property InnerLayerTexture_ID As UInteger
                 Get
-                    Dim key As String = FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.InnerLayerTexture)
-                    If key = "" Then Return 0
-                    If ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary.ContainsKey(key) = False Then Return 0
-                    Return ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary(key).Texture_ID
+                    Return GetTextureID(FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.InnerLayerTexture))
                 End Get
             End Property
             Public ReadOnly Property LightingTexture_ID As UInteger
                 Get
-                    Dim key As String = FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.LightingTexture)
-                    If key = "" Then Return 0
-                    If ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary.ContainsKey(key) = False Then Return 0
-                    Return ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary(key).Texture_ID
+                    Return GetTextureID(FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.LightingTexture))
                 End Get
             End Property
             Public ReadOnly Property DistanceFieldAlphaTexture_ID As UInteger
                 Get
-                    Dim key As String = FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.DistanceFieldAlphaTexture)
-                    If key = "" Then Return 0
-                    If ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary.ContainsKey(key) = False Then Return 0
-                    Return ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary(key).Texture_ID
+                    Return GetTextureID(FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.DistanceFieldAlphaTexture))
                 End Get
             End Property
 
@@ -1232,35 +1311,31 @@ Public Class PreviewModel
                         key = FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.FlowTexture)
                         If key = "" Then Return 0
                     End If
-                    If ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary.ContainsKey(key) = False Then Return 0
-                    If ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary(key).Cubemap = True Then Return 0
-                    Return ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary(key).Texture_ID
+                    Dim tex As Texture_Loaded_Class = Nothing
+                    If Not TryGetTexture(key, tex) Then Return 0
+                    If tex.Cubemap = True Then Return 0
+                    Return tex.Texture_ID
                 End Get
             End Property
             Public ReadOnly Property FlowTexture_ID As UInteger
                 Get
-                    Dim key As String = FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.FlowTexture)
-                    If key = "" Then Return 0
-                    If ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary.ContainsKey(key) = False Then Return 0
-                    Return ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary(key).Texture_ID
+                    Return GetTextureID(FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.FlowTexture))
                 End Get
             End Property
 
             Public ReadOnly Property HasCubemap As Boolean
                 Get
-                    Dim key As String = FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.EnvmapTexture)
-                    If key = "" Then Return False
-                    If ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary.ContainsKey(key) = False Then Return False
-                    Return ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary(key).Cubemap
+                    Dim tex As Texture_Loaded_Class = Nothing
+                    If Not TryGetTexture(FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.EnvmapTexture), tex) Then Return False
+                    Return tex.Cubemap
                 End Get
             End Property
 
             Public ReadOnly Property HasGrayscale As Boolean
                 Get
-                    Dim key As String = FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.GreyscaleTexture)
-                    If key = "" Then Return False
-                    If ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary.ContainsKey(key) = False Then Return False
-                    Return ParentMeshData.ParentMesh.ParentModel.Textures_Dictionary(key).Loaded
+                    Dim tex As Texture_Loaded_Class = Nothing
+                    If Not TryGetTexture(FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.GreyscaleTexture), tex) Then Return False
+                    Return tex.Loaded
                 End Get
             End Property
 
@@ -1282,6 +1357,11 @@ Public Class PreviewModel
             If vboUVMaskWeight > 0 Then GL.DeleteBuffer(vboUVMaskWeight) : vboUVMaskWeight = 0
             If vboMask > 0 Then GL.DeleteBuffer(vboMask) : vboMask = 0
 
+            ' GPU Skinning: clean up SSBO and bone attribute VBOs
+            If ssbo_BoneMatrices > 0 Then GL.DeleteBuffer(ssbo_BoneMatrices) : ssbo_BoneMatrices = 0
+            If vboBoneIndices > 0 Then GL.DeleteBuffer(vboBoneIndices) : vboBoneIndices = 0
+            If vboBoneWeights > 0 Then GL.DeleteBuffer(vboBoneWeights) : vboBoneWeights = 0
+
             ' — Reducir flags de dirty-tracking a mínima expresión —
             MeshData.Meshgeometry = Nothing
         End Sub
@@ -1296,8 +1376,46 @@ Public Class PreviewModel
             ' Actualiza VBOs de Normales, Tangentes, Bitangentes y Posiciones usando MapBufferRange en un solo bucle
             If MeshData.Meshgeometry.dirtyVertexIndices.Count > 0 Then
                 Const elementSize As Integer = 3 * 4  ' bytes por vértice y por atributo
-                Dim totalBytes As Integer = MeshData.Meshgeometry.Vertices.Length * elementSize
-                Dim mapMask As MapBufferAccessMask = MapBufferAccessMask.MapWriteBit Or MapBufferAccessMask.MapUnsynchronizedBit
+                Dim vertexCount As Integer = MeshData.Meshgeometry.Vertices.Length
+                Dim totalBytes As Integer = vertexCount * elementSize
+
+                ' O3.1: Smart threshold — full BufferSubData upload when >60% vertices are dirty
+                ' This avoids per-index overhead of sparse MapBufferRange when most vertices changed
+                If MeshData.Meshgeometry.dirtyVertexIndices.Count > vertexCount * 0.6 Then
+                    Dim posF() As Vector3 = Array.ConvertAll(MeshData.Meshgeometry.Vertices, Function(v) New Vector3(CSng(v.X), CSng(v.Y), CSng(v.Z)))
+                    Dim nrmF() As Vector3 = Array.ConvertAll(MeshData.Meshgeometry.Normals, Function(v) New Vector3(CSng(v.X), CSng(v.Y), CSng(v.Z)))
+                    Dim tanF() As Vector3 = Array.ConvertAll(MeshData.Meshgeometry.Tangents, Function(v) New Vector3(CSng(v.X), CSng(v.Y), CSng(v.Z)))
+                    Dim bitanF() As Vector3 = Array.ConvertAll(MeshData.Meshgeometry.Bitangents, Function(v) New Vector3(CSng(v.X), CSng(v.Y), CSng(v.Z)))
+
+                    GL.BindBuffer(BufferTarget.ArrayBuffer, vboPosition)
+                    GL.BufferSubData(BufferTarget.ArrayBuffer, IntPtr.Zero, totalBytes, posF)
+
+                    GL.BindBuffer(BufferTarget.ArrayBuffer, vboNormal)
+                    GL.BufferSubData(BufferTarget.ArrayBuffer, IntPtr.Zero, totalBytes, nrmF)
+
+                    GL.BindBuffer(BufferTarget.ArrayBuffer, vboTangent)
+                    GL.BufferSubData(BufferTarget.ArrayBuffer, IntPtr.Zero, totalBytes, tanF)
+
+                    GL.BindBuffer(BufferTarget.ArrayBuffer, vboBitangent)
+                    GL.BufferSubData(BufferTarget.ArrayBuffer, IntPtr.Zero, totalBytes, bitanF)
+
+                    GL.BindBuffer(BufferTarget.ArrayBuffer, 0)
+
+                    ' Clear all dirty flags since everything was updated
+                    For Each i As Integer In MeshData.Meshgeometry.dirtyVertexIndices
+                        MeshData.Meshgeometry.dirtyVertexFlags(i) = False
+                    Next
+                    MeshData.Meshgeometry.dirtyVertexIndices.Clear()
+
+                    ' Also recompute bounds after full update
+                    ComputeBounds()
+
+                    UpdateUpdateSkinBuffersMask_GL()
+                    Return
+                End If
+
+                ' Sparse update path — used when fewer vertices changed
+                Dim mapMask As MapBufferAccessMask = MapBufferAccessMask.MapWriteBit Or MapBufferAccessMask.MapUnsynchronizedBit Or MapBufferAccessMask.MapFlushExplicitBit
 
                 ' Mapear buffers
                 GL.BindBuffer(BufferTarget.ArrayBuffer, vboNormal)
@@ -1335,48 +1453,93 @@ Public Class PreviewModel
                     Marshal.Copy(New Single() {v.X, v.Y, v.Z}, 0, baseP, 3)
                 Next
 
-                ' Desmapear en orden inverso
+                ' Flush y desmapear en orden inverso
                 GL.BindBuffer(BufferTarget.ArrayBuffer, vboPosition)
+                GL.FlushMappedBufferRange(BufferTarget.ArrayBuffer, IntPtr.Zero, New IntPtr(totalBytes))
                 GL.UnmapBuffer(BufferTarget.ArrayBuffer)
 
                 GL.BindBuffer(BufferTarget.ArrayBuffer, vboBitangent)
+                GL.FlushMappedBufferRange(BufferTarget.ArrayBuffer, IntPtr.Zero, New IntPtr(totalBytes))
                 GL.UnmapBuffer(BufferTarget.ArrayBuffer)
                 GL.BindBuffer(BufferTarget.ArrayBuffer, vboTangent)
+                GL.FlushMappedBufferRange(BufferTarget.ArrayBuffer, IntPtr.Zero, New IntPtr(totalBytes))
                 GL.UnmapBuffer(BufferTarget.ArrayBuffer)
                 GL.BindBuffer(BufferTarget.ArrayBuffer, vboNormal)
+                GL.FlushMappedBufferRange(BufferTarget.ArrayBuffer, IntPtr.Zero, New IntPtr(totalBytes))
                 GL.UnmapBuffer(BufferTarget.ArrayBuffer)
                 GL.BindBuffer(BufferTarget.ArrayBuffer, 0)
 
                 MeshData.Meshgeometry.dirtyVertexIndices.Clear()
+                ' Recompute AABB after sparse update — bounds are needed for frustum culling
+                ' and blended-mesh depth sorting. Full update path already calls this above.
+                ComputeBounds()
             End If
             UpdateUpdateSkinBuffersMask_GL()
         End Sub
         Public Sub UpdateUpdateSkinBuffersMask_GL()
-            If MeshData.Meshgeometry.dirtyMaskIndices.Count > 0 Then
-                Const maskSize As Integer = 4 ' bytes por máscara
-                Dim totalMaskBytes As Integer = MeshData.Meshgeometry.VertexMask.Length * maskSize
-                ' Usar misma lógica de MapBufferRange y MapUnsynchronizedBit
-                Dim mapMask As MapBufferAccessMask = MapBufferAccessMask.MapWriteBit Or MapBufferAccessMask.MapUnsynchronizedBit
+            If MeshData Is Nothing Then Exit Sub
 
-                ' Mapear buffer de máscara
-                GL.BindBuffer(BufferTarget.ArrayBuffer, vboMask)
-                Dim ptrM As IntPtr = GL.MapBufferRange(BufferTarget.ArrayBuffer, IntPtr.Zero, totalMaskBytes, mapMask)
+            Dim geom = MeshData.Meshgeometry
+            Dim dirtyMaskIndices = geom.dirtyMaskIndices
+            Dim vertexMask = geom.VertexMask
+            Dim dirtyMaskFlags = geom.dirtyMaskFlags
 
-                ' Un solo bucle para escribir máscaras sucias
-                For Each i As Integer In MeshData.Meshgeometry.dirtyMaskIndices
-                    Dim offsetBytes As Int64 = CLng(i) * maskSize
-                    Dim baseM As IntPtr = ptrM + offsetBytes
-                    Dim mBytes() As Byte = BitConverter.GetBytes(MeshData.Meshgeometry.VertexMask(i))
-                    Marshal.Copy(mBytes, 0, baseM, maskSize)
-                    MeshData.Meshgeometry.dirtyMaskFlags(i) = False
-                Next
-
-                ' Desmapear buffer de máscara
-                GL.BindBuffer(BufferTarget.ArrayBuffer, vboMask)
-                GL.UnmapBuffer(BufferTarget.ArrayBuffer)
-                GL.BindBuffer(BufferTarget.ArrayBuffer, 0)
-                MeshData.Meshgeometry.dirtyMaskIndices.Clear()
+            If dirtyMaskIndices Is Nothing OrElse dirtyMaskIndices.Count = 0 Then Exit Sub
+            If vertexMask Is Nothing OrElse dirtyMaskFlags Is Nothing Then
+                dirtyMaskIndices.Clear()
+                Exit Sub
             End If
+            If vboMask = 0 Then
+                dirtyMaskIndices.Clear()
+                Exit Sub
+            End If
+
+            Const maskSize As Integer = 4 ' bytes por máscara
+            Dim totalMaskBytes As Integer = vertexMask.Length * maskSize
+            If totalMaskBytes <= 0 Then
+                dirtyMaskIndices.Clear()
+                Exit Sub
+            End If
+
+            ' Usar misma lógica de MapBufferRange y MapUnsynchronizedBit
+            Dim mapMask As MapBufferAccessMask = MapBufferAccessMask.MapWriteBit Or MapBufferAccessMask.MapFlushExplicitBit Or MapBufferAccessMask.MapUnsynchronizedBit
+
+            ' Mapear buffer de máscara
+            GL.BindBuffer(BufferTarget.ArrayBuffer, vboMask)
+            Dim ptrM As IntPtr = GL.MapBufferRange(BufferTarget.ArrayBuffer, IntPtr.Zero, totalMaskBytes, mapMask)
+            If ptrM = IntPtr.Zero Then
+                GL.BindBuffer(BufferTarget.ArrayBuffer, 0)
+                dirtyMaskIndices.Clear()
+                Exit Sub
+            End If
+
+            ' Un solo bucle para escribir máscaras sucias
+            For Each i As Integer In dirtyMaskIndices
+                If i < 0 OrElse i >= vertexMask.Length OrElse i >= dirtyMaskFlags.Length Then Continue For
+
+                Dim offsetBytes As Int64 = CLng(i) * maskSize
+                Dim baseM As IntPtr = ptrM + offsetBytes
+                Dim mBytes() As Byte = BitConverter.GetBytes(vertexMask(i))
+                Marshal.Copy(mBytes, 0, baseM, maskSize)
+                dirtyMaskFlags(i) = False
+            Next
+
+            ' Flush y desmapear buffer de máscara
+            GL.BindBuffer(BufferTarget.ArrayBuffer, vboMask)
+            GL.FlushMappedBufferRange(BufferTarget.ArrayBuffer, IntPtr.Zero, New IntPtr(totalMaskBytes))
+            GL.UnmapBuffer(BufferTarget.ArrayBuffer)
+            GL.BindBuffer(BufferTarget.ArrayBuffer, 0)
+            dirtyMaskIndices.Clear()
+        End Sub
+        ''' <summary>
+        ''' GPU Skinning: Updates the SSBO with current bone matrices when pose changes.
+        ''' Call this after recomputing GPUBoneMatrices for a new pose.
+        ''' </summary>
+        Public Sub UpdateBoneMatricesSSBO()
+            If ssbo_BoneMatrices = 0 OrElse MeshData.Meshgeometry.GPUBoneMatrices Is Nothing Then Exit Sub
+            GL.BindBuffer(BufferTarget.ShaderStorageBuffer, ssbo_BoneMatrices)
+            GL.BufferSubData(BufferTarget.ShaderStorageBuffer, IntPtr.Zero, MeshData.Meshgeometry.GPUBoneMatrices.Length * 64, MeshData.Meshgeometry.GPUBoneMatrices)
+            GL.BindBuffer(BufferTarget.ShaderStorageBuffer, 0)
         End Sub
 
         Public Sub SetupMesh_GL()
@@ -1447,14 +1610,107 @@ Public Class PreviewModel
             GL.EnableVertexAttribArray(7)
             GL.VertexAttribPointer(7, 1, VertexAttribPointerType.Float, False, 4, 0)
 
+            ' GPU Skinning: bone indices VBO (4 bytes per vertex, as unsigned bytes)
+            If MeshData.Meshgeometry.GPUBoneIndices IsNot Nothing AndAlso MeshData.Meshgeometry.GPUBoneIndices.Length > 0 Then
+                vboBoneIndices = GL.GenBuffer()
+                GL.BindBuffer(BufferTarget.ArrayBuffer, vboBoneIndices)
+                GL.BufferData(BufferTarget.ArrayBuffer, MeshData.Meshgeometry.GPUBoneIndices.Length, MeshData.Meshgeometry.GPUBoneIndices, BufferUsageHint.StaticDraw)
+                GL.EnableVertexAttribArray(9)
+                GL.VertexAttribPointer(9, 4, VertexAttribPointerType.UnsignedByte, False, 0, 0)
+                ' Note: UnsignedByte without normalization, shader receives as float 0-255, cast to int
+            End If
+
+            ' GPU Skinning: bone weights VBO (4 floats per vertex)
+            If MeshData.Meshgeometry.GPUBoneWeights IsNot Nothing AndAlso MeshData.Meshgeometry.GPUBoneWeights.Length > 0 Then
+                vboBoneWeights = GL.GenBuffer()
+                GL.BindBuffer(BufferTarget.ArrayBuffer, vboBoneWeights)
+                GL.BufferData(BufferTarget.ArrayBuffer, MeshData.Meshgeometry.GPUBoneWeights.Length * 4, MeshData.Meshgeometry.GPUBoneWeights, BufferUsageHint.StaticDraw)
+                GL.EnableVertexAttribArray(10)
+                GL.VertexAttribPointer(10, 4, VertexAttribPointerType.Float, False, 0, 0)
+            End If
+
+            ' GPU Skinning: SSBO for bone matrices
+            If MeshData.Meshgeometry.GPUBoneMatrices IsNot Nothing AndAlso MeshData.Meshgeometry.GPUBoneMatrices.Length > 0 Then
+                ssbo_BoneMatrices = GL.GenBuffer()
+                GL.BindBuffer(BufferTarget.ShaderStorageBuffer, ssbo_BoneMatrices)
+                GL.BufferData(BufferTarget.ShaderStorageBuffer, MeshData.Meshgeometry.GPUBoneMatrices.Length * 64, MeshData.Meshgeometry.GPUBoneMatrices, BufferUsageHint.DynamicDraw)
+                GL.BindBuffer(BufferTarget.ShaderStorageBuffer, 0)
+            End If
+
             ' EBO
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, ebo)
             GL.BufferData(BufferTarget.ElementArrayBuffer, MeshData.Meshgeometry.Indices.Length * 4, MeshData.Meshgeometry.Indices, BufferUsageHint.StaticDraw)
             GL.BindVertexArray(0)
             GL.BindBuffer(BufferTarget.ArrayBuffer, 0)
             indexCount = MeshData.Meshgeometry.Indices.Length
+
+            ' O3.3: Compute initial AABB for frustum culling
+            ComputeBounds()
         End Sub
 
+        ''' <summary>
+        ''' O3.3: Compute axis-aligned bounding box from world-space vertex positions for frustum culling.
+        ''' Uses the world-space cache (GPU skinning: Vertices are local-space, so we need world-space for correct bounds).
+        ''' </summary>
+        Public Sub ComputeBounds()
+            BoundsMin = New Vector3(Single.MaxValue)
+            BoundsMax = New Vector3(Single.MinValue)
+            Dim wv = SkinningHelper.GetWorldVertices(MeshData.Meshgeometry)
+            For Each v In wv
+                Dim vf = New Vector3(CSng(v.X), CSng(v.Y), CSng(v.Z))
+                BoundsMin = Vector3.ComponentMin(BoundsMin, vf)
+                BoundsMax = Vector3.ComponentMax(BoundsMax, vf)
+            Next
+            ' Keep SkinnedGeometry world-space bounds in sync with RenderableMesh bounds.
+            ' Meshgeometry.Minv/Maxv are used by GetSceneBounds (camera centering).
+            ' Meshgeometry.Boundingcenter is used for blended-mesh depth sorting in RenderAll.
+            ' Without this, those values stay frozen at ExtractSkinnedGeometry time and become
+            ' stale after any morph, pose, or shape update that changes world-space geometry.
+            If wv.Length > 0 Then
+                Dim bmin3 As New Vector3d(BoundsMin.X, BoundsMin.Y, BoundsMin.Z)
+                Dim bmax3 As New Vector3d(BoundsMax.X, BoundsMax.Y, BoundsMax.Z)
+                MeshData.Meshgeometry.Minv = bmin3
+                MeshData.Meshgeometry.Maxv = bmax3
+                MeshData.Meshgeometry.Boundingcenter = (bmin3 + bmax3) * 0.5
+            End If
+        End Sub
+
+        ''' <summary>
+        ''' O3.3: Test AABB against view-projection frustum using Gribb-Hartmann plane extraction.
+        ''' Returns True if the AABB is at least partially inside the frustum.
+        ''' </summary>
+        Public Shared Function IsAABBInFrustum(bmin As Vector3, bmax As Vector3, vp As Matrix4) As Boolean
+            ' Extract 6 frustum planes from the view-projection matrix (Gribb-Hartmann method)
+            ' vp is row-major in OpenTK: Row0..Row3
+            ' Plane normals point inward; a point is inside when dot+w >= 0 for all planes
+            Dim planes(5) As Vector4
+            ' Left
+            planes(0) = New Vector4(vp.M14 + vp.M11, vp.M24 + vp.M21, vp.M34 + vp.M31, vp.M44 + vp.M41)
+            ' Right
+            planes(1) = New Vector4(vp.M14 - vp.M11, vp.M24 - vp.M21, vp.M34 - vp.M31, vp.M44 - vp.M41)
+            ' Bottom
+            planes(2) = New Vector4(vp.M14 + vp.M12, vp.M24 + vp.M22, vp.M34 + vp.M32, vp.M44 + vp.M42)
+            ' Top
+            planes(3) = New Vector4(vp.M14 - vp.M12, vp.M24 - vp.M22, vp.M34 - vp.M32, vp.M44 - vp.M42)
+            ' Near
+            planes(4) = New Vector4(vp.M14 + vp.M13, vp.M24 + vp.M23, vp.M34 + vp.M33, vp.M44 + vp.M43)
+            ' Far
+            planes(5) = New Vector4(vp.M14 - vp.M13, vp.M24 - vp.M23, vp.M34 - vp.M33, vp.M44 - vp.M43)
+
+            For Each plane In planes
+                ' Pick the vertex most in the direction of the plane normal (p-vertex)
+                Dim px As Single = If(plane.X >= 0, bmax.X, bmin.X)
+                Dim py As Single = If(plane.Y >= 0, bmax.Y, bmin.Y)
+                Dim pz As Single = If(plane.Z >= 0, bmax.Z, bmin.Z)
+
+                ' If the p-vertex is outside this plane, the entire AABB is outside
+                If plane.X * px + plane.Y * py + plane.Z * pz + plane.W < 0 Then
+                    Return False
+                End If
+            Next
+
+            Return True
+        End Function
 
         Public Sub Render(projection As Matrix4, ByRef camera As OrbitCamera)
 
@@ -1483,6 +1739,12 @@ Public Class PreviewModel
             shader.SetMatrix3("mv_normalMatrix", normalMatrix)
             ApplyMaterial(MeshData.Material)
 
+            ' GPU Skinning: bind SSBO and set uniform
+            shader.SetBool("bGPUSkinning", ssbo_BoneMatrices > 0)
+            If ssbo_BoneMatrices > 0 Then
+                GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 0, ssbo_BoneMatrices)
+            End If
+
             '=============================== DRAW ===============================
             GL.BindVertexArray(vao)
             Dim mat = MeshData.Material.MaterialBase
@@ -1506,6 +1768,11 @@ Public Class PreviewModel
             Else
                 ApplyFaceMode(faceMode)
                 GL.DrawElements(PrimitiveType.Triangles, indexCount, DrawElementsType.UnsignedInt, 0)
+            End If
+
+            ' GPU Skinning: unbind SSBO after draw
+            If ssbo_BoneMatrices > 0 Then
+                GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 0, 0)
             End If
 
             ' (Opcional) restaurar estado si luego renderizas más cosas:
@@ -1822,14 +2089,16 @@ Public Class PreviewModel
                 sw.WriteLine("# Exportado por ExportMeshToOBJ")
                 sw.WriteLine("# Shape: " & MeshData.ShapeName)
 
-                ' ?? Vértices
-                For Each v In MeshData.Meshgeometry.Vertices
+                ' GPU Skinning: export world-space vertices (Vertices are now local-space)
+                Dim wv = SkinningHelper.GetWorldVertices(MeshData.Meshgeometry)
+                For Each v In wv
                     sw.WriteLine(String.Format(System.Globalization.CultureInfo.InvariantCulture, "v {0} {1} {2}", v.X, v.Y, v.Z))
                 Next
 
-                ' ?? Normales
-                If MeshData.Meshgeometry.Normals IsNot Nothing AndAlso MeshData.Meshgeometry.Normals.Length = MeshData.Meshgeometry.Vertices.Length Then
-                    For Each n In MeshData.Meshgeometry.Normals
+                ' GPU Skinning: export world-space normals
+                Dim wn = SkinningHelper.GetWorldNormals(MeshData.Meshgeometry)
+                If wn IsNot Nothing AndAlso wn.Length = wv.Length Then
+                    For Each n In wn
                         sw.WriteLine(String.Format(System.Globalization.CultureInfo.InvariantCulture, "vn {0} {1} {2}", n.X, n.Y, n.Z))
                     Next
                 End If
@@ -1966,39 +2235,260 @@ Public Class PreviewModel
         Next
     End Sub
 
-    Private ReadOnly Last_Loaded_Textures As New HashSet(Of String)
+    Private ReadOnly Last_Loaded_Textures As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+
+    ' O4.1: Background Texture Loading — two-phase pipeline
+    ' Phase 1 runs on a background thread (DDS I/O + decompression, no GL calls).
+    ' Phase 2 runs on the GL thread each frame (upload a limited batch via PBO).
+    ' Between phases, meshes are hidden (TexturesReady=False) and a status overlay is shown.
+
+    ''' <summary>
+    ''' Queue of batches produced by background DDS loading, waiting for GL upload.
+    ''' Each entry contains the texture paths and their decompressed pixel data.
+    ''' Written by background tasks, read only on the GL thread.
+    ''' </summary>
+    Private ReadOnly _pendingTextureUploads As New ConcurrentQueue(Of Dictionary(Of String, DirectXTexWrapperCLI.TextureLoaded))
+
+    ''' <summary>
+    ''' Cancellation source for the currently running background texture load.
+    ''' Replaced atomically when a new load is requested.
+    ''' </summary>
+    Private _backgroundLoadCts As Threading.CancellationTokenSource = Nothing
+
+    ''' <summary>
+    ''' The currently running background texture load task, used for awaiting/checking completion.
+    ''' </summary>
+    Private _backgroundLoadTask As Task = Task.CompletedTask
+
+    ''' <summary>
+    ''' Maximum number of individual textures to upload to GL per frame.
+    ''' Keeps frame time bounded while progressively loading textures.
+    ''' </summary>
+    Private Const MaxTextureUploadsPerFrame As Integer = 64
+
+    ''' <summary>
+    ''' Set of texture paths currently queued for background loading (to avoid duplicate loads).
+    ''' Cleared when background task completes or is cancelled.
+    ''' </summary>
+    Private ReadOnly _pendingBackgroundPaths As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+
     Public Sub Process_Textures_GL()
         If Me.ParentControl.IsDisposed Then Exit Sub
-        Me.ParentControl.MakeCurrent()
 
+        ' Collect all texture paths needed by current meshes that are not yet loaded
         Dim texturas As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
         texturas.UnionWith(
-        Me.meshes.
-            SelectMany(Function(pf) pf.MeshData.Material.Textures_Path_List).
-            Where(Function(pf) pf <> "").
-            Distinct(StringComparer.OrdinalIgnoreCase).
-            Where(Function(pf) Textures_Dictionary.ContainsKey(pf) = False))
+            Me.meshes.
+                SelectMany(Function(pf) pf.MeshData.Material.Textures_Path_List).
+                Where(Function(pf) pf <> "").
+                Distinct(StringComparer.OrdinalIgnoreCase).
+                Where(Function(pf) Textures_Dictionary.ContainsKey(pf) = False))
 
         texturas.ExceptWith(Last_Loaded_Textures)
 
+        ' Also exclude paths already queued for background loading
+        SyncLock _pendingBackgroundPaths
+            texturas.ExceptWith(_pendingBackgroundPaths)
+        End SyncLock
+
         If texturas.Count = 0 Then Exit Sub
 
-        Me.ParentControl.Processing_Status("Texturing")
+        ' Cancel any previous background load that hasn't finished
+        If _backgroundLoadCts IsNot Nothing Then
+            _backgroundLoadCts.Cancel()
+            _backgroundLoadCts.Dispose()
+        End If
+        _backgroundLoadCts = New Threading.CancellationTokenSource()
+        Dim ct = _backgroundLoadCts.Token
 
-        Dim agregar = Load_And_GenerateOpenGLTextures_FromDictionary(texturas.ToArray(), True, True)
+        ' Mark textures as not ready — meshes will be hidden until all uploads complete
+        TexturesReady = False
 
-        For Each a In agregar
-            If a.Value IsNot Nothing AndAlso a.Value.Loaded AndAlso a.Value.Texture_ID > 0 Then
-                Textures_Dictionary(a.Key) = a.Value
-                Last_Loaded_Textures.Add(a.Key)
-            Else
-                Textures_Dictionary.Remove(a.Key)
-                Last_Loaded_Textures.Remove(a.Key)
+        ' Track which paths we are about to load
+        Dim pathsArray = texturas.ToArray()
+        SyncLock _pendingBackgroundPaths
+            For Each p In pathsArray
+                _pendingBackgroundPaths.Add(p)
+            Next
+        End SyncLock
+
+        ' Capture control reference before entering the background thread
+        Dim controlRef = Me.ParentControl
+
+        ' Launch background DDS loading task (Phase 1: I/O + decompression, no GL)
+        _backgroundLoadTask = Task.Run(
+            Sub()
+                Try
+                    ct.ThrowIfCancellationRequested()
+                    Dim loaded = DirectXDDSLoader.LoadTexturesFromDictionary_Background(
+                        pathsArray, useCompress:=True, forceOpenGL:=True, ct:=ct)
+
+                    ct.ThrowIfCancellationRequested()
+
+                    ' Enqueue result for GL-thread upload (Phase 2)
+                    _pendingTextureUploads.Enqueue(loaded)
+
+                    ' Signal the GL thread to wake up and process pending uploads.
+                    ' Without this, textures stay as fallback until the user interacts (rotate/zoom).
+                    If controlRef IsNot Nothing AndAlso Not controlRef.IsDisposed AndAlso controlRef.IsHandleCreated Then
+                        controlRef.BeginInvoke(Sub()
+                                                   controlRef.updateRequired = True
+                                                   controlRef.Invalidate()
+                                               End Sub)
+                    End If
+                Catch ex As OperationCanceledException
+                    ' Cancelled — remove paths from pending set so they can be retried
+                    SyncLock _pendingBackgroundPaths
+                        For Each p In pathsArray
+                            _pendingBackgroundPaths.Remove(p)
+                        Next
+                    End SyncLock
+                Catch ex As Exception
+                    ' On unexpected failure, remove pending paths and log
+                    SyncLock _pendingBackgroundPaths
+                        For Each p In pathsArray
+                            _pendingBackgroundPaths.Remove(p)
+                        Next
+                    End SyncLock
+                    Debug.Print($"[O4.1] Background texture load failed: {ex.Message}")
+                End Try
+            End Sub, ct)
+
+        ' Return immediately — meshes are hidden (TexturesReady=False) until
+        ' ProcessPendingTextureUploads() uploads all textures and sets TexturesReady=True.
+    End Sub
+
+    ''' <summary>
+    ''' O4.1 Phase 2 — Called on the GL thread each frame (from RenderAll).
+    ''' Drains the pending texture upload queue, uploading up to MaxTextureUploadsPerFrame
+    ''' textures per frame to avoid frame-time spikes.
+    ''' Updates Textures_Dictionary with the new GL texture IDs and triggers a repaint.
+    ''' </summary>
+    Public Sub ProcessPendingTextureUploads()
+        If Me.ParentControl.IsDisposed Then Exit Sub
+
+        Dim uploadedThisFrame As Integer = 0
+        Dim anyUploaded As Boolean = False
+
+        ' Process batches from the queue
+        If Not _pendingTextureUploads.IsEmpty Then
+            While Not _pendingTextureUploads.IsEmpty AndAlso uploadedThisFrame < MaxTextureUploadsPerFrame
+                Dim batch As Dictionary(Of String, DirectXTexWrapperCLI.TextureLoaded) = Nothing
+
+                ' Peek at current batch; we may not finish it in one frame
+                If Not _pendingTextureUploads.TryPeek(batch) Then Exit While
+                If batch Is Nothing Then
+                    _pendingTextureUploads.TryDequeue(batch)
+                    Continue While
+                End If
+
+                ' Upload textures from this batch, up to per-frame limit
+                Dim keysToRemove As New List(Of String)
+                For Each kvp In batch
+                    If uploadedThisFrame >= MaxTextureUploadsPerFrame Then Exit For
+
+                    Dim path = kvp.Key
+                    Dim tex = kvp.Value
+
+                    Try
+                        Dim result = DirectXDDSLoader.UploadTextureToGL(tex, path)
+
+                        If result IsNot Nothing AndAlso result.Loaded AndAlso result.Texture_ID > 0 Then
+                            Textures_Dictionary(path) = result
+                            Last_Loaded_Textures.Add(path)
+                        Else
+                            ' Failed to upload — don't add to dictionary, remove from Last_Loaded
+                            Textures_Dictionary.Remove(path)
+                            Last_Loaded_Textures.Remove(path)
+                        End If
+                    Catch ex As Exception
+                        ' Silently skip this texture on error — mesh will use fallback
+                        Debug.Print($"[O4.1] GL upload failed for '{path}': {ex.Message}")
+                        Textures_Dictionary.Remove(path)
+                        Last_Loaded_Textures.Remove(path)
+                    End Try
+
+                    ' Remove from pending tracking
+                    SyncLock _pendingBackgroundPaths
+                        _pendingBackgroundPaths.Remove(path)
+                    End SyncLock
+
+                    keysToRemove.Add(path)
+                    uploadedThisFrame += 1
+                    anyUploaded = True
+                Next
+
+                ' Remove uploaded entries from the batch
+                For Each key In keysToRemove
+                    batch.Remove(key)
+                Next
+
+                ' If the batch is now empty, dequeue it
+                If batch.Count = 0 Then
+                    _pendingTextureUploads.TryDequeue(batch)
+                Else
+                    ' Batch still has remaining textures — stop for this frame
+                    Exit While
+                End If
+            End While
+        End If
+
+        ' If textures were uploaded, rebuild render buckets (for texture sort order)
+        ' and trigger a repaint so the new textures are visible immediately
+        If anyUploaded Then
+            MarkRenderBucketsDirty()
+            ParentControl.updateRequired = True
+            ParentControl.Invalidate()
+        End If
+
+        ' If there are STILL pending textures (batch not fully processed or more batches),
+        ' keep the render loop active so the next frame processes more uploads
+        If Not _pendingTextureUploads.IsEmpty Then
+            ParentControl.updateRequired = True
+        End If
+
+        ' Check if all textures are now loaded (queue empty AND no background task running).
+        ' Before declaring Ready, call Process_Textures_GL to catch any textures that were
+        ' dropped due to a prior cancellation (cancel removes paths from _pendingBackgroundPaths
+        ' but the new task may not have included them, leaving them unloaded indefinitely).
+        If _pendingTextureUploads.IsEmpty AndAlso (_backgroundLoadTask Is Nothing OrElse _backgroundLoadTask.IsCompleted) Then
+            Process_Textures_GL()  ' no-op if all mesh textures are already loaded or pending
+            ' Only mark Ready if the retry check found nothing new to queue
+            If _pendingTextureUploads.IsEmpty AndAlso (_backgroundLoadTask Is Nothing OrElse _backgroundLoadTask.IsCompleted) Then
+                If Not TexturesReady Then
+                    TexturesReady = True
+                    ParentControl.updateRequired = True
+                    ParentControl.Invalidate()
+                End If
             End If
-        Next
+        End If
     End Sub
 
     Public Sub CleanTextures()
+        ' O4.1: Cancel any in-flight background texture load and drain the pending queue
+        If _backgroundLoadCts IsNot Nothing Then
+            _backgroundLoadCts.Cancel()
+            _backgroundLoadCts.Dispose()
+            _backgroundLoadCts = Nothing
+        End If
+        ' Drain and discard pending uploads (free decompressed pixel data)
+        Dim discarded As Dictionary(Of String, DirectXTexWrapperCLI.TextureLoaded) = Nothing
+        While _pendingTextureUploads.TryDequeue(discarded)
+            If discarded IsNot Nothing Then
+                For Each kvp In discarded
+                    If kvp.Value IsNot Nothing AndAlso kvp.Value.Levels IsNot Nothing Then
+                        For Each lvl In kvp.Value.Levels
+                            lvl.Data = Nothing
+                        Next
+                        kvp.Value.Levels.Clear()
+                    End If
+                Next
+            End If
+        End While
+        SyncLock _pendingBackgroundPaths
+            _pendingBackgroundPaths.Clear()
+        End SyncLock
+
         ' — Eliminar texturas cargadas —
         Dim seen As New HashSet(Of UInteger)
         For Each texID In Textures_Dictionary.Values.Select(Function(pf) pf.Texture_ID)
@@ -2010,10 +2500,23 @@ Public Class PreviewModel
         ' Limpia diccionario
         Textures_Dictionary.Clear()
         Last_Loaded_Textures.Clear()
+        ' Clear the raw-bytes cache so that loose .dds/.bgsm files modified on disk
+        ' while the app is running are re-read fresh on the next load, not returned stale.
+        FilesDictionary_class.ClearBytesCache()
     End Sub
     Public Sub CleanSingleTexture(Cual As String)
         Try
             Cual = FO4UnifiedMaterial_Class.CorrectTexturePath(Cual)
+            ' O4.1: Also remove from pending background paths so it can be re-requested
+            SyncLock _pendingBackgroundPaths
+                _pendingBackgroundPaths.Remove(Cual)
+            End SyncLock
+            ' Remove from any already-decoded batches waiting in _pendingTextureUploads.
+            ' Without this, a batch queued before the single-texture invalidation can re-upload
+            ' the obsolete GL texture right after we deleted it (hot-reload race condition).
+            For Each batch In _pendingTextureUploads
+                batch.Remove(Cual)
+            Next
             ' — Eliminar texturas cargadas —
             Dim seen As New HashSet(Of UInteger)
             For Each texID In Textures_Dictionary.Values.Where(Function(pf) pf.Path.Equals(Cual, StringComparison.OrdinalIgnoreCase)).Select(Function(pf) pf.Texture_ID)
@@ -2032,6 +2535,7 @@ Public Class PreviewModel
     Public Sub Clean(ShowText As Boolean)
         Cleaned = True
         Can_Render = False
+        TexturesReady = True
         If Not IsNothing(ParentControl.RenderTimer) Then ParentControl.RenderTimer.Stop()
         ParentControl.MakeCurrent()
         ParentControl.updateRequired = True
@@ -2061,30 +2565,58 @@ Public Class PreviewModel
     End Structure
     Public Property FloorOffset As Double = -0.00F
     Public Sub RenderAll(projection As Matrix4, camera As OrbitCamera)
+        ' O4.1: Process pending background texture uploads (Phase 2) each frame
+        ProcessPendingTextureUploads()
+
+        ' Hide meshes while textures are still loading — show status overlay instead
+        If Not TexturesReady Then
+            If Floor IsNot Nothing AndAlso Floor.Enabled = True Then Floor.Render(projection, camera, FloorOffset)
+            ParentControl.Processing_Status("Texturing...")
+            ParentControl.updateRequired = True
+            Exit Sub
+        End If
+
         If Floor IsNot Nothing AndAlso Floor.Enabled = True Then Floor.Render(projection, camera, FloorOffset)
-        If meshes.Count = 0 OrElse meshes(0).MeshData.Shape.ParentSliderSet.ShapeDataLoaded = False Then Exit Sub
+        If meshes.Count = 0 Then Exit Sub
+        ' Note: ShapeDataLoaded is intentionally NOT checked here. Each mesh.Render() guards
+        ' against null RelatedNifShape internally. Checking ShapeDataLoaded at this level would
+        ' stop rendering all meshes whose VBOs are still valid just because the CPU-side shapedata
+        ' was evicted by the LRU, which is an unnecessary regression in render quality.
 
         If RenderBucketsDirty OrElse (OpaqueMeshes.Count + CutoutMeshes.Count + BlendedMeshes.Count) <> meshes.Count Then
             RebuildRenderBuckets()
+
+            ' O3.5: Sort opaque and cutout meshes by diffuse texture ID to minimize GL state changes.
+            ' Texture binds are expensive; grouping meshes with the same textures reduces bind calls.
+            OpaqueMeshes.Sort(Function(a, b) a.MeshData.Material.DiffuseTexture_ID.CompareTo(b.MeshData.Material.DiffuseTexture_ID))
+            CutoutMeshes.Sort(Function(a, b) a.MeshData.Material.DiffuseTexture_ID.CompareTo(b.MeshData.Material.DiffuseTexture_ID))
         End If
+
+        ' O3.3: Compute view-projection matrix for frustum culling
+        Dim viewMatrix = camera.GetViewMatrix()
+        Dim vp As Matrix4 = viewMatrix * projection
 
         ' 1. OPAQUE — sin blending, depth write habilitado
         For Each mesh In OpaqueMeshes
+            ' O3.3: Skip meshes whose AABB is entirely outside the view frustum
+            If Not RenderableMesh.IsAABBInFrustum(mesh.BoundsMin, mesh.BoundsMax, vp) Then Continue For
             mesh.Render(projection, camera)
         Next
 
         ' 2. CUTOUT — alpha test, sin blending, depth write habilitado
         For Each mesh In CutoutMeshes
+            If Not RenderableMesh.IsAABBInFrustum(mesh.BoundsMin, mesh.BoundsMax, vp) Then Continue For
             mesh.Render(projection, camera)
         Next
 
         If BlendedMeshes.Count = 0 Then Exit Sub
 
         ' 3. BLENDED — requiere ordenamiento por profundidad
-        Dim viewMatrix = camera.GetViewMatrix()
         BlendedDepthBuffer.Clear()
 
         For Each mesh In BlendedMeshes
+            ' O3.3: Frustum cull blended meshes too
+            If Not RenderableMesh.IsAABBInFrustum(mesh.BoundsMin, mesh.BoundsMax, vp) Then Continue For
             Dim viewPos = Vector3.TransformPosition(mesh.MeshData.Meshgeometry.Boundingcenter, viewMatrix)
             BlendedDepthBuffer.Add(New MeshDepth With {.Mesh = mesh, .Depth = -viewPos.Z})
         Next

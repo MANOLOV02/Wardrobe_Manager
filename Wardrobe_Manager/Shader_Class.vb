@@ -64,6 +64,15 @@ layout(location = 5) in float vertexAlpha;
 layout(location = 6) in vec2 vertexUV;
 layout(location = 7) in float vertexMask;
 layout(location = 8) in float vertexWeight;
+layout(location = 9) in vec4 boneIndicesF;   // bone palette indices as float (cast to int in shader)
+layout(location = 10) in vec4 boneWeightsIn; // normalized bone weights
+
+layout(std430, binding = 0) buffer BoneMatrices {
+    mat4 bones[];
+};
+uniform bool bGPUSkinning;  // toggle: if false, vertices are already in world space (CPU fallback)
+// SYNC: this GPU skinning block (locations 9-10, BoneMatrices SSBO, bGPUSkinning) and the
+//       skinning code in main() are duplicated in Shader_Class_FO4 and Shader_Class_SSE. Keep both in sync.
 
 struct DirectionalLight
 {
@@ -136,13 +145,13 @@ void main(void)
     ZappedVert = 0;
     if (bApplyZap)
     {
-     if (vertexMask<0)    
+     if (vertexMask<0)
       ZappedVert = 1;
     }
 	if (bShowMask)
 	{
 		maskFactor = 1.0 - vertexMask / 1.5;
-    
+
     if (ZappedVert==1) //zapped
         {
     		maskFactor = 1.0 - (-vertexMask) / 1.5;
@@ -163,13 +172,51 @@ void main(void)
 		vColor.a = vertexAlpha;
 	}
 
-	// Eye-coordinate position of vertex
-	vec3 vPos = vec3(matModelView * vec4(vertexPosition, 1.0));
+	// GPU Skinning
+	vec3 skinnedPos;
+	vec3 skinnedNormal;
+	vec3 skinnedTangent;
+	vec3 skinnedBitangent;
+
+	if (bGPUSkinning) {
+	    // GPU skinning: blend bone matrices
+	    ivec4 bIdx = ivec4(boneIndicesF);
+	    vec4 bWgt = boneWeightsIn;
+
+	    mat4 skinMatrix = mat4(0.0);
+	    // Accumulate weighted bone matrices
+	    if (bWgt.x > 0.0) skinMatrix += bones[bIdx.x] * bWgt.x;
+	    if (bWgt.y > 0.0) skinMatrix += bones[bIdx.y] * bWgt.y;
+	    if (bWgt.z > 0.0) skinMatrix += bones[bIdx.z] * bWgt.z;
+	    if (bWgt.w > 0.0) skinMatrix += bones[bIdx.w] * bWgt.w;
+
+	    // If no weights at all, use identity
+	    float totalWeight = bWgt.x + bWgt.y + bWgt.z + bWgt.w;
+	    if (totalWeight < 0.001) skinMatrix = mat4(1.0);
+
+	    skinnedPos = vec3(skinMatrix * vec4(vertexPosition, 1.0));
+
+	    // Normal matrix from skin matrix (transpose of inverse of upper-left 3x3)
+	    mat3 skinNormalMat = mat3(skinMatrix);
+	    skinnedNormal = normalize(skinNormalMat * vertexNormal);
+	    skinnedTangent = normalize(skinNormalMat * vertexTangent);
+	    skinnedBitangent = normalize(skinNormalMat * vertexBitangent);
+	} else {
+	    // CPU skinning fallback: vertices already in world space
+	    skinnedPos = vertexPosition;
+	    skinnedNormal = vertexNormal;
+	    skinnedTangent = vertexTangent;
+	    skinnedBitangent = vertexBitangent;
+	}
+
+	// Eye-coordinate position of vertex (now using skinned position)
+	vec3 vPos = vec3(matModelView * vec4(skinnedPos, 1.0));
 	gl_Position = matProjection * vec4(vPos, 1.0);
 
-	vec3 mv_normal = mv_normalMatrix * vertexNormal;
-	vec3 mv_tangent = mv_normalMatrix * vertexTangent;
-	vec3 mv_bitangent = mv_normalMatrix * vertexBitangent;
+	// TBN in view space
+	vec3 mv_normal = mv_normalMatrix * skinnedNormal;
+	vec3 mv_tangent = mv_normalMatrix * skinnedTangent;
+	vec3 mv_bitangent = mv_normalMatrix * skinnedBitangent;
 
     mv_tbn = mat3(mv_tangent.x,   mv_tangent.y,   mv_tangent.z,
               mv_bitangent.x, mv_bitangent.y, mv_bitangent.z,
@@ -205,7 +252,7 @@ void main(void)
  * Shaders by jonwd7 and ousnius
  * https://github.com/ousnius/BodySlide-and-Outfit-Studio
  * http://www.niftools.org/
- * Modified By Manolo For WardrobeManager 
+ * Modified By Manolo For WardrobeManager
  */
 
 uniform sampler2D texDiffuse;
@@ -241,6 +288,7 @@ uniform bool bHide;
 
 uniform mat4 matModel;
 uniform mat4 matModelViewInverse;
+uniform mat3 mv_normalMatrix;
 uniform float DebugMode;
 
 uniform	vec2 uvOffset;
@@ -530,7 +578,7 @@ void main(void)
 				if (bNormalMap)
 				{
 					normalMap = texture(texNormal, uv);
-                
+
 					if (bSpecular)
 					{
 						// Specular Map
@@ -628,7 +676,7 @@ void main(void)
 	}
 	else
 	{
-    vec3 shaded = color.rgb ;  
+    vec3 shaded = color.rgb ;
      if (bShowTexture)
      {
      shaded=texture(texDiffuse, uv).rgb;
@@ -651,7 +699,7 @@ if (DebugMode > 0.0) {
     vec3 dbgNormal   = normalize(mv_tbn * vec3(0.0, 0.0, 1.0));
 
 
-    // Mapeo de –1..1 a 0..1 para visualizar en color
+    // Mapeo de -1..1 a 0..1 para visualizar en color
     dbgNormal    = dbgNormal    * 0.5 + 0.5;
     dbgTangent   = dbgTangent   * 0.5 + 0.5;
     dbgBitangent = dbgBitangent * 0.5 + 0.5;
@@ -668,49 +716,54 @@ if (DebugMode > 0.0) {
         // Modo 3: bitangentes
         fragColor = vec4(dbgBitangent, 1.0);
     }
-else if (abs(DebugMode - 4.0) < 0.5) {
-    vec3 Tm = normalize(mv_tbn * vec3(1.0, 0.0, 0.0));
-    vec3 Bm = normalize(mv_tbn * vec3(0.0, 1.0, 0.0));
-    vec3 Nm = normalize(mv_tbn * vec3(0.0, 0.0, 1.0));
+    else if (abs(DebugMode - 4.0) < 0.5) {
+        // Modo 4: TBN error comparison (no MSN in FO4)
+        vec3 Tm = normalize(mv_tbn * vec3(1.0, 0.0, 0.0));
+        vec3 Bm = normalize(mv_tbn * vec3(0.0, 1.0, 0.0));
+        vec3 Nm = normalize(mv_tbn * vec3(0.0, 0.0, 1.0));
 
-    vec3 Tgs = normalize(Tm - Nm * dot(Nm, Tm));
-    vec3 Bx  = normalize(cross(Nm, Tgs));
-    float h  = sign(dot(Bm, Bx));
-    mat3 tbn_fixed = mat3(Tgs, Bx * h, Nm);
+        vec3 Tgs = normalize(Tm - Nm * dot(Nm, Tm));
+        vec3 Bx  = normalize(cross(Nm, Tgs));
+        float h  = sign(dot(Bm, Bx));
+        mat3 tbn_fixed = mat3(Tgs, Bx * h, Nm);
 
-    vec3 n_ts = vec3(0.0, 0.0, 1.0);
-    if (bShowTexture && bNormalMap && !bModelSpace) {
-        vec3 nm = texture(texNormal, uv).rgb * 2.0 - 1.0;
-        nm.z = sqrt(max(FLT_EPSILON, 1.0 - dot(nm.xy, nm.xy)));
-        n_ts = nm;
+        vec3 n_ts = vec3(0.0, 0.0, 1.0);
+        vec3 nA;
+        vec3 nB;
+        if (bShowTexture && bNormalMap) {
+            vec3 nm = texture(texNormal, uv).rgb * 2.0 - 1.0;
+            nm.z = sqrt(max(FLT_EPSILON, 1.0 - dot(nm.xy, nm.xy)));
+            n_ts = nm;
+            nA = normalize(mv_tbn   * n_ts);
+            nB = normalize(tbn_fixed * n_ts);
+        } else {
+            nA = normalize(mv_tbn   * n_ts);
+            nB = normalize(tbn_fixed * n_ts);
+        }
+
+        float errN = 0.5 * length(nA - nB);
+
+        float IA = max(dot(nA, lightFrontal), 0.0)
+                 + max(dot(nA, lightDirectional0), 0.0)
+                 + max(dot(nA, lightDirectional1), 0.0)
+                 + max(dot(nA, lightDirectional2), 0.0);
+
+        float IB = max(dot(nB, lightFrontal), 0.0)
+                 + max(dot(nB, lightDirectional0), 0.0)
+                 + max(dot(nB, lightDirectional1), 0.0)
+                 + max(dot(nB, lightDirectional2), 0.0);
+
+        float errL = abs(IA - IB);
+
+        float E = clamp(max(errN, errL), 0.0, 1.0);
+
+        float good = 1.0 - smoothstep(0.0, 0.15, E);
+        float bad  = smoothstep(0.0, 0.15, E);
+        float hvis = h * 0.5 + 0.5;
+
+        fragColor = vec4(bad, good, hvis, 1.0);
+        return;
     }
-
-    vec3 nA = normalize(mv_tbn   * n_ts);
-    vec3 nB = normalize(tbn_fixed * n_ts);
-
-    float errN = 0.5 * length(nA - nB);
-
-    float IA = max(dot(nA, lightFrontal), 0.0)
-             + max(dot(nA, lightDirectional0), 0.0)
-             + max(dot(nA, lightDirectional1), 0.0)
-             + max(dot(nA, lightDirectional2), 0.0);
-
-    float IB = max(dot(nB, lightFrontal), 0.0)
-             + max(dot(nB, lightDirectional0), 0.0)
-             + max(dot(nB, lightDirectional1), 0.0)
-             + max(dot(nB, lightDirectional2), 0.0);
-
-    float errL = abs(IA - IB);
-
-    float E = clamp(max(errN, errL), 0.0, 1.0);
-
-    float good = 1.0 - smoothstep(0.0, 0.15, E);
-    float bad  = smoothstep(0.0, 0.15, E);
-    float hvis = h * 0.5 + 0.5;
-
-    fragColor = vec4(bad, good, hvis, 1.0);
-    return;
-}
 }
 //===================END DEBUG MODE=======================
 
@@ -750,7 +803,6 @@ End Class
 
 Public Class Shader_Class_SSE
     Inherits Shader_Base_Class
-    ' THIS IS FOR NOW A COPY OF FO4 SHADER . I NEED TO CHANGE IT TO SSE
     Private Const VertexShaderSourceString As String = "
 #version 440
 uniform mat4 matProjection;
@@ -765,7 +817,6 @@ uniform bool bShowTexture;
 uniform bool bShowMask;
 uniform bool softlighting;
 uniform bool bLightmask;
-
 uniform bool bShowWeight;
 uniform bool bShowVertexColor;
 uniform bool bShowVertexAlpha;
@@ -782,6 +833,15 @@ layout(location = 5) in float vertexAlpha;
 layout(location = 6) in vec2 vertexUV;
 layout(location = 7) in float vertexMask;
 layout(location = 8) in float vertexWeight;
+layout(location = 9) in vec4 boneIndicesF;   // bone palette indices as float (cast to int in shader)
+layout(location = 10) in vec4 boneWeightsIn; // normalized bone weights
+
+layout(std430, binding = 0) buffer BoneMatrices {
+    mat4 bones[];
+};
+uniform bool bGPUSkinning;  // toggle: if false, vertices are already in world space (CPU fallback)
+// SYNC: this GPU skinning block (locations 9-10, BoneMatrices SSBO, bGPUSkinning) and the
+//       skinning code in main() are duplicated in Shader_Class_FO4 and Shader_Class_SSE. Keep both in sync.
 
 struct DirectionalLight
 {
@@ -854,13 +914,13 @@ void main(void)
     ZappedVert = 0;
     if (bApplyZap)
     {
-     if (vertexMask<0)    
+     if (vertexMask<0)
       ZappedVert = 1;
     }
 	if (bShowMask)
 	{
 		maskFactor = 1.0 - vertexMask / 1.5;
-    
+
     if (ZappedVert==1) //zapped
         {
     		maskFactor = 1.0 - (-vertexMask) / 1.5;
@@ -881,13 +941,51 @@ void main(void)
 		vColor.a = vertexAlpha;
 	}
 
-	// Eye-coordinate position of vertex
-	vec3 vPos = vec3(matModelView * vec4(vertexPosition, 1.0));
+	// GPU Skinning
+	vec3 skinnedPos;
+	vec3 skinnedNormal;
+	vec3 skinnedTangent;
+	vec3 skinnedBitangent;
+
+	if (bGPUSkinning) {
+	    // GPU skinning: blend bone matrices
+	    ivec4 bIdx = ivec4(boneIndicesF);
+	    vec4 bWgt = boneWeightsIn;
+
+	    mat4 skinMatrix = mat4(0.0);
+	    // Accumulate weighted bone matrices
+	    if (bWgt.x > 0.0) skinMatrix += bones[bIdx.x] * bWgt.x;
+	    if (bWgt.y > 0.0) skinMatrix += bones[bIdx.y] * bWgt.y;
+	    if (bWgt.z > 0.0) skinMatrix += bones[bIdx.z] * bWgt.z;
+	    if (bWgt.w > 0.0) skinMatrix += bones[bIdx.w] * bWgt.w;
+
+	    // If no weights at all, use identity
+	    float totalWeight = bWgt.x + bWgt.y + bWgt.z + bWgt.w;
+	    if (totalWeight < 0.001) skinMatrix = mat4(1.0);
+
+	    skinnedPos = vec3(skinMatrix * vec4(vertexPosition, 1.0));
+
+	    // Normal matrix from skin matrix (transpose of inverse of upper-left 3x3)
+	    mat3 skinNormalMat = mat3(skinMatrix);
+	    skinnedNormal = normalize(skinNormalMat * vertexNormal);
+	    skinnedTangent = normalize(skinNormalMat * vertexTangent);
+	    skinnedBitangent = normalize(skinNormalMat * vertexBitangent);
+	} else {
+	    // CPU skinning fallback: vertices already in world space
+	    skinnedPos = vertexPosition;
+	    skinnedNormal = vertexNormal;
+	    skinnedTangent = vertexTangent;
+	    skinnedBitangent = vertexBitangent;
+	}
+
+	// Eye-coordinate position of vertex (now using skinned position)
+	vec3 vPos = vec3(matModelView * vec4(skinnedPos, 1.0));
 	gl_Position = matProjection * vec4(vPos, 1.0);
 
-	vec3 mv_normal = mv_normalMatrix * vertexNormal;
-	vec3 mv_tangent = mv_normalMatrix * vertexTangent;
-	vec3 mv_bitangent = mv_normalMatrix * vertexBitangent;
+	// TBN in view space
+	vec3 mv_normal = mv_normalMatrix * skinnedNormal;
+	vec3 mv_tangent = mv_normalMatrix * skinnedTangent;
+	vec3 mv_bitangent = mv_normalMatrix * skinnedBitangent;
 
     mv_tbn = mat3(mv_tangent.x,   mv_tangent.y,   mv_tangent.z,
               mv_bitangent.x, mv_bitangent.y, mv_bitangent.z,
@@ -923,7 +1021,7 @@ void main(void)
  * Shaders by jonwd7 and ousnius
  * https://github.com/ousnius/BodySlide-and-Outfit-Studio
  * http://www.niftools.org/
- * Modified By Manolo For WardrobeManager 
+ * Modified By Manolo For WardrobeManager
  */
 
 uniform sampler2D texDiffuse;
@@ -959,6 +1057,7 @@ uniform bool bHide;
 
 uniform mat4 matModel;
 uniform mat4 matModelViewInverse;
+uniform mat3 mv_normalMatrix;
 uniform float DebugMode;
 
 uniform	vec2 uvOffset;
@@ -1248,7 +1347,7 @@ void main(void)
 				if (bNormalMap)
 				{
 					normalMap = texture(texNormal, uv);
-                
+
 					if (bSpecular)
 					{
 						// Specular Map
@@ -1346,7 +1445,7 @@ void main(void)
 	}
 	else
 	{
-    vec3 shaded = color.rgb ;  
+    vec3 shaded = color.rgb ;
      if (bShowTexture)
      {
      shaded=texture(texDiffuse, uv).rgb;
@@ -1368,8 +1467,7 @@ if (DebugMode > 0.0) {
     vec3 dbgBitangent= normalize(mv_tbn * vec3(0.0, 1.0, 0.0));
     vec3 dbgNormal   = normalize(mv_tbn * vec3(0.0, 0.0, 1.0));
 
-
-    // Mapeo de –1..1 a 0..1 para visualizar en color
+    // Mapeo de -1..1 a 0..1 para visualizar en color
     dbgNormal    = dbgNormal    * 0.5 + 0.5;
     dbgTangent   = dbgTangent   * 0.5 + 0.5;
     dbgBitangent = dbgBitangent * 0.5 + 0.5;
@@ -1386,49 +1484,54 @@ if (DebugMode > 0.0) {
         // Modo 3: bitangentes
         fragColor = vec4(dbgBitangent, 1.0);
     }
-else if (abs(DebugMode - 4.0) < 0.5) {
-    vec3 Tm = normalize(mv_tbn * vec3(1.0, 0.0, 0.0));
-    vec3 Bm = normalize(mv_tbn * vec3(0.0, 1.0, 0.0));
-    vec3 Nm = normalize(mv_tbn * vec3(0.0, 0.0, 1.0));
+    else if (abs(DebugMode - 4.0) < 0.5) {
+        // Modo 4: TBN error comparison (no MSN in FO4)
+        vec3 Tm = normalize(mv_tbn * vec3(1.0, 0.0, 0.0));
+        vec3 Bm = normalize(mv_tbn * vec3(0.0, 1.0, 0.0));
+        vec3 Nm = normalize(mv_tbn * vec3(0.0, 0.0, 1.0));
 
-    vec3 Tgs = normalize(Tm - Nm * dot(Nm, Tm));
-    vec3 Bx  = normalize(cross(Nm, Tgs));
-    float h  = sign(dot(Bm, Bx));
-    mat3 tbn_fixed = mat3(Tgs, Bx * h, Nm);
+        vec3 Tgs = normalize(Tm - Nm * dot(Nm, Tm));
+        vec3 Bx  = normalize(cross(Nm, Tgs));
+        float h  = sign(dot(Bm, Bx));
+        mat3 tbn_fixed = mat3(Tgs, Bx * h, Nm);
 
-    vec3 n_ts = vec3(0.0, 0.0, 1.0);
-    if (bShowTexture && bNormalMap && !bModelSpace) {
-        vec3 nm = texture(texNormal, uv).rgb * 2.0 - 1.0;
-        nm.z = sqrt(max(FLT_EPSILON, 1.0 - dot(nm.xy, nm.xy)));
-        n_ts = nm;
+        vec3 n_ts = vec3(0.0, 0.0, 1.0);
+        vec3 nA;
+        vec3 nB;
+        if (bShowTexture && bNormalMap) {
+            vec3 nm = texture(texNormal, uv).rgb * 2.0 - 1.0;
+            nm.z = sqrt(max(FLT_EPSILON, 1.0 - dot(nm.xy, nm.xy)));
+            n_ts = nm;
+            nA = normalize(mv_tbn   * n_ts);
+            nB = normalize(tbn_fixed * n_ts);
+        } else {
+            nA = normalize(mv_tbn   * n_ts);
+            nB = normalize(tbn_fixed * n_ts);
+        }
+
+        float errN = 0.5 * length(nA - nB);
+
+        float IA = max(dot(nA, lightFrontal), 0.0)
+                 + max(dot(nA, lightDirectional0), 0.0)
+                 + max(dot(nA, lightDirectional1), 0.0)
+                 + max(dot(nA, lightDirectional2), 0.0);
+
+        float IB = max(dot(nB, lightFrontal), 0.0)
+                 + max(dot(nB, lightDirectional0), 0.0)
+                 + max(dot(nB, lightDirectional1), 0.0)
+                 + max(dot(nB, lightDirectional2), 0.0);
+
+        float errL = abs(IA - IB);
+
+        float E = clamp(max(errN, errL), 0.0, 1.0);
+
+        float good = 1.0 - smoothstep(0.0, 0.15, E);
+        float bad  = smoothstep(0.0, 0.15, E);
+        float hvis = h * 0.5 + 0.5;
+
+        fragColor = vec4(bad, good, hvis, 1.0);
+        return;
     }
-
-    vec3 nA = normalize(mv_tbn   * n_ts);
-    vec3 nB = normalize(tbn_fixed * n_ts);
-
-    float errN = 0.5 * length(nA - nB);
-
-    float IA = max(dot(nA, lightFrontal), 0.0)
-             + max(dot(nA, lightDirectional0), 0.0)
-             + max(dot(nA, lightDirectional1), 0.0)
-             + max(dot(nA, lightDirectional2), 0.0);
-
-    float IB = max(dot(nB, lightFrontal), 0.0)
-             + max(dot(nB, lightDirectional0), 0.0)
-             + max(dot(nB, lightDirectional1), 0.0)
-             + max(dot(nB, lightDirectional2), 0.0);
-
-    float errL = abs(IA - IB);
-
-    float E = clamp(max(errN, errL), 0.0, 1.0);
-
-    float good = 1.0 - smoothstep(0.0, 0.15, E);
-    float bad  = smoothstep(0.0, 0.15, E);
-    float hvis = h * 0.5 + 0.5;
-
-    fragColor = vec4(bad, good, hvis, 1.0);
-    return;
-}
 }
 //===================END DEBUG MODE=======================
 
@@ -1460,7 +1563,6 @@ if (bHide)
 
 }
 "
-
     Sub New()
         MyBase.New(VertexShaderSourceString, FragmentShaderSourceString)
     End Sub

@@ -167,7 +167,11 @@ Public Class Conform_Form
                         If slider Is Nothing Then Continue For
 
                         Dim dat = slider.Datas.FirstOrDefault(
-                            Function(d) d.Target.Equals(sourceShape.Target, StringComparison.OrdinalIgnoreCase))
+                            Function(d) d.Target.Equals(sourceShape.Target, StringComparison.OrdinalIgnoreCase) AndAlso d.Islocal)
+                        If dat Is Nothing Then
+                            dat = slider.Datas.FirstOrDefault(
+                                Function(d) d.Target.Equals(sourceShape.Target, StringComparison.OrdinalIgnoreCase))
+                        End If
                         If dat Is Nothing Then Continue For
 
                         Dim block = dat.RelatedOSDBlocks.FirstOrDefault()

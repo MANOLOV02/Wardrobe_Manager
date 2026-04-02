@@ -2051,7 +2051,7 @@ Public Class DictionaryFilePickerEditor
     Public Overrides Function EditValue(context As ITypeDescriptorContext, provider As IServiceProvider, value As Object) As Object
         Dim dictProvider = FilesDictionary_class.TexturesDictionary_Filter.DictionaryProvider
         If dictProvider Is Nothing Then
-            MessageBox.Show("Configurar DictionaryFilePickerConfig.DictionaryProvider antes de usar.", "Selector (diccionario)", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            MessageBox.Show("Set DictionaryFilePickerConfig.DictionaryProvider before using.", "Dictionary Selector", MessageBoxButtons.OK, MessageBoxIcon.Warning)
             Return value
         End If
 

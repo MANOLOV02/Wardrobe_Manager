@@ -141,11 +141,23 @@ Public NotInheritable Class SkeletonClothOverlayHelper_Class
         If String.IsNullOrWhiteSpace(shape.Target) = False Then Return shape.Target
         Return "<shape>"
     End Function
+    ' Public wrapper — creates the visited set on first call
     Private Shared Function EnsureLiveInjectedBone(index As Integer,
                                                    skeleton As HkaSkeletonGraph_Class,
                                                    injectedBones As System.Collections.Generic.HashSet(Of String),
                                                    shapeName As String,
                                                    Optional requestedName As String = Nothing) As Skeleton_Class.HierarchiBone_class
+        Return EnsureLiveInjectedBone(index, skeleton, injectedBones, shapeName, requestedName, New HashSet(Of Integer))
+    End Function
+
+    ' Private recursive overload with visited set to prevent stack overflow on circular HKX parent chains
+    Private Shared Function EnsureLiveInjectedBone(index As Integer,
+                                                   skeleton As HkaSkeletonGraph_Class,
+                                                   injectedBones As System.Collections.Generic.HashSet(Of String),
+                                                   shapeName As String,
+                                                   requestedName As String,
+                                                   visited As HashSet(Of Integer)) As Skeleton_Class.HierarchiBone_class
+        If Not visited.Add(index) Then Return Nothing ' cycle detected — break recursion
         If IsNothing(skeleton) OrElse IsNothing(skeleton.Bones) OrElse index < 0 OrElse index >= skeleton.Bones.Count Then Return Nothing
 
         Dim boneName = skeleton.Bones(index).Name
@@ -159,7 +171,7 @@ Public NotInheritable Class SkeletonClothOverlayHelper_Class
         Dim parentBone As Skeleton_Class.HierarchiBone_class = Nothing
         Dim parentIndex = If(index < skeleton.ParentIndices.Count, CInt(skeleton.ParentIndices(index)), -1)
         If parentIndex >= 0 Then
-            parentBone = EnsureLiveInjectedBone(parentIndex, skeleton, injectedBones, shapeName)
+            parentBone = EnsureLiveInjectedBone(parentIndex, skeleton, injectedBones, shapeName, Nothing, visited)
         End If
 
         Dim nuevo As New Skeleton_Class.HierarchiBone_class With {

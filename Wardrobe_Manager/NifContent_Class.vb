@@ -88,8 +88,20 @@ Public Class Skeleton_Class
                     Skeleton.Load_Manolo(skel.GetBytes)
                 End If
             End If
+            ' Build parent lookup: childBlockIndex -> parent NiNode (includes BSFadeNode subclass)
+            Dim parentMap As New Dictionary(Of Integer, NiNode)
+            For Each block In Skeleton.Blocks.OfType(Of NiNode)()
+                For Each childRef In block.Children.References
+                    If childRef.Index >= 0 Then parentMap(childRef.Index) = block
+                Next
+            Next
+
             For Each bon As NiNode In Skeleton.Blocks.Where(Function(pf) pf.GetType Is GetType(NiNode))
-                Dim par = GetParentNodeSkeleton(bon.Name.String)
+                Dim bonIndex As Integer
+                Dim par As NiNode = Nothing
+                If Skeleton.GetBlockIndex(bon, bonIndex) Then
+                    parentMap.TryGetValue(bonIndex, par)
+                End If
                 If IsNothing(par) OrElse par.GetType Is GetType(NiflySharp.Blocks.BSFadeNode) Then
                     If IsNothing(par) Then
                         AddBone(Nothing, bon)
@@ -185,15 +197,19 @@ Public Class Skeleton_Class
         nuevo.BoneName = Bone.Name.String
         nuevo.DeltaTransform = Nothing
         nuevo.OriginalLocaLTransform = New Transform_Class(Bone)
-        SkeletonDictionary.Add(Bone.Name.String, nuevo)
+        SkeletonDictionary(Bone.Name.String) = nuevo
         For Each chil In Bone.Children.References
-            Dim child As NiNode = Skeleton.Blocks(chil.Index)
-            AddBone(nuevo, child)
+            If chil.Index >= 0 AndAlso chil.Index < Skeleton.Blocks.Count Then
+                Dim childNode = TryCast(Skeleton.Blocks(chil.Index), NiNode)
+                If childNode IsNot Nothing Then AddBone(nuevo, childNode)
+            End If
         Next
     End Sub
 
     Public Shared Function GetParentNodeNameSkeleton(bone As String) As String
-        Dim result = GetParentNodeSkeleton(bone).Name.String
+        Dim par = GetParentNodeSkeleton(bone)
+        If par Is Nothing Then Return ""
+        Dim result = par.Name.String
         If IsNothing(result) Then Return ""
         Return result
     End Function

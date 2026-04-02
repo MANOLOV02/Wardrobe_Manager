@@ -1,4 +1,4 @@
-Ôªø' Version Uploaded of Wardrobe 2.1.3
+' Version Uploaded of Wardrobe 2.1.3
 ' ========================
 ' == Stubs y utilidades ==
 ' ========================
@@ -6,6 +6,7 @@ Imports System.Numerics
 Imports System.Text
 Imports System.Text.Json
 Imports System.Text.Json.Serialization
+Imports System.Threading.Tasks
 Imports NiflySharp.Structs
 
 ' =========================
@@ -100,10 +101,10 @@ Public Class TriFile
             Using fs As New IO.FileStream(fileName, IO.FileMode.Create, IO.FileAccess.Write, IO.FileShare.None)
                 Using bw As New IO.BinaryWriter(fs, System.Text.Encoding.ASCII, leaveOpen:=False)
                     ' Header "TRIP"
-                    ' En C++ escriben el uint32_t resultante de "TRIP"_mci; aqu√≠ escribimos los 4 bytes ASCII.
+                    ' En C++ escriben el uint32_t resultante de "TRIP"_mci; aquÌ escribimos los 4 bytes ASCII.
                     bw.Write(System.Text.Encoding.ASCII.GetBytes("PIRT" & ""))
 
-                    ' ---- Secci√≥n de POSICIONES ----
+                    ' ---- SecciÛn de POSICIONES ----
                     Dim shapeCountPos As UShort = GetShapeCount(MorphType.MORPHTYPE_POSITION)
                     bw.Write(shapeCountPos)
 
@@ -162,7 +163,7 @@ Public Class TriFile
                         Next
                     End If
 
-                    ' ---- Secci√≥n de UV ----
+                    ' ---- SecciÛn de UV ----
                     Dim shapeCountUV As UShort = GetShapeCount(MorphType.MORPHTYPE_UV)
                     bw.Write(shapeCountUV)
 
@@ -253,28 +254,46 @@ Public Class TriFile
         Return 0US
     End Function
 
-    ' ===== Implementaci√≥n VB.NET del m√©todo solicitado =====
+    ' ===== ImplementaciÛn VB.NET del mÈtodo solicitado =====
     Public Shared Function WriteMorphTRI(triPath As String, sliderSet As SliderSet_Class) As Boolean
         Dim tri As New TriFile()
         Dim triFilePath As String = triPath
+        Dim addAdditional = Config_App.Current.Settings_Build.AddAddintionalSliders
+        Dim skipManoloFix = Config_App.Current.Settings_Build.SkipManoloFixMorphs
+
         For Each shape In sliderSet.NIFContent.GetShapes
             Dim targetShape = sliderSet.Shapes.Where(Function(pf) pf.RelatedNifShape Is shape).FirstOrDefault
             If targetShape Is Nothing Then Continue For
             Dim shapeVertCount As Integer = shape.VertexCount
-
             If shapeVertCount <= 0 Then Continue For
+
+            ' --- O6.3: Build candidate slider indices for this shape ---
+            Dim candidateIndices As New List(Of Integer)
             For s As Integer = 0 To sliderSet.Sliders.Count - 1
-                Dim idxs = s
-                If Not sliderSet.Sliders(s).IsClamp AndAlso Not sliderSet.Sliders(s).IsZap AndAlso (Not sliderSet.Sliders(s).IsManoloFix OrElse Config_App.Current.Settings_Build.SkipManoloFixMorphs = False) Then
+                If Not sliderSet.Sliders(s).IsClamp AndAlso Not sliderSet.Sliders(s).IsZap AndAlso (Not sliderSet.Sliders(s).IsManoloFix OrElse skipManoloFix = False) Then
+                    candidateIndices.Add(s)
+                End If
+            Next
+
+            ' Pre-allocate result array for parallel computation (index-based, thread-safe)
+            Dim morphResults(candidateIndices.Count - 1) As MorphdataTri
+
+            ' Parallel morph quantization per slider
+            Dim localTargetShape = targetShape
+            Dim localVertCount = shapeVertCount
+            Parallel.For(0, candidateIndices.Count,
+                Sub(ci)
+                    Dim idxs = candidateIndices(ci)
+                    Dim slider = sliderSet.Sliders(idxs)
                     Dim morph As New MorphdataTri With {
-                        .morph = sliderSet.Sliders(s).Nombre
+                        .morph = slider.Nombre
                     }
 
-                    If sliderSet.Sliders(s).IsUV Then
+                    If slider.IsUV Then
                         morph.type = MorphType.MORPHTYPE_UV
-                        Dim uvs As New List(Of Vector2)(Enumerable.Repeat(New Vector2(0.0F, 0.0F), shapeVertCount))
-                        Dim dat = targetShape.Related_Slider_data.Where(Function(pf) pf.ParentSlider Is sliderSet.Sliders(idxs)).FirstOrDefault
-                        If Not IsNothing(dat) Then
+                        Dim uvs(localVertCount - 1) As Vector2
+                        Dim dat = localTargetShape.Related_Slider_data.Where(Function(pf) pf.ParentSlider Is slider).OrderByDescending(Function(pf) pf.Islocal).FirstOrDefault
+                        If dat IsNot Nothing Then
                             Dim DiffData = dat.RelatedOSDBlocks
                             For Each dif In DiffData
                                 For Each dif2 In dif.DataDiff
@@ -283,19 +302,17 @@ Public Class TriFile
                             Next
                         End If
 
-                        Dim idxv As Integer = 0
-                        For Each uv In uvs
-                            Dim v As New Vector3(uv.X, uv.Y, 0.0F)
-                            If Not (v.X = 0 AndAlso v.Y = 0 AndAlso v.Z = 0) Then
-                                morph.offsets(idxv) = v
+                        For idxv As Integer = 0 To localVertCount - 1
+                            Dim uv = uvs(idxv)
+                            If uv.X <> 0 OrElse uv.Y <> 0 Then
+                                morph.offsets(CUShort(idxv)) = New Vector3(uv.X, uv.Y, 0.0F)
                             End If
-                            idxv += 1
                         Next
                     Else
                         morph.type = MorphType.MORPHTYPE_POSITION
-                        Dim verts As New List(Of Vector3)(Enumerable.Repeat(New Vector3(0.0F, 0.0F, 0.0F), shapeVertCount))
-                        Dim dat = targetShape.Related_Slider_data.Where(Function(pf) pf.ParentSlider Is sliderSet.Sliders(idxs)).FirstOrDefault
-                        If Not IsNothing(dat) Then
+                        Dim verts(localVertCount - 1) As Vector3
+                        Dim dat = localTargetShape.Related_Slider_data.Where(Function(pf) pf.ParentSlider Is slider).OrderByDescending(Function(pf) pf.Islocal).FirstOrDefault
+                        If dat IsNot Nothing Then
                             Dim DiffData = dat.RelatedOSDBlocks
                             For Each dif In DiffData
                                 For Each dif2 In dif.DataDiff
@@ -304,22 +321,29 @@ Public Class TriFile
                             Next
                         End If
 
-                        Dim idxv As Integer = 0
-                        For Each v In verts
-                            If Not (v.X = 0 AndAlso v.Y = 0 AndAlso v.Z = 0) Then
-                                morph.offsets(idxv) = v
+                        For idxv As Integer = 0 To localVertCount - 1
+                            Dim v = verts(idxv)
+                            If v.X <> 0 OrElse v.Y <> 0 OrElse v.Z <> 0 Then
+                                morph.offsets(CUShort(idxv)) = v
                             End If
-                            idxv += 1
                         Next
                     End If
 
                     If morph.offsets.Count > 0 Then
-                        tri.AddMorph(shape.Name.String, morph)
-                        If Config_App.Current.Settings_Build.AddAddintionalSliders Then
-                            If Not BSSliders.Any(Function(pf) pf.morph.Equals(morph.morph)) Then
-                                If Not WMSliders.Any(Function(pf) pf.morph.Equals(morph.morph)) Then
-                                    WMSliders.Add(New MorphdataTri With {.name = "$" + morph.morph, .morph = morph.morph})
-                                End If
+                        morphResults(ci) = morph
+                    End If
+                End Sub)
+
+            ' Sequential merge into tri (not thread-safe) + WMSliders tracking
+            Dim shapeName = shape.Name.String
+            For ci As Integer = 0 To morphResults.Length - 1
+                Dim morph = morphResults(ci)
+                If morph IsNot Nothing Then
+                    tri.AddMorph(shapeName, morph)
+                    If addAdditional Then
+                        If Not BSSliders.Any(Function(pf) pf.morph.Equals(morph.morph)) Then
+                            If Not WMSliders.Any(Function(pf) pf.morph.Equals(morph.morph)) Then
+                                WMSliders.Add(New MorphdataTri With {.name = "$" + morph.morph, .morph = morph.morph})
                             End If
                         End If
                     End If
@@ -343,10 +367,10 @@ Public Class TriFile
             Using br As New IO.BinaryReader(ms, System.Text.Encoding.ASCII, leaveOpen:=False)
                 ValidateHeader(br)
 
-                ' Secci√≥n de POSICIONES
+                ' SecciÛn de POSICIONES
                 ReadSection(br, tri, MorphType.MORPHTYPE_POSITION)
 
-                ' Secci√≥n de UV
+                ' SecciÛn de UV
                 ReadSection(br, tri, MorphType.MORPHTYPE_UV)
             End Using
         End Using
@@ -369,12 +393,12 @@ Public Class TriFile
         End If
         ' Escritura original: Encoding.ASCII.GetBytes("PIRT")
         If Not (hdr(0) = AscW("P"c) AndAlso hdr(1) = AscW("I"c) AndAlso hdr(2) = AscW("R"c) AndAlso hdr(3) = AscW("T"c)) Then
-            Throw New FormatException("Header inv√°lido. Se esperaba 'PIRT'.")
+            Throw New FormatException("Header inv·lido. Se esperaba 'PIRT'.")
         End If
     End Sub
 
     Private Shared Sub ReadSection(br As IO.BinaryReader, tri As TriFile, sectionType As MorphType)
-        ' shapeCount de la secci√≥n (UInt16)
+        ' shapeCount de la secciÛn (UInt16)
         Dim shapeCount As UShort = br.ReadUInt16()
 
         For i As Integer = 0 To shapeCount - 1
@@ -382,7 +406,7 @@ Public Class TriFile
             Dim shapeLen As Integer = br.ReadByte()
             Dim shapeName As String = ReadAscii(br, shapeLen)
 
-            ' Cantidad de morphs de ESTA secci√≥n para ese shape
+            ' Cantidad de morphs de ESTA secciÛn para ese shape
             Dim morphCount As UShort = br.ReadUInt16()
 
             For m As Integer = 0 To morphCount - 1

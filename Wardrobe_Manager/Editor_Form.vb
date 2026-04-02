@@ -906,20 +906,25 @@ Public Class Editor_Form
         If WroteFilesToDisk = True And SavedTargetProject = True Then DialogResult = DialogResult.OK
         If WroteFilesToDisk = True And SavedTargetProject = False Then DialogResult = DialogResult.Cancel
         If WroteFilesToDisk = False And SavedTargetProject = False Then DialogResult = DialogResult.Abort
-        For Each shap In Selected_Slider.Shapes
-            shap.Wireframe = False
-            shap.ShowTexture = True
-            shap.ShowMask = False
-            shap.ShowWeight = False
-            shap.ApplyZaps = True
-            shap.RenderHide = False
-            shap.MaskedVertices.Clear()
-        Next
+        If EditPreviewControl IsNot Nothing AndAlso Not EditPreviewControl.IsDisposed Then
+            EditPreviewControl.AllowMask = False
+            EditPreviewControl.Enabled = False
+        End If
+        If Selected_Slider IsNot Nothing AndAlso Selected_Slider.Shapes IsNot Nothing Then
+            For Each shap In Selected_Slider.Shapes
+                shap.Wireframe = False
+                shap.ShowTexture = True
+                shap.ShowMask = False
+                shap.ShowWeight = False
+                shap.ApplyZaps = True
+                shap.RenderHide = False
+                shap.MaskedVertices.Clear()
+            Next
+        End If
         DisposeLastBitmap()
         EditPreviewControl.Clean()
         EditPreviewControl.Dispose()
     End Sub
-
     Private Sub ButtonRenderScreenshot_Click(sender As Object, e As EventArgs) Handles ButtonRenderScreenshot.Click
         If IsNothing(EditPreviewControl) OrElse EditPreviewControl.IsDisposed Then Exit Sub
 
@@ -1151,7 +1156,7 @@ Public Class Editor_Form
         Dim nombre = InputBox("Nombre del Zap", "Nuevo Zap", "")
         If nombre = "" Then Exit Sub
         If ListView2.Items.Find(nombre, False).Length > 0 Then
-            MsgBox("El Zap ya existe", vbCritical, "Error")
+            MsgBox("Zap already exists", vbCritical, "Error")
             Exit Sub
         End If
         Dim el = Selected_Slider.Nodo.OwnerDocument.CreateElement("Slider")
@@ -1183,6 +1188,63 @@ Public Class Editor_Form
         Return SelectedZap.Datas.Where(Function(pf) pf.RelatedShape Is Selected_Shape).SelectMany(Function(pf) pf.RelatedOSDBlocks).SelectMany(Function(pf) pf.DataDiff).Select(Function(pq) CType(pq.Index, Integer))
     End Function
 
+
+    Private Function EnsureEditableLocalZapData() As Slider_Data_class
+        Dim dat = SelectedZap.Datas.FirstOrDefault(Function(pf) pf.RelatedShape Is Selected_Shape AndAlso pf.Islocal)
+        If dat Is Nothing Then dat = SelectedZap.Datas.FirstOrDefault(Function(pf) pf.RelatedShape Is Selected_Shape)
+        If dat Is Nothing Then
+            Dim el = SelectedZap.Nodo.OwnerDocument.CreateElement("Data")
+            el.SetAttribute("name", Selected_Shape.Target + SelectedZap.Nombre)
+            el.SetAttribute("target", Selected_Shape.Target)
+            el.SetAttribute("local", "true")
+            el.InnerText = Path.GetFileName(Selected_Slider.SourceFileFullPath).Replace(".nif", ".osd", StringComparison.OrdinalIgnoreCase) + "\" + Selected_Shape.Target + SelectedZap.Nombre
+            dat = New Slider_Data_class(el, SelectedZap)
+            SelectedZap.Nodo.AppendChild(el)
+            SelectedZap.Datas.Add(dat)
+            Dim blockRoot = Selected_Slider.OSDContent_Local
+            Dim block = New OSD_Block_Class(blockRoot) With {.BlockName = Selected_Shape.Target + SelectedZap.Nombre}
+            blockRoot.Blocks.Add(block)
+            Selected_Slider.InvalidateAllLookupCaches()
+            Return dat
+        End If
+
+        If Not dat.Islocal Then
+            For Each sourceBlock In dat.RelatedExternalOSDBlocks.ToList()
+                If Not Selected_Slider.OSDContent_Local.Blocks.Any(
+                    Function(b) b.BlockName.Equals(sourceBlock.BlockName, StringComparison.OrdinalIgnoreCase)) Then
+                    Dim localBlock = New OSD_Block_Class(Selected_Slider.OSDContent_Local) With {.BlockName = sourceBlock.BlockName}
+                    For Each src In sourceBlock.DataDiff
+                        localBlock.DataDiff.Add(New OSD_DataDiff_Class With {.Index = src.Index, .X = src.X, .Y = src.Y, .Z = src.Z})
+                    Next
+                    localBlock.RebuildCompactArrays()
+                    Selected_Slider.OSDContent_Local.Blocks.Add(localBlock)
+                End If
+            Next
+            dat.Islocal = True
+            dat.TargetOsd = Path.GetFileName(Selected_Slider.SourceFileFullPath).Replace(".nif", ".osd", StringComparison.OrdinalIgnoreCase)
+            Selected_Slider.InvalidateAllLookupCaches()
+        End If
+
+        If Not dat.RelatedLocalOSDBlocks.Any() Then
+            Dim blockRoot = Selected_Slider.OSDContent_Local
+            Dim block = New OSD_Block_Class(blockRoot) With {.BlockName = dat.Nombre}
+            blockRoot.Blocks.Add(block)
+            Selected_Slider.InvalidateAllLookupCaches()
+        End If
+
+        Return dat
+    End Function
+
+    Private Function GetEditableLocalZapBlocks() As List(Of OSD_Block_Class)
+        Return EnsureEditableLocalZapData().RelatedLocalOSDBlocks.ToList()
+    End Function
+
+    Private Function GetEditableSingleLocalZapBlock() As OSD_Block_Class
+        Dim blocks = GetEditableLocalZapBlocks()
+        If blocks.Count <> 1 Then Throw New Exception
+        Return blocks(0)
+    End Function
+
     Private Sub ZapInclude_Click(sender As Object, e As EventArgs) Handles ZapInclude.Click
         Iniciado_Edit()
         Dim VertsToInclude As New HashSet(Of Integer)
@@ -1191,46 +1253,21 @@ Public Class Editor_Form
         Dim VertsToModify As New HashSet(Of Integer)
         VertsToModify.UnionWith(Selected_Shape.MaskedVertices)
         VertsToModify.ExceptWith(VertsToInclude)
-        Dim dat As Slider_Data_class
-        Dim block As OSD_Block_Class
+        Dim block = GetEditableSingleLocalZapBlock()
 
-
-        If Not SelectedZap.Datas.Any(Function(pf) pf.RelatedShape Is Selected_Shape And pf.Islocal) Then
-            Dim el = SelectedZap.Nodo.OwnerDocument.CreateElement("Data")
-            el.SetAttribute("name", Selected_Shape.Target + SelectedZap.Nombre)
-            el.SetAttribute("target", Selected_Shape.Target)
-            el.SetAttribute("local", "true")
-            el.InnerText = Path.GetFileName(Selected_Slider.OsdLocalFullPath(0)) + "\" + Selected_Shape.Target + SelectedZap.Nombre
-            dat = New Slider_Data_class(el, SelectedZap)
-            SelectedZap.Nodo.AppendChild(el)
-            SelectedZap.Datas.Add(dat)
-            Dim blockRoot = Selected_Slider.OSDContent_Local
-            block = New OSD_Block_Class(blockRoot) With {.BlockName = Selected_Shape.Target + SelectedZap.Nombre}
-            blockRoot.Blocks.Add(block)
-            Selected_Slider.InvalidateAllLookupCaches()
-        Else
-            If SelectedZap.Datas.Where(Function(pf) pf.RelatedShape Is Selected_Shape And pf.Islocal).Count > 1 Then Throw New Exception
-            dat = SelectedZap.Datas.First(Function(pf) pf.RelatedShape Is Selected_Shape And pf.Islocal)
-            block = SelectedZap.Datas.Where(Function(pf) pf.RelatedShape Is Selected_Shape And pf.Islocal).Select(Function(pq) pq.RelatedLocalOSDBlocks).First.First
-        End If
-
-        If SelectedZap.Datas.Where(Function(pf) pf.RelatedShape Is Selected_Shape And pf.Islocal).Select(Function(pq) pq.RelatedLocalOSDBlocks).Count > 1 Then Throw New Exception
-
-        ' Inflate? � normals in NIF local space (pre-skinning), consistent with OSD delta space.
+        ' Inflate? — normals in NIF local space (pre-skinning), consistent with OSD delta space.
         ' Priority: (1) current viewport normals transformed back to local via M^T (covers morphs +
         ' RecalculateNormals); (2) NIF base normals; (3) vertex?center fallback.
         Dim rawNorms = Array.Empty(Of Vector3)
         If CheckBoxInflate.Checked Then
             Dim renderMesh = EditPreviewControl.Model.meshes.FirstOrDefault(Function(m) m.MeshData.Shape Is Selected_Shape)
             If renderMesh IsNot Nothing Then
-                ' World-space normals ? NIF local via transpose of per-vertex skin matrix.
-                ' For FO4 skin matrices (rotation-dominant), M^T � M^{-1} so this is exact
-                ' up to a uniform-scale factor that cancels after normalization.
+                ' Normals are already in local space (GPU skinning) — use directly.
                 Dim geom = renderMesh.MeshData.Meshgeometry
                 rawNorms = Enumerable.Range(0, geom.Normals.Length) _
                     .Select(Function(i)
-                                Dim localN = Vector3d.TransformNormal(geom.Normals(i), geom.PerVertexSkinMatrix(i).Transposed())
-                                Return SafeNormalize(New Vector3(CSng(localN.X), CSng(localN.Y), CSng(localN.Z)))
+                                Dim n = geom.Normals(i)
+                                Return SafeNormalize(New Vector3(CSng(n.X), CSng(n.Y), CSng(n.Z)))
                             End Function).ToArray()
             Else
                 Dim tri = Selected_Shape.RelatedNifShape
@@ -1296,6 +1333,9 @@ Public Class Editor_Form
                 End If
             End If
         Next
+        block.RebuildCompactArrays()
+        ' C-3: Invalidate cached morph diffs after DataDiff mutation
+        Selected_Shape.MorphDiffs = Nothing
         Process_render_Changes(False)
     End Sub
 
@@ -1304,21 +1344,16 @@ Public Class Editor_Form
         Dim VertsToExclude As New HashSet(Of Integer)
         VertsToExclude.UnionWith(Selected_Shape.MaskedVertices)
         VertsToExclude.IntersectWith(Get_Blocks_Verts)
-        Select Case SelectedZap.Datas.Where(Function(pf) pf.RelatedShape Is Selected_Shape And pf.Islocal).Select(Function(pq) pq.RelatedLocalOSDBlocks).Count
-            Case 0
-    ' Nada que limpiar
-            Case 1
-                Dim block = SelectedZap.Datas.Where(Function(pf) pf.RelatedShape Is Selected_Shape And pf.Islocal).Select(Function(pq) pq.RelatedLocalOSDBlocks).First
-                For Each bl In block
-                    For Each dd In bl.DataDiff.ToList
-                        If VertsToExclude.Contains(dd.Index) Then
-                            bl.DataDiff.Remove(dd)
-                        End If
-                    Next
-                Next
-            Case Else
-                Throw New Exception
-        End Select
+        For Each bl In GetEditableLocalZapBlocks()
+            For Each dd In bl.DataDiff.ToList
+                If VertsToExclude.Contains(dd.Index) Then
+                    bl.DataDiff.Remove(dd)
+                End If
+            Next
+            bl.RebuildCompactArrays()
+        Next
+        ' C-3: Invalidate cached morph diffs after DataDiff mutation
+        Selected_Shape.MorphDiffs = Nothing
         Process_render_Changes(False)
     End Sub
 
@@ -1386,15 +1421,16 @@ Public Class Editor_Form
         Iniciado_Edit()
         Dim VertsToExclude As New HashSet(Of Integer)
         VertsToExclude.UnionWith(Get_Zap_Verts)
-        For Each block In SelectedZap.Datas.Where(Function(pf) pf.Islocal).Select(Function(pq) pq.RelatedLocalOSDBlocks)
-            For Each bl In block
-                For Each dd In bl.DataDiff.ToList
-                    If VertsToExclude.Contains(dd.Index) Then
-                        bl.DataDiff.Remove(dd)
-                    End If
-                Next
+        For Each bl In GetEditableLocalZapBlocks()
+            For Each dd In bl.DataDiff.ToList
+                If VertsToExclude.Contains(dd.Index) Then
+                    bl.DataDiff.Remove(dd)
+                End If
             Next
+            bl.RebuildCompactArrays()
         Next
+        ' C-3: Invalidate cached morph diffs after DataDiff mutation
+        Selected_Shape.MorphDiffs = Nothing
         Process_render_Changes(False)
     End Sub
 
@@ -1745,9 +1781,9 @@ Public Class Editor_Form
         Dim original = New HashSet(Of Integer)
         original.UnionWith(marked)
         For Each tri As NiflySharp.Structs.Triangle In triangles
-            ' si alguno de los tres ya est� marcado...
+            ' si alguno de los tres ya está marcado...
             If original.Contains(tri(0)) OrElse original.Contains(tri(1)) OrElse original.Contains(tri(2)) Then
-                ' ...a�adimos los tres al HashSet
+                ' ...añadimos los tres al HashSet
                 marked.Add(tri(0))
                 marked.Add(tri(1))
                 marked.Add(tri(2))
@@ -1760,9 +1796,9 @@ Public Class Editor_Form
         Dim original = New HashSet(Of Integer)
         original.UnionWith(marked)
         For Each tri As NiflySharp.Structs.Triangle In triangles
-            ' si alguno de los tres ya est� marcado...
+            ' si alguno de los tres ya está marcado...
             If Not original.Contains(tri(0)) OrElse Not original.Contains(tri(1)) OrElse Not original.Contains(tri(2)) Then
-                ' ...a�adimos los tres al HashSet
+                ' ...añadimos los tres al HashSet
                 marked.Remove(tri(0))
                 marked.Remove(tri(1))
                 marked.Remove(tri(2))
@@ -2105,7 +2141,7 @@ Public Class Editor_Form
         If Not IsNothing(Edited) Then pose_is_Edited = Edited
         Skeleton_Class.PrepareSkeletonForShapes(Selected_Slider.Shapes, Selected_Pose)
         Update_Bone_Sliders()
-        Process_render_Changes(True)
+        Process_render_Changes(False)  ' False enables SSBO-only fast path for pose changes
     End Sub
     Private Sub Process_render_Changes(Force As Boolean)
         EditPreviewControl.Model.Floor.Enabled = CheckBoxRenderFloor.Checked
@@ -2295,7 +2331,7 @@ Public Class Editor_Form
         Dim positions As Vector3()
         Dim geomMesh = EditPreviewControl?.Model?.meshes.FirstOrDefault(Function(m) m.MeshData.Shape Is Selected_Shape)
         If geomMesh IsNot Nothing AndAlso geomMesh.MeshData.Meshgeometry.Vertices IsNot Nothing AndAlso geomMesh.MeshData.Meshgeometry.Vertices.Length > 0 Then
-            Dim sv = geomMesh.MeshData.Meshgeometry.Vertices
+            Dim sv = SkinningHelper.GetWorldVertices(geomMesh.MeshData.Meshgeometry)
             positions = sv.Select(Function(v) New Vector3(CSng(v.X), CSng(v.Y), CSng(v.Z))).ToArray()
         Else
             If IsNothing(Selected_Shape.RelatedNifShape.VertexPositions) OrElse Selected_Shape.RelatedNifShape.VertexPositions.Count = 0 Then Return result
@@ -2385,6 +2421,7 @@ Public Class Editor_Form
             Dim min As Double = 0
 
             For Each mesha In EditPreviewControl.Model.meshes
+                SkinningHelper.ComputeWorldBounds(mesha.MeshData.Meshgeometry)
                 Dim minz = mesha.MeshData.Meshgeometry.Minv.Z
                 If -minz > min Then min = -minz
             Next
@@ -2413,13 +2450,16 @@ Public Class Editor_Form
         Dim totalVerts = Selected_Shape.RelatedNifShape.VertexPositions.Count
         Dim maskedCount = Selected_Shape.MaskedVertices.Count
         Dim msg = $"Split '{Selected_Shape.Target}' into two shapes?" & vbCrLf &
-                  "  � Original keeps the non-fully-masked geometry and the cut border." & vbCrLf &
-                  $"  � New shape '{Selected_Shape.Target}_Split' gets fully masked triangles." & vbCrLf & vbCrLf &
+                  "  - Original keeps the non-fully-masked geometry and the cut border." & vbCrLf &
+                  $"  - New shape '{Selected_Shape.Target}_Split' gets fully masked triangles." & vbCrLf & vbCrLf &
                   "Triangles touching both groups stay on the original shape to avoid a visible gap. Changes stay in memory until you save."
         If MsgBox(msg, vbYesNo + vbQuestion, "Split Shape") <> MsgBoxResult.Yes Then Exit Sub
         Try
             Dim origShapeIdx = Selected_Slider.Shapes.IndexOf(Selected_Shape)
             SplitShapeHelper.Split(Selected_Shape, Selected_Slider)
+            ' Invalidate cached shape-slider lookups (morphs, OSD blocks changed by split)
+            Selected_Slider.InvalidateShapeDataLookupCache()
+            Selected_Slider.RebuildShapeDataLookupCache()
             ' The split shape is inserted right after the original in Shapes
             Dim splitShape = Selected_Slider.Shapes(origShapeIdx + 1)
             ComboBoxShapes.Items.Insert(ComboBoxShapes.SelectedIndex + 1, splitShape.Nombre)
@@ -2457,6 +2497,9 @@ Public Class Editor_Form
             If frm.ShowDialog(Me) <> DialogResult.OK Then Exit Sub
             Try
                 MergeShapesHelper.Merge(frm.TargetShape, frm.DonorShapes, Selected_Slider)
+                ' Invalidate cached shape-slider lookups (morphs, OSD blocks changed by merge)
+                Selected_Slider.InvalidateShapeDataLookupCache()
+                Selected_Slider.RebuildShapeDataLookupCache()
                 ' Clear stale meshes immediately so the render timer can't draw removed donors
                 EditPreviewControl.Model.Clean(False)
                 ' Remove donor entries from combobox

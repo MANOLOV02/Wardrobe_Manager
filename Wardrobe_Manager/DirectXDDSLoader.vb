@@ -34,7 +34,7 @@ Public Module DirectXDDSLoader
             ' PIXELFORMAT
             bw.Write(32UI)                 ' size
             bw.Write(&H4UI)                ' flags (RGB)
-            bw.Write(0UI)                  ' fourCC
+            bw.Write(CUInt(&H30315844))     ' fourCC = "DX10"
             bw.Write(32UI)                 ' RGBBitCount
             bw.Write(&HFF0000UI)         ' R mask
             bw.Write(&HFF00UI)         ' G mask
@@ -250,6 +250,108 @@ Public Module DirectXDDSLoader
         End If
 
         If result.Count <> fullpaths.Length Then Debugger.Break() : Throw New Exception("el loader no esta devolviendo la misma cantidad que las enviadas")
+        Return result
+    End Function
+
+    ''' <summary>
+    ''' O4.1 Phase 1 — Background DDS loading (CPU-only, no GL calls).
+    ''' Loads DDS bytes from the files dictionary and decompresses them via DirectXTex.
+    ''' Returns a dictionary mapping each path to its decompressed TextureLoaded data,
+    ''' ready for GL upload on the render thread.
+    ''' Thread-safe: can be called from any thread. Supports cancellation.
+    ''' </summary>
+    Public Function LoadTexturesFromDictionary_Background(
+            fullpaths As String(),
+            useCompress As Boolean,
+            forceOpenGL As Boolean,
+            ct As System.Threading.CancellationToken) As Dictionary(Of String, DirectXTexWrapperCLI.TextureLoaded)
+
+        Dim dict As New Dictionary(Of String, DirectXTexWrapperCLI.TextureLoaded)(
+            fullpaths.Length, StringComparer.OrdinalIgnoreCase)
+
+        ' 1) Fetch raw DDS bytes from the files dictionary (I/O, may hit archive cache)
+        Dim ddsFiles As Byte()()
+        If fullpaths.Length = 1 Then
+            ddsFiles = {FilesDictionary_class.GetBytes(fullpaths(0))}
+        Else
+            ddsFiles = FilesDictionary_class.GetMultipleFilesBytes(fullpaths)
+        End If
+
+        ct.ThrowIfCancellationRequested()
+
+        ' 2) Decompress all DDS textures (CPU-heavy, no GL)
+        Dim results As System.Collections.Generic.List(Of DirectXTexWrapperCLI.TextureLoaded)
+        Try
+            results = Loader.LoadTextures(ddsFiles.ToArray(), useCompress, forceOpenGL)
+        Catch ex As Exception
+            ' If decompression fails entirely, return empty entries so callers keep fallbacks
+            For Each p In fullpaths
+                dict(p) = Nothing
+            Next
+            Return dict
+        End Try
+
+        ct.ThrowIfCancellationRequested()
+
+        ' 3) Map paths to their TextureLoaded results
+        For i As Integer = 0 To Math.Min(fullpaths.Length, results.Count) - 1
+            dict(fullpaths(i)) = results(i)
+        Next
+
+        ' Fill any missing entries with Nothing (in case results.Count < fullpaths.Length)
+        For i As Integer = results.Count To fullpaths.Length - 1
+            dict(fullpaths(i)) = Nothing
+        Next
+
+        Return dict
+    End Function
+
+    ''' <summary>
+    ''' O4.1 Phase 2 — Upload a single decompressed TextureLoaded to OpenGL via PBO.
+    ''' MUST be called on the GL context thread.
+    ''' Returns (glTextureId, textureSize, isCubemap, dxgiOriginal, dxgiFinal, loaded).
+    ''' On failure returns a Texture_Loaded_Class with Texture_ID = 0.
+    ''' After upload, nulls out the TextureLoaded.Levels data to free memory.
+    ''' </summary>
+    Public Function UploadTextureToGL(tex As DirectXTexWrapperCLI.TextureLoaded, path As String) As PreviewModel.Texture_Loaded_Class
+        If tex Is Nothing OrElse Not tex.Loaded Then
+            Return New PreviewModel.Texture_Loaded_Class With {
+                .Texture_ID = 0,
+                .Size = New Size(2, 2),
+                .Cubemap = If(tex IsNot Nothing, tex.IsCubemap, False),
+                .DGXFormat_Original = If(tex IsNot Nothing, tex.DxgiCodeOriginal, 0),
+                .DGXFormat_Final = If(tex IsNot Nothing, tex.DxgiCodeFinal, 0),
+                .Loaded = False,
+                .Path = path
+            }
+        End If
+
+        Dim id As Integer = CreateOpenGL_FromTextureLoaded_PBO(tex)
+        Dim lvl0Size As Size
+        If tex.Levels IsNot Nothing AndAlso tex.Levels.Count > 0 Then
+            lvl0Size = New Size(tex.Levels(0).Width, tex.Levels(0).Height)
+        Else
+            lvl0Size = New Size(2, 2)
+        End If
+
+        Dim result As New PreviewModel.Texture_Loaded_Class With {
+            .Texture_ID = id,
+            .Size = lvl0Size,
+            .Cubemap = tex.IsCubemap,
+            .DGXFormat_Original = tex.DxgiCodeOriginal,
+            .DGXFormat_Final = tex.DxgiCodeFinal,
+            .Loaded = (id > 0),
+            .Path = path
+        }
+
+        ' Free pixel data now that it has been uploaded to GPU
+        If tex.Levels IsNot Nothing Then
+            For Each lvl In tex.Levels
+                lvl.Data = Nothing
+            Next
+            tex.Levels.Clear()
+        End If
+
         Return result
     End Function
 
