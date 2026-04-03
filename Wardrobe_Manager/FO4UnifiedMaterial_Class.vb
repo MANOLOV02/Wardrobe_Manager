@@ -416,13 +416,12 @@ Public Class FO4UnifiedMaterial_Class
     End Property
 
     <Category("Textures")>
-    <BGEMOnly()>
     <Editor(GetType(DictionaryFilePickerEditor), GetType(UITypeEditor))>
     Public Property EnvmapMaskTexture As String
         Get
             Select Case Underlying_Material.GetType
                 Case GetType(BGSM)
-                    Return ""
+                    Return CType(Underlying_Material, BGSM).EnvmapMaskTexture
                 Case GetType(BGEM)
                     Return CType(Underlying_Material, BGEM).EnvmapMaskTexture
             End Select
@@ -431,12 +430,59 @@ Public Class FO4UnifiedMaterial_Class
         Set(value As String)
             Select Case Underlying_Material.GetType
                 Case GetType(BGSM)
-                    ' No operation
+                    CType(Underlying_Material, BGSM).EnvmapMaskTexture = value
                 Case GetType(BGEM)
                     CType(Underlying_Material, BGEM).EnvmapMaskTexture = value
             End Select
         End Set
     End Property
+
+    <Category("Textures")>
+    <BGSMOnly()>
+    <Editor(GetType(DictionaryFilePickerEditor), GetType(UITypeEditor))>
+    Public Property DetailMaskTexture As String
+        Get
+            Select Case Underlying_Material.GetType
+                Case GetType(BGSM)
+                    Return CType(Underlying_Material, BGSM).DetailMaskTexture
+                Case GetType(BGEM)
+                    Return ""
+            End Select
+            Throw New Exception("Unsupported material type")
+        End Get
+        Set(value As String)
+            Select Case Underlying_Material.GetType
+                Case GetType(BGSM)
+                    CType(Underlying_Material, BGSM).DetailMaskTexture = value
+                Case GetType(BGEM)
+                    ' No operation
+            End Select
+        End Set
+    End Property
+
+    <Category("Textures")>
+    <BGSMOnly()>
+    <Editor(GetType(DictionaryFilePickerEditor), GetType(UITypeEditor))>
+    Public Property TintMaskTexture As String
+        Get
+            Select Case Underlying_Material.GetType
+                Case GetType(BGSM)
+                    Return CType(Underlying_Material, BGSM).TintMaskTexture
+                Case GetType(BGEM)
+                    Return ""
+            End Select
+            Throw New Exception("Unsupported material type")
+        End Get
+        Set(value As String)
+            Select Case Underlying_Material.GetType
+                Case GetType(BGSM)
+                    CType(Underlying_Material, BGSM).TintMaskTexture = value
+                Case GetType(BGEM)
+                    ' No operation
+            End Select
+        End Set
+    End Property
+
     <Category("Alpha")>
     <DefaultValue(1.0F)>
     Public Property Alpha As Single
@@ -1188,6 +1234,31 @@ Public Class FO4UnifiedMaterial_Class
 
     <Category("Material")>
     <BGSMOnly()>
+    Public Property SkinTintColor As Color
+        Get
+            Select Case Underlying_Material.GetType
+                Case GetType(BGSM)
+                    Return UIntegerToColor(CType(Underlying_Material, BGSM).SkinTintColor)
+                Case GetType(BGEM)
+                    Return Color.White
+                Case Else
+                    Throw New Exception
+            End Select
+        End Get
+        Set(value As Color)
+            Select Case Underlying_Material.GetType
+                Case GetType(BGSM)
+                    CType(Underlying_Material, BGSM).SkinTintColor = ColorToUInteger(value)
+                Case GetType(BGEM)
+                    ' No action
+                Case Else
+                    Throw New Exception
+            End Select
+        End Set
+    End Property
+
+    <Category("Material")>
+    <BGSMOnly()>
     Public Property Tree As Boolean
         Get
             Select Case Underlying_Material.GetType
@@ -1752,6 +1823,9 @@ Public Class FO4UnifiedMaterial_Class
                 .EnvironmentMapping = shad.HasEnvironmentMapping,
                 .EnvironmentMappingMaskScale = shad.EnvironmentMapScale,
                 .ModelSpaceNormals = shad.ModelSpace,
+                .Facegen = shad.IsTypeFaceTint,
+                .Hair = shad.IsTypeHairTint,
+                .SkinTint = shad.IsTypeSkinTint,
                 .BackLighting = shad.HasBacklight,
                 .BackLightPower = shad.BacklightPower,
                 .SpecularEnabled = shad.HasSpecular,
@@ -1764,13 +1838,20 @@ Public Class FO4UnifiedMaterial_Class
                 .GrayscaleToPaletteColor = shad.HasGreyscaleToPaletteColor,
                 .GrayscaleToPaletteScale = shad.GrayscaleToPaletteScale,
                 .FresnelPower = shad.FresnelPower,
-                .HairTintColor = ColorToUInteger(NifColorToColor(shad.HairTintColor)),
-                .Smoothness = If(Nif.Header.Version.IsSSE, CSng(shad.Glossiness / 100.0F), shad.Smoothness),
+                .HairTintColor = If(shad.IsTypeHairTint,
+                                    ColorToUInteger(NifColorToColor(shad.HairTintColor)),
+                                    CUInt(&HFFFFFFUI)),
+                .SkinTintColor = If(shad.IsTypeSkinTint,
+                                    ColorToUInteger(NifColorToColor(shad.SkinTintColor)),
+                                    CUInt(&HFFFFFFUI)),
+                .Smoothness = If(Nif.Header.Version.IsSSE,
+                                  CSng(Math.Max(0.0, (Math.Log(Math.Max(CDbl(shad.Glossiness), 2.0), 2.0) - 1.0) / 10.0)),
+                                  shad.Smoothness),
                 .SubsurfaceLightingRolloff = shad.SubsurfaceRolloff
             }
             If Not IsNothing(shad.TextureSetRef) AndAlso shad.TextureSetRef.Index <> -1 Then
                 Dim texset = TryCast(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet)
-                ReadBgsmTexturesFromTextureSet(mat, texset)
+                ReadBgsmTexturesFromTextureSet(mat, texset, Nif.Header.Version.IsSSE)
             End If
         Else
             mat = New BGSM
@@ -1928,13 +2009,14 @@ Public Class FO4UnifiedMaterial_Class
         shad.HasEnvironmentMapping = Mat.EnvironmentMapping
         shad.EnvironmentMapScale = Mat.EnvironmentMappingMaskScale
         If Nif.Header.Version.IsSSE Then
-            shad.Glossiness = CSng(Mat.Smoothness * 100.0F)
+            shad.Glossiness = CSng(Math.Pow(2.0, CDbl(Mat.Smoothness) * 10.0 + 1.0))
         Else
             shad.Smoothness = Mat.Smoothness
         End If
         shad.SubsurfaceRolloff = Mat.SubsurfaceLightingRolloff
         shad.ModelSpace = Mat.ModelSpaceNormals
         shad.HairTintColor = UIntegerToNifColor3(Mat.HairTintColor)
+        shad.SkinTintColor = UIntegerToNifColor3(Mat.SkinTintColor)
         shad.HasBacklight = Mat.BackLighting
         shad.BacklightPower = Mat.BackLightPower
         shad.HasSpecular = Mat.SpecularEnabled
@@ -1955,7 +2037,7 @@ Public Class FO4UnifiedMaterial_Class
         End If
 
         Dim texset = CType(Nif.Blocks(shad.TextureSetRef.Index), BSShaderTextureSet)
-        WriteBgsmTexturesToTextureSet(Mat, texset)
+        WriteBgsmTexturesToTextureSet(Mat, texset, Nif.Header.Version.IsSSE)
 
         If IsNothing(shap.AlphaPropertyRef) OrElse shap.AlphaPropertyRef.Index = -1 Then
             shap.AlphaPropertyRef = New NiBlockRef(Of NiAlphaProperty) With {.Index = Nif.AddBlock(New NiAlphaProperty)}
@@ -1997,34 +2079,88 @@ Public Class FO4UnifiedMaterial_Class
     Private Const textset_FlowTexture As Integer = 5
     Private Const textset_LightingTexture As Integer = 6
     Private Const textset_SmoothSpecTextureAs As Integer = 7
-    Private Shared Sub ReadBgsmTexturesFromTextureSet(mat As BGSM, texset As BSShaderTextureSet)
+    Private Shared Sub ReadBgsmTexturesFromTextureSet(mat As BGSM, texset As BSShaderTextureSet, Optional isSSE As Boolean = False)
         If IsNothing(mat) OrElse IsNothing(texset) Then Exit Sub
 
         EnsureShaderTextureSetSlots(texset)
 
         mat.DiffuseTexture = texset.Textures(textset_dDiffuseTexture).Content
         mat.NormalTexture = texset.Textures(textset_NormalTexture).Content
-        mat.GlowTexture = texset.Textures(textset_GlowTexture).Content
-        mat.DisplacementTexture = texset.Textures(textset_DisplacementTexture).Content
         mat.EnvmapTexture = texset.Textures(textset_EnvmapTexture).Content
-        mat.FlowTexture = texset.Textures(textset_FlowTexture).Content
-        mat.LightingTexture = texset.Textures(textset_LightingTexture).Content
         mat.SmoothSpecTexture = texset.Textures(textset_SmoothSpecTextureAs).Content
+
+        ' Slot 3 is dual-purpose: DisplacementTexture (FO4/default) or DetailMask (SSE FaceTint)
+        If isSSE AndAlso mat.Facegen Then
+            mat.DetailMaskTexture = texset.Textures(textset_DisplacementTexture).Content
+        Else
+            mat.DisplacementTexture = texset.Textures(textset_DisplacementTexture).Content
+        End If
+
+        ' Slot 5 is dual-purpose: FlowTexture (FO4) or Environment Mask (SSE)
+        If isSSE Then
+            mat.EnvmapMaskTexture = texset.Textures(textset_FlowTexture).Content
+        Else
+            mat.FlowTexture = texset.Textures(textset_FlowTexture).Content
+        End If
+
+        ' Slot 6 is dual-purpose: LightingTexture or TintMask (SSE FaceTint)
+        ' SSE slot 2 is dual-purpose: glow (when HasGlowmap) or skin tint/lightmask (when HasSoftlight/HasRimlight).
+        ' Remap to the correct BGSM property based on shader flags (already set in mat before this call).
+        Dim slot2 = texset.Textures(textset_GlowTexture).Content
+        If isSSE AndAlso Not mat.Glowmap AndAlso (mat.SubsurfaceLighting OrElse mat.RimLighting) Then
+            mat.LightingTexture = slot2
+            mat.GlowTexture = ""
+        Else
+            mat.GlowTexture = slot2
+            If Not isSSE Then mat.LightingTexture = texset.Textures(textset_LightingTexture).Content
+        End If
+
+        If isSSE Then
+            Dim slot6 = texset.Textures(textset_LightingTexture).Content
+            If mat.Facegen Then
+                mat.TintMaskTexture = slot6
+            ElseIf String.IsNullOrEmpty(mat.LightingTexture) Then
+                mat.LightingTexture = slot6
+            End If
+        End If
     End Sub
 
-    Private Shared Sub WriteBgsmTexturesToTextureSet(mat As BGSM, texset As BSShaderTextureSet)
+    Private Shared Sub WriteBgsmTexturesToTextureSet(mat As BGSM, texset As BSShaderTextureSet, Optional isSSE As Boolean = False)
         If IsNothing(mat) OrElse IsNothing(texset) Then Exit Sub
 
         EnsureShaderTextureSetSlots(texset)
 
         texset.Textures(textset_dDiffuseTexture).Content = mat.DiffuseTexture
         texset.Textures(textset_NormalTexture).Content = mat.NormalTexture
-        texset.Textures(textset_GlowTexture).Content = mat.GlowTexture
-        texset.Textures(textset_DisplacementTexture).Content = mat.DisplacementTexture
         texset.Textures(textset_EnvmapTexture).Content = mat.EnvmapTexture
-        texset.Textures(textset_FlowTexture).Content = mat.FlowTexture
-        texset.Textures(textset_LightingTexture).Content = mat.LightingTexture
         texset.Textures(textset_SmoothSpecTextureAs).Content = mat.SmoothSpecTexture
+
+        ' Slot 3: DetailMask (SSE FaceTint) or DisplacementTexture (FO4/default)
+        If isSSE AndAlso mat.Facegen Then
+            texset.Textures(textset_DisplacementTexture).Content = mat.DetailMaskTexture
+        Else
+            texset.Textures(textset_DisplacementTexture).Content = mat.DisplacementTexture
+        End If
+
+        ' Slot 5: Environment Mask (SSE) or FlowTexture (FO4)
+        If isSSE Then
+            texset.Textures(textset_FlowTexture).Content = mat.EnvmapMaskTexture
+        Else
+            texset.Textures(textset_FlowTexture).Content = mat.FlowTexture
+        End If
+
+        ' Slot 6: TintMask (SSE FaceTint) or LightingTexture (other)
+        ' SSE slot 2: glow or lightmask remapping
+        If isSSE AndAlso mat.Facegen Then
+            texset.Textures(textset_GlowTexture).Content = mat.GlowTexture
+            texset.Textures(textset_LightingTexture).Content = mat.TintMaskTexture
+        ElseIf isSSE AndAlso Not mat.Glowmap AndAlso (mat.SubsurfaceLighting OrElse mat.RimLighting) Then
+            texset.Textures(textset_GlowTexture).Content = mat.LightingTexture
+            texset.Textures(textset_LightingTexture).Content = ""
+        Else
+            texset.Textures(textset_GlowTexture).Content = mat.GlowTexture
+            texset.Textures(textset_LightingTexture).Content = mat.LightingTexture
+        End If
     End Sub
     Public Sub Deserialize(Memory As Byte(), type As Type)
         If Memory.Length = 0 Then Exit Sub

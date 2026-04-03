@@ -384,7 +384,7 @@ Public Class PreviewControl
         SwapBuffers()
         ' Keep the status frame on screen until some later step explicitly requests
         ' another render; pumping the message loop here can re-enter selection/render.
-        updateRequired = False
+        UpdateRequired = False
     End Sub
 
 
@@ -536,7 +536,8 @@ Public Class PreviewControl
                                      mat.GreyscaleTexture, mat.EnvmapTexture, mat.FlowTexture,
                                      mat.GlowTexture, mat.DisplacementTexture, mat.InnerLayerTexture,
                                      mat.LightingTexture, mat.SpecularTexture, mat.WrinklesTexture,
-                                     mat.DistanceFieldAlphaTexture, mat.EnvmapMaskTexture}
+                                     mat.DistanceFieldAlphaTexture, mat.EnvmapMaskTexture,
+                                     mat.DetailMaskTexture, mat.TintMaskTexture}
                         For Each p In paths
                             Dim corrected = FO4UnifiedMaterial_Class.CorrectTexturePath(p)
                             If corrected <> "" Then texturePaths.Add(corrected)
@@ -717,9 +718,14 @@ Public Class PreviewControl
         ' Consume the current render request up front so any new request raised
         ' during RenderScene survives this frame and schedules the next one.
         UpdateRequired = False
-        RenderScene()
-        SwapBuffers()
-        FinishRenderFrame()
+        Try
+            RenderScene()
+            SwapBuffers()
+            FinishRenderFrame()
+        Catch ex As Exception
+            Debugger.Break()
+            Debug.Print($"[Render] OnPaint error: {ex.Message}")
+        End Try
     End Sub
     Protected Overrides Sub OnMouseDown(e As MouseEventArgs)
         MyBase.OnMouseDown(e)
@@ -1363,10 +1369,7 @@ Public Class PreviewModel
             Public ReadOnly Property EnvmapMaskTexture_ID As UInteger
                 Get
                     Dim key As String = FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.EnvmapMaskTexture)
-                    If key = "" Then
-                        key = FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.FlowTexture)
-                        If key = "" Then Return 0
-                    End If
+                    If key = "" Then Return 0
                     Dim tex As Texture_Loaded_Class = Nothing
                     If Not TryGetTexture(key, tex) Then Return 0
                     If tex.Cubemap = True Then Return 0
@@ -1376,6 +1379,16 @@ Public Class PreviewModel
             Public ReadOnly Property FlowTexture_ID As UInteger
                 Get
                     Return GetTextureID(FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.FlowTexture))
+                End Get
+            End Property
+            Public ReadOnly Property DetailMaskTexture_ID As UInteger
+                Get
+                    Return GetTextureID(FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.DetailMaskTexture))
+                End Get
+            End Property
+            Public ReadOnly Property TintMaskTexture_ID As UInteger
+                Get
+                    Return GetTextureID(FO4UnifiedMaterial_Class.CorrectTexturePath(MaterialBase.TintMaskTexture))
                 End Get
             End Property
 
@@ -1460,30 +1473,38 @@ Public Class PreviewModel
                         Dim ln = MeshData.Meshgeometry.Normals
                         Dim lt = MeshData.Meshgeometry.Tangents
                         Dim lb = MeshData.Meshgeometry.Bitangents
+                        Dim isMSN As Boolean = MeshData.Material?.MaterialBase IsNot Nothing AndAlso MeshData.Material.MaterialBase.ModelSpaceNormals
                         ' Cache normal matrix for single-bone (all per-vertex matrices identical)
                         Dim isSingle As Boolean = vertexCount > 1 AndAlso mats(0) = mats(vertexCount - 1)
-                        Dim singleNM As Matrix4d = Matrix4d.Identity
+                        Dim singleNM3 As Matrix3d = Matrix3d.Identity
                         If isSingle Then
-                            Dim s3 As New Matrix3d(mats(0)) : s3.Invert() : s3.Transpose()
-                            singleNM = New Matrix4d(s3.Row0.X, s3.Row0.Y, s3.Row0.Z, 0, s3.Row1.X, s3.Row1.Y, s3.Row1.Z, 0, s3.Row2.X, s3.Row2.Y, s3.Row2.Z, 0, 0, 0, 0, 1)
+                            singleNM3 = New Matrix3d(mats(0)) : singleNM3.Invert() : singleNM3.Transpose()
                         End If
                         Dim body As Action(Of Integer) = Sub(i)
                                                              Dim m = mats(i)
                                                              Dim wp = Vector3d.TransformPosition(lv(i), m)
                                                              posF(i) = New Vector3(CSng(wp.X), CSng(wp.Y), CSng(wp.Z))
-                                                             Dim nm As Matrix4d
+                                                             Dim nm3 As Matrix3d
                                                              If isSingle Then
-                                                                 nm = singleNM
+                                                                 nm3 = singleNM3
                                                              Else
-                                                                 Dim nm3 As New Matrix3d(m) : nm3.Invert() : nm3.Transpose()
-                                                                 nm = New Matrix4d(nm3.Row0.X, nm3.Row0.Y, nm3.Row0.Z, 0, nm3.Row1.X, nm3.Row1.Y, nm3.Row1.Z, 0, nm3.Row2.X, nm3.Row2.Y, nm3.Row2.Z, 0, 0, 0, 0, 1)
+                                                                 nm3 = New Matrix3d(m) : nm3.Invert() : nm3.Transpose()
                                                              End If
-                                                             Dim wn = Vector3d.Normalize(Vector3d.TransformNormal(ln(i), nm))
-                                                             nrmF(i) = New Vector3(CSng(wn.X), CSng(wn.Y), CSng(wn.Z))
-                                                             Dim wt = Vector3d.Normalize(Vector3d.TransformNormal(lt(i), nm))
-                                                             tanF(i) = New Vector3(CSng(wt.X), CSng(wt.Y), CSng(wt.Z))
-                                                             Dim wb = Vector3d.Normalize(Vector3d.TransformNormal(lb(i), nm))
-                                                             bitanF(i) = New Vector3(CSng(wb.X), CSng(wb.Y), CSng(wb.Z))
+                                                             If isMSN Then
+                                                                 ' MSN: pack skinNormalMat columns into N/T/B VBOs
+                                                                 ' Vertex shader reads them back as mat3 columns
+                                                                 nrmF(i) = New Vector3(CSng(nm3.Row0.X), CSng(nm3.Row0.Y), CSng(nm3.Row0.Z))
+                                                                 tanF(i) = New Vector3(CSng(nm3.Row1.X), CSng(nm3.Row1.Y), CSng(nm3.Row1.Z))
+                                                                 bitanF(i) = New Vector3(CSng(nm3.Row2.X), CSng(nm3.Row2.Y), CSng(nm3.Row2.Z))
+                                                             Else
+                                                                 Dim nm As New Matrix4d(nm3.Row0.X, nm3.Row0.Y, nm3.Row0.Z, 0, nm3.Row1.X, nm3.Row1.Y, nm3.Row1.Z, 0, nm3.Row2.X, nm3.Row2.Y, nm3.Row2.Z, 0, 0, 0, 0, 1)
+                                                                 Dim wn = Vector3d.Normalize(Vector3d.TransformNormal(ln(i), nm))
+                                                                 nrmF(i) = New Vector3(CSng(wn.X), CSng(wn.Y), CSng(wn.Z))
+                                                                 Dim wt = Vector3d.Normalize(Vector3d.TransformNormal(lt(i), nm))
+                                                                 tanF(i) = New Vector3(CSng(wt.X), CSng(wt.Y), CSng(wt.Z))
+                                                                 Dim wb = Vector3d.Normalize(Vector3d.TransformNormal(lb(i), nm))
+                                                                 bitanF(i) = New Vector3(CSng(wb.X), CSng(wb.Y), CSng(wb.Z))
+                                                             End If
                                                          End Sub
                         If vertexCount >= 500 Then Parallel.For(0, vertexCount, body) Else For i = 0 To vertexCount - 1 : body(i) : Next
                     Else
@@ -1544,12 +1565,12 @@ Public Class PreviewModel
                 ' Un solo bucle para actualizar todos los atributos
                 Dim buf(2) As Single
                 Dim sparseMats = If(cpuSkin, MeshData.Meshgeometry.PerVertexSkinMatrix, Nothing)
+                Dim sparseIsMSN As Boolean = cpuSkin AndAlso MeshData.Material?.MaterialBase IsNot Nothing AndAlso MeshData.Material.MaterialBase.ModelSpaceNormals
                 ' Cache normal matrix for single-bone (all matrices identical)
                 Dim singleBone As Boolean = cpuSkin AndAlso vertexCount > 1 AndAlso sparseMats(0) = sparseMats(vertexCount - 1)
-                Dim cachedNM As Matrix4d = Matrix4d.Identity
+                Dim cachedNM3 As Matrix3d = Matrix3d.Identity
                 If singleBone Then
-                    Dim nm3 As New Matrix3d(sparseMats(0)) : nm3.Invert() : nm3.Transpose()
-                    cachedNM = New Matrix4d(nm3.Row0.X, nm3.Row0.Y, nm3.Row0.Z, 0, nm3.Row1.X, nm3.Row1.Y, nm3.Row1.Z, 0, nm3.Row2.X, nm3.Row2.Y, nm3.Row2.Z, 0, 0, 0, 0, 1)
+                    cachedNM3 = New Matrix3d(sparseMats(0)) : cachedNM3.Invert() : cachedNM3.Transpose()
                 End If
 
                 For Each i As Integer In MeshData.Meshgeometry.dirtyVertexIndices
@@ -1561,26 +1582,37 @@ Public Class PreviewModel
 
                     If cpuSkin Then
                         Dim m = sparseMats(i)
-                        Dim nm As Matrix4d
+                        Dim nm3 As Matrix3d
                         If singleBone Then
-                            nm = cachedNM
+                            nm3 = cachedNM3
                         Else
-                            Dim nm3 As New Matrix3d(m) : nm3.Invert() : nm3.Transpose()
-                            nm = New Matrix4d(nm3.Row0.X, nm3.Row0.Y, nm3.Row0.Z, 0, nm3.Row1.X, nm3.Row1.Y, nm3.Row1.Z, 0, nm3.Row2.X, nm3.Row2.Y, nm3.Row2.Z, 0, 0, 0, 0, 1)
+                            nm3 = New Matrix3d(m) : nm3.Invert() : nm3.Transpose()
                         End If
 
                         Dim wp = Vector3d.TransformPosition(MeshData.Meshgeometry.Vertices(i), m)
                         buf(0) = CSng(wp.X) : buf(1) = CSng(wp.Y) : buf(2) = CSng(wp.Z)
                         Marshal.Copy(buf, 0, baseP, 3)
-                        Dim wn = Vector3d.Normalize(Vector3d.TransformNormal(MeshData.Meshgeometry.Normals(i), nm))
-                        buf(0) = CSng(wn.X) : buf(1) = CSng(wn.Y) : buf(2) = CSng(wn.Z)
-                        Marshal.Copy(buf, 0, baseN, 3)
-                        Dim wt = Vector3d.Normalize(Vector3d.TransformNormal(MeshData.Meshgeometry.Tangents(i), nm))
-                        buf(0) = CSng(wt.X) : buf(1) = CSng(wt.Y) : buf(2) = CSng(wt.Z)
-                        Marshal.Copy(buf, 0, baseT, 3)
-                        Dim wb = Vector3d.Normalize(Vector3d.TransformNormal(MeshData.Meshgeometry.Bitangents(i), nm))
-                        buf(0) = CSng(wb.X) : buf(1) = CSng(wb.Y) : buf(2) = CSng(wb.Z)
-                        Marshal.Copy(buf, 0, baseB, 3)
+
+                        If sparseIsMSN Then
+                            ' MSN: pack skinNormalMat columns into N/T/B VBOs
+                            buf(0) = CSng(nm3.Row0.X) : buf(1) = CSng(nm3.Row0.Y) : buf(2) = CSng(nm3.Row0.Z)
+                            Marshal.Copy(buf, 0, baseN, 3)
+                            buf(0) = CSng(nm3.Row1.X) : buf(1) = CSng(nm3.Row1.Y) : buf(2) = CSng(nm3.Row1.Z)
+                            Marshal.Copy(buf, 0, baseT, 3)
+                            buf(0) = CSng(nm3.Row2.X) : buf(1) = CSng(nm3.Row2.Y) : buf(2) = CSng(nm3.Row2.Z)
+                            Marshal.Copy(buf, 0, baseB, 3)
+                        Else
+                            Dim nm As New Matrix4d(nm3.Row0.X, nm3.Row0.Y, nm3.Row0.Z, 0, nm3.Row1.X, nm3.Row1.Y, nm3.Row1.Z, 0, nm3.Row2.X, nm3.Row2.Y, nm3.Row2.Z, 0, 0, 0, 0, 1)
+                            Dim wn = Vector3d.Normalize(Vector3d.TransformNormal(MeshData.Meshgeometry.Normals(i), nm))
+                            buf(0) = CSng(wn.X) : buf(1) = CSng(wn.Y) : buf(2) = CSng(wn.Z)
+                            Marshal.Copy(buf, 0, baseN, 3)
+                            Dim wt = Vector3d.Normalize(Vector3d.TransformNormal(MeshData.Meshgeometry.Tangents(i), nm))
+                            buf(0) = CSng(wt.X) : buf(1) = CSng(wt.Y) : buf(2) = CSng(wt.Z)
+                            Marshal.Copy(buf, 0, baseT, 3)
+                            Dim wb = Vector3d.Normalize(Vector3d.TransformNormal(MeshData.Meshgeometry.Bitangents(i), nm))
+                            buf(0) = CSng(wb.X) : buf(1) = CSng(wb.Y) : buf(2) = CSng(wb.Z)
+                            Marshal.Copy(buf, 0, baseB, 3)
+                        End If
                     Else
                         Dim v = MeshData.Meshgeometry.Vertices(i)
                         buf(0) = v.X : buf(1) = v.Y : buf(2) = v.Z
@@ -1883,6 +1915,9 @@ Public Class PreviewModel
             shader.SetMatrix4("matModelView", modelView)
             shader.SetMatrix4("matModelViewInverse", modelViewInverse)
             shader.SetMatrix3("mv_normalMatrix", normalMatrix)
+            ' bModelSpace needed in vertex shader for MSN CPU skinning path
+            Dim materialBase = MeshData.Material.MaterialBase
+            shader.SetBool("bModelSpace", materialBase IsNot Nothing AndAlso materialBase.ModelSpaceNormals)
             ApplyMaterial(MeshData.Material)
 
             ' GPU Skinning: bind SSBO and set uniforms
@@ -2034,13 +2069,21 @@ Public Class PreviewModel
             Dim glowTextureId = material.GlowTexture_ID
             Dim lightingTextureId = material.LightingTexture_ID
             Dim hasBacklightTexture As Boolean = materialBase.BackLighting
-            Dim hasSpecularSource As Boolean = (smoothSpecTextureId <> 0)
+            Dim hasSpecMap As Boolean = (smoothSpecTextureId <> 0)
+            Dim isSSE As Boolean = TypeOf shader Is Shader_Class_SSE
+            ' SSE: specular can come from normalMap.a even without a dedicated spec map
+            Dim hasSpecularSource As Boolean = hasSpecMap OrElse (isSSE AndAlso normalTextureId <> 0)
 
             Dim hasCubemap = material.HasCubemap
             Dim hasAlphaBlend = material.HasAlphaBlend
             Dim hasAlphaTest = material.HasAlphaTest
             Dim shape = Me.MeshData.Shape
-            Dim VtxColor As Boolean = shape.ShowVertexColor And shape.RelatedNifShape.HasVertexColors
+            Dim hasVtxData As Boolean = shape.ShowVertexColor AndAlso shape.RelatedNifShape.HasVertexColors
+            Dim nifShader = shape.RelatedNifShader
+            ' Vertex colors (RGB) and vertex alpha are independent NIF shader flags:
+            ' SLSF2_Vertex_Colors controls RGB tinting, SLSF1_Vertex_Alpha controls transparency.
+            Dim showVtxColor As Boolean = hasVtxData AndAlso (nifShader IsNot Nothing AndAlso nifShader.HasVertexColors)
+            Dim showVtxAlpha As Boolean = hasVtxData AndAlso (nifShader IsNot Nothing AndAlso nifShader.HasVertexAlpha)
 
             '===============================
             ' ?? PROPIEDADES DE COLOR BÁSICO
@@ -2060,8 +2103,8 @@ Public Class PreviewModel
             shader.SetBool("bShowTexture", shape.ShowTexture)
             shader.SetBool("bShowMask", shape.ShowMask)
             shader.SetBool("bShowWeight", shape.ShowWeight)
-            shader.SetBool("bShowVertexColor", VtxColor)
-            shader.SetBool("bShowVertexAlpha", VtxColor)
+            shader.SetBool("bShowVertexColor", showVtxColor)
+            shader.SetBool("bShowVertexAlpha", showVtxAlpha)
             shader.SetBool("bApplyZap", shape.ApplyZaps)
             shader.SetBool("bWireframe", shape.Wireframe)
             shader.SetBool("bHide", shape.RenderHide)
@@ -2136,10 +2179,13 @@ Public Class PreviewModel
                 shader.BindTexture("texGlowmap", Me.ParentModel.ParentControl.defaultWhiteTex, TextureUnit.Texture6)
             End If
 
-            If lightingTextureId <> 0 Then
-                shader.BindTexture("texLightmask", lightingTextureId, TextureUnit.Texture7)
-            Else
-                shader.BindTexture("texLightmask", Me.ParentModel.ParentControl.defaultWhiteTex, TextureUnit.Texture7)
+            ' texLightmask is SSE-only (rimlight/softlight masking); FO4 does not use it
+            If isSSE Then
+                If lightingTextureId <> 0 Then
+                    shader.BindTexture("texLightmask", lightingTextureId, TextureUnit.Texture7)
+                Else
+                    shader.BindTexture("texLightmask", Me.ParentModel.ParentControl.defaultWhiteTex, TextureUnit.Texture7)
+                End If
             End If
 
             '===============================
@@ -2159,11 +2205,12 @@ Public Class PreviewModel
             shader.SetBool("bNormalMap", normalTextureId <> 0)
             shader.SetBool("bGreyscaleColor", materialBase.GrayscaleToPaletteColor AndAlso greyscaleTextureId <> 0)
             shader.SetBool("bSpecular", materialBase.SpecularEnabled AndAlso hasSpecularSource)
+            If isSSE Then shader.SetBool("bHasSpecMap", hasSpecMap)
             shader.SetBool("bModelSpace", materialBase.ModelSpaceNormals)
             shader.SetBool("bEmissive", materialBase.EmitEnabled)
             shader.SetBool("bSoftlight", materialBase.SubsurfaceLighting)
             shader.SetBool("bGlowmap", materialBase.Glowmap AndAlso glowTextureId <> 0)
-            shader.SetBool("bLightmask", lightingTextureId <> 0)
+            If isSSE Then shader.SetBool("bLightmask", lightingTextureId <> 0)
             shader.SetFloat("shininess", materialBase.Smoothness)
             shader.SetVector3("specularColor", Shader_Base_Class.Color_to_Vector(materialBase.SpecularColor))
             shader.SetFloat("specularStrength", materialBase.SpecularMult)
@@ -2171,7 +2218,6 @@ Public Class PreviewModel
             shader.SetFloat("emissiveMultiple", materialBase.EmittanceMult)
             shader.SetFloat("fresnelPower", materialBase.FresnelPower)
             shader.SetFloat("subsurfaceRolloff", materialBase.SubsurfaceLightingRolloff)
-            shader.SetFloat("softlighting", materialBase.SubsurfaceLighting)
             shader.SetFloat("paletteScale", materialBase.GrayscaleToPaletteScale)
             shader.SetFloat("envReflection", materialBase.EnvironmentMappingMaskScale)
             shader.SetBool("bBacklight", materialBase.BackLighting)
@@ -2180,13 +2226,36 @@ Public Class PreviewModel
             shader.SetFloat("rimlightPower", materialBase.RimPower)
             shader.SetBool("bDoubleSided", materialBase.TwoSided)
 
+            ' SkinTint / HairTint
+            Dim hasTint As Boolean = materialBase.SkinTint OrElse materialBase.Hair
+            shader.SetBool("bHasTintColor", hasTint)
+            If hasTint Then
+                Dim tint As Color = If(materialBase.SkinTint, materialBase.SkinTintColor, materialBase.HairTintColor)
+                shader.SetVector3("tintColor", Shader_Base_Class.Color_to_Vector(tint))
+            End If
+
+            ' FaceTint: detail mask + tint mask (SSE only)
+            If isSSE Then
+                Dim detailMaskId = material.DetailMaskTexture_ID
+                Dim tintMaskId = material.TintMaskTexture_ID
+                Dim isFaceTint As Boolean = materialBase.Facegen
+                shader.SetBool("bHasDetailMask", isFaceTint AndAlso detailMaskId <> 0)
+                shader.SetBool("bHasTintMask", isFaceTint AndAlso tintMaskId <> 0)
+                If isFaceTint AndAlso detailMaskId <> 0 Then
+                    shader.BindTexture("texDetailMask", detailMaskId, TextureUnit.Texture8)
+                End If
+                If isFaceTint AndAlso tintMaskId <> 0 Then
+                    shader.BindTexture("texTintMask", tintMaskId, TextureUnit.Texture9)
+                End If
+            End If
+
             ' Effect Shader (BGEM) properties
             Dim isBGEM As Boolean = materialBase.IsBGEM
             shader.SetBool("bIsEffectShader", isBGEM)
             shader.SetBool("bEffectFalloff", materialBase.FalloffEnabled)
             shader.SetBool("bEffectFalloffColor", materialBase.FalloffColorEnabled)
             shader.SetBool("bEffectGreyscaleAlpha", materialBase.GrayscaleToPaletteAlpha)
-            shader.SetFloat("effectLightingInfluence", materialBase.LightingInfluence)
+            shader.SetFloat("effectLightingInfluence", If(materialBase.EffectLightingEnabled, materialBase.LightingInfluence, 0.0F))
             shader.SetVector4("effectFalloffParams", New OpenTK.Mathematics.Vector4(materialBase.FalloffStartAngle, materialBase.FalloffStopAngle, materialBase.FalloffStartOpacity, materialBase.FalloffStopOpacity))
             shader.SetVector3("effectBaseColor", Shader_Base_Class.Color_to_Vector(materialBase.BaseColor))
             shader.SetFloat("effectBaseColorAlpha", materialBase.BaseColor.A / 255.0F)

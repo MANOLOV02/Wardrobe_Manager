@@ -455,6 +455,19 @@ Public Class Editor_Form
     End Sub
 
     Private Selected_size As Config_App.SliderSize
+
+    ''' <summary>
+    ''' Resolves the effective slider size for the current game.
+    ''' FO4: Default is Default (fallback to Big handled at preset lookup).
+    ''' SSE: Default IS Big (SSE presets don't use Default). Small only when explicit.
+    ''' </summary>
+    Private Shared Function EffectiveSize(size As Config_App.SliderSize) As Config_App.SliderSize
+        If Config_App.Current.Game = Config_App.Game_Enum.Skyrim AndAlso size = Config_App.SliderSize.Default Then
+            Return Config_App.SliderSize.Big
+        End If
+        Return size
+    End Function
+
     Public Sub Lee_Edit(Seleccion As SliderSet_Class, Preset As String, Pose As String)
         ComboBoxAllXYZ.SelectedIndex = 1
         OSP_Project_Class.Load_and_CHeck_Project(Seleccion)
@@ -471,7 +484,7 @@ Public Class Editor_Form
         CheckBoxGenweight.Checked = clone.GenWeights
         Label34.Visible = CheckBox2.Checked AndAlso Config_App.Current.Game = Config_App.Game_Enum.Skyrim
         ComboBoxSize.SelectedIndex = Config_App.Current.Bodytipe
-        Selected_size = Config_App.Current.Bodytipe
+        Selected_size = EffectiveSize(Config_App.Current.Bodytipe)
         Selected_Slider = clone
         ComboBoxPresets.Items.Clear()
         ComboBoxPoses.Items.Clear()
@@ -583,9 +596,28 @@ Public Class Editor_Form
             End If
         End If
 
+        ' ModelSpaceNormals toggle: needs TBN recalc + full VBO re-upload
+        Dim msnToggled As Boolean = (e.ChangedItem IsNot Nothing AndAlso e.ChangedItem.Label = "ModelSpaceNormals")
+
         Update_Grayscale()
         Iniciado_Edit()
-        Process_render_Changes(False)
+        Process_render_Changes(msnToggled)
+
+        If msnToggled Then
+            ' ApplyMorph_CPU won't recalc TBN if no morph changed positions (dirty gets cleared).
+            ' Force RecalcTBN here so MSN->tangent gets normals regenerated from geometry,
+            ' and tangent->MSN gets VBOs repacked with skinNormalMat columns.
+            For Each mesh In EditPreviewControl.Model.meshes
+                If Not IsNothing(mesh.MeshData.Meshgeometry) AndAlso mesh.MeshData.Meshgeometry.Vertices IsNot Nothing Then
+                    Dim vertCount = mesh.MeshData.Meshgeometry.Vertices.Length
+                    mesh.MeshData.Meshgeometry.dirtyVertexIndices = New HashSet(Of Integer)(Enumerable.Range(0, vertCount))
+                    Array.Fill(mesh.MeshData.Meshgeometry.dirtyVertexFlags, True)
+                    RecalcTBN.RecalculateNormalsTangentsBitangents(mesh.MeshData.Meshgeometry, Config_App.Current.Setting_TBN)
+                    mesh.UpdateSkinBuffers_GL()
+                End If
+            Next
+            EditPreviewControl.RefreshRender()
+        End If
     End Sub
     Private Sub RequestPreviewRedraw()
         If IsNothing(EditPreviewControl) Then Exit Sub
@@ -779,13 +811,11 @@ Public Class Editor_Form
                 End If
                 Selected_Slider.NIFContent.RemoveBlocksOfType(Of BSClothExtraData)()
             End If
-            ' SSE HDT-SMP sidecar XML — clear memory and delete both loose copies (shapedata + output)
+            ' SSE HDT-SMP sidecar XML — clear memory and delete loose copies (shapedata)
             If Not String.IsNullOrEmpty(Selected_Slider.PhysicsXmlContent) Then
                 Selected_Slider.PhysicsXmlContent = Nothing
                 Dim shapedataXml = IO.Path.ChangeExtension(Selected_Slider.SourceFileFullPath, ".xml")
-                Dim outputXml = Selected_Slider.OutputFullPathBase & ".xml"
                 If IO.File.Exists(shapedataXml) Then IO.File.Delete(shapedataXml)
-                If IO.File.Exists(outputXml) Then IO.File.Delete(outputXml)
             End If
             Selected_Slider.InvalidateAllLookupCaches()
             Process_render_Changes(True)
@@ -824,6 +854,26 @@ Public Class Editor_Form
     End Sub
     Private Sub Button3_Click(sender As Object, e As EventArgs) Handles ButtonSave.Click
         If Revisa_Material() Then
+            ' Check if ModelSpaceNormals changed for any shape — warn user before saving
+            Dim msnChangedShapes As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+            If _OriginalSlider IsNot Nothing Then
+                For Each shap In Selected_Slider.Shapes
+                    Dim currentMSN = shap.RelatedMaterial?.material?.ModelSpaceNormals
+                    Dim originalShape = _OriginalSlider.Shapes.FirstOrDefault(Function(s) s.Nombre.Equals(shap.Nombre, StringComparison.OrdinalIgnoreCase))
+                    Dim originalMSN = originalShape?.RelatedMaterial?.material?.ModelSpaceNormals
+                    If currentMSN IsNot Nothing AndAlso originalMSN IsNot Nothing AndAlso currentMSN <> originalMSN Then
+                        msnChangedShapes.Add(shap.Nombre)
+                    End If
+                Next
+                If msnChangedShapes.Count > 0 Then
+                    If MsgBox("ModelSpaceNormals changed for " & msnChangedShapes.Count.ToString & " shape(s). " &
+                              "This affects how normals are stored in the NIF. Are you sure you want to save?",
+                              vbYesNo + vbExclamation, "ModelSpaceNormals Changed") = MsgBoxResult.No Then
+                        Exit Sub
+                    End If
+                End If
+            End If
+
             If Not Grabable AndAlso Selected_Slider.ParentOSP.IsManoloPack = False Then
                 If MsgBox("This is not a Manolo Pack project, it is a source, are you sure you want to edit it", vbYesNo, "Warning - Source edit") = MsgBoxResult.No Then
                     Exit Sub
@@ -831,6 +881,18 @@ Public Class Editor_Form
             End If
             ' Promote the clone's node into the OSP document tree so Save_Pack persists XML changes
             _OriginalSlider?.Nodo.ParentNode.ReplaceChild(Selected_Slider.Nodo, _OriginalSlider.Nodo)
+
+            ' Only for shapes whose ModelSpaceNormals changed: inject computed N/T/B from geo.
+            ' Shapes that didn't change: leave the NIF exactly as it was.
+            If msnChangedShapes.Count > 0 Then
+                For Each mesh In EditPreviewControl.Model.meshes
+                    If Not IsNothing(mesh.MeshData.Meshgeometry) Then Continue For
+                    If mesh.MeshData.Shape Is Nothing Then Continue For
+                    If Not msnChangedShapes.Contains(mesh.MeshData.Shape.Nombre) Then Continue For
+                    SkinningHelper.InjectNormalsToTrishape(mesh.MeshData.Meshgeometry)
+                Next
+            End If
+
             Selected_Slider.Save_Shapedatas(True)
             Selected_Slider.ParentOSP.Save_Pack(True)
             Dim hhfile = Selected_Slider.SourceFileFullPath
@@ -2152,11 +2214,14 @@ Public Class Editor_Form
         If Not IsNothing(Edited) Then pose_is_Edited = Edited
         Skeleton_Class.PrepareSkeletonForShapes(Selected_Slider.Shapes, Selected_Pose)
         Update_Bone_Sliders()
-        Process_render_Changes(False)  ' False enables SSBO-only fast path for pose changes
+        ' Invalidate Last_Pose so Update_Render detects the pose change
+        ' (Selected_Pose is the same object reference, only its internal transforms changed)
+        EditPreviewControl.Model.Last_Pose = Nothing
+        Process_render_Changes(False)
     End Sub
     Private Sub Process_render_Changes(Force As Boolean)
         EditPreviewControl.Model.Floor.Enabled = CheckBoxRenderFloor.Checked
-        EditPreviewControl.Update_Render(Selected_Slider, Force, Selected_Preset, Selected_Pose, ComboBoxSize.SelectedIndex)
+        EditPreviewControl.Update_Render(Selected_Slider, Force, Selected_Preset, Selected_Pose, Selected_size)
     End Sub
 
     Private Sub PoseBakeButton_Click(sender As Object, e As EventArgs) Handles PoseBakeButton.Click
@@ -2300,7 +2365,7 @@ Public Class Editor_Form
     End Sub
 
     Private Sub ComboBoxSize_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBoxSize.SelectedIndexChanged
-        Selected_size = ComboBoxSize.SelectedIndex
+        Selected_size = EffectiveSize(ComboBoxSize.SelectedIndex)
         Actualiza_Preset()
         Process_render_Changes(False)
     End Sub

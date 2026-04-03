@@ -46,8 +46,6 @@ uniform vec3 subColor;
 
 uniform bool bShowTexture;
 uniform bool bShowMask;
-uniform bool softlighting;
-uniform bool bLightmask;
 uniform bool bShowWeight;
 uniform bool bShowVertexColor;
 uniform bool bShowVertexAlpha;
@@ -280,8 +278,6 @@ uniform sampler2D texGlowmap;
 uniform bool bLightEnabled;
 uniform bool bShowTexture;
 uniform bool bShowMask;
-uniform bool softlighting;
-uniform bool bLightmask;
 uniform bool bShowWeight;
 uniform bool bWireframe;
 uniform bool bApplyZap;
@@ -335,6 +331,8 @@ uniform float WireAlpha;
 uniform float alphaThreshold;
 
 uniform float ambient;
+uniform bool bHasTintColor;
+uniform vec3 tintColor;
 
 struct DirectionalLight
 {
@@ -662,6 +660,12 @@ void main(void)
                     vec4 luG = colorLookup(baseMap.g, paletteScale - (1.0 - vColor.r));
 					albedo = luG.rgb;
 				}
+			}
+
+			// SkinTint / HairTint: multiply albedo by tint color
+			if (bHasTintColor)
+			{
+				albedo *= tintColor;
 			}
 
 			// Double-sided: flip normal for back faces
@@ -881,6 +885,7 @@ Public Class Shader_Class_SSE
     Inherits Shader_Base_Class
     Private Const Vertex_SSE As String = "
 #version 440
+// SSE vertex shader with model-space normal (MSN) support
 uniform mat4 matProjection;
 uniform mat4 matView;
 uniform mat4 matModel;
@@ -888,11 +893,10 @@ uniform mat4 matModelView;
 uniform mat3 mv_normalMatrix;
 uniform vec3 color;
 uniform vec3 subColor;
+uniform bool bModelSpace;
 
 uniform bool bShowTexture;
 uniform bool bShowMask;
-uniform bool softlighting;
-uniform bool bLightmask;
 uniform bool bShowWeight;
 uniform bool bShowVertexColor;
 uniform bool bShowVertexAlpha;
@@ -909,8 +913,8 @@ layout(location = 5) in float vertexAlpha;
 layout(location = 6) in vec2 vertexUV;
 layout(location = 7) in float vertexMask;
 layout(location = 8) in float vertexWeight;
-layout(location = 9) in vec4 boneIndicesF;   // bone palette indices as float (cast to int in shader)
-layout(location = 10) in vec4 boneWeightsIn; // normalized bone weights
+layout(location = 9) in vec4 boneIndicesF;
+layout(location = 10) in vec4 boneWeightsIn;
 
 layout(std430, binding = 0) buffer BoneMatrices {
     mat4 bones[];
@@ -951,6 +955,7 @@ out vec3 lightDirectional2;
 
 out vec3 viewDir;
 out mat3 mv_tbn;
+out mat3 v_msnMatrix;
 
 out float maskFactor;
 flat out int ZappedVert;
@@ -1060,12 +1065,24 @@ void main(void)
 	    skinnedNormal = normalize(skinNormalMat * vertexNormal);
 	    skinnedTangent = normalize(skinNormalMat * vertexTangent);
 	    skinnedBitangent = normalize(skinNormalMat * vertexBitangent);
+
+	    // MSN: combined matrix local -> world -> view (per-vertex due to skinning)
+	    v_msnMatrix = mv_normalMatrix * skinNormalMat;
 	} else {
 	    // CPU skinning fallback: vertices already in world space
 	    skinnedPos = vertexPosition;
 	    skinnedNormal = vertexNormal;
 	    skinnedTangent = vertexTangent;
 	    skinnedBitangent = vertexBitangent;
+
+	    if (bModelSpace) {
+	        // CPU + MSN: N/T/B VBOs carry skinNormalMat columns (local->world)
+	        // instead of vertex normals (which are zero for MSN shapes)
+	        mat3 cpuSkinNormMat = mat3(vertexNormal, vertexTangent, vertexBitangent);
+	        v_msnMatrix = mv_normalMatrix * cpuSkinNormMat;
+	    } else {
+	        v_msnMatrix = mv_normalMatrix;
+	    }
 	}
 
 	// Eye-coordinate position of vertex (now using skinned position)
@@ -1105,6 +1122,7 @@ void main(void)
 "
     Private Const Fragment_SSE As String = "
 #version 440
+// SSE fragment shader with model-space normal (MSN) support
 
 /*
  * BodySlide and Outfit Studio
@@ -1121,11 +1139,13 @@ uniform sampler2D texEnvMask;
 uniform sampler2D texSpecular;
 uniform sampler2D texGreyscale;
 uniform sampler2D texGlowmap;
+uniform sampler2D texLightmask;
+uniform sampler2D texDetailMask;
+uniform sampler2D texTintMask;
 
 uniform bool bLightEnabled;
 uniform bool bShowTexture;
 uniform bool bShowMask;
-uniform bool softlighting;
 uniform bool bLightmask;
 uniform bool bShowWeight;
 uniform bool bWireframe;
@@ -1136,6 +1156,7 @@ uniform bool bModelSpace;
 uniform bool bCubemap;
 uniform bool bEnvMask;
 uniform bool bSpecular;
+uniform bool bHasSpecMap;
 uniform bool bEmissive;
 uniform bool bBacklight;
 uniform bool bRimlight;
@@ -1143,6 +1164,9 @@ uniform bool bSoftlight;
 uniform bool bAlphaTest;
 uniform bool bGlowmap;
 uniform bool bGreyscaleColor;
+uniform bool bHasTintColor;
+uniform bool bHasDetailMask;
+uniform bool bHasTintMask;
 uniform bool bDoubleSided;
 uniform bool bHide;
 
@@ -1151,7 +1175,7 @@ uniform bool bEffectFalloff;
 uniform bool bEffectFalloffColor;
 uniform bool bEffectGreyscaleAlpha;
 uniform float effectLightingInfluence;
-uniform vec4 effectFalloffParams;   // x=startAngle, y=stopAngle, z=startOpacity, w=stopOpacity
+uniform vec4 effectFalloffParams;
 uniform vec3 effectBaseColor;
 uniform float effectBaseColorAlpha;
 uniform float effectBaseColorScale;
@@ -1180,6 +1204,7 @@ uniform float WireAlpha;
 uniform float alphaThreshold;
 
 uniform float ambient;
+uniform vec3 tintColor;
 
 struct DirectionalLight
 {
@@ -1199,6 +1224,7 @@ in vec3 lightDirectional2;
 
 in vec3 viewDir;
 in mat3 mv_tbn;
+in mat3 v_msnMatrix;  // MSN: per-vertex local->view (skinning+view combined in vertex shader)
 
 in float maskFactor;
 flat in int ZappedVert;
@@ -1392,17 +1418,20 @@ void directionalLight(in DirectionalLight light, in vec3 lightDir, inout vec3 ou
 	}
 
 	// Back lighting: simulates translucency (light through thin cloth/hair)
+	// SSE: when bBacklight, texSpecular (slot 7) contains the backlight texture
 	if (bBacklight)
 	{
 		float NdotNegL = max(dot(normal, -lightDir), FLT_EPSILON);
-		vec3 backlight = albedo * NdotNegL * clamp(backlightPower, 0.0, 1.0);
+		vec3 backlightColor = texture(texSpecular, uv).rgb;
+		vec3 backlight = backlightColor * NdotNegL * clamp(backlightPower, 0.0, 1.0);
 		emissive += backlight * light.diffuse;
 	}
 
 	// Rim lighting: bright edge when backlit
 	if (bRimlight)
 	{
-		vec3 rim = vec3(pow((1.0 - NdotV), rimlightPower));
+		vec3 rimMask = bLightmask ? texture(texLightmask, uv).rgb : vec3(1.0);
+		vec3 rim = rimMask * pow(vec3(1.0 - NdotV), vec3(rimlightPower));
 		rim *= smoothstep(-0.2, 1.0, dot(-lightDir, viewDir));
 		emissive += rim * light.diffuse * specMask;
 	}
@@ -1414,8 +1443,9 @@ void directionalLight(in DirectionalLight light, in vec3 lightDir, inout vec3 ou
 	// Soft Lighting
 	if (bSoftlight)
 	{
+		vec3 softMask = bLightmask ? texture(texLightmask, uv).rgb : albedo;
 		float wrap = (NdotL + subsurfaceRolloff) / (1.0 + subsurfaceRolloff);
-		vec3 soft = albedo * max(0.0, wrap) * smoothstep(1.0, 0.0, sqrt(diff));
+		vec3 soft = softMask * max(0.0, wrap) * smoothstep(1.0, 0.0, sqrt(diff));
 		outDiffuse += soft;
 	}
 }
@@ -1453,10 +1483,27 @@ void main(void)
 
 					if (bSpecular)
 					{
-						// Specular Map
-						specMap = texture(texSpecular, uv);
-						specGloss = specMap.g;
-						specFactor = specMap.r;
+						if (bBacklight)
+						{
+							// SSE: when backlight is active, slot 7 (texSpecular) contains the
+							// backlight texture, not specular. Specular comes from normalMap.a.
+							specGloss = 1.0;
+							specFactor = normalMap.a;
+						}
+						else if (bHasSpecMap)
+						{
+							// Dedicated specular map: R=factor, G=glossiness
+							specMap = texture(texSpecular, uv);
+							specGloss = specMap.g;
+							specFactor = specMap.r;
+						}
+						else
+						{
+							// SSE default: specular intensity from normal map alpha,
+							// glossiness entirely from the material property (shininess uniform)
+							specGloss = 1.0;
+							specFactor = normalMap.a;
+						}
 					}
 				}
 
@@ -1477,8 +1524,15 @@ void main(void)
 			outDiffuse = vec3(0.0);
 			outSpecular = vec3(0.0);
 
-			// Start off neutral
-			normal = normalize(mv_tbn * vec3(0.0, 0.0, 0.5));
+			// Start off neutral (for MSN shapes, mv_tbn is degenerate so use v_msnMatrix)
+			if (bModelSpace)
+			{
+				normal = normalize(v_msnMatrix * vec3(0.0, 0.0, 1.0));
+			}
+			else
+			{
+				normal = normalize(mv_tbn * vec3(0.0, 0.0, 0.5));
+			}
 
 			if (bShowTexture)
 			{
@@ -1486,9 +1540,30 @@ void main(void)
 				{
 					if (bModelSpace)
 					{
-						// No proper FO4 model space map rendering yet
-						//normal = normalize(normalMap.rgb * 2.0 - 1.0);
-						//normal.r = -normal.r;
+						// Model Space Normal Map (SSE _msn)
+						// Bethesda SSE stores normals as (X, Z, Y) - swizzle .rbg to get (X, Y, Z)
+						// matching NIF object-space where Y=forward, Z=up
+						normal = normalize(normalMap.rbg * 2.0 - 1.0);
+						// Transform from NIF local/object space to view space
+						// v_msnMatrix = mv_normalMatrix * skinNormalMat (per-vertex, from vertex shader)
+						normal = normalize(v_msnMatrix * normal);
+
+						if (bSpecular)
+						{
+							if (bHasSpecMap)
+							{
+								// MSN with dedicated specular map
+								specMap = texture(texSpecular, uv);
+								specGloss = specMap.g;
+								specFactor = specMap.r;
+							}
+							else
+							{
+								// MSN fallback: specular from normal map alpha
+								specGloss = 1.0;
+								specFactor = normalMap.a;
+							}
+						}
 					}
 					else
 					{
@@ -1507,6 +1582,36 @@ void main(void)
                     vec4 luG = colorLookup(baseMap.g, paletteScale - (1.0 - vColor.r));
 					albedo = luG.rgb;
 				}
+			}
+
+			// FaceTint: detail mask and tint mask with overlay blending (SSE)
+			if (bHasDetailMask)
+			{
+				vec3 dm = texture(texDetailMask, uv).rgb;
+				albedo = vec3(
+					dm.r < 0.5 ? 2.0 * albedo.r * dm.r : 1.0 - 2.0 * (1.0 - dm.r) * (1.0 - albedo.r),
+					dm.g < 0.5 ? 2.0 * albedo.g * dm.g : 1.0 - 2.0 * (1.0 - dm.g) * (1.0 - albedo.g),
+					dm.b < 0.5 ? 2.0 * albedo.b * dm.b : 1.0 - 2.0 * (1.0 - dm.b) * (1.0 - albedo.b)
+				);
+			}
+			if (bHasTintMask)
+			{
+				vec3 tm = texture(texTintMask, uv).rgb;
+				albedo = vec3(
+					tm.r < 0.5 ? 2.0 * albedo.r * tm.r : 1.0 - 2.0 * (1.0 - tm.r) * (1.0 - albedo.r),
+					tm.g < 0.5 ? 2.0 * albedo.g * tm.g : 1.0 - 2.0 * (1.0 - tm.g) * (1.0 - albedo.g),
+					tm.b < 0.5 ? 2.0 * albedo.b * tm.b : 1.0 - 2.0 * (1.0 - tm.b) * (1.0 - albedo.b)
+				);
+			}
+			if (bHasDetailMask)
+			{
+				albedo += albedo;
+			}
+
+			// SkinTint / HairTint: multiply albedo by tint color
+			if (bHasTintColor)
+			{
+				albedo *= tintColor;
 			}
 
 			// Double-sided: flip normal for back faces
@@ -1614,11 +1719,21 @@ void main(void)
 
 //====================DEBUG MODE==========================
 if (DebugMode > 0.0) {
-    // Calculamos en view-space las tres direcciones TBN
-    vec3 dbgTangent  = normalize(mv_tbn * vec3(1.0, 0.0, 0.0));
-    vec3 dbgBitangent= normalize(mv_tbn * vec3(0.0, 1.0, 0.0));
-    vec3 dbgNormal   = normalize(mv_tbn * vec3(0.0, 0.0, 1.0));
+    vec3 dbgNormal;
+    vec3 dbgTangent;
+    vec3 dbgBitangent;
 
+    if (bModelSpace) {
+        // MSN: decode texture normal and transform via v_msnMatrix
+        vec3 msnN = normalize(normalMap.rbg * 2.0 - 1.0);
+        dbgNormal = normalize(v_msnMatrix * msnN);
+        dbgTangent  = normalize(v_msnMatrix * vec3(1.0, 0.0, 0.0));
+        dbgBitangent= normalize(v_msnMatrix * vec3(0.0, 1.0, 0.0));
+    } else {
+        dbgTangent  = normalize(mv_tbn * vec3(1.0, 0.0, 0.0));
+        dbgBitangent= normalize(mv_tbn * vec3(0.0, 1.0, 0.0));
+        dbgNormal   = normalize(mv_tbn * vec3(0.0, 0.0, 1.0));
+    }
 
     // Mapeo de -1..1 a 0..1 para visualizar en color
     dbgNormal    = dbgNormal    * 0.5 + 0.5;
@@ -1626,7 +1741,7 @@ if (DebugMode > 0.0) {
     dbgBitangent = dbgBitangent * 0.5 + 0.5;
 
     if (abs(DebugMode - 1.0) < 0.5) {
-        // Modo 1: normales
+        // Modo 1: normales (MSN or TBN based on bModelSpace)
         fragColor = vec4(dbgNormal, 1.0);
     }
     else if (abs(DebugMode - 2.0) < 0.5) {
@@ -1638,51 +1753,65 @@ if (DebugMode > 0.0) {
         fragColor = vec4(dbgBitangent, 1.0);
     }
     else if (abs(DebugMode - 4.0) < 0.5) {
-        // Modo 4: TBN error comparison (no MSN in FO4)
-        vec3 Tm = normalize(mv_tbn * vec3(1.0, 0.0, 0.0));
-        vec3 Bm = normalize(mv_tbn * vec3(0.0, 1.0, 0.0));
-        vec3 Nm = normalize(mv_tbn * vec3(0.0, 0.0, 1.0));
+        if (bModelSpace) {
+            // Modo 4 MSN: compare textured normal vs untextured (v_msnMatrix * Z-up)
+            vec3 msnN = normalize(normalMap.rbg * 2.0 - 1.0);
+            vec3 nA = normalize(v_msnMatrix * msnN);
+            vec3 nB = normalize(v_msnMatrix * vec3(0.0, 0.0, 1.0));
 
-        vec3 Tgs = normalize(Tm - Nm * dot(Nm, Tm));
-        vec3 Bx  = normalize(cross(Nm, Tgs));
-        float h  = sign(dot(Bm, Bx));
-        mat3 tbn_fixed = mat3(Tgs, Bx * h, Nm);
+            float errN = 0.5 * length(nA - nB);
+            float E = clamp(errN, 0.0, 1.0);
+            float good = 1.0 - smoothstep(0.0, 0.15, E);
+            float bad  = smoothstep(0.0, 0.15, E);
 
-        vec3 n_ts = vec3(0.0, 0.0, 1.0);
-        vec3 nA;
-        vec3 nB;
-        if (bShowTexture && bNormalMap) {
-            vec3 nm = texture(texNormal, uv).rgb * 2.0 - 1.0;
-            nm.z = sqrt(max(FLT_EPSILON, 1.0 - dot(nm.xy, nm.xy)));
-            n_ts = nm;
-            nA = normalize(mv_tbn   * n_ts);
-            nB = normalize(tbn_fixed * n_ts);
+            fragColor = vec4(bad, good, 0.5, 1.0);
         } else {
-            nA = normalize(mv_tbn   * n_ts);
-            nB = normalize(tbn_fixed * n_ts);
+            // Modo 4 TBN: error comparison between mv_tbn and Gram-Schmidt corrected TBN
+            vec3 Tm = normalize(mv_tbn * vec3(1.0, 0.0, 0.0));
+            vec3 Bm = normalize(mv_tbn * vec3(0.0, 1.0, 0.0));
+            vec3 Nm = normalize(mv_tbn * vec3(0.0, 0.0, 1.0));
+
+            vec3 Tgs = normalize(Tm - Nm * dot(Nm, Tm));
+            vec3 Bx  = normalize(cross(Nm, Tgs));
+            float h  = sign(dot(Bm, Bx));
+            mat3 tbn_fixed = mat3(Tgs, Bx * h, Nm);
+
+            vec3 n_ts = vec3(0.0, 0.0, 1.0);
+            vec3 nA;
+            vec3 nB;
+            if (bShowTexture && bNormalMap) {
+                vec3 nm = texture(texNormal, uv).rgb * 2.0 - 1.0;
+                nm.z = sqrt(max(FLT_EPSILON, 1.0 - dot(nm.xy, nm.xy)));
+                n_ts = nm;
+                nA = normalize(mv_tbn   * n_ts);
+                nB = normalize(tbn_fixed * n_ts);
+            } else {
+                nA = normalize(mv_tbn   * n_ts);
+                nB = normalize(tbn_fixed * n_ts);
+            }
+
+            float errN = 0.5 * length(nA - nB);
+
+            float IA = max(dot(nA, lightFrontal), 0.0)
+                     + max(dot(nA, lightDirectional0), 0.0)
+                     + max(dot(nA, lightDirectional1), 0.0)
+                     + max(dot(nA, lightDirectional2), 0.0);
+
+            float IB = max(dot(nB, lightFrontal), 0.0)
+                     + max(dot(nB, lightDirectional0), 0.0)
+                     + max(dot(nB, lightDirectional1), 0.0)
+                     + max(dot(nB, lightDirectional2), 0.0);
+
+            float errL = abs(IA - IB);
+
+            float E = clamp(max(errN, errL), 0.0, 1.0);
+
+            float good = 1.0 - smoothstep(0.0, 0.15, E);
+            float bad  = smoothstep(0.0, 0.15, E);
+            float hvis = h * 0.5 + 0.5;
+
+            fragColor = vec4(bad, good, hvis, 1.0);
         }
-
-        float errN = 0.5 * length(nA - nB);
-
-        float IA = max(dot(nA, lightFrontal), 0.0)
-                 + max(dot(nA, lightDirectional0), 0.0)
-                 + max(dot(nA, lightDirectional1), 0.0)
-                 + max(dot(nA, lightDirectional2), 0.0);
-
-        float IB = max(dot(nB, lightFrontal), 0.0)
-                 + max(dot(nB, lightDirectional0), 0.0)
-                 + max(dot(nB, lightDirectional1), 0.0)
-                 + max(dot(nB, lightDirectional2), 0.0);
-
-        float errL = abs(IA - IB);
-
-        float E = clamp(max(errN, errL), 0.0, 1.0);
-
-        float good = 1.0 - smoothstep(0.0, 0.15, E);
-        float bad  = smoothstep(0.0, 0.15, E);
-        float hvis = h * 0.5 + 0.5;
-
-        fragColor = vec4(bad, good, hvis, 1.0);
         return;
     }
 }
@@ -1757,8 +1886,13 @@ Public MustInherit Class Shader_Base_Class
         GL.AttachShader(program, vertexShader)
         GL.AttachShader(program, fragmentShader)
         GL.LinkProgram(program)
-        Dim linkInfo = GL.GetProgramInfoLog(program)
-        If Not String.IsNullOrWhiteSpace(linkInfo) Then Throw New Exception($"Shader program link error: {linkInfo}")
+
+        Dim linkStatus As Integer
+        GL.GetProgram(program, GetProgramParameterName.LinkStatus, linkStatus)
+        If linkStatus <> CInt(All.True) Then
+            Dim linkInfo = GL.GetProgramInfoLog(program)
+            Throw New Exception($"Shader program link error: {linkInfo}")
+        End If
 
         GL.DetachShader(program, vertexShader)
         GL.DetachShader(program, fragmentShader)
@@ -1770,8 +1904,14 @@ Public MustInherit Class Shader_Base_Class
         Dim shader = GL.CreateShader(type)
         GL.ShaderSource(shader, source)
         GL.CompileShader(shader)
-        Dim info = GL.GetShaderInfoLog(shader)
-        If Not String.IsNullOrWhiteSpace(info) Then Throw New Exception($"Error compiling {type}: {info}")
+
+        Dim compileStatus As Integer
+        GL.GetShader(shader, ShaderParameter.CompileStatus, compileStatus)
+        If compileStatus <> CInt(All.True) Then
+            Dim info = GL.GetShaderInfoLog(shader)
+            Throw New Exception($"Error compiling {type}: {info}")
+        End If
+
         Return shader
     End Function
 

@@ -832,8 +832,11 @@ Public Class Clone_Materials_class
                 RegisterMaterialTextureReference(plan, job, "GreyscaleTexture", material.GreyscaleTexture)
                 RegisterMaterialTextureReference(plan, job, "EnvmapTexture", material.EnvmapTexture)
                 RegisterMaterialTextureReference(plan, job, "FlowTexture", material.FlowTexture)
+                RegisterMaterialTextureReference(plan, job, "EnvmapMaskTexture", material.EnvmapMaskTexture)
                 RegisterMaterialTextureReference(plan, job, "GlowTexture", material.GlowTexture)
                 RegisterMaterialTextureReference(plan, job, "DisplacementTexture", material.DisplacementTexture)
+                RegisterMaterialTextureReference(plan, job, "DetailMaskTexture", material.DetailMaskTexture)
+                RegisterMaterialTextureReference(plan, job, "TintMaskTexture", material.TintMaskTexture)
                 RegisterMaterialTextureReference(plan, job, "InnerLayerTexture", material.InnerLayerTexture)
                 RegisterMaterialTextureReference(plan, job, "LightingTexture", material.LightingTexture)
                 RegisterMaterialTextureReference(plan, job, "SpecularTexture", material.SpecularTexture)
@@ -1120,8 +1123,11 @@ Public Class Clone_Materials_class
         If job.ResolvedTextureReferences.TryGetValue("GreyscaleTexture", value) Then material.GreyscaleTexture = value
         If job.ResolvedTextureReferences.TryGetValue("EnvmapTexture", value) Then material.EnvmapTexture = value
         If job.ResolvedTextureReferences.TryGetValue("FlowTexture", value) Then material.FlowTexture = value
+        If job.ResolvedTextureReferences.TryGetValue("EnvmapMaskTexture", value) Then material.EnvmapMaskTexture = value
         If job.ResolvedTextureReferences.TryGetValue("GlowTexture", value) Then material.GlowTexture = value
         If job.ResolvedTextureReferences.TryGetValue("DisplacementTexture", value) Then material.DisplacementTexture = value
+        If job.ResolvedTextureReferences.TryGetValue("DetailMaskTexture", value) Then material.DetailMaskTexture = value
+        If job.ResolvedTextureReferences.TryGetValue("TintMaskTexture", value) Then material.TintMaskTexture = value
         If job.ResolvedTextureReferences.TryGetValue("InnerLayerTexture", value) Then material.InnerLayerTexture = value
         If job.ResolvedTextureReferences.TryGetValue("LightingTexture", value) Then material.LightingTexture = value
         If job.ResolvedTextureReferences.TryGetValue("SpecularTexture", value) Then material.SpecularTexture = value
@@ -1397,13 +1403,11 @@ Public Class OSP_Project_Class
 
             Sliderset_Target.NIFContent.Load_Manolo(Sliderset_Target.SourceFileFullPath)
 
-            ' SSE: load HDT-SMP XML physics - 1) shapedata folder, 2) fallback to game output folder
+            ' SSE: load HDT-SMP XML physics - 1) shapedata folder
             If Config_App.Current.Game = Config_App.Game_Enum.Skyrim Then
                 Dim xmlPath = IO.Path.ChangeExtension(Sliderset_Target.SourceFileFullPath, ".xml")
-                Dim fallbackPath = Sliderset_Target.OutputFullPathBase & ".xml"
-                Dim candidate = If(IO.File.Exists(xmlPath), xmlPath, If(IO.File.Exists(fallbackPath), fallbackPath, Nothing))
-                If candidate IsNot Nothing Then
-                    Dim raw = IO.File.ReadAllText(candidate, System.Text.Encoding.UTF8)
+                If IO.File.Exists(xmlPath) AndAlso xmlPath IsNot Nothing Then
+                    Dim raw = IO.File.ReadAllText(xmlPath, System.Text.Encoding.UTF8)
                     Sliderset_Target.PhysicsXmlContent = If(SliderSet_Class.IsValidSmpXml(raw), raw, Nothing)
                 Else
                     Sliderset_Target.PhysicsXmlContent = Nothing
@@ -2855,16 +2859,16 @@ Public Class Slider_class
             Nodo.Attributes("default").Value = value.ToString(System.Globalization.CultureInfo.InvariantCulture)
         End Set
     End Property
-    Public Property Default_Setting_SSE(size) As Single
+    Public Property Default_Setting_SSE(size As Config_App.SliderSize) As Single
         Get
-            If Config_App.Current.Bodytipe = Config_App.SliderSize.Small Then
+            If size = Config_App.SliderSize.Small Then
                 Return Default_Small_Value
             Else
                 Return Default_Big_Value
             End If
         End Get
         Set(value As Single)
-            If Config_App.Current.Bodytipe = Config_App.SliderSize.Small Then
+            If size = Config_App.SliderSize.Small Then
                 Default_Small_Value = value
             Else
                 Default_Big_Value = value

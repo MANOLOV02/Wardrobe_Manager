@@ -593,23 +593,14 @@ Public Class SkinningHelper
         Dim nNew As Integer = geom.Vertices.Length
         Dim tri = geom.TriShape
         Dim posN(nNew - 1) As System.Numerics.Vector3
-        Dim norN(nNew - 1) As System.Numerics.Vector3
-        Dim tanN(nNew - 1) As System.Numerics.Vector3
-        Dim bitN(nNew - 1) As System.Numerics.Vector3
         Dim uvN(nNew - 1) As System.Numerics.Vector3
         Dim colN(nNew - 1) As NiflySharp.Structs.Color4
 
-        ' INVERTIDAS: geo.Tangents=NIF_Bitangent, geo.Bitangents=NIF_Tangent (applies for both FO4 and SSE after extraction swap).
-        ' NIF_Tangent (ByteVector3) receives geo.Bitangents; NIF_Bitangent (float X) receives geo.Tangents.
         For i As Integer = 0 To nNew - 1
             Dim v1 = geom.Vertices(i) : posN(i) = New System.Numerics.Vector3(CSng(v1.X), CSng(v1.Y), CSng(v1.Z))
-            Dim n1 = geom.Normals(i) : norN(i) = New System.Numerics.Vector3(CSng(n1.X), CSng(n1.Y), CSng(n1.Z))
-            Dim t1 = geom.Bitangents(i) : tanN(i) = New System.Numerics.Vector3(CSng(t1.X), CSng(t1.Y), CSng(t1.Z))
-            Dim b1 = geom.Tangents(i) : bitN(i) = New System.Numerics.Vector3(CSng(b1.X), CSng(b1.Y), CSng(b1.Z))
             Dim uv = geom.Uvs_Weight(i) : uvN(i) = New System.Numerics.Vector3(CSng(uv.X), CSng(uv.Y), 0)
             Dim c = geom.VertexColors(i) : colN(i) = New NiflySharp.Structs.Color4(CSng(c.X), CSng(c.Y), CSng(c.Z), CSng(c.W))
         Next
-
 
         Dim idxArr = geom.Indices
         Dim tmpTris(idxArr.Length \ 3 - 1) As Triangle
@@ -630,9 +621,10 @@ Public Class SkinningHelper
         End If
         tri.SetVertexPositions(posN.ToList)
         tri.SetTriangles(geom.Version, tmpTris.ToList)
-        If tri.HasNormals Then tri.SetNormals(norN.ToList)
-        If tri.HasTangents Then tri.SetTangents(tanN.ToList)
-        If tri.HasTangents Then tri.SetBitangents(bitN.ToList)
+        ' N/T/B injection via shared helper (INVERTIDAS swap handled there)
+        If tri.HasNormals OrElse tri.HasTangents Then
+            InjectNormalsToTrishape(geom)
+        End If
         If tri.HasUVs Then tri.SetUVs(uvN.ToList)
         If tri.HasVertexColors Then tri.SetVertexColors(colN.ToList)
         If tri.HasEyeData Then tri.SetEyeData(geom.Eyedata.ToList)
@@ -648,6 +640,31 @@ Public Class SkinningHelper
         End If
 
 
+    End Sub
+
+    ''' <summary>
+    ''' Injects only normals, tangents and bitangents from geo into the BSTriShape.
+    ''' NiflySharp's SetNormals/SetTangents/SetBitangents enable HasNormals/HasTangents automatically.
+    ''' Uses the same INVERTIDAS swap convention as InjectToTrishape:
+    ''' geo.Bitangents -> NIF_Tangent, geo.Tangents -> NIF_Bitangent.
+    ''' </summary>
+    Public Shared Sub InjectNormalsToTrishape(ByRef geom As SkinnedGeometry)
+        Dim tri = geom.TriShape
+        If tri Is Nothing Then Exit Sub
+        Dim nNew = geom.Vertices.Length
+        If nNew = 0 Then Exit Sub
+
+        Dim norN(nNew - 1) As System.Numerics.Vector3
+        Dim tanN(nNew - 1) As System.Numerics.Vector3
+        Dim bitN(nNew - 1) As System.Numerics.Vector3
+        For i = 0 To nNew - 1
+            Dim n1 = geom.Normals(i) : norN(i) = New System.Numerics.Vector3(CSng(n1.X), CSng(n1.Y), CSng(n1.Z))
+            Dim t1 = geom.Bitangents(i) : tanN(i) = New System.Numerics.Vector3(CSng(t1.X), CSng(t1.Y), CSng(t1.Z))
+            Dim b1 = geom.Tangents(i) : bitN(i) = New System.Numerics.Vector3(CSng(b1.X), CSng(b1.Y), CSng(b1.Z))
+        Next
+        tri.SetNormals(norN.ToList)
+        tri.SetTangents(tanN.ToList)
+        tri.SetBitangents(bitN.ToList)
     End Sub
 
     ''' <summary>
