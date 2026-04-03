@@ -832,11 +832,8 @@ Public Class Clone_Materials_class
                 RegisterMaterialTextureReference(plan, job, "GreyscaleTexture", material.GreyscaleTexture)
                 RegisterMaterialTextureReference(plan, job, "EnvmapTexture", material.EnvmapTexture)
                 RegisterMaterialTextureReference(plan, job, "FlowTexture", material.FlowTexture)
-                RegisterMaterialTextureReference(plan, job, "EnvmapMaskTexture", material.EnvmapMaskTexture)
                 RegisterMaterialTextureReference(plan, job, "GlowTexture", material.GlowTexture)
                 RegisterMaterialTextureReference(plan, job, "DisplacementTexture", material.DisplacementTexture)
-                RegisterMaterialTextureReference(plan, job, "DetailMaskTexture", material.DetailMaskTexture)
-                RegisterMaterialTextureReference(plan, job, "TintMaskTexture", material.TintMaskTexture)
                 RegisterMaterialTextureReference(plan, job, "InnerLayerTexture", material.InnerLayerTexture)
                 RegisterMaterialTextureReference(plan, job, "LightingTexture", material.LightingTexture)
                 RegisterMaterialTextureReference(plan, job, "SpecularTexture", material.SpecularTexture)
@@ -1123,11 +1120,8 @@ Public Class Clone_Materials_class
         If job.ResolvedTextureReferences.TryGetValue("GreyscaleTexture", value) Then material.GreyscaleTexture = value
         If job.ResolvedTextureReferences.TryGetValue("EnvmapTexture", value) Then material.EnvmapTexture = value
         If job.ResolvedTextureReferences.TryGetValue("FlowTexture", value) Then material.FlowTexture = value
-        If job.ResolvedTextureReferences.TryGetValue("EnvmapMaskTexture", value) Then material.EnvmapMaskTexture = value
         If job.ResolvedTextureReferences.TryGetValue("GlowTexture", value) Then material.GlowTexture = value
         If job.ResolvedTextureReferences.TryGetValue("DisplacementTexture", value) Then material.DisplacementTexture = value
-        If job.ResolvedTextureReferences.TryGetValue("DetailMaskTexture", value) Then material.DetailMaskTexture = value
-        If job.ResolvedTextureReferences.TryGetValue("TintMaskTexture", value) Then material.TintMaskTexture = value
         If job.ResolvedTextureReferences.TryGetValue("InnerLayerTexture", value) Then material.InnerLayerTexture = value
         If job.ResolvedTextureReferences.TryGetValue("LightingTexture", value) Then material.LightingTexture = value
         If job.ResolvedTextureReferences.TryGetValue("SpecularTexture", value) Then material.SpecularTexture = value

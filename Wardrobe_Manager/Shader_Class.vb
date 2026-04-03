@@ -655,15 +655,16 @@ void main(void)
 					}
 				}
 
-				if (bGreyscaleColor)
+				if (bGreyscaleColor && !bIsEffectShader)
 				{
+                    // BGSM: palette lookup for armor recoloring
                     vec4 luG = colorLookup(baseMap.g, paletteScale - (1.0 - vColor.r));
 					albedo = luG.rgb;
 				}
 			}
 
-			// SkinTint / HairTint: multiply albedo by tint color
-			if (bHasTintColor)
+			// SkinTint / HairTint: multiply albedo by tint color (not for BGEM effect shaders)
+			if (bHasTintColor && !bIsEffectShader)
 			{
 				albedo *= tintColor;
 			}
@@ -720,23 +721,31 @@ void main(void)
 			color.rgb = effBase + outSpecular + emissive;
 
 			// Falloff (angle-based transparency)
+			float effFalloff = 1.0;
 			if (bEffectFalloff || bEffectFalloffColor)
 			{
 				float NdotV_falloff = abs(dot(normal, normalize(viewDir)));
-				float falloff = smoothstep(effectFalloffParams.x, effectFalloffParams.y, NdotV_falloff);
-				falloff = mix(max(effectFalloffParams.z, 0.0), min(effectFalloffParams.w, 1.0), falloff);
+				effFalloff = smoothstep(effectFalloffParams.x, effectFalloffParams.y, NdotV_falloff);
+				effFalloff = mix(max(effectFalloffParams.z, 0.0), min(effectFalloffParams.w, 1.0), effFalloff);
 
 				if (bEffectFalloff)
-					color.a *= falloff;
+					color.a *= effFalloff;
 
 				if (bEffectFalloffColor)
-					color.rgb *= falloff;
+					color.rgb *= effFalloff;
 			}
 
-			// Greyscale alpha: transparency comes entirely from palette lookup, not texture
+			// BGEM greyscale color: palette lookup using effect base color × vertex color × falloff
+			if (bGreyscaleColor)
+			{
+				vec4 luG = colorLookup(baseMap.g, effectBaseColor.r * vColor.r * effFalloff);
+				color.rgb = luG.rgb;
+			}
+
+			// BGEM greyscale alpha: palette lookup using texture alpha
 			if (bEffectGreyscaleAlpha)
 			{
-				vec4 luA = colorLookup(1.0, color.a);
+				vec4 luA = colorLookup(baseMap.a, color.a);
 				color.a = luA.a;
 			}
 		}
@@ -1577,8 +1586,9 @@ void main(void)
 					}
 				}
 
-				if (bGreyscaleColor)
+				if (bGreyscaleColor && !bIsEffectShader)
 				{
+                    // BGSM: palette lookup for armor recoloring
                     vec4 luG = colorLookup(baseMap.g, paletteScale - (1.0 - vColor.r));
 					albedo = luG.rgb;
 				}
@@ -1608,8 +1618,8 @@ void main(void)
 				albedo += albedo;
 			}
 
-			// SkinTint / HairTint: multiply albedo by tint color
-			if (bHasTintColor)
+			// SkinTint / HairTint: multiply albedo by tint color (not for BGEM effect shaders)
+			if (bHasTintColor && !bIsEffectShader)
 			{
 				albedo *= tintColor;
 			}
@@ -1666,23 +1676,31 @@ void main(void)
 			color.rgb = effBase + outSpecular + emissive;
 
 			// Falloff (angle-based transparency)
+			float effFalloff = 1.0;
 			if (bEffectFalloff || bEffectFalloffColor)
 			{
 				float NdotV_falloff = abs(dot(normal, normalize(viewDir)));
-				float falloff = smoothstep(effectFalloffParams.x, effectFalloffParams.y, NdotV_falloff);
-				falloff = mix(max(effectFalloffParams.z, 0.0), min(effectFalloffParams.w, 1.0), falloff);
+				effFalloff = smoothstep(effectFalloffParams.x, effectFalloffParams.y, NdotV_falloff);
+				effFalloff = mix(max(effectFalloffParams.z, 0.0), min(effectFalloffParams.w, 1.0), effFalloff);
 
 				if (bEffectFalloff)
-					color.a *= falloff;
+					color.a *= effFalloff;
 
 				if (bEffectFalloffColor)
-					color.rgb *= falloff;
+					color.rgb *= effFalloff;
 			}
 
-			// Greyscale alpha: transparency comes entirely from palette lookup, not texture
+			// BGEM greyscale color: palette lookup using effect base color × vertex color × falloff
+			if (bGreyscaleColor)
+			{
+				vec4 luG = colorLookup(baseMap.g, effectBaseColor.r * vColor.r * effFalloff);
+				color.rgb = luG.rgb;
+			}
+
+			// BGEM greyscale alpha: palette lookup using texture alpha
 			if (bEffectGreyscaleAlpha)
 			{
-				vec4 luA = colorLookup(1.0, color.a);
+				vec4 luA = colorLookup(baseMap.a, color.a);
 				color.a = luA.a;
 			}
 		}

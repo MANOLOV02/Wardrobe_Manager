@@ -2180,7 +2180,8 @@ Public Class PreviewModel
             End If
 
             ' texLightmask is SSE-only (rimlight/softlight masking); FO4 does not use it
-            If isSSE Then
+            ' For FaceTint, slot 6 (LightingTexture) is the tint mask, not lightmask
+            If isSSE AndAlso Not materialBase.Facegen Then
                 If lightingTextureId <> 0 Then
                     shader.BindTexture("texLightmask", lightingTextureId, TextureUnit.Texture7)
                 Else
@@ -2210,7 +2211,7 @@ Public Class PreviewModel
             shader.SetBool("bEmissive", materialBase.EmitEnabled)
             shader.SetBool("bSoftlight", materialBase.SubsurfaceLighting)
             shader.SetBool("bGlowmap", materialBase.Glowmap AndAlso glowTextureId <> 0)
-            If isSSE Then shader.SetBool("bLightmask", lightingTextureId <> 0)
+            If isSSE Then shader.SetBool("bLightmask", lightingTextureId <> 0 AndAlso Not materialBase.Facegen)
             shader.SetFloat("shininess", materialBase.Smoothness)
             shader.SetVector3("specularColor", Shader_Base_Class.Color_to_Vector(materialBase.SpecularColor))
             shader.SetFloat("specularStrength", materialBase.SpecularMult)
@@ -2440,6 +2441,8 @@ Public Class PreviewModel
             Return Renderable
         Catch ex As Exception
             Debug.Print("[EXCEPTION] " & ex.Message)
+
+
             Debugger.Break()
             Return Nothing
         End Try

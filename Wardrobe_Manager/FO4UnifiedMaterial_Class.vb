@@ -8,6 +8,7 @@ Imports Material_Editor
 Imports Material_Editor.BaseMaterialFile
 Imports NiflySharp
 Imports NiflySharp.Blocks
+Imports NiflySharp.Helpers
 Imports NiflySharp.Structs
 Imports OpenTK.Graphics.ES11
 Imports OpenTK.Graphics.OpenGL
@@ -80,6 +81,10 @@ End Class
 Public Class FO4UnifiedMaterial_Class
     <Browsable(False)>
     Public Property Underlying_Material As Material_Editor.BaseMaterialFile = New BGEM
+
+    ' NIF ShaderType — not part of BGSM/BGEM file format, stored here as runtime field
+    Friend NifShaderType As NiflySharp.Enums.BSLightingShaderType = NiflySharp.Enums.BSLightingShaderType.Default
+
     <Browsable(False)>
     Public Property MaskWrites As MaskWriteFlags
         Get
@@ -95,6 +100,26 @@ Public Class FO4UnifiedMaterial_Class
         Get
             Return Underlying_Material.GetType
         End Get
+    End Property
+
+    <Category("(Type)")>
+    <TypeConverter(GetType(ShaderTypeConverter))>
+    Public Property ShaderType As NiflySharp.Enums.BSLightingShaderType
+        Get
+            Return NifShaderType
+        End Get
+        Set(value As NiflySharp.Enums.BSLightingShaderType)
+            NifShaderType = value
+            ' Sync BGSM boolean flags with ShaderType
+            If Underlying_Material.GetType Is GetType(BGSM) Then
+                Dim mat = CType(Underlying_Material, BGSM)
+                mat.Facegen = (value = NiflySharp.Enums.BSLightingShaderType.FaceTint)
+                mat.SkinTint = (value = NiflySharp.Enums.BSLightingShaderType.SkinTint)
+                mat.Hair = (value = NiflySharp.Enums.BSLightingShaderType.HairTint)
+            End If
+                    ' No action — BSEffectShaderProperty does not have ShaderType in NIF
+            End Select
+        End Set
     End Property
 
     <Category("Alpha")>
@@ -419,9 +444,10 @@ Public Class FO4UnifiedMaterial_Class
     <Editor(GetType(DictionaryFilePickerEditor), GetType(UITypeEditor))>
     Public Property EnvmapMaskTexture As String
         Get
+            ' BGSM: shares slot 5 with FlowTexture (FO4=flow, SSE=envmask)
             Select Case Underlying_Material.GetType
                 Case GetType(BGSM)
-                    Return CType(Underlying_Material, BGSM).EnvmapMaskTexture
+                    Return CType(Underlying_Material, BGSM).FlowTexture
                 Case GetType(BGEM)
                     Return CType(Underlying_Material, BGEM).EnvmapMaskTexture
             End Select
@@ -430,7 +456,7 @@ Public Class FO4UnifiedMaterial_Class
         Set(value As String)
             Select Case Underlying_Material.GetType
                 Case GetType(BGSM)
-                    CType(Underlying_Material, BGSM).EnvmapMaskTexture = value
+                    CType(Underlying_Material, BGSM).FlowTexture = value
                 Case GetType(BGEM)
                     CType(Underlying_Material, BGEM).EnvmapMaskTexture = value
             End Select
@@ -442,9 +468,10 @@ Public Class FO4UnifiedMaterial_Class
     <Editor(GetType(DictionaryFilePickerEditor), GetType(UITypeEditor))>
     Public Property DetailMaskTexture As String
         Get
+            ' BGSM: shares slot 3 with DisplacementTexture (FO4=displacement, SSE FaceTint=detail mask)
             Select Case Underlying_Material.GetType
                 Case GetType(BGSM)
-                    Return CType(Underlying_Material, BGSM).DetailMaskTexture
+                    Return CType(Underlying_Material, BGSM).DisplacementTexture
                 Case GetType(BGEM)
                     Return ""
             End Select
@@ -453,7 +480,7 @@ Public Class FO4UnifiedMaterial_Class
         Set(value As String)
             Select Case Underlying_Material.GetType
                 Case GetType(BGSM)
-                    CType(Underlying_Material, BGSM).DetailMaskTexture = value
+                    CType(Underlying_Material, BGSM).DisplacementTexture = value
                 Case GetType(BGEM)
                     ' No operation
             End Select
@@ -465,9 +492,10 @@ Public Class FO4UnifiedMaterial_Class
     <Editor(GetType(DictionaryFilePickerEditor), GetType(UITypeEditor))>
     Public Property TintMaskTexture As String
         Get
+            ' BGSM: shares slot 6 with LightingTexture (SSE FaceTint=tint mask)
             Select Case Underlying_Material.GetType
                 Case GetType(BGSM)
-                    Return CType(Underlying_Material, BGSM).TintMaskTexture
+                    Return CType(Underlying_Material, BGSM).LightingTexture
                 Case GetType(BGEM)
                     Return ""
             End Select
@@ -476,7 +504,7 @@ Public Class FO4UnifiedMaterial_Class
         Set(value As String)
             Select Case Underlying_Material.GetType
                 Case GetType(BGSM)
-                    CType(Underlying_Material, BGSM).TintMaskTexture = value
+                    CType(Underlying_Material, BGSM).LightingTexture = value
                 Case GetType(BGEM)
                     ' No operation
             End Select
@@ -1236,9 +1264,10 @@ Public Class FO4UnifiedMaterial_Class
     <BGSMOnly()>
     Public Property SkinTintColor As Color
         Get
+            ' BGSM uses HairTintColor field for both hair and skin tint
             Select Case Underlying_Material.GetType
                 Case GetType(BGSM)
-                    Return UIntegerToColor(CType(Underlying_Material, BGSM).SkinTintColor)
+                    Return UIntegerToColor(CType(Underlying_Material, BGSM).HairTintColor)
                 Case GetType(BGEM)
                     Return Color.White
                 Case Else
@@ -1248,7 +1277,7 @@ Public Class FO4UnifiedMaterial_Class
         Set(value As Color)
             Select Case Underlying_Material.GetType
                 Case GetType(BGSM)
-                    CType(Underlying_Material, BGSM).SkinTintColor = ColorToUInteger(value)
+                    CType(Underlying_Material, BGSM).HairTintColor = ColorToUInteger(value)
                 Case GetType(BGEM)
                     ' No action
                 Case Else
@@ -1838,12 +1867,11 @@ Public Class FO4UnifiedMaterial_Class
                 .GrayscaleToPaletteColor = shad.HasGreyscaleToPaletteColor,
                 .GrayscaleToPaletteScale = shad.GrayscaleToPaletteScale,
                 .FresnelPower = shad.FresnelPower,
-                .HairTintColor = If(shad.IsTypeHairTint,
-                                    ColorToUInteger(NifColorToColor(shad.HairTintColor)),
-                                    CUInt(&HFFFFFFUI)),
-                .SkinTintColor = If(shad.IsTypeSkinTint,
+                .HairTintColor = If(shad.IsTypeSkinTint,
                                     ColorToUInteger(NifColorToColor(shad.SkinTintColor)),
-                                    CUInt(&HFFFFFFUI)),
+                                    If(shad.IsTypeHairTint,
+                                        ColorToUInteger(NifColorToColor(shad.HairTintColor)),
+                                        CUInt(&HFFFFFFUI))),
                 .Smoothness = If(Nif.Header.Version.IsSSE,
                                   CSng(Math.Max(0.0, (Math.Log(Math.Max(CDbl(shad.Glossiness), 2.0), 2.0) - 1.0) / 10.0)),
                                   shad.Smoothness),
@@ -1874,6 +1902,7 @@ Public Class FO4UnifiedMaterial_Class
             End If
         End If
         Underlying_Material = mat
+        NifShaderType = shad.ShaderType_SK_FO4
     End Sub
 
     Public Sub Create_From_Shader(Nif As Nifcontent_Class_Manolo, shap As INiShape, shad As BSEffectShaderProperty)
@@ -1896,10 +1925,14 @@ Public Class FO4UnifiedMaterial_Class
             .VScale = shad.UVScale.V,
             .EnvironmentMappingMaskScale = shad.EnvironmentMapScale,
             .EmittanceColor = ColorToUInteger(NifColorToColor(shad.EmittanceColor)),
-            .FalloffEnabled = False,
-            .FalloffColorEnabled = False,
+            .FalloffEnabled = ShaderHelper.HasFlagSF1(shad, ShaderHelper.FalloffFlagValue(shad)),
+            .FalloffColorEnabled = If(Nif.Header.Version.IsSSE, False,
+                                      (shad.ShaderFlags_F4SPF1 And NiflySharp.Enums.Fallout4ShaderPropertyFlags1.RGB_Falloff) <> 0),
+            .GrayscaleToPaletteColor = shad.HasGreyscaleToPaletteColor,
             .GrayscaleToPaletteAlpha = shad.HasGreyscaleToPaletteAlpha,
-            .EffectLightingEnabled = False,
+            .EffectLightingEnabled = (If(Nif.Header.Version.IsSSE,
+                                        (shad.ShaderFlags_SSPF2 And NiflySharp.Enums.SkyrimShaderPropertyFlags2.Effect_Lighting) <> 0,
+                                        (shad.ShaderFlags_F4SPF2 And NiflySharp.Enums.Fallout4ShaderPropertyFlags2.Effect_Lighting) <> 0)),
             .BaseColor = NifColorColorToUInteger(shad.BaseColor),
             .BaseColorScale = shad.BaseColorScale,
             .FalloffStartAngle = shad.FalloffStartAngle,
@@ -1986,6 +2019,40 @@ Public Class FO4UnifiedMaterial_Class
             shad.EmitGradientTexture.Content = Mat.GlowTexture
         End If
 
+        ' Effect-specific properties (BaseColor, Falloff, Lighting Influence, Greyscale flags)
+        shad.BaseColor = UIntegerToNifColor4(Mat.BaseColor)
+        shad.BaseColorScale = Mat.BaseColorScale
+        shad.FalloffStartAngle = Mat.FalloffStartAngle
+        shad.FalloffStopAngle = Mat.FalloffStopAngle
+        shad.FalloffStartOpacity = Mat.FalloffStartOpacity
+        shad.FalloffStopOpacity = Mat.FalloffStopOpacity
+        shad.LightingInfluence = CByte(Math.Min(255, Math.Max(0, CInt(Mat.LightingInfluence * 255.0F))))
+        shad.HasGreyscaleToPaletteAlpha = Mat.GrayscaleToPaletteAlpha
+        shad.HasGreyscaleToPaletteColor = Mat.GrayscaleToPaletteColor
+
+        ' Shader flags for Falloff and EffectLighting
+        ShaderHelper.SetFlagSF1(shad, ShaderHelper.FalloffFlagValue(shad), Mat.FalloffEnabled)
+        If Nif.Header.Version.IsSSE Then
+            ' SSE: EffectLighting in SF2
+            If Mat.EffectLightingEnabled Then
+                shad.ShaderFlags_SSPF2 = shad.ShaderFlags_SSPF2 Or NiflySharp.Enums.SkyrimShaderPropertyFlags2.Effect_Lighting
+            Else
+                shad.ShaderFlags_SSPF2 = shad.ShaderFlags_SSPF2 And Not NiflySharp.Enums.SkyrimShaderPropertyFlags2.Effect_Lighting
+            End If
+        Else
+            ' FO4: EffectLighting in SF2, FalloffColor via RGB_Falloff in SF1
+            If Mat.EffectLightingEnabled Then
+                shad.ShaderFlags_F4SPF2 = shad.ShaderFlags_F4SPF2 Or NiflySharp.Enums.Fallout4ShaderPropertyFlags2.Effect_Lighting
+            Else
+                shad.ShaderFlags_F4SPF2 = shad.ShaderFlags_F4SPF2 And Not NiflySharp.Enums.Fallout4ShaderPropertyFlags2.Effect_Lighting
+            End If
+            If Mat.FalloffColorEnabled Then
+                shad.ShaderFlags_F4SPF1 = shad.ShaderFlags_F4SPF1 Or NiflySharp.Enums.Fallout4ShaderPropertyFlags1.RGB_Falloff
+            Else
+                shad.ShaderFlags_F4SPF1 = shad.ShaderFlags_F4SPF1 And Not NiflySharp.Enums.Fallout4ShaderPropertyFlags1.RGB_Falloff
+            End If
+        End If
+
         If IsNothing(shap.AlphaPropertyRef) OrElse shap.AlphaPropertyRef.Index = -1 Then
             shap.AlphaPropertyRef = New NiBlockRef(Of NiAlphaProperty) With {.Index = Nif.AddBlock(New NiAlphaProperty)}
         End If
@@ -1997,7 +2064,7 @@ Public Class FO4UnifiedMaterial_Class
         alp.Flags.SourceBlendMode = func(0)
         alp.Flags.DestinationBlendMode = func(1)
     End Sub
-    Public Shared Sub Save_To_Shader(Nif As Nifcontent_Class_Manolo, shap As INiShape, shad As BSLightingShaderProperty, Mat As BGSM)
+    Public Shared Sub Save_To_Shader(Nif As Nifcontent_Class_Manolo, shap As INiShape, shad As BSLightingShaderProperty, Mat As BGSM, Optional shaderType As NiflySharp.Enums.BSLightingShaderType = NiflySharp.Enums.BSLightingShaderType.Default)
         If Nif.Valid = False Then Exit Sub
         shad.DoubleSided = Mat.TwoSided
         shad.UVOffset = New TexCoord(Mat.UOffset, Mat.VOffset)
@@ -2015,8 +2082,13 @@ Public Class FO4UnifiedMaterial_Class
         End If
         shad.SubsurfaceRolloff = Mat.SubsurfaceLightingRolloff
         shad.ModelSpace = Mat.ModelSpaceNormals
-        shad.HairTintColor = UIntegerToNifColor3(Mat.HairTintColor)
-        shad.SkinTintColor = UIntegerToNifColor3(Mat.SkinTintColor)
+        shad.ShaderType_SK_FO4 = shaderType
+        ' BGSM uses HairTintColor for both hair and skin tint — write to the correct NIF field
+        If Mat.SkinTint Then
+            shad.SkinTintColor = UIntegerToNifColor3(Mat.HairTintColor)
+        Else
+            shad.HairTintColor = UIntegerToNifColor3(Mat.HairTintColor)
+        End If
         shad.HasBacklight = Mat.BackLighting
         shad.BacklightPower = Mat.BackLightPower
         shad.HasSpecular = Mat.SpecularEnabled
@@ -2086,26 +2158,12 @@ Public Class FO4UnifiedMaterial_Class
 
         mat.DiffuseTexture = texset.Textures(textset_dDiffuseTexture).Content
         mat.NormalTexture = texset.Textures(textset_NormalTexture).Content
+        mat.DisplacementTexture = texset.Textures(textset_DisplacementTexture).Content  ' Slot 3 (FO4=displacement, SSE FaceTint=detail mask)
         mat.EnvmapTexture = texset.Textures(textset_EnvmapTexture).Content
+        mat.FlowTexture = texset.Textures(textset_FlowTexture).Content                 ' Slot 5 (FO4=flow, SSE=env mask)
         mat.SmoothSpecTexture = texset.Textures(textset_SmoothSpecTextureAs).Content
 
-        ' Slot 3 is dual-purpose: DisplacementTexture (FO4/default) or DetailMask (SSE FaceTint)
-        If isSSE AndAlso mat.Facegen Then
-            mat.DetailMaskTexture = texset.Textures(textset_DisplacementTexture).Content
-        Else
-            mat.DisplacementTexture = texset.Textures(textset_DisplacementTexture).Content
-        End If
-
-        ' Slot 5 is dual-purpose: FlowTexture (FO4) or Environment Mask (SSE)
-        If isSSE Then
-            mat.EnvmapMaskTexture = texset.Textures(textset_FlowTexture).Content
-        Else
-            mat.FlowTexture = texset.Textures(textset_FlowTexture).Content
-        End If
-
-        ' Slot 6 is dual-purpose: LightingTexture or TintMask (SSE FaceTint)
-        ' SSE slot 2 is dual-purpose: glow (when HasGlowmap) or skin tint/lightmask (when HasSoftlight/HasRimlight).
-        ' Remap to the correct BGSM property based on shader flags (already set in mat before this call).
+        ' Slot 2: glow OR lightmask (SSE dual-purpose)
         Dim slot2 = texset.Textures(textset_GlowTexture).Content
         If isSSE AndAlso Not mat.Glowmap AndAlso (mat.SubsurfaceLighting OrElse mat.RimLighting) Then
             mat.LightingTexture = slot2
@@ -2115,13 +2173,9 @@ Public Class FO4UnifiedMaterial_Class
             If Not isSSE Then mat.LightingTexture = texset.Textures(textset_LightingTexture).Content
         End If
 
-        If isSSE Then
-            Dim slot6 = texset.Textures(textset_LightingTexture).Content
-            If mat.Facegen Then
-                mat.TintMaskTexture = slot6
-            ElseIf String.IsNullOrEmpty(mat.LightingTexture) Then
-                mat.LightingTexture = slot6
-            End If
+        ' Slot 6: lightmask OR tintmask (SSE dual-purpose)
+        If isSSE AndAlso String.IsNullOrEmpty(mat.LightingTexture) Then
+            mat.LightingTexture = texset.Textures(textset_LightingTexture).Content
         End If
     End Sub
 
@@ -2132,29 +2186,13 @@ Public Class FO4UnifiedMaterial_Class
 
         texset.Textures(textset_dDiffuseTexture).Content = mat.DiffuseTexture
         texset.Textures(textset_NormalTexture).Content = mat.NormalTexture
+        texset.Textures(textset_DisplacementTexture).Content = mat.DisplacementTexture  ' Slot 3 (FO4=displacement, SSE FaceTint=detail mask)
         texset.Textures(textset_EnvmapTexture).Content = mat.EnvmapTexture
+        texset.Textures(textset_FlowTexture).Content = mat.FlowTexture                 ' Slot 5 (FO4=flow, SSE=env mask)
         texset.Textures(textset_SmoothSpecTextureAs).Content = mat.SmoothSpecTexture
 
-        ' Slot 3: DetailMask (SSE FaceTint) or DisplacementTexture (FO4/default)
-        If isSSE AndAlso mat.Facegen Then
-            texset.Textures(textset_DisplacementTexture).Content = mat.DetailMaskTexture
-        Else
-            texset.Textures(textset_DisplacementTexture).Content = mat.DisplacementTexture
-        End If
-
-        ' Slot 5: Environment Mask (SSE) or FlowTexture (FO4)
-        If isSSE Then
-            texset.Textures(textset_FlowTexture).Content = mat.EnvmapMaskTexture
-        Else
-            texset.Textures(textset_FlowTexture).Content = mat.FlowTexture
-        End If
-
-        ' Slot 6: TintMask (SSE FaceTint) or LightingTexture (other)
-        ' SSE slot 2: glow or lightmask remapping
-        If isSSE AndAlso mat.Facegen Then
-            texset.Textures(textset_GlowTexture).Content = mat.GlowTexture
-            texset.Textures(textset_LightingTexture).Content = mat.TintMaskTexture
-        ElseIf isSSE AndAlso Not mat.Glowmap AndAlso (mat.SubsurfaceLighting OrElse mat.RimLighting) Then
+        ' Slot 2/6: glow vs lightmask remapping (SSE dual-purpose)
+        If isSSE AndAlso Not mat.Glowmap AndAlso (mat.SubsurfaceLighting OrElse mat.RimLighting) Then
             texset.Textures(textset_GlowTexture).Content = mat.LightingTexture
             texset.Textures(textset_LightingTexture).Content = ""
         Else
@@ -2284,6 +2322,15 @@ Public Class FO4UnifiedMaterial_Class
     End Function
 
 End Class
+
+Public Class ShaderTypeConverter
+    Inherits ComponentModel.EnumConverter
+
+    Public Sub New()
+        MyBase.New(GetType(NiflySharp.Enums.BSLightingShaderType))
+    End Sub
+End Class
+
 Public Class DictionaryFilePickerEditor
     Inherits UITypeEditor
     Public Overrides Function GetEditStyle(context As ITypeDescriptorContext) As UITypeEditorEditStyle

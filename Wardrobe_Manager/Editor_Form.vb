@@ -552,6 +552,7 @@ Public Class Editor_Form
         ButtonRemoveSHape.Enabled = ComboBoxShapes.Items.Count > 1
         Habilita_Mask_Buttons()
         Lee_Materials()
+        Update_Grayscale()
         MarcaBones()
     End Sub
     Private Sub Lee_Materials()
@@ -693,6 +694,12 @@ Public Class Editor_Form
                 If FilesDictionary_class.Dictionary.TryGetValue(prefix + fullpath, locBgsm) Then
                     Selected_Material.Deserialize(prefix + fullpath, GetType(BGSM))
                     _LastMaterial.Deserialize(prefix + fullpath, GetType(BGSM))
+                    ' ShaderType is not stored in BGSM files — read it from the NIF shader
+                    Dim bslsp = TryCast(Selected_Shape.RelatedNifShader, BSLightingShaderProperty)
+                    If bslsp IsNot Nothing Then
+                        Selected_Material.NifShaderType = bslsp.ShaderType_SK_FO4
+                        _LastMaterial.NifShaderType = bslsp.ShaderType_SK_FO4
+                    End If
                     If locBgsm.IsLosseFile Then
                         Label6.Text = "Loose"
                         If fullpath.Contains("ManoloCloned", StringComparison.OrdinalIgnoreCase) Or fullpath.Contains("ManoloMods", StringComparison.OrdinalIgnoreCase) Then
@@ -2285,8 +2292,11 @@ Public Class Editor_Form
                 Dim cloned = ComboSelected_Pose.Clone
                 Dim key As String
                 key = TreeViewSkeleton.SelectedNode?.Text
-                If Not String.IsNullOrEmpty(key) AndAlso cloned.Transforms.ContainsKey(key) Then
-                    Dim TR As New Transform_Class(cloned.Transforms(key), cloned.Source)
+
+                Dim value As PoseTransformData = Nothing
+
+                If Not String.IsNullOrEmpty(key) AndAlso cloned.Transforms.TryGetValue(key, value) Then
+                    Dim TR As New Transform_Class(value, cloned.Source)
                     Dim degs = Transform_Class.Matrix33ToBSRotation(TR.Rotation)
                     Selected_Pose_Transform.Roll = degs.Z
                     Selected_Pose_Transform.Pitch = degs.Y

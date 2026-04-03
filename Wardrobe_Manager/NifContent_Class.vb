@@ -447,6 +447,13 @@ Public Class Nifcontent_Class_Manolo
             createFromShader(material)
         Else
             material.Deserialize(prefix & fullpath, matType)
+            ' ShaderType is not stored in BGSM files — read from NIF shader
+            If matType Is GetType(BGSM) Then
+                Dim bslsp = TryCast(shad, BSLightingShaderProperty)
+                If bslsp IsNot Nothing Then
+                    material.NifShaderType = bslsp.ShaderType_SK_FO4
+                End If
+            End If
         End If
 
         Return New RelatedMaterial_Class With {.material = material, .path = fullpath}
@@ -475,7 +482,7 @@ Public Class Nifcontent_Class_Manolo
                 Select Case shad.GetType
                     Case GetType(BSLightingShaderProperty)
                         Dim typed = CType(shad, BSLightingShaderProperty)
-                        saveAction = Sub() FO4UnifiedMaterial_Class.Save_To_Shader(Me, shap, typed, mat.Underlying_Material)
+                        saveAction = Sub() FO4UnifiedMaterial_Class.Save_To_Shader(Me, shap, typed, mat.Underlying_Material, mat.ShaderType)
                     Case GetType(BSEffectShaderProperty)
                         Dim typed = CType(shad, BSEffectShaderProperty)
                         saveAction = Sub() FO4UnifiedMaterial_Class.Save_To_Shader(Me, shap, typed, mat.Underlying_Material)
