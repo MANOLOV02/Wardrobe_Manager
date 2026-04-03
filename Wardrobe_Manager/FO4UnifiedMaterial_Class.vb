@@ -111,13 +111,14 @@ Public Class FO4UnifiedMaterial_Class
         Set(value As NiflySharp.Enums.BSLightingShaderType)
             NifShaderType = value
             ' Sync BGSM boolean flags with ShaderType
-            If Underlying_Material.GetType Is GetType(BGSM) Then
-                Dim mat = CType(Underlying_Material, BGSM)
-                mat.Facegen = (value = NiflySharp.Enums.BSLightingShaderType.FaceTint)
-                mat.SkinTint = (value = NiflySharp.Enums.BSLightingShaderType.SkinTint)
-                mat.Hair = (value = NiflySharp.Enums.BSLightingShaderType.HairTint)
-            End If
-                    ' No action — BSEffectShaderProperty does not have ShaderType in NIF
+            Select Case Underlying_Material.GetType
+                Case GetType(BGSM)
+                    Dim mat = CType(Underlying_Material, BGSM)
+                    mat.Facegen = (value = NiflySharp.Enums.BSLightingShaderType.FaceTint)
+                    mat.SkinTint = (value = NiflySharp.Enums.BSLightingShaderType.SkinTint)
+                    mat.Hair = (value = NiflySharp.Enums.BSLightingShaderType.HairTint)
+                Case GetType(BGEM)
+                    ' do nothing
             End Select
         End Set
     End Property
@@ -1926,8 +1927,7 @@ Public Class FO4UnifiedMaterial_Class
             .EnvironmentMappingMaskScale = shad.EnvironmentMapScale,
             .EmittanceColor = ColorToUInteger(NifColorToColor(shad.EmittanceColor)),
             .FalloffEnabled = ShaderHelper.HasFlagSF1(shad, ShaderHelper.FalloffFlagValue(shad)),
-            .FalloffColorEnabled = If(Nif.Header.Version.IsSSE, False,
-                                      (shad.ShaderFlags_F4SPF1 And NiflySharp.Enums.Fallout4ShaderPropertyFlags1.RGB_Falloff) <> 0),
+            .FalloffColorEnabled = Not Nif.Header.Version.IsSSE AndAlso (shad.ShaderFlags_F4SPF1 And NiflySharp.Enums.Fallout4ShaderPropertyFlags1.RGB_Falloff) <> 0,
             .GrayscaleToPaletteColor = shad.HasGreyscaleToPaletteColor,
             .GrayscaleToPaletteAlpha = shad.HasGreyscaleToPaletteAlpha,
             .EffectLightingEnabled = (If(Nif.Header.Version.IsSSE,

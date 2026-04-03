@@ -597,6 +597,24 @@ Public Class Editor_Form
             End If
         End If
 
+        ' ShaderType change: this modifies the NIF shader, not the material file.
+        ' Confirm with the user, apply to NIF immediately, or revert.
+        If e.ChangedItem IsNot Nothing AndAlso e.ChangedItem.Label = "ShaderType" Then
+            If MsgBox("ShaderType is stored in the NIF shader, not in the material file." & vbCrLf &
+                       "Do you want to apply this change?",
+                       vbYesNo + vbExclamation, "ShaderType Change") = MsgBoxResult.No Then
+                Selected_Material.ShaderType = CType(e.OldValue, NiflySharp.Enums.BSLightingShaderType)
+                PropertyGrid1.Refresh()
+                Exit Sub
+            Else
+                ' Apply immediately to NIF shader
+                Dim bslsp = TryCast(Selected_Shape.RelatedNifShader, BSLightingShaderProperty)
+                If bslsp IsNot Nothing Then
+                    bslsp.ShaderType_SK_FO4 = Selected_Material.NifShaderType
+                End If
+            End If
+        End If
+
         ' ModelSpaceNormals toggle: needs TBN recalc + full VBO re-upload
         Dim msnToggled As Boolean = (e.ChangedItem IsNot Nothing AndAlso e.ChangedItem.Label = "ModelSpaceNormals")
 
