@@ -1,4 +1,4 @@
-﻿' Version Uploaded of Wardrobe 2.1.3
+﻿' Version Uploaded of Wardrobe 3.1.0
 Namespace My
     ' The following events are available for MyApplication:
     ' Startup: Raised when the application starts, before the startup form is created.

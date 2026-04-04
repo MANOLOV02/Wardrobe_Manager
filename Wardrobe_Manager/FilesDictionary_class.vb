@@ -1,4 +1,4 @@
-﻿' Version Uploaded of Wardrobe 2.1.3
+﻿' Version Uploaded of Wardrobe 3.1.0
 Imports System.Collections.Concurrent
 Imports System.IO
 Imports System.Runtime.CompilerServices
@@ -86,6 +86,7 @@ Public Class FilesDictionary_class
         Public Property Index As Integer = -1
         Public Property FullPath As String = ""
         Public Property SourceOrder As Integer = Integer.MinValue
+        Public Property FileDate As Date = Date.MinValue
 
         Public Function GetBytesFromOpenArchive(pack As BSA_BA2_Library_DLL.BethesdaArchive.Core.BethesdaReader) As Byte()
             If IsNothing(pack) OrElse IsLosseFile Then Return Array.Empty(Of Byte)
@@ -731,6 +732,7 @@ Public Class FilesDictionary_class
         Try
             ' O5.4: Intern the BA2 filename since it is stored in many File_Location instances
             Dim ba2FileName = String.Intern(Path.GetFileName(ba2))
+            Dim ba2Date = File.GetLastWriteTime(ba2)
 
             Using fs As FileStream = File.OpenRead(ba2)
                 Using arc As New BSA_BA2_Library_DLL.BethesdaArchive.Core.BethesdaReader(fs)
@@ -741,7 +743,8 @@ Public Class FilesDictionary_class
                         .BA2File = ba2FileName,
                         .Index = fil.Index,
                         .FullPath = standardized,
-                        .SourceOrder = sourceOrder
+                        .SourceOrder = sourceOrder,
+                        .FileDate = ba2Date
                     }
 
                         ' O1.3: During scan, only populate _dictionary; indexes are built in batch after scan
@@ -790,7 +793,8 @@ Public Class FilesDictionary_class
             .BA2File = String.Empty,
             .Index = -1,
             .FullPath = standardized,
-            .SourceOrder = Integer.MaxValue
+            .SourceOrder = Integer.MaxValue,
+            .FileDate = IO.File.GetLastWriteTime(file)
         }
 
             ' O1.3: During scan, only populate _dictionary; indexes are built in batch after scan

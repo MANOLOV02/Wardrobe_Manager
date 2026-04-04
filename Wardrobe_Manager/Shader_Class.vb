@@ -1,4 +1,4 @@
-﻿' Version Uploaded of Wardrobe 2.1.3
+﻿' Version Uploaded of Wardrobe 3.1.0
 Imports OpenTK.Graphics.OpenGL4
 Imports OpenTK.Mathematics
 
@@ -6,7 +6,7 @@ Imports OpenTK.Mathematics
 Public Class Floor_Shader_Class
     Inherits Shader_Base_Class
     Private Const Vertex_Floor As String =
-"#version 440
+"#version 430
 layout(location = 0) in vec3 vertexPosition;
 
 uniform mat4 matProjection;
@@ -19,7 +19,7 @@ void main()
 }"
 
     Private Const Fragment_Floor As String =
-"#version 440
+"#version 430
 uniform vec3 gridColor;
 out vec4 FragColor;
 
@@ -35,7 +35,7 @@ End Class
 Public Class Shader_Class_Fo4
     Inherits Shader_Base_Class
     Private Const Vertex_FO4 As String = "
-#version 440
+#version 430
 uniform mat4 matProjection;
 uniform mat4 matView;
 uniform mat4 matModel;
@@ -257,7 +257,7 @@ void main(void)
 }
 "
     Private Const Fragment_FO4 As String = "
-#version 440
+#version 430
 
 /*
  * BodySlide and Outfit Studio
@@ -506,9 +506,6 @@ void directionalLight(in DirectionalLight light, in vec3 lightDir, inout vec3 ou
 	float NdotV = max(dot(normal, viewDir), FLT_EPSILON);
 	float VdotH = max(dot(viewDir, halfDir), FLT_EPSILON);
 
-	// Temporary diffuse (includes ambient so cubemap stays visible in shadow)
-	vec3 diff = ambient + NdotL0 * light.diffuse;
-
 	// Specularity
 	float smoothness = 1.0;
 	float roughness = 0.0;
@@ -522,26 +519,6 @@ void directionalLight(in DirectionalLight light, in vec3 lightDir, inout vec3 ou
 
 		outSpec += TorranceSparrow(NdotL0, NdotH, NdotV, VdotH, vec3(specMask), fSpecularPower, 0.2) * NdotL0 * light.diffuse * specularColor;
 		outSpec += ambient * specMask * fresnelSchlick(VdotH, 0.2) * (1.0 - NdotV) * light.diffuse;
-	}
-
-	// Environment (BGSM only; BGEM has its own cubemap path)
-	if (bCubemap && bEnvMap && bShowTexture && !bIsEffectShader)
-	{
-		vec3 reflected = reflect(viewDir, normal);
-		vec3 reflectedWS = vec3(matModel * (matModelViewInverse * vec4(reflected, 0.0)));
-
-		vec4 cube = textureLod(texCubemap, reflectedWS, 8.0 - smoothness * 8.0);
-		cube.rgb *= envReflection * specularStrength;
-		if (bEnvMask && !bGlowmap)
-		{
-			cube.rgb *= envMask.r;
-		}
-		else
-		{
-			cube.rgb *= specFactor;
-		}
-
-		outSpec += cube.rgb * diff;
 	}
 
 	// Back lighting: simulates translucency (light through thin cloth/hair)
@@ -561,7 +538,7 @@ void directionalLight(in DirectionalLight light, in vec3 lightDir, inout vec3 ou
 	}
 
 	// Diffuse
-	diff = vec3(OrenNayarFull(lightDir, viewDir, normal, roughness, NdotL0));
+	vec3 diff = vec3(OrenNayarFull(lightDir, viewDir, normal, roughness, NdotL0));
 	outDiffuse += diff * light.diffuse;
 
 	// Soft Lighting
@@ -663,12 +640,6 @@ void main(void)
 				}
 			}
 
-			// SkinTint / HairTint: multiply albedo by tint color (not for BGEM effect shaders)
-			if (bHasTintColor && !bIsEffectShader)
-			{
-				albedo *= tintColor;
-			}
-
 			// Double-sided: flip normal for back faces
 			if (bDoubleSided && !gl_FrontFacing)
 			{
@@ -679,6 +650,28 @@ void main(void)
 			directionalLight(directional0, lightDirectional0, outDiffuse, outSpecular);
 			directionalLight(directional1, lightDirectional1, outDiffuse, outSpecular);
 			directionalLight(directional2, lightDirectional2, outDiffuse, outSpecular);
+
+			// Environment cubemap (BGSM only; BGEM has its own cubemap path)
+			if (bCubemap && bEnvMap && bShowTexture && !bIsEffectShader)
+			{
+				float cubeSmooth = (bSpecular && bShowTexture) ? specGloss * shininess : 1.0;
+
+				vec3 reflected = reflect(viewDir, normal);
+				vec3 reflectedWS = vec3(matModel * (matModelViewInverse * vec4(reflected, 0.0)));
+
+				vec4 cube = textureLod(texCubemap, reflectedWS, 8.0 - cubeSmooth * 8.0);
+				cube.rgb *= envReflection * specularStrength;
+				if (bEnvMask && !bGlowmap)
+				{
+					cube.rgb *= envMask.r;
+				}
+				else
+				{
+					cube.rgb *= specFactor;
+				}
+
+				outSpecular += cube.rgb * (vec3(ambient) + outDiffuse);
+			}
 
 			// Emissive
 			if (bEmissive)
@@ -691,6 +684,12 @@ void main(void)
 					vec4 glowMap = texture(texGlowmap, uv);
 					emissive *= glowMap.rgb;
 				}
+			}
+
+			// SkinTint / HairTint: applied after lighting so soft/backlight use untinted albedo (matches NifSkope)
+			if (bHasTintColor && !bIsEffectShader)
+			{
+				albedo *= tintColor;
 			}
 
 			color.rgb = outDiffuse * albedo;
@@ -796,7 +795,6 @@ void main(void)
 	}
 
 	color = clamp(color, 0.0, 1.0);
-	color.a *= alpha;
 
 	fragColor = color;
 
@@ -915,7 +913,7 @@ End Class
 Public Class Shader_Class_SSE
     Inherits Shader_Base_Class
     Private Const Vertex_SSE As String = "
-#version 440
+#version 430
 // SSE vertex shader with model-space normal (MSN) support
 uniform mat4 matProjection;
 uniform mat4 matView;
@@ -1152,7 +1150,7 @@ void main(void)
 }
 "
     Private Const Fragment_SSE As String = "
-#version 440
+#version 430
 // SSE fragment shader with model-space normal (MSN) support
 
 /*
@@ -1410,9 +1408,6 @@ void directionalLight(in DirectionalLight light, in vec3 lightDir, inout vec3 ou
 	float NdotV = max(dot(normal, viewDir), FLT_EPSILON);
 	float VdotH = max(dot(viewDir, halfDir), FLT_EPSILON);
 
-	// Temporary diffuse (includes ambient so cubemap stays visible in shadow)
-	vec3 diff = ambient + NdotL0 * light.diffuse;
-
 	// Specularity
 	float smoothness = 1.0;
 	float roughness = 0.0;
@@ -1426,26 +1421,6 @@ void directionalLight(in DirectionalLight light, in vec3 lightDir, inout vec3 ou
 
 		outSpec += TorranceSparrow(NdotL0, NdotH, NdotV, VdotH, vec3(specMask), fSpecularPower, 0.2) * NdotL0 * light.diffuse * specularColor;
 		outSpec += ambient * specMask * fresnelSchlick(VdotH, 0.2) * (1.0 - NdotV) * light.diffuse;
-	}
-
-	// Environment (BGSM only; BGEM has its own cubemap path)
-	if (bCubemap && bEnvMap && bShowTexture && !bIsEffectShader)
-	{
-		vec3 reflected = reflect(viewDir, normal);
-		vec3 reflectedWS = vec3(matModel * (matModelViewInverse * vec4(reflected, 0.0)));
-
-		vec4 cube = textureLod(texCubemap, reflectedWS, 8.0 - smoothness * 8.0);
-		cube.rgb *= envReflection * specularStrength;
-		if (bEnvMask && !bGlowmap)
-		{
-			cube.rgb *= envMask.r;
-		}
-		else
-		{
-			cube.rgb *= specFactor;
-		}
-
-		outSpec += cube.rgb * diff;
 	}
 
 	// Back lighting: simulates translucency (light through thin cloth/hair)
@@ -1468,7 +1443,7 @@ void directionalLight(in DirectionalLight light, in vec3 lightDir, inout vec3 ou
 	}
 
 	// Diffuse
-	diff = vec3(OrenNayarFull(lightDir, viewDir, normal, roughness, NdotL0));
+	vec3 diff = vec3(OrenNayarFull(lightDir, viewDir, normal, roughness, NdotL0));
 	outDiffuse += diff * light.diffuse;
 
 	// Soft Lighting
@@ -1635,16 +1610,6 @@ void main(void)
 					tm.b < 0.5 ? 2.0 * albedo.b * tm.b : 1.0 - 2.0 * (1.0 - tm.b) * (1.0 - albedo.b)
 				);
 			}
-			if (bHasDetailMask)
-			{
-				albedo += albedo;
-			}
-
-			// SkinTint / HairTint: multiply albedo by tint color (not for BGEM effect shaders)
-			if (bHasTintColor && !bIsEffectShader)
-			{
-				albedo *= tintColor;
-			}
 
 			// Double-sided: flip normal for back faces
 			if (bDoubleSided && !gl_FrontFacing)
@@ -1657,6 +1622,28 @@ void main(void)
 			directionalLight(directional1, lightDirectional1, outDiffuse, outSpecular);
 			directionalLight(directional2, lightDirectional2, outDiffuse, outSpecular);
 
+			// Environment cubemap (BGSM only; BGEM has its own cubemap path)
+			if (bCubemap && bEnvMap && bShowTexture && !bIsEffectShader)
+			{
+				float cubeSmooth = (bSpecular && bShowTexture) ? specGloss * shininess : 1.0;
+
+				vec3 reflected = reflect(viewDir, normal);
+				vec3 reflectedWS = vec3(matModel * (matModelViewInverse * vec4(reflected, 0.0)));
+
+				vec4 cube = textureLod(texCubemap, reflectedWS, 8.0 - cubeSmooth * 8.0);
+				cube.rgb *= envReflection * specularStrength;
+				if (bEnvMask && !bGlowmap)
+				{
+					cube.rgb *= envMask.r;
+				}
+				else
+				{
+					cube.rgb *= specFactor;
+				}
+
+				outSpecular += cube.rgb * (vec3(ambient) + outDiffuse);
+			}
+
 			// Emissive
 			if (bEmissive)
 			{
@@ -1668,6 +1655,12 @@ void main(void)
 					vec4 glowMap = texture(texGlowmap, uv);
 					emissive *= glowMap.rgb;
 				}
+			}
+
+			// SkinTint / HairTint: applied after lighting so soft/backlight use untinted albedo (matches NifSkope)
+			if (bHasTintColor && !bIsEffectShader)
+			{
+				albedo *= tintColor;
 			}
 
 			color.rgb = outDiffuse * albedo;
@@ -1773,7 +1766,6 @@ void main(void)
 	}
 
 	color = clamp(color, 0.0, 1.0);
-	color.a *= alpha;
 
 	fragColor = color;
 

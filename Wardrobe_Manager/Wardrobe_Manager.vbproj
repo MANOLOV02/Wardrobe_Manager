@@ -8,7 +8,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <MyType>WindowsForms</MyType>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Configurations>Debug;Release;Publish</Configurations>
+    <Configurations>Debug;Release</Configurations>
     <ApplicationIcon>Tif-Image.ICO</ApplicationIcon>
   </PropertyGroup>
 	
@@ -35,14 +35,6 @@
 	</PropertyGroup>
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
 	  <DefineTrace>False</DefineTrace>
-	</PropertyGroup>
-	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Publish|x86'">
-	  <DefineTrace>False</DefineTrace>
-	  <Optimize>True</Optimize>
-	</PropertyGroup>
-	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Publish|x64'">
-	  <DefineTrace>False</DefineTrace>
-	  <Optimize>True</Optimize>
 	</PropertyGroup>
 	<ItemGroup>
 	  <Compile Remove="Shaders\**" />
@@ -117,8 +109,5 @@
     <ProjectReference Include="..\..\Material-Editor-master\MaterialLib\MaterialLib.csproj" />
     <ProjectReference Include="..\..\NiflySharp\NiflySharp\NiflySharp.csproj" />
   </ItemGroup>
-	<Target Name="PublishOnBuild" AfterTargets="Build" Condition="'$(Configuration)'=='Publish'">
-		<MSBuild Projects="$(MSBuildProjectFullPath)" Targets="Publish" Properties="Configuration=Publish;Platform=$(Platform)" />
-	</Target>
 	
 </Project>

@@ -1,4 +1,4 @@
-﻿' Version Uploaded of Wardrobe 2.1.3
+﻿' Version Uploaded of Wardrobe 3.1.0
 Imports System.ComponentModel
 Imports System.Diagnostics.Eventing.Reader
 Imports System.Globalization
@@ -1129,7 +1129,7 @@ Public Class Editor_Form
             Dim fullpath = Path.GetRelativePath(Wardrobe_Manager_Form.Directorios.Fallout4data, sd.FileName).Correct_Path_Separator
             fullpath = fullpath.StripPrefix(prefix)
             Selected_Shape.RelatedMaterial.path = fullpath
-            Dim Location As New FilesDictionary_class.File_Location With {.BA2File = "", .Index = -1, .FullPath = prefix + Selected_Shape.RelatedMaterial.path}
+            Dim Location As New FilesDictionary_class.File_Location With {.BA2File = "", .Index = -1, .FullPath = prefix + Selected_Shape.RelatedMaterial.path, .FileDate = IO.File.GetLastWriteTime(sd.FileName)}
             FilesDictionary_class.TryAddDictionaryEntry((prefix + Selected_Shape.RelatedMaterial.path).Correct_Path_Separator, Location)
             MaterialPathTextbox.Text = prefix + Path.GetDirectoryName(Selected_Shape.RelatedMaterial.path)
             ComboBoxMaterials.SelectedIndex = ComboBoxMaterials.Items.Add(Path.GetFileName(Selected_Shape.RelatedMaterial.path))

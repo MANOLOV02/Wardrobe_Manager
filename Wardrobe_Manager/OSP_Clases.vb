@@ -1,4 +1,4 @@
-﻿' Version Uploaded of Wardrobe 2.1.3
+﻿' Version Uploaded of Wardrobe 3.1.0
 Imports System.DirectoryServices.ActiveDirectory
 Imports System.Globalization
 Imports System.IO
@@ -575,6 +575,7 @@ Public Class Clone_Materials_class
         Public Property Resolved As Boolean = False
         Public Property Succeeded As Boolean = False
         Public Property NeedsWrite As Boolean = False
+        Public Property OverwriteApproved As Boolean = False
 
         Public Property FinalReference As String = ""
 
@@ -595,6 +596,7 @@ Public Class Clone_Materials_class
         Public Property Resolved As Boolean = False
         Public Property Succeeded As Boolean = False
         Public Property NeedsWrite As Boolean = False
+        Public Property OverwriteApproved As Boolean = False
         Public Property FinalRelative As String = ""
     End Class
     Private Shared Function BuildTextureDictionaryKey(filename As String) As String
@@ -639,6 +641,10 @@ Public Class Clone_Materials_class
         For Each job In plan.MaterialJobs.Values.ToList()
             ResolveMaterialJob(plan, job, overwrite)
         Next
+
+        If Not overwrite Then
+            PromoteNewerSkippedFiles(plan)
+        End If
 
         CommitTextureJobs(plan, overwrite)
         CommitMaterialJobs(plan, overwrite)
@@ -999,6 +1005,72 @@ Public Class Clone_Materials_class
         End Try
     End Sub
 
+    Private Shared Function GetSourceFileDate(location As FilesDictionary_class.File_Location) As Date
+        Return location.FileDate
+    End Function
+
+    Private Shared Sub PromoteNewerSkippedFiles(plan As ClonePlan)
+        Dim newerTextureJobs As New List(Of TextureJob)
+        Dim newerMaterialJobs As New List(Of MaterialJob)
+
+        For Each job In plan.TextureJobs.Values
+            If job.Succeeded AndAlso job.NeedsWrite = False AndAlso
+               job.TargetRelative <> job.OriginalRelative AndAlso
+               IO.File.Exists(job.TargetFullPath) Then
+
+                Dim location As FilesDictionary_class.File_Location = Nothing
+                If FilesDictionary_class.Dictionary.TryGetValue(job.SourceKey, location) = False Then Continue For
+                If IsNothing(location) Then Continue For
+
+                Dim sourceDate = GetSourceFileDate(location)
+                Dim targetDate = IO.File.GetLastWriteTime(job.TargetFullPath)
+
+                If sourceDate > targetDate Then
+                    newerTextureJobs.Add(job)
+                End If
+            End If
+        Next
+
+        For Each job In plan.MaterialJobs.Values
+            If job.Succeeded AndAlso job.NeedsWrite = False AndAlso
+               job.FinalReference <> "" AndAlso
+               Not job.TargetReference.Equals(NormalizeMaterialReference(job.Source), StringComparison.OrdinalIgnoreCase) AndAlso
+               IO.File.Exists(job.TargetFullPath) Then
+
+                Dim location As FilesDictionary_class.File_Location = Nothing
+                If FilesDictionary_class.Dictionary.TryGetValue(job.Source, location) = False Then Continue For
+                If IsNothing(location) Then Continue For
+
+                Dim sourceDate = GetSourceFileDate(location)
+                Dim targetDate = IO.File.GetLastWriteTime(job.TargetFullPath)
+
+                If sourceDate > targetDate Then
+                    newerMaterialJobs.Add(job)
+                End If
+            End If
+        Next
+
+        Dim totalConflicts = newerTextureJobs.Count + newerMaterialJobs.Count
+        If totalConflicts = 0 Then Exit Sub
+
+        Dim msg = $"{totalConflicts} cloned file(s) appear to be outdated " &
+                  "(the source has been modified since the last clone)." & vbCrLf &
+                  "Do you want to overwrite them?"
+        Dim result = MessageBox.Show(msg, "Outdated files detected",
+                                     MessageBoxButtons.YesNo, MessageBoxIcon.Question)
+        If result <> DialogResult.Yes Then Exit Sub
+
+        For Each job In newerTextureJobs
+            job.NeedsWrite = True
+            job.OverwriteApproved = True
+        Next
+
+        For Each job In newerMaterialJobs
+            job.NeedsWrite = True
+            job.OverwriteApproved = True
+        Next
+    End Sub
+
     Private Shared Sub CommitTextureJobs(plan As ClonePlan, overwrite As Boolean)
         Dim pending = plan.TextureJobs.Values.Where(Function(pf) pf.NeedsWrite AndAlso pf.Succeeded).ToList
         If pending.Count = 0 Then Exit Sub
@@ -1032,7 +1104,7 @@ Public Class Clone_Materials_class
             End If
 
             If IO.File.Exists(job.TargetFullPath) Then
-                If overwrite = False Then
+                If overwrite = False AndAlso job.OverwriteApproved = False Then
                     RegisterGeneratedDictionaryFile(TexturesPrefix & job.TargetRelative)
                     Continue For
                 Else
@@ -1058,6 +1130,11 @@ Public Class Clone_Materials_class
                 IO.File.WriteAllBytes(job.TargetFullPath, bytes)
             End If
 
+            Dim sourceDate = GetSourceFileDate(location)
+            If sourceDate > Date.MinValue Then
+                IO.File.SetLastWriteTime(job.TargetFullPath, sourceDate)
+            End If
+
             RegisterGeneratedDictionaryFile("Textures\" & job.TargetRelative)
         Next
     End Sub
@@ -1068,7 +1145,7 @@ Public Class Clone_Materials_class
         End If
 
         If IO.File.Exists(job.TargetFullPath) Then
-            If overwrite = False Then
+            If overwrite = False AndAlso job.OverwriteApproved = False Then
                 RegisterGeneratedDictionaryFile(MaterialsPrefix & job.TargetReference)
                 Exit Sub
             Else
@@ -1095,7 +1172,8 @@ Public Class Clone_Materials_class
         Dim location As New FilesDictionary_class.File_Location With {
         .BA2File = "",
         .Index = -1,
-        .FullPath = normalized
+        .FullPath = normalized,
+        .FileDate = Date.Now
     }
 
         If FilesDictionary_class.TryAddDictionaryEntry(normalized, location) = False Then
@@ -1173,6 +1251,16 @@ Public Class Clone_Materials_class
                 Case Else
                     Throw New Exception
             End Select
+
+            If IO.File.Exists(job.TargetFullPath) Then
+                Dim location As FilesDictionary_class.File_Location = Nothing
+                If FilesDictionary_class.Dictionary.TryGetValue(job.Source, location) Then
+                    Dim sourceDate = GetSourceFileDate(location)
+                    If sourceDate > Date.MinValue Then
+                        IO.File.SetLastWriteTime(job.TargetFullPath, sourceDate)
+                    End If
+                End If
+            End If
         Next
     End Sub
 

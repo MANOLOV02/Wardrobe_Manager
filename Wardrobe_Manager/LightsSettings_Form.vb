@@ -1,4 +1,4 @@
-﻿' Version Uploaded of Wardrobe 2.1.3
+﻿' Version Uploaded of Wardrobe 3.1.0
 Imports Wardrobe_Manager.Config_App
 Partial Public Class LightRigForm
     Inherits Form

@@ -1,4 +1,4 @@
-﻿' Version Uploaded of Wardrobe 2.1.3
+﻿' Version Uploaded of Wardrobe 3.1.0
 Imports System.Collections.Concurrent
 Imports System.ComponentModel
 Imports System.Drawing.Imaging
@@ -853,6 +853,50 @@ Public Class PreviewControl
                                     End Sub
 
         menu.Items.Add(resetFull)
+        menu.Items.Add(New ToolStripSeparator())
+
+        Dim cameraSubMenu As New ToolStripMenuItem("Camera on Change")
+
+        Dim resetRotation As New ToolStripMenuItem("Reset rotation") With {
+            .Checked = Config_App.Current.Settings_Camara.ResetAngles,
+            .CheckOnClick = True,
+            .Enabled = Not Config_App.Current.Settings_Camara.FreezeCamera
+        }
+        AddHandler resetRotation.Click, Sub()
+                                             Dim cam = Config_App.Current.Settings_Camara
+                                             cam.ResetAngles = resetRotation.Checked
+                                             Config_App.Current.Settings_Camara = cam
+                                         End Sub
+
+        Dim resetZoom As New ToolStripMenuItem("Reset to optimal zoom") With {
+            .Checked = Config_App.Current.Settings_Camara.ResetZoom,
+            .CheckOnClick = True,
+            .Enabled = Not Config_App.Current.Settings_Camara.FreezeCamera
+        }
+        AddHandler resetZoom.Click, Sub()
+                                         Dim cam = Config_App.Current.Settings_Camara
+                                         cam.ResetZoom = resetZoom.Checked
+                                         Config_App.Current.Settings_Camara = cam
+                                     End Sub
+
+        Dim freezeCamera As New ToolStripMenuItem("Freeze camera") With {
+            .Checked = Config_App.Current.Settings_Camara.FreezeCamera,
+            .CheckOnClick = True
+        }
+        AddHandler freezeCamera.Click, Sub()
+                                            Dim cam = Config_App.Current.Settings_Camara
+                                            cam.FreezeCamera = freezeCamera.Checked
+                                            Config_App.Current.Settings_Camara = cam
+                                            resetRotation.Enabled = Not freezeCamera.Checked
+                                            resetZoom.Enabled = Not freezeCamera.Checked
+                                        End Sub
+
+        cameraSubMenu.DropDownItems.Add(resetRotation)
+        cameraSubMenu.DropDownItems.Add(resetZoom)
+        cameraSubMenu.DropDownItems.Add(New ToolStripSeparator())
+        cameraSubMenu.DropDownItems.Add(freezeCamera)
+
+        menu.Items.Add(cameraSubMenu)
         menu.Items.Add(New ToolStripSeparator())
 
         Dim floorEnabled = Model IsNot Nothing AndAlso Model.Floor IsNot Nothing AndAlso Model.Floor.Enabled

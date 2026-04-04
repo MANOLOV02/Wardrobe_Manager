@@ -1,4 +1,4 @@
-Ôªø' Version Uploaded of Wardrobe 2.1.3
+Ôªø' Version Uploaded of Wardrobe 3.1.0
 ' ========================
 ' == Stubs y utilidades ==
 ' ========================
@@ -101,10 +101,10 @@ Public Class TriFile
             Using fs As New IO.FileStream(fileName, IO.FileMode.Create, IO.FileAccess.Write, IO.FileShare.None)
                 Using bw As New IO.BinaryWriter(fs, System.Text.Encoding.ASCII, leaveOpen:=False)
                     ' Header "TRIP"
-                    ' En C++ escriben el uint32_t resultante de "TRIP"_mci; aquÌ escribimos los 4 bytes ASCII.
+                    ' En C++ escriben el uint32_t resultante de "TRIP"_mci; aqu√≠ escribimos los 4 bytes ASCII.
                     bw.Write(System.Text.Encoding.ASCII.GetBytes("PIRT" & ""))
 
-                    ' ---- SecciÛn de POSICIONES ----
+                    ' ---- Secci√≥n de POSICIONES ----
                     Dim shapeCountPos As UShort = GetShapeCount(MorphType.MORPHTYPE_POSITION)
                     bw.Write(shapeCountPos)
 
@@ -163,7 +163,7 @@ Public Class TriFile
                         Next
                     End If
 
-                    ' ---- SecciÛn de UV ----
+                    ' ---- Secci√≥n de UV ----
                     Dim shapeCountUV As UShort = GetShapeCount(MorphType.MORPHTYPE_UV)
                     bw.Write(shapeCountUV)
 
@@ -254,7 +254,7 @@ Public Class TriFile
         Return 0US
     End Function
 
-    ' ===== ImplementaciÛn VB.NET del mÈtodo solicitado =====
+    ' ===== Implementaci√≥n VB.NET del m√©todo solicitado =====
     Public Shared Function WriteMorphTRI(triPath As String, sliderSet As SliderSet_Class) As Boolean
         Dim tri As New TriFile()
         Dim triFilePath As String = triPath
@@ -367,10 +367,10 @@ Public Class TriFile
             Using br As New IO.BinaryReader(ms, System.Text.Encoding.ASCII, leaveOpen:=False)
                 ValidateHeader(br)
 
-                ' SecciÛn de POSICIONES
+                ' Secci√≥n de POSICIONES
                 ReadSection(br, tri, MorphType.MORPHTYPE_POSITION)
 
-                ' SecciÛn de UV
+                ' Secci√≥n de UV
                 ReadSection(br, tri, MorphType.MORPHTYPE_UV)
             End Using
         End Using
@@ -393,12 +393,12 @@ Public Class TriFile
         End If
         ' Escritura original: Encoding.ASCII.GetBytes("PIRT")
         If Not (hdr(0) = AscW("P"c) AndAlso hdr(1) = AscW("I"c) AndAlso hdr(2) = AscW("R"c) AndAlso hdr(3) = AscW("T"c)) Then
-            Throw New FormatException("Header inv·lido. Se esperaba 'PIRT'.")
+            Throw New FormatException("Header inv√°lido. Se esperaba 'PIRT'.")
         End If
     End Sub
 
     Private Shared Sub ReadSection(br As IO.BinaryReader, tri As TriFile, sectionType As MorphType)
-        ' shapeCount de la secciÛn (UInt16)
+        ' shapeCount de la secci√≥n (UInt16)
         Dim shapeCount As UShort = br.ReadUInt16()
 
         For i As Integer = 0 To shapeCount - 1
@@ -406,7 +406,7 @@ Public Class TriFile
             Dim shapeLen As Integer = br.ReadByte()
             Dim shapeName As String = ReadAscii(br, shapeLen)
 
-            ' Cantidad de morphs de ESTA secciÛn para ese shape
+            ' Cantidad de morphs de ESTA secci√≥n para ese shape
             Dim morphCount As UShort = br.ReadUInt16()
 
             For m As Integer = 0 To morphCount - 1
