@@ -7,7 +7,7 @@ Imports System.Runtime.InteropServices
 Imports System.Security.Cryptography
 Imports System.Text
 Imports System.Threading.Tasks
-Imports Material_Editor.BaseMaterialFile
+Imports MaterialLib.BaseMaterialFile
 Imports OpenTK.GLControl
 Imports OpenTK.Graphics.OpenGL4
 Imports OpenTK.Mathematics
@@ -38,6 +38,11 @@ Public Class TextOverlayRenderer
             bmp = Labels(text)
         Else
             bmp = GenerateTextBitmap(text, fontSize, fontName)
+            If Labels.Count >= 5 Then
+                Dim oldest = Labels.First()
+                oldest.Value.Dispose()
+                Labels.Remove(oldest.Key)
+            End If
             Labels.Add(text, bmp)
         End If
         textWidth = bmp.Width
@@ -2201,6 +2206,7 @@ Public Class PreviewModel
             ' ?? TOGGLES DE EFECTOS Y SOMBREADO
             '===============================
             shader.SetBool("bCubemap", hasCubemap)
+            shader.SetBool("bEnvMap", materialBase.EnvironmentMapping)
             shader.SetBool("bAlphaTest", hasAlphaTest)
             shader.SetBool("bEnvMask", envmapMaskTextureId <> 0)
             shader.SetBool("bNormalMap", normalTextureId <> 0)

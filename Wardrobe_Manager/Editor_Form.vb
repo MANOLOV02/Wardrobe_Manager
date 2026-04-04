@@ -5,7 +5,7 @@ Imports System.Globalization
 Imports System.IO
 Imports System.Text.Json
 Imports System.Text.Json.Serialization
-Imports Material_Editor
+Imports MaterialLib
 Imports NiflySharp
 Imports NiflySharp.Blocks
 Imports OpenTK.Graphics.OpenGL.GL
@@ -26,6 +26,7 @@ Public Class Editor_Form
     Public Grabable As Boolean = True
     Private _Editando As Boolean = False
     Private _LastMaterial As New FO4UnifiedMaterial_Class
+    Private _SuppressTrackbarEvent As Boolean = False
     Private Sub Iniciado_Edit()
         If _Editando = False Then
             _Editando = True
@@ -539,6 +540,8 @@ Public Class Editor_Form
     End Sub
     Private Sub ComboBoxShapes_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBoxShapes.SelectedIndexChanged
         Selected_Shape = Selected_Slider.Shapes.Where(Function(pf) pf.Nombre.Equals(ComboBoxShapes.SelectedItem.ToString, StringComparison.OrdinalIgnoreCase)).FirstOrDefault
+
+
         RenderCheckWeights.Checked = Selected_Shape.ShowWeight
         RenderCheckcolors.Checked = Selected_Shape.RelatedNifShape.HasVertexColors
         RenderCheckMasks.Checked = Selected_Shape.ShowMask
@@ -599,11 +602,11 @@ Public Class Editor_Form
 
         ' ShaderType change: this modifies the NIF shader, not the material file.
         ' Confirm with the user, apply to NIF immediately, or revert.
-        If e.ChangedItem IsNot Nothing AndAlso e.ChangedItem.Label = "ShaderType" Then
+        If e.ChangedItem IsNot Nothing AndAlso e.ChangedItem.Label = "NifShaderType" Then
             If MsgBox("ShaderType is stored in the NIF shader, not in the material file." & vbCrLf &
                        "Do you want to apply this change?",
                        vbYesNo + vbExclamation, "ShaderType Change") = MsgBoxResult.No Then
-                Selected_Material.ShaderType = CType(e.OldValue, NiflySharp.Enums.BSLightingShaderType)
+                Selected_Material.NifShaderType = CType(e.OldValue, NiflySharp.Enums.BSLightingShaderType)
                 PropertyGrid1.Refresh()
                 Exit Sub
             Else
@@ -651,25 +654,30 @@ Public Class Editor_Form
         EditPreviewControl.RefreshRender()
     End Sub
     Private Sub GrayScaleTrackbar1_ValueChanged(sender As Object, e As EventArgs) Handles GrayScaleTrackbar1.ValueChanged
+        If _SuppressTrackbarEvent Then Exit Sub
         Selected_Material.GrayscaleToPaletteScale = GrayScaleTrackbar1.Setvalue
         Iniciado_Edit()
         Process_render_Changes(False)
     End Sub
     Private Sub Update_Grayscale()
-        If Selected_Material.GreyscaleTexture <> "" AndAlso Not IsNothing(GrayscaleBMP_Rotated) Then
-            If GrayScaleTrackbar1.Value <> GrayScaleTrackbar1.Getvalue(Selected_Material.GrayscaleToPaletteScale) Then Iniciado_Edit()
-            GrayScaleTrackbar1.BackgroundImage = GrayscaleBMP_Rotated
-            GrayScaleTrackbar1.Maximum = GrayscaleBMP_Rotated.Width
-            GrayScaleTrackbar1.Value = GrayScaleTrackbar1.Getvalue(Selected_Material.GrayscaleToPaletteScale)
-            GrayScaleTrackbar1.Enabled = Selected_Material.GrayscaleToPaletteColor
-            ButtonMakeGradient.Enabled = False
-        Else
-            ButtonMakeGradient.Enabled = True
-            GrayScaleTrackbar1.Maximum = 100
-            GrayScaleTrackbar1.Value = 50
-            GrayScaleTrackbar1.Enabled = False
-            DisposeLastBitmap()
-        End If
+        _SuppressTrackbarEvent = True
+        Try
+            If Selected_Material.GreyscaleTexture <> "" AndAlso Not IsNothing(GrayscaleBMP_Rotated) Then
+                GrayScaleTrackbar1.BackgroundImage = GrayscaleBMP_Rotated
+                GrayScaleTrackbar1.Maximum = GrayscaleBMP_Rotated.Width
+                GrayScaleTrackbar1.Value = GrayScaleTrackbar1.Getvalue(Selected_Material.GrayscaleToPaletteScale)
+                GrayScaleTrackbar1.Enabled = Selected_Material.GrayscaleToPaletteColor
+                ButtonMakeGradient.Enabled = False
+            Else
+                ButtonMakeGradient.Enabled = True
+                GrayScaleTrackbar1.Maximum = 100
+                GrayScaleTrackbar1.Value = 50
+                GrayScaleTrackbar1.Enabled = False
+                DisposeLastBitmap()
+            End If
+        Finally
+            _SuppressTrackbarEvent = False
+        End Try
     End Sub
 
     Private Sub ComboBoxMaterials_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBoxMaterials.SelectedIndexChanged
@@ -736,7 +744,9 @@ Public Class Editor_Form
                 fullpath = fullpath.StripPrefix(prefix)
                 If fullpath = "Embedded" Then
                     Selected_Material.Create_From_Shader(Selected_Slider.NIFContent, Selected_Shape.RelatedNifShape, CType(Selected_Shape.RelatedNifShader, BSEffectShaderProperty))
+                    Selected_Material.NifShaderType = NiflySharp.Enums.BSLightingShaderType.Default
                     _LastMaterial.Create_From_Shader(Selected_Slider.NIFContent, Selected_Shape.RelatedNifShape, CType(Selected_Shape.RelatedNifShader, BSEffectShaderProperty))
+                    _LastMaterial.NifShaderType = NiflySharp.Enums.BSLightingShaderType.Default
                     Selected_Shape.RelatedMaterial.material = Selected_Material
                     Label6.Text = "None"
                     Label6.ForeColor = Color.FromKnownColor(KnownColor.DarkGray)
@@ -745,7 +755,9 @@ Public Class Editor_Form
                 Dim locBgem As FilesDictionary_class.File_Location = Nothing
                 If FilesDictionary_class.Dictionary.TryGetValue(prefix + fullpath, locBgem) Then
                     Selected_Material.Deserialize(prefix + fullpath, GetType(BGEM))
+                    Selected_Material.NifShaderType = NiflySharp.Enums.BSLightingShaderType.Default
                     _LastMaterial.Deserialize(prefix + fullpath, GetType(BGEM))
+                    _LastMaterial.NifShaderType = NiflySharp.Enums.BSLightingShaderType.Default
                     If locBgem.IsLosseFile Then
                         Label6.Text = "Loose"
                     Else

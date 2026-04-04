@@ -114,7 +114,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\DirectXTextWrapper\DirectXTexWrapper.vcxproj" />
     <ProjectReference Include="..\..\Ba2_Bsa_Library\BSA_BA2_Library_DLL.vbproj" />
-    <ProjectReference Include="..\..\Material-Editor-master\Material Editor.csproj" />
+    <ProjectReference Include="..\..\Material-Editor-master\MaterialLib\MaterialLib.csproj" />
     <ProjectReference Include="..\..\NiflySharp\NiflySharp\NiflySharp.csproj" />
   </ItemGroup>
 	<Target Name="PublishOnBuild" AfterTargets="Build" Condition="'$(Configuration)'=='Publish'">

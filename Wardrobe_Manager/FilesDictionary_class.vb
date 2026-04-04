@@ -169,15 +169,10 @@ Public Class FilesDictionary_class
         _poolCleanupTimer.Start()
     End Sub
 
-    Private Shared _poolTimerInitialized As Boolean = False
-
     ''' <summary>Lease a BethesdaReader from the pool, or create a new one if pool is empty.</summary>
     Private Shared Function LeaseReader(archivePath As String) As (Reader As BSA_BA2_Library_DLL.BethesdaArchive.Core.BethesdaReader, Stream As FileStream)
         ' Lazy-init the pool cleanup timer on first use
-        If Not _poolTimerInitialized Then
-            _poolTimerInitialized = True
-            InitPoolCleanupTimer()
-        End If
+        InitPoolCleanupTimer()
 
         Dim bag As ConcurrentBag(Of (Reader As BSA_BA2_Library_DLL.BethesdaArchive.Core.BethesdaReader, Stream As FileStream)) = Nothing
         Dim entry As (Reader As BSA_BA2_Library_DLL.BethesdaArchive.Core.BethesdaReader, Stream As FileStream) = Nothing
@@ -229,7 +224,17 @@ Public Class FilesDictionary_class
                 End Try
             End While
         Next
-        _archivePool.Clear()
+
+        ' Purge dead WeakReference entries from _bytesCache
+        For Each key In _bytesCache.Keys
+            Dim weakRef As WeakReference(Of Byte()) = Nothing
+            If _bytesCache.TryGetValue(key, weakRef) Then
+                Dim dummy As Byte() = Nothing
+                If Not weakRef.TryGetTarget(dummy) Then
+                    _bytesCache.TryRemove(key, weakRef)
+                End If
+            End If
+        Next
     End Sub
 
     ''' <summary>Clear the byte cache (call when dictionary is rebuilt).</summary>

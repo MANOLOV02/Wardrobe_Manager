@@ -114,13 +114,15 @@ Public Class SkinningHelper
         Dim rawBitangs() As Vector3d
 
         If tri.HasNormals Then
-            rawNormals = tri.Normals.Select(Function(n)
-                                                Dim v As New Vector3d(n.X, n.Y, n.Z)
-                                                Dim l = v.Length
-                                                Return If(l > 0.000001, v / l, Vector3d.Zero)
-                                            End Function).ToArray()
+            Dim srcNormals = tri.Normals.ToArray()
+            rawNormals = New Vector3d(rawVerts.Length - 1) {}
+            Parallel.For(0, rawVerts.Length, Sub(i)
+                                                 Dim v As New Vector3d(srcNormals(i).X, srcNormals(i).Y, srcNormals(i).Z)
+                                                 Dim l = v.Length
+                                                 rawNormals(i) = If(l > 0.000001, v / l, Vector3d.Zero)
+                                             End Sub)
         Else
-            rawNormals = Enumerable.Repeat(New Vector3d(0.0F, 0.0F, 0.0F), rawVerts.Length).ToArray()
+            rawNormals = New Vector3d(rawVerts.Length - 1) {}
         End If
         ' Raw vertex data loaded early for direct BitangentX extraction (bypasses NiflySharp byte-cast bug)
         Dim allVD = Array.Empty(Of BSVertexData)
@@ -132,11 +134,13 @@ Public Class SkinningHelper
             If Nifversion.IsSSE AndAlso allVDSSE.Length = rawVerts.Length Then
                 ' SSE: INVERTIDAS swap same as FO4 — produces correct effective TBN: mat3(NIF_Bitangent, NIF_Tangent, N).
                 ' NIF_Tangent (ByteVector3) -> rawBitangs. NIF_Bitangent (float X + sbyte Y/Z) -> rawTangents.
-                rawBitangs = tri.Tangents.Select(Function(t)
-                                                     Dim v As New Vector3d(t.X, t.Y, t.Z)
+                Dim srcTangentsSSE = tri.Tangents.ToArray()
+                rawBitangs = New Vector3d(rawVerts.Length - 1) {}
+                Parallel.For(0, rawVerts.Length, Sub(i)
+                                                     Dim v As New Vector3d(srcTangentsSSE(i).X, srcTangentsSSE(i).Y, srcTangentsSSE(i).Z)
                                                      Dim l = v.Length
-                                                     Return If(l > 0.000001, v / l, Vector3d.Zero)
-                                                 End Function).ToArray()
+                                                     rawBitangs(i) = If(l > 0.000001, v / l, Vector3d.Zero)
+                                                 End Sub)
                 rawTangents = New Vector3d(rawVerts.Length - 1) {}
                 Parallel.For(0, rawVerts.Length, Sub(i)
                                                      Dim bx = CDbl(allVDSSE(i).BitangentX)
@@ -150,11 +154,13 @@ Public Class SkinningHelper
                 ' FO4 full-precision: NIF_Bitangent uses float BitangentX (NiflySharp bug: cast to byte truncates).
                 ' INVERTIDAS swap: NIF_Bitangent -> rawTangents, NIF_Tangent -> rawBitangs.
                 ' Read NIF_Bitangent directly from BSVertexData for correct BitangentX.
-                rawBitangs = tri.Tangents.Select(Function(b)
-                                                     Dim v As New Vector3d(b.X, b.Y, b.Z)
+                Dim srcTangentsFO4 = tri.Tangents.ToArray()
+                rawBitangs = New Vector3d(rawVerts.Length - 1) {}
+                Parallel.For(0, rawVerts.Length, Sub(i)
+                                                     Dim v As New Vector3d(srcTangentsFO4(i).X, srcTangentsFO4(i).Y, srcTangentsFO4(i).Z)
                                                      Dim l = v.Length
-                                                     Return If(l > 0.000001, v / l, Vector3d.Zero)
-                                                 End Function).ToArray()
+                                                     rawBitangs(i) = If(l > 0.000001, v / l, Vector3d.Zero)
+                                                 End Sub)
                 rawTangents = New Vector3d(rawVerts.Length - 1) {}
                 Parallel.For(0, rawVerts.Length, Sub(i)
                                                      Dim bx = CDbl(allVD(i).BitangentX)
@@ -370,6 +376,40 @@ Public Class SkinningHelper
             If wv.Z > maxV.Z Then maxV.Z = wv.Z
         Next
         Dim center = (minV + maxV) * 0.5
+
+        ' Pre-compute indices (avoid SelectMany creating thousands of temp arrays)
+        Dim flatIndices As UInteger()
+        If Not IsNothing(tri.Triangles) Then
+            Dim srcTris = tri.Triangles.ToArray()
+            flatIndices = New UInteger(srcTris.Length * 3 - 1) {}
+            For ti = 0 To srcTris.Length - 1
+                flatIndices(ti * 3) = srcTris(ti).V1
+                flatIndices(ti * 3 + 1) = srcTris(ti).V2
+                flatIndices(ti * 3 + 2) = srcTris(ti).V3
+            Next
+        Else
+            flatIndices = Array.Empty(Of UInteger)()
+        End If
+
+        ' Pre-compute vertex colors
+        Dim vtxColors As Vector4()
+        If tri.HasVertexColors Then
+            Dim srcColors = tri.VertexColors.ToArray()
+            vtxColors = New Vector4(vertexCount - 1) {}
+            Parallel.For(0, vertexCount, Sub(i)
+                                             vtxColors(i) = New Vector4(srcColors(i).R / 255.0F, srcColors(i).G / 255.0F, srcColors(i).B / 255.0F, 1.0F)
+                                         End Sub)
+        Else
+            vtxColors = New Vector4(vertexCount - 1) {}
+            Array.Fill(vtxColors, New Vector4(0.1F, 0.1F, 0.1F, 1.0F))
+        End If
+
+        Dim vtxMask = New Single(vertexCount - 1) {}
+        Dim dirtyVFlags = New Boolean(vertexCount - 1) {}
+        Dim dirtyMFlags = New Boolean(vertexCount - 1) {}
+        Array.Fill(dirtyVFlags, True)
+        Array.Fill(dirtyMFlags, True)
+
         Dim geo = New SkinnedGeometry With {
             .Vertices = rawVerts,
             .BaseVertices = rawVerts.ToArray,
@@ -381,17 +421,17 @@ Public Class SkinningHelper
             .ShapeGlobal = GlobalTransform,
             .BoneMatsBind = matsBind,
             .BoneMatsPose = matsPose,
-            .Indices = If(Not IsNothing(tri.Triangles), tri.Triangles.SelectMany(Function(t2) New UInteger() {t2.V1, t2.V2, t2.V3}).ToArray(), Array.Empty(Of UInteger)),
-            .VertexColors = If(tri.HasVertexColors, tri.VertexColors.Select(Function(c) New Vector4(c.R / 255.0F, c.G / 255.0F, c.B / 255.0F, 1.0F)).ToArray(), Enumerable.Repeat(New Vector4(0.1F, 0.1F, 0.1F, 1.0F), rawVerts.Length).ToArray()),
-            .Eyedata = If(tri.HasEyeData, tri.EyeData.ToArray(), Enumerable.Repeat(0F, rawVerts.Length).ToArray()),
+            .Indices = flatIndices,
+            .VertexColors = vtxColors,
+            .Eyedata = If(tri.HasEyeData, tri.EyeData.ToArray(), New Single(vertexCount - 1) {}),
             .VertexData = allVD.ToList,
             .VertexDataSSE = allVDSSE.ToList,
             .TriShape = tri,
-            .VertexMask = Enumerable.Repeat(0.0F, rawVerts.Length).ToArray(),
-            .dirtyVertexIndices = New HashSet(Of Integer)(Enumerable.Range(0, rawVerts.Length)),
-            .dirtyMaskIndices = New HashSet(Of Integer)(Enumerable.Range(0, rawVerts.Length)),
-            .dirtyMaskFlags = Enumerable.Repeat(True, rawVerts.Length).ToArray,
-            .dirtyVertexFlags = Enumerable.Repeat(True, rawVerts.Length).ToArray,
+            .VertexMask = vtxMask,
+            .dirtyVertexIndices = New HashSet(Of Integer)(Enumerable.Range(0, vertexCount)),
+            .dirtyMaskIndices = New HashSet(Of Integer)(Enumerable.Range(0, vertexCount)),
+            .dirtyMaskFlags = dirtyMFlags,
+            .dirtyVertexFlags = dirtyVFlags,
              .Boundingcenter = center,
              .Minv = minV,
              .Maxv = maxV,

@@ -285,6 +285,7 @@ uniform bool bApplyZap;
 uniform bool bNormalMap;
 uniform bool bModelSpace;
 uniform bool bCubemap;
+uniform bool bEnvMap;
 uniform bool bEnvMask;
 uniform bool bSpecular;
 uniform bool bEmissive;
@@ -505,8 +506,8 @@ void directionalLight(in DirectionalLight light, in vec3 lightDir, inout vec3 ou
 	float NdotV = max(dot(normal, viewDir), FLT_EPSILON);
 	float VdotH = max(dot(viewDir, halfDir), FLT_EPSILON);
 
-	// Temporary diffuse
-	vec3 diff = NdotL0 * light.diffuse;
+	// Temporary diffuse (includes ambient so cubemap stays visible in shadow)
+	vec3 diff = ambient + NdotL0 * light.diffuse;
 
 	// Specularity
 	float smoothness = 1.0;
@@ -523,21 +524,20 @@ void directionalLight(in DirectionalLight light, in vec3 lightDir, inout vec3 ou
 		outSpec += ambient * specMask * fresnelSchlick(VdotH, 0.2) * (1.0 - NdotV) * light.diffuse;
 	}
 
-	// Environment
-	if (bCubemap && bShowTexture)
+	// Environment (BGSM only; BGEM has its own cubemap path)
+	if (bCubemap && bEnvMap && bShowTexture && !bIsEffectShader)
 	{
 		vec3 reflected = reflect(viewDir, normal);
 		vec3 reflectedWS = vec3(matModel * (matModelViewInverse * vec4(reflected, 0.0)));
 
 		vec4 cube = textureLod(texCubemap, reflectedWS, 8.0 - smoothness * 8.0);
 		cube.rgb *= envReflection * specularStrength;
-		if (bEnvMask)
+		if (bEnvMask && !bGlowmap)
 		{
 			cube.rgb *= envMask.r;
 		}
 		else
 		{
-			// No env mask, use specular factor
 			cube.rgb *= specFactor;
 		}
 
@@ -615,9 +615,9 @@ void main(void)
 
 				if (bCubemap)
 				{
-					if (bEnvMask)
+					if (bEnvMask && !bGlowmap)
 					{
-						// Environment Mask
+						// Environment Mask (BGSM slot 5 is dual: envmask when !bGlowmap)
 						envMask = texture(texEnvMask, uv);
 					}
 				}
@@ -702,25 +702,16 @@ void main(void)
 		// Effect Shader (BGEM) overrides
 		if (bIsEffectShader)
 		{
-			// Base color replaces diffuse, but preserves specular/cubemap
-			vec3 effBase = baseMap.rgb * vColor.rgb * effectBaseColor * effectBaseColorScale;
+			float effScale = bGreyscaleColor ? 1.0 : effectBaseColorScale;
+			vec3 effBase = baseMap.rgb * vColor.rgb * effectBaseColor * effScale;
 
 			// BGEM alpha: baseColor.a squared (Bethesda engine convention) * vertex alpha * texture alpha
 			// color.a already has vColor.a * baseMap.a from the standard path
 			float bcAlpha = effectBaseColorAlpha;
-			color.a *= bcAlpha * bcAlpha;
+			float effTexAlpha = bEffectGreyscaleAlpha ? 1.0 : baseMap.a;
+			color.a = bcAlpha * bcAlpha * vColor.a * effTexAlpha;
 
-			// Lighting influence: mix fullbright vs lit using all 4 accumulated lights
-			if (bLightEnabled)
-			{
-				vec3 effLit = effBase * (outDiffuse + vec3(ambient));
-				effBase = mix(effBase, effLit, effectLightingInfluence);
-			}
-
-			// Combine: effect base + specular/cubemap from lighting pass + emissive
-			color.rgb = effBase + outSpecular + emissive;
-
-			// Falloff (angle-based transparency)
+			// Falloff (calculated early - needed for cubemap and greyscale modulation)
 			float effFalloff = 1.0;
 			if (bEffectFalloff || bEffectFalloffColor)
 			{
@@ -732,21 +723,52 @@ void main(void)
 					color.a *= effFalloff;
 
 				if (bEffectFalloffColor)
-					color.rgb *= effFalloff;
+					effBase *= effFalloff;
 			}
 
-			// BGEM greyscale color: palette lookup using effect base color × vertex color × falloff
+			// Compose base color
+			color.rgb = effBase;
+
+			// Greyscale color lookup (BEFORE lighting and cubemap - NifSkope order)
 			if (bGreyscaleColor)
 			{
 				vec4 luG = colorLookup(baseMap.g, effectBaseColor.r * vColor.r * effFalloff);
 				color.rgb = luG.rgb;
 			}
 
-			// BGEM greyscale alpha: palette lookup using texture alpha
+			// Greyscale alpha lookup (uses original baseMap.a as X coordinate)
 			if (bEffectGreyscaleAlpha)
 			{
 				vec4 luA = colorLookup(baseMap.a, color.a);
 				color.a = luA.a;
+			}
+
+			// Lighting influence (AFTER greyscale, BEFORE cubemap - NifSkope order)
+			if (bLightEnabled)
+			{
+				color.rgb = mix(color.rgb, color.rgb * (outDiffuse + vec3(ambient)), effectLightingInfluence);
+			}
+
+			// Emissive (WM addition - NifSkope effect shader has no separate emissive)
+			color.rgb += emissive;
+
+			// Cubemap (LAST - added on top of everything, matching NifSkope)
+			if (bCubemap && bEnvMap && bShowTexture)
+			{
+				float cubeIntensity = 1.0;
+				if (bEnvMask)
+				{
+					cubeIntensity = texture(texEnvMask, uv).g;
+				}
+
+				vec3 reflected = reflect(viewDir, normal);
+				vec3 reflectedWS = vec3(matModel * (matModelViewInverse * vec4(reflected, 0.0)));
+				vec4 cube = texture(texCubemap, reflectedWS);
+
+				cube.rgb *= envReflection * cubeIntensity;
+				cube.rgb = mix(cube.rgb, cube.rgb * outDiffuse, effectLightingInfluence);
+
+				color.rgb += cube.rgb * effFalloff;
 			}
 		}
 
@@ -1163,6 +1185,7 @@ uniform bool bApplyZap;
 uniform bool bNormalMap;
 uniform bool bModelSpace;
 uniform bool bCubemap;
+uniform bool bEnvMap;
 uniform bool bEnvMask;
 uniform bool bSpecular;
 uniform bool bHasSpecMap;
@@ -1387,8 +1410,8 @@ void directionalLight(in DirectionalLight light, in vec3 lightDir, inout vec3 ou
 	float NdotV = max(dot(normal, viewDir), FLT_EPSILON);
 	float VdotH = max(dot(viewDir, halfDir), FLT_EPSILON);
 
-	// Temporary diffuse
-	vec3 diff = NdotL0 * light.diffuse;
+	// Temporary diffuse (includes ambient so cubemap stays visible in shadow)
+	vec3 diff = ambient + NdotL0 * light.diffuse;
 
 	// Specularity
 	float smoothness = 1.0;
@@ -1405,21 +1428,20 @@ void directionalLight(in DirectionalLight light, in vec3 lightDir, inout vec3 ou
 		outSpec += ambient * specMask * fresnelSchlick(VdotH, 0.2) * (1.0 - NdotV) * light.diffuse;
 	}
 
-	// Environment
-	if (bCubemap && bShowTexture)
+	// Environment (BGSM only; BGEM has its own cubemap path)
+	if (bCubemap && bEnvMap && bShowTexture && !bIsEffectShader)
 	{
 		vec3 reflected = reflect(viewDir, normal);
 		vec3 reflectedWS = vec3(matModel * (matModelViewInverse * vec4(reflected, 0.0)));
 
 		vec4 cube = textureLod(texCubemap, reflectedWS, 8.0 - smoothness * 8.0);
 		cube.rgb *= envReflection * specularStrength;
-		if (bEnvMask)
+		if (bEnvMask && !bGlowmap)
 		{
 			cube.rgb *= envMask.r;
 		}
 		else
 		{
-			// No env mask, use specular factor
 			cube.rgb *= specFactor;
 		}
 
@@ -1518,9 +1540,9 @@ void main(void)
 
 				if (bCubemap)
 				{
-					if (bEnvMask)
+					if (bEnvMask && !bGlowmap)
 					{
-						// Environment Mask
+						// Environment Mask (BGSM slot 5 is dual: envmask when !bGlowmap)
 						envMask = texture(texEnvMask, uv);
 					}
 				}
@@ -1657,25 +1679,16 @@ void main(void)
 		// Effect Shader (BGEM) overrides
 		if (bIsEffectShader)
 		{
-			// Base color replaces diffuse, but preserves specular/cubemap
-			vec3 effBase = baseMap.rgb * vColor.rgb * effectBaseColor * effectBaseColorScale;
+			float effScale = bGreyscaleColor ? 1.0 : effectBaseColorScale;
+			vec3 effBase = baseMap.rgb * vColor.rgb * effectBaseColor * effScale;
 
 			// BGEM alpha: baseColor.a squared (Bethesda engine convention) * vertex alpha * texture alpha
 			// color.a already has vColor.a * baseMap.a from the standard path
 			float bcAlpha = effectBaseColorAlpha;
-			color.a *= bcAlpha * bcAlpha;
+			float effTexAlpha = bEffectGreyscaleAlpha ? 1.0 : baseMap.a;
+			color.a = bcAlpha * bcAlpha * vColor.a * effTexAlpha;
 
-			// Lighting influence: mix fullbright vs lit using all 4 accumulated lights
-			if (bLightEnabled)
-			{
-				vec3 effLit = effBase * (outDiffuse + vec3(ambient));
-				effBase = mix(effBase, effLit, effectLightingInfluence);
-			}
-
-			// Combine: effect base + specular/cubemap from lighting pass + emissive
-			color.rgb = effBase + outSpecular + emissive;
-
-			// Falloff (angle-based transparency)
+			// Falloff (calculated early - needed for cubemap and greyscale modulation)
 			float effFalloff = 1.0;
 			if (bEffectFalloff || bEffectFalloffColor)
 			{
@@ -1687,21 +1700,52 @@ void main(void)
 					color.a *= effFalloff;
 
 				if (bEffectFalloffColor)
-					color.rgb *= effFalloff;
+					effBase *= effFalloff;
 			}
 
-			// BGEM greyscale color: palette lookup using effect base color × vertex color × falloff
+			// Compose base color
+			color.rgb = effBase;
+
+			// Greyscale color lookup (BEFORE lighting and cubemap - NifSkope order)
 			if (bGreyscaleColor)
 			{
 				vec4 luG = colorLookup(baseMap.g, effectBaseColor.r * vColor.r * effFalloff);
 				color.rgb = luG.rgb;
 			}
 
-			// BGEM greyscale alpha: palette lookup using texture alpha
+			// Greyscale alpha lookup (uses original baseMap.a as X coordinate)
 			if (bEffectGreyscaleAlpha)
 			{
 				vec4 luA = colorLookup(baseMap.a, color.a);
 				color.a = luA.a;
+			}
+
+			// Lighting influence (AFTER greyscale, BEFORE cubemap - NifSkope order)
+			if (bLightEnabled)
+			{
+				color.rgb = mix(color.rgb, color.rgb * (outDiffuse + vec3(ambient)), effectLightingInfluence);
+			}
+
+			// Emissive (WM addition - NifSkope effect shader has no separate emissive)
+			color.rgb += emissive;
+
+			// Cubemap (LAST - added on top of everything, matching NifSkope)
+			if (bCubemap && bEnvMap && bShowTexture)
+			{
+				float cubeIntensity = 1.0;
+				if (bEnvMask)
+				{
+					cubeIntensity = texture(texEnvMask, uv).g;
+				}
+
+				vec3 reflected = reflect(viewDir, normal);
+				vec3 reflectedWS = vec3(matModel * (matModelViewInverse * vec4(reflected, 0.0)));
+				vec4 cube = texture(texCubemap, reflectedWS);
+
+				cube.rgb *= envReflection * cubeIntensity;
+				cube.rgb = mix(cube.rgb, cube.rgb * outDiffuse, effectLightingInfluence);
+
+				color.rgb += cube.rgb * effFalloff;
 			}
 		}
 

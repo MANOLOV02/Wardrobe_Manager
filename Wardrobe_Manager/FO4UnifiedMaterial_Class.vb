@@ -4,8 +4,8 @@ Imports System.ComponentModel
 Imports System.Drawing.Design
 Imports System.IO
 Imports System.Reflection
-Imports Material_Editor
-Imports Material_Editor.BaseMaterialFile
+Imports MaterialLib
+Imports MaterialLib.BaseMaterialFile
 Imports NiflySharp
 Imports NiflySharp.Blocks
 Imports NiflySharp.Helpers
@@ -80,10 +80,10 @@ End Class
 <TypeDescriptionProvider(GetType(FO4UnifiedMaterialProvider))>
 Public Class FO4UnifiedMaterial_Class
     <Browsable(False)>
-    Public Property Underlying_Material As Material_Editor.BaseMaterialFile = New BGEM
+    Public Property Underlying_Material As MaterialLib.BaseMaterialFile = New BGEM
 
     ' NIF ShaderType — not part of BGSM/BGEM file format, stored here as runtime field
-    Friend NifShaderType As NiflySharp.Enums.BSLightingShaderType = NiflySharp.Enums.BSLightingShaderType.Default
+    Private _NifShaderType As NiflySharp.Enums.BSLightingShaderType = NiflySharp.Enums.BSLightingShaderType.Default
 
     <Browsable(False)>
     Public Property MaskWrites As MaskWriteFlags
@@ -103,13 +103,14 @@ Public Class FO4UnifiedMaterial_Class
     End Property
 
     <Category("(Type)")>
+    <DefaultValue(NiflySharp.Enums.BSLightingShaderType.Default)>
     <TypeConverter(GetType(ShaderTypeConverter))>
-    Public Property ShaderType As NiflySharp.Enums.BSLightingShaderType
+    Public Property NifShaderType As NiflySharp.Enums.BSLightingShaderType
         Get
-            Return NifShaderType
+            Return _NifShaderType
         End Get
         Set(value As NiflySharp.Enums.BSLightingShaderType)
-            NifShaderType = value
+            _NifShaderType = value
             ' Sync BGSM boolean flags with ShaderType
             Select Case Underlying_Material.GetType
                 Case GetType(BGSM)
@@ -123,13 +124,13 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Alpha")>
+    <Category("Opacity")>
     <DefaultValue(AlphaBlendModeType.Unknown)>
-    Public Property AlphaBlendMode As Material_Editor.BaseMaterialFile.AlphaBlendModeType
+    Public Property AlphaBlendMode As MaterialLib.BaseMaterialFile.AlphaBlendModeType
         Get
             Return Underlying_Material.AlphaBlendMode
         End Get
-        Set(value As Material_Editor.BaseMaterialFile.AlphaBlendModeType)
+        Set(value As MaterialLib.BaseMaterialFile.AlphaBlendModeType)
             Underlying_Material.AlphaBlendMode = value
         End Set
     End Property
@@ -445,10 +446,11 @@ Public Class FO4UnifiedMaterial_Class
     <Editor(GetType(DictionaryFilePickerEditor), GetType(UITypeEditor))>
     Public Property EnvmapMaskTexture As String
         Get
-            ' BGSM: shares slot 5 with FlowTexture (FO4=flow, SSE=envmask)
+            ' BGSM: GlowTexture (slot 5) is dual-purpose: glow when Glowmap=true, envmask when Glowmap=false
+            ' NifSkope glproperty.cpp:996 — case 5 (Env Mask): tex[5] = GlowTexture
             Select Case Underlying_Material.GetType
                 Case GetType(BGSM)
-                    Return CType(Underlying_Material, BGSM).FlowTexture
+                    Return CType(Underlying_Material, BGSM).GlowTexture
                 Case GetType(BGEM)
                     Return CType(Underlying_Material, BGEM).EnvmapMaskTexture
             End Select
@@ -457,7 +459,7 @@ Public Class FO4UnifiedMaterial_Class
         Set(value As String)
             Select Case Underlying_Material.GetType
                 Case GetType(BGSM)
-                    CType(Underlying_Material, BGSM).FlowTexture = value
+                    CType(Underlying_Material, BGSM).GlowTexture = value
                 Case GetType(BGEM)
                     CType(Underlying_Material, BGEM).EnvmapMaskTexture = value
             End Select
@@ -512,7 +514,7 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Alpha")>
+    <Category("Opacity")>
     <DefaultValue(1.0F)>
     Public Property Alpha As Single
         Get
@@ -567,7 +569,7 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Alpha")>
+    <Category("Opacity")>
     <DefaultValue(False)>
     Public Property AlphaTest As Boolean
         Get
@@ -578,7 +580,7 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Alpha")>
+    <Category("Opacity")>
     <DefaultValue(CType(128, Byte))>
     Public Property AlphaTestRef As Byte
         Get
@@ -589,7 +591,7 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Alpha")>
+    <Category("Rendering")>
     <DefaultValue(False)>
     Public Property Decal As Boolean
         Get
@@ -600,7 +602,7 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Alpha")>
+    <Category("Rendering")>
     <DefaultValue(False)>
     Public Property DepthBias As Boolean
         Get
@@ -622,7 +624,7 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Alpha")>
+    <Category("Rendering")>
     <DefaultValue(False)>
     Public Property TwoSided As Boolean
         Get
@@ -634,7 +636,8 @@ Public Class FO4UnifiedMaterial_Class
     End Property
 
 
-    <Category("Lighting")>
+    <Category("Specular")>
+    <DefaultValue(False)>
     Public Property EnvironmentMapping As Boolean
         Get
             Return Underlying_Material.EnvironmentMapping
@@ -644,7 +647,8 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Lighting")>
+    <Category("Specular")>
+    <DefaultValue(1.0F)>
     Public Property EnvironmentMappingMaskScale As Single
         Get
             Return Underlying_Material.EnvironmentMappingMaskScale
@@ -654,7 +658,8 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Lighting")>
+    <Category("Rendering")>
+    <DefaultValue(False)>
     Public Property NonOccluder As Boolean
         Get
             Return Underlying_Material.NonOccluder
@@ -664,7 +669,8 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Lighting")>
+    <Category("Opacity")>
+    <DefaultValue(False)>
     Public Property Refraction As Boolean
         Get
             Return Underlying_Material.Refraction
@@ -674,7 +680,8 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Lighting")>
+    <Category("Opacity")>
+    <DefaultValue(False)>
     Public Property RefractionFalloff As Boolean
         Get
             Return Underlying_Material.RefractionFalloff
@@ -684,7 +691,8 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Lighting")>
+    <Category("Opacity")>
+    <DefaultValue(0F)>
     Public Property RefractionPower As Single
         Get
             Return Underlying_Material.RefractionPower
@@ -723,7 +731,8 @@ Public Class FO4UnifiedMaterial_Class
         End Get
     End Property
 
-    <Category("Lighting")>
+    <Category("Rendering")>
+    <DefaultValue(False)>
     Public Property WetnessControlScreenSpaceReflections As Boolean
         Get
             Return Underlying_Material.WetnessControlScreenSpaceReflections
@@ -733,7 +742,7 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Alpha")>
+    <Category("Rendering")>
     <DefaultValue(True)>
     Public Property ZBufferTest As Boolean
         Get
@@ -744,7 +753,7 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Alpha")>
+    <Category("Rendering")>
     <DefaultValue(True)>
     Public Property ZBufferWrite As Boolean
         Get
@@ -755,7 +764,7 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
     <Category("Coloring")>
-    <DefaultValue(0.5F)>
+    <DefaultValue(1.0F)>
     Public Property GrayscaleToPaletteScale As Single
         Get
             Select Case Underlying_Material.GetType
@@ -776,8 +785,9 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Lighting")>
+    <Category("Specular")>
     <BGSMOnly()>
+    <DefaultValue(False)>
     Public Property SpecularEnabled As Boolean
         Get
             Select Case Underlying_Material.GetType
@@ -798,6 +808,7 @@ Public Class FO4UnifiedMaterial_Class
     End Property
 
     <Category("UVs")>
+    <BGSMOnly()>
     <DefaultValue(False)>
     Public Property ModelSpaceNormals As Boolean
         Get
@@ -818,8 +829,9 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Lighting")>
+    <Category("Emissive")>
     <BGSMOnly()>
+    <DefaultValue(False)>
     Public Property EmitEnabled As Boolean
         Get
             Select Case Underlying_Material.GetType
@@ -841,6 +853,7 @@ Public Class FO4UnifiedMaterial_Class
 
     <Category("Lighting")>
     <BGSMOnly()>
+    <DefaultValue(False)>
     Public Property SubsurfaceLighting As Boolean
         Get
             Select Case Underlying_Material.GetType
@@ -861,6 +874,7 @@ Public Class FO4UnifiedMaterial_Class
     End Property
     <Category("Lighting")>
     <BGSMOnly()>
+    <DefaultValue(False)>
     Public Property BackLighting As Boolean
         Get
             Select Case Underlying_Material.GetType
@@ -881,13 +895,14 @@ Public Class FO4UnifiedMaterial_Class
     End Property
     <Category("Lighting")>
     <BGSMOnly()>
+    <DefaultValue(0F)>
     Public Property BackLightPower As Single
         Get
             Select Case Underlying_Material.GetType
                 Case GetType(BGSM)
                     Return CType(Underlying_Material, BGSM).BackLightPower
                 Case GetType(BGEM)
-                    Return 1
+                    Return 0
             End Select
             Throw New Exception
         End Get
@@ -901,6 +916,7 @@ Public Class FO4UnifiedMaterial_Class
     End Property
     <Category("Lighting")>
     <BGSMOnly()>
+    <DefaultValue(False)>
     Public Property RimLighting As Boolean
         Get
             Select Case Underlying_Material.GetType
@@ -921,13 +937,14 @@ Public Class FO4UnifiedMaterial_Class
     End Property
     <Category("Lighting")>
     <BGSMOnly()>
+    <DefaultValue(2.0F)>
     Public Property RimPower As Single
         Get
             Select Case Underlying_Material.GetType
                 Case GetType(BGSM)
                     Return CType(Underlying_Material, BGSM).RimPower
                 Case GetType(BGEM)
-                    Return 1
+                    Return 0
             End Select
             Throw New Exception
         End Get
@@ -941,7 +958,8 @@ Public Class FO4UnifiedMaterial_Class
     End Property
 
 
-    <Category("Lighting")>
+    <Category("Emissive")>
+    <DefaultValue(False)>
     Public Property Glowmap As Boolean
         Get
             Select Case Underlying_Material.GetType
@@ -961,8 +979,9 @@ Public Class FO4UnifiedMaterial_Class
             End Select
         End Set
     End Property
-    <Category("Lighting")>
+    <Category("Specular")>
     <BGSMOnly()>
+    <DefaultValue(1.0F)>
     Public Property Smoothness As Single
         Get
             Select Case Underlying_Material.GetType
@@ -983,7 +1002,7 @@ Public Class FO4UnifiedMaterial_Class
     End Property
 
 
-    <Category("Lighting")>
+    <Category("Specular")>
     <BGSMOnly()>
     Public Property SpecularColor As Color
         Get
@@ -1004,7 +1023,7 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Lighting")>
+    <Category("Emissive")>
     Public Property EmittanceColor As Color
         Get
             Select Case Underlying_Material.GetType
@@ -1025,8 +1044,9 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Lighting")>
+    <Category("Specular")>
     <BGSMOnly()>
+    <DefaultValue(1.0F)>
     Public Property SpecularMult As Single
         Get
             Select Case Underlying_Material.GetType
@@ -1046,8 +1066,9 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Lighting")>
+    <Category("Emissive")>
     <BGSMOnly()>
+    <DefaultValue(1.0F)>
     Public Property EmittanceMult As Single
         Get
             Select Case Underlying_Material.GetType
@@ -1067,8 +1088,9 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Lighting")>
+    <Category("Specular")>
     <BGSMOnly()>
+    <DefaultValue(5.0F)>
     Public Property FresnelPower As Single
         Get
             Select Case Underlying_Material.GetType
@@ -1090,6 +1112,7 @@ Public Class FO4UnifiedMaterial_Class
 
     <Category("Lighting")>
     <BGSMOnly()>
+    <DefaultValue(0.3F)>
     Public Property SubsurfaceLightingRolloff As Single
         Get
             Select Case Underlying_Material.GetType
@@ -1111,8 +1134,9 @@ Public Class FO4UnifiedMaterial_Class
 
     ' Propiedades exclusivas BGSM
 
-    <Category("Material")>
+    <Category("Textures")>
     <BGSMOnly()>
+    <DefaultValue("")>
     Public Property RootMaterialPath As String
         Get
             Select Case Underlying_Material.GetType
@@ -1136,8 +1160,9 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Material")>
+    <Category("Coloring")>
     <BGSMOnly()>
+    <DefaultValue(False)>
     Public Property PBR As Boolean
         Get
             Select Case Underlying_Material.GetType
@@ -1161,8 +1186,9 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Material")>
+    <Category("Coloring")>
     <BGSMOnly()>
+    <DefaultValue(False)>
     Public Property CustomPorosity As Boolean
         Get
             Select Case Underlying_Material.GetType
@@ -1186,8 +1212,9 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Material")>
+    <Category("Coloring")>
     <BGSMOnly()>
+    <DefaultValue(0F)>
     Public Property PorosityValue As Single
         Get
             Select Case Underlying_Material.GetType
@@ -1211,8 +1238,9 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Material")>
+    <Category("Coloring")>
     <BGSMOnly()>
+    <DefaultValue(False)>
     Public Property Hair As Boolean
         Get
             Select Case Underlying_Material.GetType
@@ -1236,7 +1264,7 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Material")>
+    <Category("Coloring")>
     <BGSMOnly()>
     Public Property HairTintColor As Color
         Get
@@ -1261,7 +1289,7 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Material")>
+    <Category("Coloring")>
     <BGSMOnly()>
     Public Property SkinTintColor As Color
         Get
@@ -1287,8 +1315,9 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Material")>
+    <Category("Coloring")>
     <BGSMOnly()>
+    <DefaultValue(False)>
     Public Property Tree As Boolean
         Get
             Select Case Underlying_Material.GetType
@@ -1312,8 +1341,9 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Material")>
+    <Category("Coloring")>
     <BGSMOnly()>
+    <DefaultValue(False)>
     Public Property Facegen As Boolean
         Get
             Select Case Underlying_Material.GetType
@@ -1337,8 +1367,9 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Material")>
+    <Category("Coloring")>
     <BGSMOnly()>
+    <DefaultValue(False)>
     Public Property SkinTint As Boolean
         Get
             Select Case Underlying_Material.GetType
@@ -1363,8 +1394,9 @@ Public Class FO4UnifiedMaterial_Class
     End Property
     ' Propiedades exclusivas BGEM
 
-    <Category("Lighting")>
+    <Category("Effect (BGEM)")>
     <BGEMOnly>
+    <DefaultValue(False)>
     Public Property FalloffEnabled As Boolean
         Get
             Select Case Underlying_Material.GetType
@@ -1388,8 +1420,9 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Lighting")>
+    <Category("Effect (BGEM)")>
     <BGEMOnly>
+    <DefaultValue(False)>
     Public Property FalloffColorEnabled As Boolean
         Get
             Select Case Underlying_Material.GetType
@@ -1413,8 +1446,9 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Lighting")>
+    <Category("Effect (BGEM)")>
     <BGEMOnly>
+    <DefaultValue(1.0F)>
     Public Property FalloffStartAngle As Single
         Get
             Select Case Underlying_Material.GetType
@@ -1438,8 +1472,9 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Lighting")>
+    <Category("Effect (BGEM)")>
     <BGEMOnly>
+    <DefaultValue(1.0F)>
     Public Property FalloffStopAngle As Single
         Get
             Select Case Underlying_Material.GetType
@@ -1463,8 +1498,9 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Lighting")>
+    <Category("Effect (BGEM)")>
     <BGEMOnly>
+    <DefaultValue(0F)>
     Public Property FalloffStartOpacity As Single
         Get
             Select Case Underlying_Material.GetType
@@ -1488,8 +1524,9 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Lighting")>
+    <Category("Effect (BGEM)")>
     <BGEMOnly>
+    <DefaultValue(0F)>
     Public Property FalloffStopOpacity As Single
         Get
             Select Case Underlying_Material.GetType
@@ -1513,8 +1550,9 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Lighting")>
+    <Category("Effect (BGEM)")>
     <BGEMOnly>
+    <DefaultValue(1.0F)>
     Public Property LightingInfluence As Single
         Get
             Select Case Underlying_Material.GetType
@@ -1540,6 +1578,7 @@ Public Class FO4UnifiedMaterial_Class
 
     <Category("Coloring")>
     <BGEMOnly>
+    <DefaultValue(False)>
     Public Property GrayscaleToPaletteAlpha As Boolean
         Get
             Select Case Underlying_Material.GetType
@@ -1590,6 +1629,7 @@ Public Class FO4UnifiedMaterial_Class
 
     <Category("Coloring")>
     <BGEMOnly>
+    <DefaultValue(1.0F)>
     Public Property BaseColorScale As Single
         Get
             Select Case Underlying_Material.GetType
@@ -1613,8 +1653,9 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Lighting")>
+    <Category("Effect (BGEM)")>
     <BGEMOnly>
+    <DefaultValue(False)>
     Public Property BloodEnabled As Boolean
         Get
             Select Case Underlying_Material.GetType
@@ -1639,8 +1680,9 @@ Public Class FO4UnifiedMaterial_Class
     End Property
 
 
-    <Category("Lighting")>
+    <Category("Effect (BGEM)")>
     <BGEMOnly>
+    <DefaultValue(False)>
     Public Property EffectLightingEnabled As Boolean
         Get
             Select Case Underlying_Material.GetType
@@ -1664,8 +1706,9 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Lighting")>
+    <Category("Effect (BGEM)")>
     <BGEMOnly>
+    <DefaultValue(False)>
     Public Property SoftEnabled As Boolean
         Get
             Select Case Underlying_Material.GetType
@@ -1689,8 +1732,9 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Lighting")>
+    <Category("Effect (BGEM)")>
     <BGEMOnly>
+    <DefaultValue(100.0F)>
     Public Property SoftDepth As Single
         Get
             Select Case Underlying_Material.GetType
@@ -1714,8 +1758,9 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Lighting")>
+    <Category("Effect (BGEM)")>
     <BGEMOnly>
+    <DefaultValue(False)>
     Public Property EffectPbrSpecular As Boolean
         Get
             Select Case Underlying_Material.GetType
@@ -1739,13 +1784,13 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Lighting")>
-    <BGEMOnly>
+    <Category("Emissive")>
+    <DefaultValue(0F)>
     Public Property AdaptativeEmissive_ExposureOffset As Single
         Get
             Select Case Underlying_Material.GetType
                 Case GetType(BGSM)
-                    Return 0
+                    Return CType(Underlying_Material, BGSM).AdaptativeEmissive_ExposureOffset
                 Case GetType(BGEM)
                     Return CType(Underlying_Material, BGEM).AdaptativeEmissive_ExposureOffset
                 Case Else
@@ -1755,7 +1800,7 @@ Public Class FO4UnifiedMaterial_Class
         Set(value As Single)
             Select Case Underlying_Material.GetType
                 Case GetType(BGSM)
-                    ' No action
+                    CType(Underlying_Material, BGSM).AdaptativeEmissive_ExposureOffset = value
                 Case GetType(BGEM)
                     CType(Underlying_Material, BGEM).AdaptativeEmissive_ExposureOffset = value
                 Case Else
@@ -1764,13 +1809,13 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Lighting")>
-    <BGEMOnly>
+    <Category("Emissive")>
+    <DefaultValue(0F)>
     Public Property AdaptativeEmissive_FinalExposureMin As Single
         Get
             Select Case Underlying_Material.GetType
                 Case GetType(BGSM)
-                    Return 0
+                    Return CType(Underlying_Material, BGSM).AdaptativeEmissive_FinalExposureMin
                 Case GetType(BGEM)
                     Return CType(Underlying_Material, BGEM).AdaptativeEmissive_FinalExposureMin
                 Case Else
@@ -1780,7 +1825,7 @@ Public Class FO4UnifiedMaterial_Class
         Set(value As Single)
             Select Case Underlying_Material.GetType
                 Case GetType(BGSM)
-                    ' No action
+                    CType(Underlying_Material, BGSM).AdaptativeEmissive_FinalExposureMin = value
                 Case GetType(BGEM)
                     CType(Underlying_Material, BGEM).AdaptativeEmissive_FinalExposureMin = value
                 Case Else
@@ -1789,13 +1834,13 @@ Public Class FO4UnifiedMaterial_Class
         End Set
     End Property
 
-    <Category("Lighting")>
-    <BGEMOnly>
+    <Category("Emissive")>
+    <DefaultValue(0F)>
     Public Property AdaptativeEmissive_FinalExposureMax As Single
         Get
             Select Case Underlying_Material.GetType
                 Case GetType(BGSM)
-                    Return 0
+                    Return CType(Underlying_Material, BGSM).AdaptativeEmissive_FinalExposureMax
                 Case GetType(BGEM)
                     Return CType(Underlying_Material, BGEM).AdaptativeEmissive_FinalExposureMax
                 Case Else
@@ -1805,7 +1850,7 @@ Public Class FO4UnifiedMaterial_Class
         Set(value As Single)
             Select Case Underlying_Material.GetType
                 Case GetType(BGSM)
-                    ' No action
+                    CType(Underlying_Material, BGSM).AdaptativeEmissive_FinalExposureMax = value
                 Case GetType(BGEM)
                     CType(Underlying_Material, BGEM).AdaptativeEmissive_FinalExposureMax = value
                 Case Else
@@ -1903,7 +1948,7 @@ Public Class FO4UnifiedMaterial_Class
             End If
         End If
         Underlying_Material = mat
-        NifShaderType = shad.ShaderType_SK_FO4
+        _NifShaderType = shad.ShaderType_SK_FO4
     End Sub
 
     Public Sub Create_From_Shader(Nif As Nifcontent_Class_Manolo, shap As INiShape, shad As BSEffectShaderProperty)
@@ -1916,7 +1961,7 @@ Public Class FO4UnifiedMaterial_Class
             .GrayscaleTexture = If(shad.GreyscaleTexture?.Content, String.Empty),
             .NormalTexture = If(shad.NormalTexture?.Content, String.Empty),
             .EnvmapMaskTexture = If(shad.EnvMaskTexture?.Content, String.Empty),
-            .EnvmapTexture = If(shad.EnvMapTexture?.Content, String.Empty), ' ojo con esto
+            .EnvmapTexture = If(shad.EnvMapTexture?.Content, String.Empty),
             .LightingTexture = If(shad.LightingTexture?.Content, String.Empty),
             .SpecularTexture = If(shad.ReflectanceTexture?.Content, String.Empty),
             .GlowTexture = If(shad.EmitGradientTexture?.Content, String.Empty),
@@ -1924,6 +1969,7 @@ Public Class FO4UnifiedMaterial_Class
             .VOffset = shad.UVOffset.V,
             .UScale = shad.UVScale.U,
             .VScale = shad.UVScale.V,
+            .EnvironmentMapping = Not String.IsNullOrEmpty(shad.EnvMapTexture?.Content),
             .EnvironmentMappingMaskScale = shad.EnvironmentMapScale,
             .EmittanceColor = ColorToUInteger(NifColorToColor(shad.EmittanceColor)),
             .FalloffEnabled = ShaderHelper.HasFlagSF1(shad, ShaderHelper.FalloffFlagValue(shad)),
@@ -1939,7 +1985,8 @@ Public Class FO4UnifiedMaterial_Class
             .FalloffStopAngle = shad.FalloffStopAngle,
             .FalloffStartOpacity = shad.FalloffStartOpacity,
             .FalloffStopOpacity = shad.FalloffStopOpacity,
-            .LightingInfluence = shad.LightingInfluence / 255.0F
+            .LightingInfluence = shad.LightingInfluence / 255.0F,
+            .SoftDepth = shad.SoftFalloffDepth
                        }
         Else
             mat = New BGEM
@@ -2285,7 +2332,8 @@ Public Class FO4UnifiedMaterial_Class
 
         Dim tipo As Type = GetType(FO4UnifiedMaterial_Class)
         Dim props = tipo.GetProperties(BindingFlags.Public Or BindingFlags.Instance) _
-                       .Where(Function(p) p.GetIndexParameters().Length = 0)
+                       .Where(Function(p) p.GetIndexParameters().Length = 0 AndAlso
+                                          Not p.Name.Equals("NifShaderType", StringComparison.Ordinal))
 
         For Each prop In props
             Dim valA = prop.GetValue(a, Nothing)
@@ -2295,10 +2343,14 @@ Public Class FO4UnifiedMaterial_Class
                 Case GetType(Single)
                     equal = CType(valA, Single) = CType(valB, Single)
                 Case GetType(String)
-                    equal = String.Equals(CStr(valA), CStr(valB), StringComparison.OrdinalIgnoreCase)
+                    equal = String.Equals(TryCast(valA, String), TryCast(valB, String), StringComparison.OrdinalIgnoreCase)
                 Case GetType(Type)
-                    equal = valA.Equals(valB)
-                Case GetType(Material_Editor.BaseMaterialFile)
+                    If valA Is Nothing OrElse valB Is Nothing Then
+                        equal = valA Is valB
+                    Else
+                        equal = valA.Equals(valB)
+                    End If
+                Case GetType(MaterialLib.BaseMaterialFile)
                     equal = True
                 Case Else
                     equal = Object.Equals(valA, valB)
@@ -2320,6 +2372,45 @@ Public Class FO4UnifiedMaterial_Class
         If Me Is Nothing OrElse b Is Nothing Then Return Me Is b
         Return AreEqualWithTrace(Me, b)
     End Function
+
+    ' --- ShouldSerialize / Reset for Color properties (PropertyGrid bold detection) ---
+    Private Shared ReadOnly DefaultWhite As Color = Color.FromArgb(255, 255, 255, 255)
+    Private Shared ReadOnly DefaultGray As Color = Color.FromArgb(255, 128, 128, 128)
+
+    Public Function ShouldSerializeSpecularColor() As Boolean
+        Return SpecularColor <> DefaultWhite
+    End Function
+    Public Sub ResetSpecularColor()
+        SpecularColor = DefaultWhite
+    End Sub
+
+    Public Function ShouldSerializeEmittanceColor() As Boolean
+        Return EmittanceColor <> DefaultWhite
+    End Function
+    Public Sub ResetEmittanceColor()
+        EmittanceColor = DefaultWhite
+    End Sub
+
+    Public Function ShouldSerializeHairTintColor() As Boolean
+        Return HairTintColor <> DefaultGray
+    End Function
+    Public Sub ResetHairTintColor()
+        HairTintColor = DefaultGray
+    End Sub
+
+    Public Function ShouldSerializeSkinTintColor() As Boolean
+        Return SkinTintColor <> DefaultGray
+    End Function
+    Public Sub ResetSkinTintColor()
+        SkinTintColor = DefaultGray
+    End Sub
+
+    Public Function ShouldSerializeBaseColor() As Boolean
+        Return BaseColor <> DefaultWhite
+    End Function
+    Public Sub ResetBaseColor()
+        BaseColor = DefaultWhite
+    End Sub
 
 End Class
 

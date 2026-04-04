@@ -8,7 +8,7 @@ Imports System.Text.Json
 Imports System.Text.Json.Serialization
 Imports System.Text.RegularExpressions
 Imports System.Xml
-Imports Material_Editor
+Imports MaterialLib
 Imports NiflySharp
 Imports NiflySharp.Blocks
 Imports NiflySharp.Structs
@@ -534,13 +534,6 @@ Public Class OSD_Block_Class
             DeltasCompact(i * 3 + 2) = d.Z
         Next
     End Sub
-
-    Public ReadOnly Property RelatedData As IEnumerable(Of Slider_Data_class)
-        Get
-            If IsNothing(ParentOSDContent) OrElse IsNothing(ParentOSDContent.ParentSlider) OrElse IsNothing(ParentOSDContent.ParentSlider.Sliders) Then Return Enumerable.Empty(Of Slider_Data_class)()
-            Return ParentOSDContent.ParentSlider.Sliders.SelectMany(Function(pf) pf.Datas).Where(Function(pf) pf.Nombre.Equals(BlockName, StringComparison.OrdinalIgnoreCase))
-        End Get
-    End Property
 
     ''' <summary>Deep copy of DataDiff list (snapshot before mutation).</summary>
     Public Function SnapshotDiffs() As List(Of OSD_DataDiff_Class)
@@ -1173,8 +1166,6 @@ Public Class Clone_Materials_class
                         End Using
                     End Using
 
-                    ApplyBGEMResolvedReferences(material, job)
-
                     WriteMaterialJob(job, overwrite, Sub(writer)
                                                          material.Save(writer)
                                                      End Sub)
@@ -1696,7 +1687,7 @@ Public Class OSP_Project_Class
     Public ReadOnly Property Filename As String
         Get
             If IsNothing(xml) Then Return "Unknown"
-            Return xml.BaseURI.Replace("file:///", "").Correct_Path_Separator
+            Return New Uri(xml.BaseURI).LocalPath.Correct_Path_Separator
         End Get
     End Property
 
@@ -2163,8 +2154,7 @@ Public Class SliderSet_Class
     Public Sub SaveHighHeelBuild(Optional NifSource As Nifcontent_Class_Manolo = Nothing)
         Select Case Config_App.Current.Game
             Case Config_App.Game_Enum.Fallout4
-                Dim hhfile = OutputFullPathBase.Replace(".nif", "txt", StringComparison.OrdinalIgnoreCase)
-                If hhfile.EndsWith(".txt") = False Then hhfile += ".txt"
+                Dim hhfile = OutputFullPathBase & ".txt"
                 If HighHeelHeight = 0 Then
                     If IO.File.Exists(hhfile) Then IO.File.Delete(hhfile)
                 Else

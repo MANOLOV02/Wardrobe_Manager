@@ -95,7 +95,7 @@ Public Class Wardrobe_Manager_Form
         Public Shared ReadOnly Property SkeletonPath As String
             Get
                 If Config_App.Current.SkeletonPath = "" Then
-                    Config_App.Current.SkeletonPath = IO.Path.Combine(Config_App.Current.BsPath, "res\skeleton_fo4.nif")
+                    Return IO.Path.Combine(Config_App.Current.BsPath, "res\skeleton_fo4.nif")
                 End If
                 Return Config_App.Current.SkeletonPath
             End Get
@@ -135,6 +135,7 @@ Public Class Wardrobe_Manager_Form
     Private Default_Pack_Name As String = "WM Default Pack"
     Private _RefreshingTargetsFromDisk As Boolean = False
     Private Sub Habilita_deshabilita()
+        Me.SuspendLayout()
         Dim fullpack As Boolean = Full_packs_Selected()
         Dim normalUi As Boolean = Me.Enabled
         Dim externalLock As Boolean = _ExternalEditActive
@@ -198,6 +199,7 @@ Public Class Wardrobe_Manager_Form
         Else
             ButtonSkeleton.ForeColor = Color.Red
         End If
+        Me.ResumeLayout(True)
     End Sub
     Private Function GetCurrentSourceSelectionKey() As String
         If Not IsNothing(ListViewSources.FocusedItem) Then
@@ -408,9 +410,7 @@ Public Class Wardrobe_Manager_Form
 
         Try
             If CheckBoxReloadDict.Checked Then
-                Application.DoEvents()
                 Await Diccionario()
-                Application.DoEvents()
                 CheckBoxReloadDict.Checked = False
             End If
 
@@ -802,7 +802,7 @@ Public Class Wardrobe_Manager_Form
         Return {Selected_source, Selected_target}
     End Function
     Private Function Calcula_nombre(Sliderset_Source As SliderSet_Class) As String
-        If IsNothing(Sliderset_Source) Or IsNothing(ComboboxPacks.SelectedItem) Then
+        If IsNothing(Sliderset_Source) OrElse IsNothing(ComboboxPacks.SelectedItem) Then
             Return "ERROR"
         End If
 
@@ -827,7 +827,6 @@ Public Class Wardrobe_Manager_Form
             nombre = nombre.Remove(0, (Sliderset_Source.ParentOSP.Nombre + " ").Length)
         End If
 
-        If ComboboxPacks.SelectedIndex <> -1 Then nombre = nombre
         Return nombre
     End Function
 
@@ -928,7 +927,7 @@ Public Class Wardrobe_Manager_Form
     Private _ExternalEditReloading As Boolean = False
     Private WithEvents ExternalEditTimer As New Timer With {.Interval = 700}
 
-    Private Sub Empieza_Procesos(cantidad)
+    Private Sub Empieza_Procesos(cantidad As Integer)
         Try
             Cursor.Current = Cursors.WaitCursor
             Me.Enabled = False
@@ -1637,18 +1636,20 @@ Public Class Wardrobe_Manager_Form
 
 
     Private Sub Relee_Presets()
-        Dim old_str
+        Dim old_str As String
         If ComboBoxPresets.SelectedIndex <> -1 Then
             old_str = ComboBoxPresets.Items(ComboBoxPresets.SelectedIndex).ToString
         Else
             old_str = Config_App.Current.Default_Preset
         End If
+        Dim ordered = FilesDictionary_class.SliderPresets.Presets.Keys.Order.ToArray
         ComboBoxPresets.SuspendLayout()
         ComboBoxPresets.BeginUpdate()
         ComboBoxPresets.Items.Clear()
-        ComboBoxPresets.Items.AddRange(FilesDictionary_class.SliderPresets.Presets.Keys.Order.ToArray)
-        If FilesDictionary_class.SliderPresets.Presets.Keys.Order.ToList.IndexOf(old_str) <> -1 Then
-            ComboBoxPresets.SelectedIndex = FilesDictionary_class.SliderPresets.Presets.Keys.Order.ToList.IndexOf(old_str)
+        ComboBoxPresets.Items.AddRange(ordered)
+        Dim idx = Array.IndexOf(ordered, old_str)
+        If idx <> -1 Then
+            ComboBoxPresets.SelectedIndex = idx
         Else
             If ComboBoxPresets.Items.Count > 0 Then ComboBoxPresets.SelectedIndex = 0
         End If
@@ -1657,18 +1658,20 @@ Public Class Wardrobe_Manager_Form
     End Sub
 
     Private Sub Relee_Poses()
-        Dim old_str
+        Dim old_str As String
         If ComboBoxPoses.SelectedIndex <> -1 Then
             old_str = ComboBoxPoses.Items(ComboBoxPoses.SelectedIndex).ToString
         Else
             old_str = "None (Wardrobe Manager pose)"
         End If
+        Dim ordered = FilesDictionary_class.SliderPresets.Poses.Keys.Order.ToArray
         ComboBoxPoses.SuspendLayout()
         ComboBoxPoses.BeginUpdate()
         ComboBoxPoses.Items.Clear()
-        ComboBoxPoses.Items.AddRange(FilesDictionary_class.SliderPresets.Poses.Keys.Order.ToArray)
-        If FilesDictionary_class.SliderPresets.Poses.Keys.Order.ToList.IndexOf(old_str) <> -1 Then
-            ComboBoxPoses.SelectedIndex = FilesDictionary_class.SliderPresets.Poses.Keys.Order.ToList.IndexOf(old_str)
+        ComboBoxPoses.Items.AddRange(ordered)
+        Dim idx = Array.IndexOf(ordered, old_str)
+        If idx <> -1 Then
+            ComboBoxPoses.SelectedIndex = idx
         Else
             If ComboBoxPoses.Items.Count > 0 Then ComboBoxPoses.SelectedIndex = 0
         End If

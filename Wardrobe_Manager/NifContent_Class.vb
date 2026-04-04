@@ -1,7 +1,7 @@
 ﻿' Version Uploaded of Wardrobe 2.1.3
 Imports System.IO
 Imports System.Security.Cryptography.X509Certificates
-Imports Material_Editor
+Imports MaterialLib
 Imports NiflySharp
 Imports NiflySharp.Blocks
 Imports NiflySharp.Enums
@@ -164,25 +164,23 @@ Public Class Skeleton_Class
         Return SkeletonInjectedBones.Contains(boneName)
     End Function
     Private Shared Sub ClearInjectedBones()
-        SyncLock _skeletonLock
-            If SkeletonInjectedBones.Count = 0 Then Exit Sub
+        If SkeletonInjectedBones.Count = 0 Then Exit Sub
 
-            Dim injectedNames As New System.Collections.Generic.List(Of String)(SkeletonInjectedBones)
-            For Each boneName In injectedNames
-                Dim bone As HierarchiBone_class = Nothing
-                If Not SkeletonDictionary.TryGetValue(boneName, bone) Then Continue For
+        Dim injectedNames As New System.Collections.Generic.List(Of String)(SkeletonInjectedBones)
+        For Each boneName In injectedNames
+            Dim bone As HierarchiBone_class = Nothing
+            If Not SkeletonDictionary.TryGetValue(boneName, bone) Then Continue For
 
-                If IsNothing(bone.Parent) Then
-                    SkeletonStructure.Remove(bone)
-                Else
-                    bone.Parent.Childrens.Remove(bone)
-                End If
+            If IsNothing(bone.Parent) Then
+                SkeletonStructure.Remove(bone)
+            Else
+                bone.Parent.Childrens.Remove(bone)
+            End If
 
-                SkeletonDictionary.Remove(boneName)
-            Next
+            SkeletonDictionary.Remove(boneName)
+        Next
 
-            SkeletonInjectedBones.Clear()
-        End SyncLock
+        SkeletonInjectedBones.Clear()
     End Sub
     Public Shared Sub Reset()
         SyncLock _skeletonLock
@@ -482,7 +480,7 @@ Public Class Nifcontent_Class_Manolo
                 Select Case shad.GetType
                     Case GetType(BSLightingShaderProperty)
                         Dim typed = CType(shad, BSLightingShaderProperty)
-                        saveAction = Sub() FO4UnifiedMaterial_Class.Save_To_Shader(Me, shap, typed, mat.Underlying_Material, mat.ShaderType)
+                        saveAction = Sub() FO4UnifiedMaterial_Class.Save_To_Shader(Me, shap, typed, mat.Underlying_Material, mat.NifShaderType)
                     Case GetType(BSEffectShaderProperty)
                         Dim typed = CType(shad, BSEffectShaderProperty)
                         saveAction = Sub() FO4UnifiedMaterial_Class.Save_To_Shader(Me, shap, typed, mat.Underlying_Material)
@@ -697,7 +695,7 @@ Public Class Nifcontent_Class_Manolo
         End If
 
         Dim bsdSkinInst = TryCast(skinInst, BSDismemberSkinInstance)
-        Dim bsdParts = If(bsdSkinInst IsNot Nothing, bsdSkinInst.Partitions, Nothing)
+        Dim bsdParts = bsdSkinInst?.Partitions
         Dim result As New List(Of Integer)(tris.Count)
         For Each partInd In triPartsField
             If bsdParts IsNot Nothing AndAlso partInd >= 0 AndAlso partInd < bsdParts.Count Then
@@ -722,7 +720,7 @@ Public Class Nifcontent_Class_Manolo
         If skinPart Is Nothing Then Return
 
         Dim bsdSkinInst = TryCast(skinInst, BSDismemberSkinInstance)
-        Dim bsdParts = If(bsdSkinInst IsNot Nothing, bsdSkinInst.Partitions, Nothing)
+        Dim bsdParts = bsdSkinInst?.Partitions
 
         ' Build body-part value → partition index map from existing partitions.
         Dim bpToPartIndex As New Dictionary(Of Integer, Integer)()
