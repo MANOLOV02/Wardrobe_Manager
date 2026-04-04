@@ -30,6 +30,7 @@ Partial Class Create_from_Nif_Form
         Panel1 = New Panel()
         TextBox1 = New TextBox()
         CheckBox1 = New CheckBox()
+        chkDirSkeleton = New CheckBox()
         ToolTip1 = New ToolTip(components)
         CType(SplitContainer1, ComponentModel.ISupportInitialize).BeginInit()
         SplitContainer1.Panel1.SuspendLayout()
@@ -47,8 +48,9 @@ Partial Class Create_from_Nif_Form
         DictionaryPicker_Control1.Dock = DockStyle.Fill
         DictionaryPicker_Control1.Location = New Point(0, 0)
         DictionaryPicker_Control1.Name = "DictionaryPicker_Control1"
-        DictionaryPicker_Control1.Size = New Size(538, 617)
+        DictionaryPicker_Control1.Size = New Size(716, 582)
         DictionaryPicker_Control1.TabIndex = 0
+        ToolTip1.SetToolTip(DictionaryPicker_Control1, "Browse and select a NIF file from the file dictionary.")
         ' 
         ' SplitContainer1
         ' 
@@ -63,8 +65,8 @@ Partial Class Create_from_Nif_Form
         ' SplitContainer1.Panel2
         ' 
         SplitContainer1.Panel2.Controls.Add(SplitContainer2)
-        SplitContainer1.Size = New Size(1200, 617)
-        SplitContainer1.SplitterDistance = 538
+        SplitContainer1.Size = New Size(1236, 582)
+        SplitContainer1.SplitterDistance = 716
         SplitContainer1.TabIndex = 1
         ' 
         ' SplitContainer2
@@ -84,8 +86,9 @@ Partial Class Create_from_Nif_Form
         ' 
         SplitContainer2.Panel2.Controls.Add(TextBox1)
         SplitContainer2.Panel2.Controls.Add(CheckBox1)
-        SplitContainer2.Size = New Size(658, 617)
-        SplitContainer2.SplitterDistance = 568
+        SplitContainer2.Panel2.Controls.Add(chkDirSkeleton)
+        SplitContainer2.Size = New Size(516, 582)
+        SplitContainer2.SplitterDistance = 533
         SplitContainer2.TabIndex = 0
         ' 
         ' Panel1
@@ -93,7 +96,7 @@ Partial Class Create_from_Nif_Form
         Panel1.Dock = DockStyle.Fill
         Panel1.Location = New Point(0, 0)
         Panel1.Name = "Panel1"
-        Panel1.Size = New Size(658, 568)
+        Panel1.Size = New Size(516, 533)
         Panel1.TabIndex = 0
         ' 
         ' TextBox1
@@ -101,8 +104,9 @@ Partial Class Create_from_Nif_Form
         TextBox1.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
         TextBox1.Location = New Point(11, 10)
         TextBox1.Name = "TextBox1"
-        TextBox1.Size = New Size(399, 23)
+        TextBox1.Size = New Size(257, 23)
         TextBox1.TabIndex = 1
+        ToolTip1.SetToolTip(TextBox1, "Name of the new project to be created from the selected NIF.")
         ' 
         ' CheckBox1
         ' 
@@ -111,24 +115,34 @@ Partial Class Create_from_Nif_Form
         CheckBox1.Checked = True
         CheckBox1.CheckState = CheckState.Checked
         CheckBox1.Enabled = False
-        CheckBox1.Location = New Point(429, 12)
+        CheckBox1.Location = New Point(287, 3)
         CheckBox1.Name = "CheckBox1"
         CheckBox1.Size = New Size(217, 19)
         CheckBox1.TabIndex = 0
         CheckBox1.Text = "Create sliders from .tri file if possible"
+        ToolTip1.SetToolTip(CheckBox1, "If a matching TRI file exists, import morph sliders from it when creating the project.")
         CheckBox1.UseVisualStyleBackColor = True
         ' 
-        ' Tooltip1
+        ' chkDirSkeleton
         ' 
-        ToolTip1.SetToolTip(DictionaryPicker_Control1, "Browse and select a NIF file from the file dictionary.")
-        ToolTip1.SetToolTip(CheckBox1, "If a matching TRI file exists, import morph sliders from it when creating the project.")
-        ToolTip1.SetToolTip(TextBox1, "Name of the new project to be created from the selected NIF.")
+        chkDirSkeleton.Anchor = AnchorStyles.Top Or AnchorStyles.Right
+        chkDirSkeleton.AutoSize = True
+        chkDirSkeleton.Checked = True
+        chkDirSkeleton.CheckState = CheckState.Checked
+        chkDirSkeleton.Enabled = False
+        chkDirSkeleton.Location = New Point(287, 23)
+        chkDirSkeleton.Name = "chkDirSkeleton"
+        chkDirSkeleton.Size = New Size(142, 19)
+        chkDirSkeleton.TabIndex = 2
+        chkDirSkeleton.Text = "Use directory skeleton"
+        ToolTip1.SetToolTip(chkDirSkeleton, "Use a skeleton.nif from the same directory as the selected NIF for preview.")
+        chkDirSkeleton.UseVisualStyleBackColor = True
         ' 
         ' Create_from_Nif_Form
         ' 
-        AutoScaleDimensions = New SizeF(7.0F, 15.0F)
+        AutoScaleDimensions = New SizeF(7F, 15F)
         AutoScaleMode = AutoScaleMode.Font
-        ClientSize = New Size(1200, 617)
+        ClientSize = New Size(1236, 582)
         Controls.Add(SplitContainer1)
         MaximizeBox = False
         MinimizeBox = False
@@ -155,4 +169,5 @@ Partial Class Create_from_Nif_Form
     Friend WithEvents CheckBox1 As CheckBox
     Friend WithEvents TextBox1 As TextBox
     Friend WithEvents ToolTip1 As ToolTip
+    Friend WithEvents chkDirSkeleton As CheckBox
 End Class

@@ -83,7 +83,13 @@ Public Class Create_from_Nif_Form
 
     End Sub
 
+    Private Sub ChkDirSkeleton_CheckedChanged(sender As Object, e As EventArgs) Handles chkDirSkeleton.CheckedChanged
+        If Last_key <> "" Then Read_selected(Last_key)
+    End Sub
+
     Private Sub Create_from_Nif_2_FormClosing(sender As Object, e As FormClosingEventArgs) Handles Me.FormClosing
+        ' Restore global skeleton
+        Skeleton_Class.LoadSkeleton(True, True)
         EditPreviewControl.Clean()
         EditPreviewControl.Dispose()
         If Me.HasSaved = True Then
@@ -96,6 +102,9 @@ Public Class Create_from_Nif_Form
 
 
 
+    Private _dirSkeletonKey As String = Nothing
+    Private _loadedSkeletonKey As String = Nothing
+
     Private Sub Read_selected(key As String)
         Dim fil As String = key
         Dim tri = fil.Replace(".nif", ".tri", StringComparison.OrdinalIgnoreCase)
@@ -104,6 +113,12 @@ Public Class Create_from_Nif_Form
             .BypassDiskShapeDataLoad = True
         }
         CheckBox1.Enabled = FilesDictionary_class.Dictionary.ContainsKey(tri)
+
+        ' Check for skeleton.nif in the same directory
+        Dim dirPath = IO.Path.GetDirectoryName(fil)
+        Dim skelKey = If(String.IsNullOrEmpty(dirPath), "skeleton.nif", dirPath & "\skeleton.nif")
+        _dirSkeletonKey = If(FilesDictionary_class.Dictionary.ContainsKey(skelKey), skelKey, Nothing)
+        chkDirSkeleton.Enabled = _dirSkeletonKey IsNot Nothing
 
         Try
             Dim TriFileParese As TriFile = Nothing
@@ -173,6 +188,17 @@ Public Class Create_from_Nif_Form
         selected_slider.OutputPathValue = IO.Path.GetDirectoryName(fil)
         selected_slider.OutputFileValue = IO.Path.GetFileNameWithoutExtension(fil)
         selected_slider.SourceFileValue = fil
+        ' Load skeleton only if it changed (avoid reloading for NIFs in the same directory)
+        Dim targetSkelKey = If(chkDirSkeleton.Checked AndAlso _dirSkeletonKey IsNot Nothing, _dirSkeletonKey, "")
+        If Not String.Equals(_loadedSkeletonKey, targetSkelKey, StringComparison.OrdinalIgnoreCase) Then
+            If targetSkelKey <> "" Then
+                Skeleton_Class.LoadSkeletonFromKey(targetSkelKey)
+            Else
+                Skeleton_Class.LoadSkeleton(True, True)
+            End If
+            _loadedSkeletonKey = targetSkelKey
+        End If
+
         EditPreviewControl.Model.Last_rendered = Nothing
         EditPreviewControl.Model.FloorOffset = -selected_slider.HighHeelHeight
         EditPreviewControl.Update_Render(selected_slider, True, Nothing, Nothing, Config_App.SliderSize.Default)

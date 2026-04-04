@@ -75,6 +75,32 @@ Public Class Skeleton_Class
         End Get
     End Property
 
+    ''' <summary>Loads a skeleton from an explicit dictionary key. Falls back to the global skeleton path if the key is empty or not found.</summary>
+    Public Shared Function LoadSkeletonFromKey(dictionaryKey As String) As Boolean
+        If String.IsNullOrEmpty(dictionaryKey) Then Return LoadSkeleton(True, True)
+        Dim loc As FilesDictionary_class.File_Location = Nothing
+        If Not FilesDictionary_class.Dictionary.TryGetValue(dictionaryKey, loc) Then Return LoadSkeleton(True, True)
+        Return LoadSkeletonFromBytes(loc.GetBytes)
+    End Function
+
+    ''' <summary>Loads a skeleton from raw bytes.</summary>
+    Public Shared Function LoadSkeletonFromBytes(data As Byte()) As Boolean
+        If data Is Nothing OrElse data.Length = 0 Then Return False
+        SyncLock _skeletonLock
+            Try
+                Skeleton = New Nifcontent_Class_Manolo
+                SkeletonStructure.Clear()
+                SkeletonDictionary.Clear()
+                Skeleton.Load_Manolo(data)
+                Return BuildSkeletonStructure()
+            Catch ex As Exception
+                Skeleton = Nothing
+                SkeletonInjectedBones.Clear()
+                Return False
+            End Try
+        End SyncLock
+    End Function
+
     Public Shared Function LoadSkeleton(Force As Boolean, relative As Boolean) As Boolean
         SyncLock _skeletonLock
             Try
@@ -91,35 +117,39 @@ Public Class Skeleton_Class
                         Skeleton.Load_Manolo(skel.GetBytes)
                     End If
                 End If
-                ' Build parent lookup: childBlockIndex -> parent NiNode (includes BSFadeNode subclass)
-                Dim parentMap As New Dictionary(Of Integer, NiNode)
-                For Each block In Skeleton.Blocks.OfType(Of NiNode)()
-                    For Each childRef In block.Children.References
-                        If childRef.Index >= 0 Then parentMap(childRef.Index) = block
-                    Next
-                Next
-
-                For Each bon As NiNode In Skeleton.Blocks.Where(Function(pf) pf.GetType Is GetType(NiNode))
-                    Dim bonIndex As Integer
-                    Dim par As NiNode = Nothing
-                    If Skeleton.GetBlockIndex(bon, bonIndex) Then
-                        parentMap.TryGetValue(bonIndex, par)
-                    End If
-                    If IsNothing(par) OrElse par.GetType Is GetType(NiflySharp.Blocks.BSFadeNode) Then
-                        If IsNothing(par) Then
-                            AddBone(Nothing, bon)
-                        Else
-                            AddBone(Nothing, par)
-                        End If
-                    End If
-                Next
-                Return SkeletonDictionary.Count <> 0
+                Return BuildSkeletonStructure()
             Catch ex As Exception
                 Skeleton = Nothing
                 SkeletonInjectedBones.Clear()
                 Return False
             End Try
         End SyncLock
+    End Function
+
+    ''' <summary>Builds SkeletonStructure/SkeletonDictionary from the already-loaded Skeleton NIF. Must be called inside _skeletonLock.</summary>
+    Private Shared Function BuildSkeletonStructure() As Boolean
+        Dim parentMap As New Dictionary(Of Integer, NiNode)
+        For Each block In Skeleton.Blocks.OfType(Of NiNode)()
+            For Each childRef In block.Children.References
+                If childRef.Index >= 0 Then parentMap(childRef.Index) = block
+            Next
+        Next
+
+        For Each bon As NiNode In Skeleton.Blocks.Where(Function(pf) pf.GetType Is GetType(NiNode))
+            Dim bonIndex As Integer
+            Dim par As NiNode = Nothing
+            If Skeleton.GetBlockIndex(bon, bonIndex) Then
+                parentMap.TryGetValue(bonIndex, par)
+            End If
+            If IsNothing(par) OrElse par.GetType Is GetType(NiflySharp.Blocks.BSFadeNode) Then
+                If IsNothing(par) Then
+                    AddBone(Nothing, bon)
+                Else
+                    AddBone(Nothing, par)
+                End If
+            End If
+        Next
+        Return SkeletonDictionary.Count <> 0
     End Function
     Public Shared Sub PrepareSkeletonForShapes(shapes As List(Of Shape_class), Optional pose As Poses_class = Nothing)
         SyncLock _skeletonLock

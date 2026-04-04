@@ -1902,8 +1902,10 @@ Public Class Wardrobe_Manager_Form
             If frm.ShowDialog() = DialogResult.OK Then
                 Config_App.Current.SkeletonPath = IO.Path.Combine(Directorios.Fallout4data, frm.DictionaryPicker_Control1.SelectedKey)
                 Skeleton_Class.LoadSkeleton(True, True)
+                preview_Control.Model.Clean(False)
+                preview_Control.Model.CleanTextures()
                 Habilita_deshabilita()
-                RefreshButton.PerformClick()
+                RequestLeeShapes(True)
             End If
         End Using
     End Sub

@@ -728,8 +728,10 @@ Public Class PreviewControl
             SwapBuffers()
             FinishRenderFrame()
         Catch ex As Exception
-            Debugger.Break()
-            Debug.Print($"[Render] OnPaint error: {ex.Message}")
+            Try
+                Processing_Status("Render error")
+            Catch
+            End Try
         End Try
     End Sub
     Protected Overrides Sub OnMouseDown(e As MouseEventArgs)
