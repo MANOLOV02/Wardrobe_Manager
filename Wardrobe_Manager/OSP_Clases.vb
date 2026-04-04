@@ -1775,7 +1775,11 @@ Public Class OSP_Project_Class
     Public ReadOnly Property Filename As String
         Get
             If IsNothing(xml) Then Return "Unknown"
-            Return New Uri(xml.BaseURI).LocalPath.Correct_Path_Separator
+            Try
+                Return New Uri(xml.BaseURI).LocalPath.Correct_Path_Separator
+            Catch ex As Exception
+                Return "Unknown"
+            End Try
         End Get
     End Property
 
@@ -2239,18 +2243,22 @@ Public Class SliderSet_Class
         Return Config_App.Current.Settings_Build.ForceWeights
     End Function
 
-    Public Sub SaveHighHeelBuild(Optional NifSource As Nifcontent_Class_Manolo = Nothing)
+    ''' <summary>Returns True if the HH file was written, False if deleted, Nothing if no action taken.</summary>
+    Public Function SaveHighHeelBuild(Optional NifSource As Nifcontent_Class_Manolo = Nothing) As Boolean?
+        Dim result As Boolean? = Nothing
         Select Case Config_App.Current.Game
             Case Config_App.Game_Enum.Fallout4
                 Dim hhfile = OutputFullPathBase & ".txt"
                 If HighHeelHeight = 0 Then
                     If IO.File.Exists(hhfile) Then IO.File.Delete(hhfile)
+                    result = False
                 Else
                     If Config_App.Current.Settings_Build.SaveHHS Then
                         Dim writer = IO.File.CreateText(hhfile)
                         writer.WriteLine("Height=" + HighHeelHeight.ToString(System.Globalization.CultureInfo.InvariantCulture))
                         writer.Flush()
                         writer.Close()
+                        result = True
                     End If
                 End If
             Case Config_App.Game_Enum.Skyrim
@@ -2298,8 +2306,8 @@ Public Class SliderSet_Class
                     End If
                 Next
         End Select
-
-    End Sub
+        Return result
+    End Function
     Public Sub SaveHighHeel(filename As String, Overwrite As Boolean)
         If IO.File.Exists(filename) And Overwrite = False Then Throw New Exception
         If HighHeelHeight = 0 Then
@@ -2570,9 +2578,20 @@ Public Class SliderSet_Class
         If IO.File.Exists(Legacy_htt) Then IO.File.Delete(Legacy_htt)
 
         If Config_App.Current.Settings_Build.DeleteWithProject Then
-            If IO.File.Exists(Built_Nif) Then IO.File.Delete(Built_Nif)
             If IO.File.Exists(Built_htt) Then IO.File.Delete(Built_htt)
             If IO.File.Exists(Built_Tri) Then IO.File.Delete(Built_Tri)
+            FilesDictionary_class.RemoveDictionaryEntry(IO.Path.GetRelativePath(Directorios.Fallout4data, Built_htt).Correct_Path_Separator)
+            FilesDictionary_class.RemoveDictionaryEntry(IO.Path.GetRelativePath(Directorios.Fallout4data, Built_Tri).Correct_Path_Separator)
+            For sizecount = 0 To CInt(IIf(Multisize(), 1, 0))
+                Dim fil = Me.OutputFullPathBase & If(Multisize(), "_" & sizecount.ToString, "") & ".nif"
+                If IO.File.Exists(fil) Then IO.File.Delete(fil)
+                FilesDictionary_class.RemoveDictionaryEntry(IO.Path.GetRelativePath(Directorios.Fallout4data, fil).Correct_Path_Separator)
+            Next
+            If Config_App.Current.Game = Config_App.Game_Enum.Skyrim Then
+                Dim Built_Xml = Me.OutputFullPathBase & ".xml"
+                If IO.File.Exists(Built_Xml) Then IO.File.Delete(Built_Xml)
+                FilesDictionary_class.RemoveDictionaryEntry(IO.Path.GetRelativePath(Directorios.Fallout4data, Built_Xml).Correct_Path_Separator)
+            End If
         End If
 
 

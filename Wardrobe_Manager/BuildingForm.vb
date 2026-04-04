@@ -111,26 +111,48 @@ Public Class BuildingForm
                     End If
 
                     ' High Heels
-                    builder.SaveHighHeelBuild(builder.NIFContent)
+                    Dim hhResult = builder.SaveHighHeelBuild(builder.NIFContent)
+                    If hhResult.HasValue Then
+                        Dim hhRelative = IO.Path.GetRelativePath(Directorios.Fallout4data, builder.OutputFullPathBase & ".txt").Correct_Path_Separator
+                        If hhResult.Value Then
+                            FilesDictionary_class.AddOrUpdateDictionaryEntry(hhRelative, New FilesDictionary_class.File_Location With {
+                                .BA2File = "", .Index = -1, .FullPath = hhRelative, .FileDate = Date.Now})
+                        Else
+                            FilesDictionary_class.RemoveDictionaryEntry(hhRelative)
+                        End If
+                    End If
                     ProgressBar1.Value += 1
 
 
-                    ' Grabo nif 
+                    ' Grabo nif
                     builder.NIFContent.Save_As_Manolo(fil, True)
+                    Dim nifRelative As String = IO.Path.GetRelativePath(Directorios.Fallout4data, fil).Correct_Path_Separator
+                    FilesDictionary_class.AddOrUpdateDictionaryEntry(nifRelative, New FilesDictionary_class.File_Location With {
+                        .BA2File = "", .Index = -1, .FullPath = nifRelative, .FileDate = Date.Now})
+
                     ProgressBar1.Value += 1
 
 
 
                     If Sizecount = 0 Then
                         ' Grabo archivo tri
-                        If Config_App.Current.Settings_Build.SaveTri AndAlso (builder.PreventMorphFile = False OrElse Config_App.Current.Settings_Build.IgnorePreventri) Then TriFile.WriteMorphTRI(tri, builder)
+                        If Config_App.Current.Settings_Build.SaveTri AndAlso (builder.PreventMorphFile = False OrElse Config_App.Current.Settings_Build.IgnorePreventri) Then
+                            TriFile.WriteMorphTRI(tri, builder)
+                            Dim triRelative = IO.Path.GetRelativePath(Directorios.Fallout4data, tri).Correct_Path_Separator
+                            FilesDictionary_class.AddOrUpdateDictionaryEntry(triRelative, New FilesDictionary_class.File_Location With {
+                                .BA2File = "", .Index = -1, .FullPath = triRelative, .FileDate = Date.Now})
+                        End If
                         ' SSE: copia o borra XML de física HDT-SMP junto al NIF de salida (una sola vez, no depende del size)
                         If Config_App.Current.Game = Config_App.Game_Enum.Skyrim Then
                             Dim outXml = builder.OutputFullPathBase + ".xml"
+                            Dim xmlRelative = IO.Path.GetRelativePath(Directorios.Fallout4data, outXml).Correct_Path_Separator
                             If Not String.IsNullOrEmpty(builder.PhysicsXmlContent) Then
                                 IO.File.WriteAllText(outXml, builder.PhysicsXmlContent, System.Text.Encoding.UTF8)
+                                FilesDictionary_class.AddOrUpdateDictionaryEntry(xmlRelative, New FilesDictionary_class.File_Location With {
+                                    .BA2File = "", .Index = -1, .FullPath = xmlRelative, .FileDate = Date.Now})
                             ElseIf IO.File.Exists(outXml) Then
                                 IO.File.Delete(outXml)
+                                FilesDictionary_class.RemoveDictionaryEntry(xmlRelative)
                             End If
                         End If
                     End If

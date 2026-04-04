@@ -24,7 +24,9 @@ Partial Class DictionaryPicker_Control
     <System.Diagnostics.DebuggerStepThrough()>
     Private Sub InitializeComponent()
         components = New ComponentModel.Container()
+        panelTop = New Panel()
         lblRoot = New Label()
+        chkShowOverrides = New CheckBox()
         splitMain = New SplitContainer()
         tvDirs = New TreeView()
         lvFiles = New ListView()
@@ -38,22 +40,41 @@ Partial Class DictionaryPicker_Control
         btnCancel = New Button()
         ToolTip1 = New ToolTip(components)
         CType(splitMain, ComponentModel.ISupportInitialize).BeginInit()
+        panelTop.SuspendLayout()
         splitMain.Panel1.SuspendLayout()
         splitMain.Panel2.SuspendLayout()
         splitMain.SuspendLayout()
         panelBottom.SuspendLayout()
         SuspendLayout()
+        '
+        ' panelTop
+        '
+        panelTop.Controls.Add(lblRoot)
+        panelTop.Controls.Add(chkShowOverrides)
+        panelTop.Dock = DockStyle.Top
+        panelTop.Name = "panelTop"
+        panelTop.Size = New Size(1041, 27)
         ' 
         ' lblRoot
         ' 
         lblRoot.AutoSize = True
-        lblRoot.Dock = DockStyle.Top
+        lblRoot.Dock = DockStyle.Left
         lblRoot.Location = New Point(0, 0)
         lblRoot.Name = "lblRoot"
         lblRoot.Padding = New Padding(8, 8, 0, 4)
         lblRoot.Size = New Size(57, 27)
         lblRoot.TabIndex = 0
         lblRoot.Text = "Filtered:"
+        '
+        ' chkShowOverrides
+        '
+        chkShowOverrides.AutoSize = True
+        chkShowOverrides.Dock = DockStyle.Right
+        chkShowOverrides.Name = "chkShowOverrides"
+        chkShowOverrides.Padding = New Padding(0, 6, 8, 0)
+        chkShowOverrides.TabIndex = 4
+        chkShowOverrides.Text = "Show overrides"
+        chkShowOverrides.UseVisualStyleBackColor = True
         ' 
         ' splitMain
         ' 
@@ -179,9 +200,11 @@ Partial Class DictionaryPicker_Control
         AutoScaleMode = AutoScaleMode.Font
         Controls.Add(splitMain)
         Controls.Add(panelBottom)
-        Controls.Add(lblRoot)
+        Controls.Add(panelTop)
         Name = "DictionaryPicker_Control"
         Size = New Size(1041, 554)
+        panelTop.ResumeLayout(False)
+        panelTop.PerformLayout()
         splitMain.Panel1.ResumeLayout(False)
         splitMain.Panel2.ResumeLayout(False)
         CType(splitMain, ComponentModel.ISupportInitialize).EndInit()
@@ -206,5 +229,7 @@ Partial Class DictionaryPicker_Control
     Friend WithEvents btnCancel As Button
     Friend WithEvents ButtonClone As Button
     Friend WithEvents ToolTip1 As ToolTip
+    Friend WithEvents panelTop As Panel
+    Friend WithEvents chkShowOverrides As CheckBox
 
 End Class

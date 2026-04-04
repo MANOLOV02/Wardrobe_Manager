@@ -50,6 +50,7 @@ Public Class DictionaryPicker_Control
         AddHandler lvFiles.DoubleClick, AddressOf LvFiles_DoubleClick
         AddHandler btnOk.Click, AddressOf BtnOk_Click
         AddHandler panelBottom.Resize, AddressOf PanelBottom_Resize
+        AddHandler chkShowOverrides.CheckedChanged, AddressOf ChkShowOverrides_CheckedChanged
         If Me.ParentForm IsNot Nothing Then AddHandler Me.ParentForm.Shown, AddressOf DictionaryFilePickerForm_Shown
 
         BuildTree()
@@ -261,6 +262,21 @@ Public Class DictionaryPicker_Control
                 End If
 
                 lvFiles.Items.Add(lvi)
+
+                ' Show overridden entries below the active one
+                If chkShowOverrides.Checked Then
+                    Dim overrideds = FilesDictionary_class.GetOverriddenEntries(k)
+                    For idx = 0 To overrideds.Length - 1
+                        Dim ov = overrideds(idx)
+                        Dim ovSource As String = If(ov.IsLosseFile, "Loose", IO.Path.GetExtension(ov.BA2File))
+                        Dim ovLvi As New ListViewItem("   " & fileName)
+                        ovLvi.SubItems.Add(ovSource)
+                        ovLvi.SubItems.Add("overridden #" & (idx + 1).ToString)
+                        ovLvi.ForeColor = Color.Gray
+                        ovLvi.Tag = Nothing
+                        lvFiles.Items.Add(ovLvi)
+                    Next
+                End If
             Next
         End If
 
@@ -297,6 +313,11 @@ Public Class DictionaryPicker_Control
     End Sub
 
     Private Sub LvFiles_SelectedIndexChanged(sender As Object, e As EventArgs)
+        If lvFiles.SelectedItems.Count = 1 AndAlso lvFiles.SelectedItems(0).Tag Is Nothing Then
+            ' Override item — deselect it
+            lvFiles.SelectedItems(0).Selected = False
+            Return
+        End If
         btnOk.Enabled = (lvFiles.SelectedItems.Count = 1)
         If lvFiles.SelectedItems.Count = 1 Then
             ' Mostrar key completa del archivo seleccionado
@@ -326,8 +347,10 @@ Public Class DictionaryPicker_Control
         End If
     End Sub
     Private Sub PanelBottom_Resize(sender As Object, e As EventArgs)
-        ' Ajuste simple ya manejado por Anchor; este handler queda por si querés lógica extra.
-        ' (Podés eliminarlo si no lo necesitás.)
+    End Sub
+
+    Private Sub ChkShowOverrides_CheckedChanged(sender As Object, e As EventArgs)
+        If tvDirs.SelectedNode IsNot Nothing Then PopulateFilesForNode(tvDirs.SelectedNode)
     End Sub
 
 

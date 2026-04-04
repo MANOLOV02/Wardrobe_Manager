@@ -151,6 +151,8 @@ Public Class FilesDictionary_class
     Private Shared _sliderPresets As New SliderPresetCollection
     Private Shared _fO4Path As String = ""
     Private Shared _dictionary As New ConcurrentDictionary(Of String, File_Location)(StringComparer.OrdinalIgnoreCase)
+    ''' <summary>Stack of overridden entries per key. When a loose overrides a BA2 (or a BA2 overrides another), the loser is pushed here.</summary>
+    Private Shared ReadOnly _overriddenEntries As New ConcurrentDictionary(Of String, ConcurrentStack(Of File_Location))(StringComparer.OrdinalIgnoreCase)
     Private Shared ReadOnly Extensiones As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase) From {".dds", ".bgsm", ".bgem", ".nif", ".tri"}
     Private Shared _HighHeels_Plugin_Values As New HighHeels_Plugins_values
 
@@ -370,9 +372,15 @@ Public Class FilesDictionary_class
                 _dictionary = value
             End If
 
+            _overriddenEntries.Clear()
             RebuildSearchIndexesFromDictionary()
         End Set
     End Property
+    Private Shared Sub PushOverriddenEntry(normalized As String, loser As File_Location)
+        Dim stack = _overriddenEntries.GetOrAdd(normalized, Function(key) New ConcurrentStack(Of File_Location)())
+        stack.Push(loser)
+    End Sub
+
     Private Shared Function NormalizeDictionaryKey(fullPath As String) As String
         If IsNothing(fullPath) Then Return ""
         ' O5.4: Intern dictionary keys to reduce GC pressure and enable reference equality
@@ -451,6 +459,58 @@ Public Class FilesDictionary_class
             Return True
         End If
         Return False
+    End Function
+
+    ''' <summary>Adds a new entry or updates an existing one (e.g. a BA2 entry replaced by a loose file). Only BA2 entries are pushed to the override stack (loose-over-loose is the same file overwritten).</summary>
+    Public Shared Sub AddOrUpdateDictionaryEntry(fullPath As String, location As File_Location)
+        Dim normalized = NormalizeDictionaryKey(fullPath)
+        _dictionary.AddOrUpdate(
+            normalized,
+            location,
+            Function(key, existing)
+                If Not existing.IsLosseFile Then PushOverriddenEntry(normalized, existing)
+                Return location
+            End Function)
+        IndexDictionaryKey(normalized)
+        Dim dummy As WeakReference(Of Byte()) = Nothing
+        _bytesCache.TryRemove(normalized, dummy)
+    End Sub
+
+    ''' <summary>Removes the current entry. If an overridden entry exists (e.g. BA2 behind a loose), restores it.</summary>
+    Public Shared Sub RemoveDictionaryEntry(fullPath As String)
+        Dim normalized = NormalizeDictionaryKey(fullPath)
+        Dim dummy As WeakReference(Of Byte()) = Nothing
+        _bytesCache.TryRemove(normalized, dummy)
+
+        ' Try to restore a previously overridden entry
+        Dim stack As ConcurrentStack(Of File_Location) = Nothing
+        Dim restored As File_Location = Nothing
+        If _overriddenEntries.TryGetValue(normalized, stack) AndAlso stack.TryPop(restored) Then
+            _dictionary(normalized) = restored
+        Else
+            Dim removed As File_Location = Nothing
+            If _dictionary.TryRemove(normalized, removed) Then
+                ' Remove from search indexes only if truly gone
+                Dim directoryKey = NormalizeDirectoryKey(IO.Path.GetDirectoryName(normalized))
+                Dim extensionKey = NormalizeExtensionKey(IO.Path.GetExtension(normalized))
+                Dim bucket As ConcurrentDictionary(Of String, Byte) = Nothing
+                If _KeysByDirectory.TryGetValue(directoryKey, bucket) Then bucket.TryRemove(normalized, 0)
+                If extensionKey <> "" Then
+                    If _KeysByExtension.TryGetValue(extensionKey, bucket) Then bucket.TryRemove(normalized, 0)
+                    If _KeysByDirectoryExtension.TryGetValue(BuildDirectoryExtensionBucketKey(directoryKey, extensionKey), bucket) Then bucket.TryRemove(normalized, 0)
+                End If
+            End If
+        End If
+    End Sub
+
+    ''' <summary>Returns the overridden entries for a key (from most recent to oldest), or empty if none.</summary>
+    Public Shared Function GetOverriddenEntries(fullPath As String) As File_Location()
+        Dim normalized = NormalizeDictionaryKey(fullPath)
+        Dim stack As ConcurrentStack(Of File_Location) = Nothing
+        If _overriddenEntries.TryGetValue(normalized, stack) Then
+            Return stack.ToArray()
+        End If
+        Return Array.Empty(Of File_Location)()
     End Function
 
     Public Shared Function GetFilesInDirectory(directoryPath As String, allowedExtensions As IEnumerable(Of String)) As List(Of String)
@@ -537,6 +597,7 @@ Public Class FilesDictionary_class
         Try
             FO4Path = Fo4DataPath
             Dictionary.Clear()
+            _overriddenEntries.Clear()
             ClearSearchIndexes()
 
             ' O1.1: Clear byte cache when dictionary is rebuilt
@@ -753,8 +814,10 @@ Public Class FilesDictionary_class
                         entry,
                         Function(key, existing)
                             If Resolve_Conflict(existing, entry) Then
+                                PushOverriddenEntry(standardized, existing)
                                 Return entry
                             Else
+                                PushOverriddenEntry(standardized, entry)
                                 Return existing
                             End If
                         End Function)
@@ -803,8 +866,10 @@ Public Class FilesDictionary_class
             entry,
             Function(key, existing)
                 If Resolve_Conflict(existing, entry) Then
+                    PushOverriddenEntry(standardized, existing)
                     Return entry
                 Else
+                    PushOverriddenEntry(standardized, entry)
                     Return existing
                 End If
             End Function)
