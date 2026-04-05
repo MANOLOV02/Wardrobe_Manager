@@ -1,3 +1,5 @@
+﻿' Version Uploaded of Wardrobe 3.2.0
+Imports System.ComponentModel
 Imports System.IO
 Imports System.Text.Json
 Imports FO4_Base_Library

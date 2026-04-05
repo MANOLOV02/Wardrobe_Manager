@@ -1,4 +1,6 @@
-﻿Imports System.Runtime.CompilerServices
+﻿' Version Uploaded of Wardrobe 3.2.0
+Imports System.ComponentModel
+Imports System.Runtime.CompilerServices
 Imports FO4_Base_Library
 Imports FO4_Base_Library.PreviewModel
 
@@ -60,10 +62,16 @@ Public Module WM_RenderExtensions
         GetState(ctrl).Last_rendered = value
     End Sub
 
+    ''' <summary>
+    ''' Re-render with specific dirty flags. Uses the intent already populated by the last Update_Render.
+    ''' Callers specify exactly what changed — no nuclear "Force" unless truly needed.
+    ''' </summary>
     <Extension()>
-    Public Sub Update_Render_LastLoaded(ctrl As PreviewControl, force As Boolean)
-        Dim s = GetState(ctrl)
-        ctrl.Update_Render(s.Last_rendered, force, s.Last_Preset, ctrl.Model.Last_Pose, s.Last_size)
+    Public Sub ForceRerender(ctrl As PreviewControl, Optional flags As RenderDirtyFlags = RenderDirtyFlags.Force Or RenderDirtyFlags.Camera)
+        If ctrl.Disposing OrElse ctrl.IsDisposed OrElse Not ctrl.Visible Then Return
+        ctrl.Intent.RecalculateNormals = ctrl.Model.RecalculateNormals
+        ctrl.Intent.MarkDirty(flags)
+        ctrl.InvalidateRender()
     End Sub
 
     <Extension()>

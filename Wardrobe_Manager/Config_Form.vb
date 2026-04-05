@@ -293,15 +293,15 @@ Public Class Config_Form
         Graba_Render_Options()
         If Not IsNothing(Me.Owner) AndAlso Me.Owner.GetType Is GetType(Wardrobe_Manager_Form) Then
             If Not IsNothing(CType(Owner, Wardrobe_Manager_Form).preview_Control) Then
-                CType(Owner, Wardrobe_Manager_Form).preview_Control.Model.Clean(False)
-                CType(Owner, Wardrobe_Manager_Form).preview_Control.Model.RecalculateNormals = RecalculateNormalsCheck.Checked
-                CType(Owner, Wardrobe_Manager_Form).preview_Control.Model.SingleBoneSkinning = SingleBoneCheck.Checked
-                CType(Owner, Wardrobe_Manager_Form).preview_Control.Model.Floor.Enabled = CheckBoxRenderGrid.Checked
-                CType(Owner, Wardrobe_Manager_Form).preview_Control.Model.Floor.Size = NumericUpDownRenderGridSize.Value
-                CType(Owner, Wardrobe_Manager_Form).preview_Control.Model.Floor.StepSize = NumericUpDownRenderGridStep.Value
-                CType(Owner, Wardrobe_Manager_Form).preview_Control.Model.Floor.Color = GridColor.SelectedColor
-                CType(Owner, Wardrobe_Manager_Form).preview_Control.Model.Floor.Rebuild()
-                CType(Owner, Wardrobe_Manager_Form).preview_Control.Update_Render_LastLoaded(True)
+                Dim ctrl = CType(Owner, Wardrobe_Manager_Form).preview_Control
+                ctrl.Model.RecalculateNormals = RecalculateNormalsCheck.Checked
+                ctrl.Model.SingleBoneSkinning = SingleBoneCheck.Checked
+                ctrl.Model.Floor.Enabled = CheckBoxRenderGrid.Checked
+                ctrl.Model.Floor.Size = NumericUpDownRenderGridSize.Value
+                ctrl.Model.Floor.StepSize = NumericUpDownRenderGridStep.Value
+                ctrl.Model.Floor.Color = GridColor.SelectedColor
+                ctrl.Model.Floor.Rebuild()
+                ctrl.ForceRerender(RenderDirtyFlags.Shapes Or RenderDirtyFlags.Camera)
 
             End If
         End If

@@ -623,9 +623,9 @@ Public Class Editor_Form
 
         Update_Grayscale()
         Iniciado_Edit()
-        Process_render_Changes(msnToggled)
 
         If msnToggled Then
+            Process_render_Changes(True)
             ' ApplyMorph_CPU won't recalc TBN if no morph changed positions (dirty gets cleared).
             ' Force RecalcTBN here so MSN->tangent gets normals regenerated from geometry,
             ' and tangent->MSN gets VBOs repacked with skinNormalMat columns.
@@ -639,6 +639,9 @@ Public Class Editor_Form
                 End If
             Next
             EditPreviewControl.RefreshRender()
+        Else
+            ' Non-MSN material property change — only textures need reprocess
+            EditPreviewControl.ForceRerender(RenderDirtyFlags.Textures)
         End If
     End Sub
     Private Sub RequestPreviewRedraw()
@@ -657,7 +660,7 @@ Public Class Editor_Form
         If _SuppressTrackbarEvent Then Exit Sub
         Selected_Material.GrayscaleToPaletteScale = GrayScaleTrackbar1.Setvalue
         Iniciado_Edit()
-        Process_render_Changes(False)
+        EditPreviewControl.ForceRerender(RenderDirtyFlags.Textures)
     End Sub
     Private Sub Update_Grayscale()
         _SuppressTrackbarEvent = True
@@ -774,7 +777,7 @@ Public Class Editor_Form
 
         PropertyGrid1.SelectedObject = Selected_Material
         Update_Grayscale()
-        Process_render_Changes(False)
+        EditPreviewControl.ForceRerender(RenderDirtyFlags.Textures)
         Iniciado_Edit()
     End Sub
     Private Sub CheckBox2_CheckedChanged(sender As Object, e As EventArgs) Handles CheckBox2.CheckedChanged
@@ -978,7 +981,8 @@ Public Class Editor_Form
         If IsNothing(Selected_Slider) Then Exit Sub
         Selected_Slider.HighHeelHeight = HHNumericUpDown.Value
         Iniciado_Edit()
-        Process_render_Changes(False)
+        EditPreviewControl.Model.FloorOffset = -Selected_Slider.HighHeelHeight
+        EditPreviewControl.RefreshRender()
     End Sub
 
     Private Sub OutDirTextbox_TextChanged(sender As Object, e As EventArgs) Handles OutDirTextbox.Leave
@@ -1862,7 +1866,7 @@ Public Class Editor_Form
     Private Sub SingleBoneCheck_CheckedChanged(sender As Object, e As EventArgs) Handles SingleBoneCheck.CheckedChanged
         EditPreviewControl.Model.SingleBoneSkinning = SingleBoneCheck.Checked
         ComboBoxPoses.Enabled = Not SingleBoneCheck.Checked
-        Process_render_Changes(True)
+        EditPreviewControl.ForceRerender(RenderDirtyFlags.Shapes Or RenderDirtyFlags.Camera)
     End Sub
 
     Private Sub ButtonMakeGradient_Click(sender As Object, e As EventArgs) Handles ButtonMakeGradient.Click
@@ -1872,7 +1876,7 @@ Public Class Editor_Form
         Selected_Material.GrayscaleToPaletteScale = 0.5
         Update_Grayscale()
         Iniciado_Edit()
-        Process_render_Changes(False)
+        EditPreviewControl.ForceRerender(RenderDirtyFlags.Textures)
     End Sub
 
     Private Sub ColorComboBox1_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ColorComboBox1.SelectedIndexChanged
@@ -2148,7 +2152,7 @@ Public Class Editor_Form
 
     Private Sub CheckBox1_CheckedChanged_1(sender As Object, e As EventArgs) Handles RecalculateNormalsCheck.CheckedChanged
         EditPreviewControl.Model.RecalculateNormals = RecalculateNormalsCheck.Checked
-        Process_render_Changes(True)
+        EditPreviewControl.ForceRerender(RenderDirtyFlags.Morphs)
     End Sub
     Private WithEvents ScrollTimer As New Timer() With {.Interval = 500, .Enabled = False}
     Private pendingValue As Boolean = False
