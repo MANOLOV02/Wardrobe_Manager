@@ -1,4 +1,4 @@
-﻿' Version Uploaded of Wardrobe 3.1.0
+﻿' Version Uploaded of Wardrobe 3.2.0
 
 Imports System.Threading.Tasks
 Imports Wardrobe_Manager.Wardrobe_Manager_Form
@@ -28,15 +28,15 @@ Public Class BuildingForm
         Dim Errores As String = ""
         Dim Nombre As String = "Unknown"
         ' Lee los sliders de looksmenu si se graba tri
-        If Config_App.Current.Settings_Build.SaveTri Then TriFile.Read_Looksmenu_Sliders()
+        If WM_Config.Current.Settings_Build.SaveTri Then TriFile.Read_Looksmenu_Sliders()
         OSP_Project_Class.Default_Memory_Pause = True
-        Dim has_pose = (Config_App.Current.Settings_Build.BuildInPose AndAlso _Pose.Source <> Poses_class.Pose_Source_Enum.None)
+        Dim has_pose = (WM_Config.Current.Settings_Build.BuildInPose AndAlso _Pose.Source <> Poses_class.Pose_Source_Enum.None)
         For Each sliderset_target In _Lista
             Try
                 Dim NodoClone = DummyOSP.xml.ImportNode(sliderset_target.Nodo.Clone, True)
                 Dim builder As New SliderSet_Class(NodoClone, DummyOSP)
                 ' Shapedata loaded on the builder clone below, not on sliderset_target
-                Dim size As Config_App.SliderSize = Config_App.SliderSize.Default
+                Dim size As WM_Config.SliderSize = WM_Config.SliderSize.Default
                 For Sizecount = 0 To CInt(IIf(sliderset_target.Multisize, 1, 0))
                     ProgressBar1.Value = 0
                     ProgressBar1.Maximum = (builder.Shapes.Count * 4 + 6)
@@ -54,8 +54,8 @@ Public Class BuildingForm
                     Nombre = sliderset_target.Nombre
                     Label1.Text = "Building: " + Nombre + IIf(sliderset_target.Multisize(), "_" + Sizecount.ToString, "")
                     Application.DoEvents()
-                    If Sizecount = 0 Then size = Config_App.SliderSize.Small
-                    If Sizecount = 1 Then size = Config_App.SliderSize.Big
+                    If Sizecount = 0 Then size = WM_Config.SliderSize.Small
+                    If Sizecount = 1 Then size = WM_Config.SliderSize.Big
                     ' 0 - cargo morph
                     builder.SetPreset(_Preset, size)
                     ProgressBar1.Value += 1
@@ -74,7 +74,7 @@ Public Class BuildingForm
                             ' 3- aplico morph (y recalculo normales si esta elegido)
                             MorphingHelper.ApplyMorph_CPU(shap, geom, localRecalcNormals, AllowMask:=False)
                             ' 4- Borro zaps y revierto bakeo (includes InjectToTrishape per-shape)
-                            SkinningHelper.BakeFromMemoryUsingOriginal(shap, geom, ApplyPose:=localHasPose, inverse:=False, ApplyMorph:=True, RemoveZaps:=True, singleBoneSkinning:=localSingleBone)
+                            SkinningHelper.BakeFromMemoryUsingOriginal(shap, geom, ApplyPose:=localHasPose, inverse:=False, ApplyMorph:=True, RemoveZaps:=True, singleBoneSkinning:=localSingleBone, geometryModifier:=New ZapGeometryModifier())
                             shapeResults(shap) = geom
                         End Sub)
 
@@ -104,7 +104,7 @@ Public Class BuildingForm
                     If IO.Directory.Exists(dir) = False Then IO.Directory.CreateDirectory(dir)
 
                     ' Grabo bloque tri si hace falta
-                    If Config_App.Current.Settings_Build.SaveTri AndAlso (builder.PreventMorphFile = False OrElse Config_App.Current.Settings_Build.IgnorePreventri) Then
+                    If WM_Config.Current.Settings_Build.SaveTri AndAlso (builder.PreventMorphFile = False OrElse WM_Config.Current.Settings_Build.IgnorePreventri) Then
                         builder.NIFContent.AddTriData("", Tridata, True)
                     Else
                         builder.NIFContent.RemoveTriData("", True)
@@ -136,7 +136,7 @@ Public Class BuildingForm
 
                     If Sizecount = 0 Then
                         ' Grabo archivo tri
-                        If Config_App.Current.Settings_Build.SaveTri AndAlso (builder.PreventMorphFile = False OrElse Config_App.Current.Settings_Build.IgnorePreventri) Then
+                        If WM_Config.Current.Settings_Build.SaveTri AndAlso (builder.PreventMorphFile = False OrElse WM_Config.Current.Settings_Build.IgnorePreventri) Then
                             TriFile.WriteMorphTRI(tri, builder)
                             Dim triRelative = IO.Path.GetRelativePath(Directorios.Fallout4data, tri).Correct_Path_Separator
                             FilesDictionary_class.AddOrUpdateDictionaryEntry(triRelative, New FilesDictionary_class.File_Location With {
@@ -170,7 +170,7 @@ Public Class BuildingForm
         Next
         OSP_Project_Class.Default_Memory_Pause = False
         ' Grabo archivo sliders.json 
-        If Config_App.Current.Game = Config_App.Game_Enum.Fallout4 AndAlso Config_App.Current.Settings_Build.AddAddintionalSliders AndAlso Config_App.Current.Settings_Build.SaveTri Then TriFile.Serialize_LooksmenuAdditionalSiliders()
+        If Config_App.Current.Game = Config_App.Game_Enum.Fallout4 AndAlso WM_Config.Current.Settings_Build.AddAddintionalSliders AndAlso WM_Config.Current.Settings_Build.SaveTri Then TriFile.Serialize_LooksmenuAdditionalSiliders()
         If Errores <> "" Then
             MsgBox("Error building the following projects:" + Errores)
         End If

@@ -1,4 +1,4 @@
-﻿' Version Uploaded of Wardrobe 3.1.0
+﻿' Version Uploaded of Wardrobe 3.2.0
 Imports System.IO
 Imports System.Net
 Imports System.Xml
@@ -199,9 +199,9 @@ Public Class Create_from_Nif_Form
             _loadedSkeletonKey = targetSkelKey
         End If
 
-        EditPreviewControl.Model.Last_rendered = Nothing
+        EditPreviewControl.WM_Set_Last_rendered(Nothing)
         EditPreviewControl.Model.FloorOffset = -selected_slider.HighHeelHeight
-        EditPreviewControl.Update_Render(selected_slider, True, Nothing, Nothing, Config_App.SliderSize.Default)
+        EditPreviewControl.Update_Render(selected_slider, True, Nothing, Nothing, WM_Config.SliderSize.Default)
     End Sub
     Private Last_key As String = ""
     Private Sub DictionaryPicker_Control1_SelectionChanged(Key As String) Handles DictionaryPicker_Control1.SelectionChanged

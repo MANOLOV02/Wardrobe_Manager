@@ -1,4 +1,4 @@
-﻿' Version Uploaded of Wardrobe 3.1.0
+﻿' Version Uploaded of Wardrobe 3.2.0
 Public Class StikyNote
 
     Private mouseDown2 As Boolean

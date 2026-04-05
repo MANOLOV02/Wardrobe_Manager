@@ -1,4 +1,4 @@
-﻿' Version Uploaded of Wardrobe 3.1.0
+﻿' Version Uploaded of Wardrobe 3.2.0
 ' ========================
 ' == Stubs y utilidades ==
 ' ========================
@@ -55,7 +55,7 @@ Public Class TriFile
         WMSliders = New List(Of MorphdataTri)
 
         ' Lee los sliders ya grabados solo si no se resetean
-        If Config_App.Current.Settings_Build.ResetSlidersEachBuild = False Then
+        If WM_Config.Current.Settings_Build.ResetSlidersEachBuild = False Then
             WMSliders = Deserialize_LooksmenuSiliders(Wardrobe_Manager_Form.Directorios.LooksMenuWMSliders)
         End If
     End Sub
@@ -258,8 +258,8 @@ Public Class TriFile
     Public Shared Function WriteMorphTRI(triPath As String, sliderSet As SliderSet_Class) As Boolean
         Dim tri As New TriFile()
         Dim triFilePath As String = triPath
-        Dim addAdditional = Config_App.Current.Settings_Build.AddAddintionalSliders
-        Dim skipManoloFix = Config_App.Current.Settings_Build.SkipManoloFixMorphs
+        Dim addAdditional = WM_Config.Current.Settings_Build.AddAddintionalSliders
+        Dim skipManoloFix = WM_Config.Current.Settings_Build.SkipFixMorphs
 
         For Each shape In sliderSet.NIFContent.GetShapes
             Dim targetShape = sliderSet.Shapes.Where(Function(pf) pf.RelatedNifShape Is shape).FirstOrDefault

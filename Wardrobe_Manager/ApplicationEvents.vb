@@ -1,4 +1,4 @@
-﻿' Version Uploaded of Wardrobe 3.1.0
+﻿' Version Uploaded of Wardrobe 3.2.0
 Namespace My
     ' The following events are available for MyApplication:
     ' Startup: Raised when the application starts, before the startup form is created.
@@ -23,6 +23,11 @@ Namespace My
     ' End Sub
 
     Partial Friend Class MyApplication
+
+        Private Sub MyApplication_Startup(sender As Object, e As Microsoft.VisualBasic.ApplicationServices.StartupEventArgs) Handles Me.Startup
+            ' Initialize WM-specific hooks for the shared library
+            WM_RenderExtensions.InitializeWM()
+        End Sub
 
         Private Sub MyApplication_UnhandledException(sender As Object, e As Microsoft.VisualBasic.ApplicationServices.UnhandledExceptionEventArgs) Handles Me.UnhandledException
             Logger.Log("Unhandled exception: " & e.Exception.ToString)

@@ -1,4 +1,4 @@
-﻿' Version Uploaded of Wardrobe 3.1.0
+﻿' Version Uploaded of Wardrobe 3.2.0
 Imports System.DirectoryServices.ActiveDirectory
 Imports System.Globalization
 Imports System.IO
@@ -12,6 +12,7 @@ Imports MaterialLib
 Imports NiflySharp
 Imports NiflySharp.Blocks
 Imports NiflySharp.Structs
+Imports FO4_Base_Library
 Imports Wardrobe_Manager.Wardrobe_Manager_Form
 
 Public Class HighHeels_Plugins_values
@@ -81,102 +82,9 @@ End Class
 Public Class PresetSlider_Class
     Public Property Name As String = ""
     Public Property DisplayName As String = ""
-    Public Property Size As Config_App.SliderSize = Config_App.SliderSize.Default
+    Public Property Size As WM_Config.SliderSize = WM_Config.SliderSize.Default
     Public Property Value As Single = 0
     Public Property Category As String = "(Unknown)"
-End Class
-
-Public Class Poses_class
-    <JsonPropertyName("name")>
-    Public Property Name As String
-
-    <JsonPropertyName("skeleton")>
-    Public Property Skeleton As String
-
-    <JsonPropertyName("version")>
-    Public Property Version As Integer
-
-    ' Las claves internas (AnimObjectA, COM, etc.) se mantienen dinámicas
-    <JsonPropertyName("transforms")>
-    Public Property Transforms As Dictionary(Of String, PoseTransformData)
-
-    Public Enum Pose_Source_Enum
-        WardrobeManager
-        BodySlide
-        ScreenArcher
-        None
-    End Enum
-    Public Overrides Function ToString() As String
-        Return KeyName(Name, Source)
-    End Function
-    Public Shared Function KeyName(Name As String, sourceType As Pose_Source_Enum) As String
-        Select Case sourceType
-            Case Pose_Source_Enum.BodySlide
-                Return Name + " (BodySlide pose)"
-            Case Pose_Source_Enum.ScreenArcher
-                Return Name + " (ScreenArcher pose)"
-            Case Pose_Source_Enum.WardrobeManager, Pose_Source_Enum.None
-                Return Name + " (Wardrobe Manager pose)"
-            Case Else
-                Return Name + " (Unknown pose)"
-        End Select
-    End Function
-    <JsonIgnore>
-    Public Property Source As Pose_Source_Enum = Pose_Source_Enum.ScreenArcher
-    <JsonIgnore>
-    Public Property Filename As String
-
-    Public Function Clone() As Poses_class
-        Dim Clon As New Poses_class With {
-            .Name = "Unknown",
-            .Skeleton = Skeleton,
-            .Version = Version,
-            .Source = Pose_Source_Enum.WardrobeManager,
-            .Transforms = New Dictionary(Of String, PoseTransformData)
-        }
-        For Each tr In Transforms
-            Dim rot As Vector3
-            Dim Tras As Vector3
-            Dim sc As Single
-            If Source = Pose_Source_Enum.ScreenArcher Then
-                Dim Converter = New Transform_Class(tr.Value, Source)
-                Dim bon As Skeleton_Class.HierarchiBone_class = Nothing
-
-                If Skeleton_Class.HasSkeleton AndAlso Skeleton_Class.SkeletonDictionary.TryGetValue(tr.Key, bon) Then
-                    Converter = bon.OriginalLocaLTransform.Inverse.ComposeTransforms(Converter)
-                End If
-                rot = Transform_Class.Matrix33ToBSRotation(Converter.Rotation)
-                Tras = New Vector3(Converter.Translation.X, Converter.Translation.Y, Converter.Translation.Z)
-                sc = Converter.Scale
-            Else
-                rot = New Vector3(tr.Value.Yaw, tr.Value.Pitch, tr.Value.Roll)
-                Tras = New Vector3(tr.Value.X, tr.Value.Y, tr.Value.Z)
-                sc = tr.Value.Scale
-            End If
-            Dim cloned = New PoseTransformData With {.X = Tras.X, .Y = Tras.Y, .Z = Tras.Z, .Yaw = rot.X, .Pitch = rot.Y, .Roll = rot.Z, .Scale = sc}
-            Clon.Transforms.Add(tr.Key, cloned)
-        Next
-        Return Clon
-    End Function
-End Class
-
-' Nodo de transformaciones --------------------------------------------------
-Public Class PoseTransformData
-    <JsonPropertyName("pitch")> Public Property Pitch As Single = 0 'Y
-    <JsonPropertyName("roll")> Public Property Roll As Single = 0 'Z
-    <JsonPropertyName("yaw")> Public Property Yaw As Single = 0 ' X
-    <JsonPropertyName("x")> Public Property X As Single = 0
-    <JsonPropertyName("y")> Public Property Y As Single = 0
-    <JsonPropertyName("z")> Public Property Z As Single = 0
-    <JsonPropertyName("scale")> Public Property Scale As Single = 1
-
-    <JsonIgnore>
-    Public ReadOnly Property Isidentity As Boolean
-        Get
-            Return X = 0 AndAlso Y = 0 AndAlso Z = 0 AndAlso Yaw = 0 AndAlso Pitch = 0 AndAlso Roll = 0 AndAlso Scale = 1
-        End Get
-    End Property
-
 End Class
 
 ' ---------------------------------------------------------------------------
@@ -187,7 +95,6 @@ Public Class SliderPresetCollection
     Public Property Presets As New SortedDictionary(Of String, SlidersPreset_Class)
     Public Property Categories As New Dictionary(Of String, List(Of String()))
     Public Property Poses As New Dictionary(Of String, Poses_class)
-
 
     Public Sub LoadPosesBS(PosesPath As String)
         If IO.Directory.Exists(PosesPath) = False Then Exit Sub
@@ -341,9 +248,9 @@ Public Class SliderPresetCollection
                     End If
 
                     Dim sizeRaw = ss.Attribute("size")?.Value?.ToLowerInvariant()
-                    Dim sz As Config_App.SliderSize = If(sizeRaw = "small", Config_App.SliderSize.Small,
-                                             If(sizeRaw = "big", Config_App.SliderSize.Big,
-                                                                  Config_App.SliderSize.Default))
+                    Dim sz As WM_Config.SliderSize = If(sizeRaw = "small", WM_Config.SliderSize.Small,
+                                             If(sizeRaw = "big", WM_Config.SliderSize.Big,
+                                                                  WM_Config.SliderSize.Default))
 
                     p.Sliders.Add(New PresetSlider_Class With {
                         .Name = sliderName,
@@ -789,7 +696,7 @@ Public Class Clone_Materials_class
         If FilesDictionary_class.Dictionary.ContainsKey(normalizedOriginal) = False Then Exit Sub
 
         Dim originalLocation = FilesDictionary_class.Dictionary(normalizedOriginal)
-        If Not originalLocation.IsLosseFile AndAlso Not Config_App.Allowed_To_Clone(originalLocation.BA2File) Then Exit Sub
+        If Not originalLocation.IsLosseFile AndAlso Not WM_Config.Allowed_To_Clone(originalLocation.BA2File) Then Exit Sub
 
         Dim directory As String = IO.Path.GetDirectoryName(normalizedOriginal).Correct_Path_Separator
 
@@ -797,7 +704,7 @@ Public Class Clone_Materials_class
             Dim normalizedFil As String = fil.Correct_Path_Separator
 
             Dim location = FilesDictionary_class.Dictionary(normalizedFil)
-            If location.IsLosseFile OrElse Config_App.Allowed_To_Clone(location.BA2File) Then
+            If location.IsLosseFile OrElse WM_Config.Allowed_To_Clone(location.BA2File) Then
                 GetOrCreateMaterialJob(plan, normalizedFil, normalizedFil.Equals(normalizedOriginal, StringComparison.OrdinalIgnoreCase))
             End If
         Next
@@ -849,7 +756,7 @@ Public Class Clone_Materials_class
                     Dim rootLocation As FilesDictionary_class.File_Location = Nothing
                     If FilesDictionary_class.Dictionary.TryGetValue(rootSource, rootLocation) Then
                         If rootSource.Equals(job.Source, StringComparison.OrdinalIgnoreCase) = False Then
-                            If rootLocation.IsLosseFile OrElse Config_App.Allowed_To_Clone(rootLocation.BA2File) Then
+                            If rootLocation.IsLosseFile OrElse WM_Config.Allowed_To_Clone(rootLocation.BA2File) Then
                                 job.RootMaterialSource = rootSource
                                 GetOrCreateMaterialJob(plan, rootSource, False)
                             End If
@@ -921,7 +828,7 @@ Public Class Clone_Materials_class
             Exit Sub
         End If
 
-        If Not location.IsLosseFile AndAlso Not Config_App.Allowed_To_Clone(location.BA2File) Then
+        If Not location.IsLosseFile AndAlso Not WM_Config.Allowed_To_Clone(location.BA2File) Then
             Exit Sub
         End If
 
@@ -1804,7 +1711,7 @@ Public Class SliderSet_Class
     Public Property OSDContent_External As New OSD_Class(Me)
     Public Property Unreadable_Project As Boolean = False
     Public Property Unreadable_NIF As Boolean = False
-    Public Property NIFContent As New Nifcontent_Class_Manolo(Me)
+    Public Property NIFContent As New Nifcontent_Class_Manolo()
     Public Property ParentOSP As OSP_Project_Class
     Public Property Shapes As New List(Of Shape_class)
     Public Property Sliders As New List(Of Slider_class)
@@ -2043,7 +1950,7 @@ Public Class SliderSet_Class
 
         OSDContent_Local = New OSD_Class(Me)
         OSDContent_External = New OSD_Class(Me)
-        NIFContent = New Nifcontent_Class_Manolo(Me)
+        NIFContent = New Nifcontent_Class_Manolo()
         PhysicsXmlContent = Nothing
         HighHeelHeight = 0
         ShapeDataLoaded = False
@@ -2061,7 +1968,7 @@ Public Class SliderSet_Class
         End Get
     End Property
 
-    Public Sub SetPreset(Preset As SlidersPreset_Class, Weight As Config_App.SliderSize)
+    Public Sub SetPreset(Preset As SlidersPreset_Class, Weight As WM_Config.SliderSize)
         For Each slid In Sliders
             slid.Current_Setting = slid.Default_Setting(Weight)
             If IsNothing(Preset) Then Continue For
@@ -2074,8 +1981,8 @@ Public Class SliderSet_Class
             If matches.Count = 0 Then Continue For
 
             If Config_App.Current.Game = Config_App.Game_Enum.Fallout4 Then
-                Dim presetDefault = matches.FirstOrDefault(Function(pf) pf.Size = Config_App.SliderSize.Default)
-                Dim presetBig = matches.FirstOrDefault(Function(pf) pf.Size = Config_App.SliderSize.Big)
+                Dim presetDefault = matches.FirstOrDefault(Function(pf) pf.Size = WM_Config.SliderSize.Default)
+                Dim presetBig = matches.FirstOrDefault(Function(pf) pf.Size = WM_Config.SliderSize.Big)
 
                 If presetDefault IsNot Nothing Then
                     slid.Current_Setting = presetDefault.Value
@@ -2087,10 +1994,10 @@ Public Class SliderSet_Class
             End If
 
             For Each sli In matches
-                If sli.Size = Config_App.SliderSize.Small Then
-                    If Weight = Config_App.SliderSize.Small Then slid.Current_Setting = sli.Value
+                If sli.Size = WM_Config.SliderSize.Small Then
+                    If Weight = WM_Config.SliderSize.Small Then slid.Current_Setting = sli.Value
                 Else
-                    If Weight <> Config_App.SliderSize.Small Then slid.Current_Setting = sli.Value
+                    If Weight <> WM_Config.SliderSize.Small Then slid.Current_Setting = sli.Value
                 End If
             Next
         Next
@@ -2186,8 +2093,8 @@ Public Class SliderSet_Class
                 Dim hh2 As String = Me.OutputFullPathBase & ".txt"
 
                 If IO.File.Exists(hh0) Then HighHeelHeight = ReadHighHeelTXT(hh0) : Exit Sub
-                If FilesDictionary_class.HighHeels_Plugin_Value.HighHeelsKeys.Any(Function(pf) hh1.EndsWith(pf.Key, StringComparison.CurrentCultureIgnoreCase)) Then
-                    HighHeelHeight = FilesDictionary_class.HighHeels_Plugin_Value.HighHeelsKeys.OrderByDescending(Function(pf) pf.Key.Length).First(Function(pf) hh1.EndsWith(pf.Key, StringComparison.CurrentCultureIgnoreCase)).Value
+                If WM_HighHeels.HighHeelsKeys.Any(Function(pf) hh1.EndsWith(pf.Key, StringComparison.CurrentCultureIgnoreCase)) Then
+                    HighHeelHeight = WM_HighHeels.HighHeelsKeys.OrderByDescending(Function(pf) pf.Key.Length).First(Function(pf) hh1.EndsWith(pf.Key, StringComparison.CurrentCultureIgnoreCase)).Value
                     Exit Sub
                 End If
                 If IO.File.Exists(hh2) Then HighHeelHeight = ReadHighHeelTXT(hh2) : Exit Sub
@@ -2239,8 +2146,8 @@ Public Class SliderSet_Class
     End Sub
     Public Function Multisize() As Boolean
         If Config_App.Current.Game = Config_App.Game_Enum.Fallout4 Then Return False
-        If Config_App.Current.Settings_Build.IgnoreWeightsFlags = False Then Return Me.GenWeights
-        Return Config_App.Current.Settings_Build.ForceWeights
+        If WM_Config.Current.Settings_Build.IgnoreWeightsFlags = False Then Return Me.GenWeights
+        Return WM_Config.Current.Settings_Build.ForceWeights
     End Function
 
     ''' <summary>Returns True if the HH file was written, False if deleted, Nothing if no action taken.</summary>
@@ -2253,7 +2160,7 @@ Public Class SliderSet_Class
                     If IO.File.Exists(hhfile) Then IO.File.Delete(hhfile)
                     result = False
                 Else
-                    If Config_App.Current.Settings_Build.SaveHHS Then
+                    If WM_Config.Current.Settings_Build.SaveHHS Then
                         Dim writer = IO.File.CreateText(hhfile)
                         writer.WriteLine("Height=" + HighHeelHeight.ToString(System.Globalization.CultureInfo.InvariantCulture))
                         writer.Flush()
@@ -2265,7 +2172,7 @@ Public Class SliderSet_Class
                 For sizecount = 0 To IIf(Multisize, 1, 0)
                     Dim fil = OutputFullPathBase + If(Multisize(), "_" + sizecount.ToString, "") + ".nif"
                     Dim NIF As New Nifcontent_Class_Manolo
-                    If Config_App.Current.Settings_Build.SaveHHS OrElse Config_App.Current.Settings_Build.DeleteUnbuilt Then
+                    If WM_Config.Current.Settings_Build.SaveHHS OrElse WM_Config.Current.Settings_Build.DeleteUnbuilt Then
                         If IsNothing(NifSource) Then
                             NIF.Load(fil)
                         Else
@@ -2284,7 +2191,7 @@ Public Class SliderSet_Class
                         Next
                         NIF.RemoveUnreferencedBlocks()
                     End If
-                    If HighHeelHeight > 0 AndAlso Config_App.Current.Settings_Build.SaveHHS Then
+                    If HighHeelHeight > 0 AndAlso WM_Config.Current.Settings_Build.SaveHHS Then
                         For Each firs In NIF.GetShapes
                             If Not IsNothing(firs) Then
                                 Try
@@ -2577,7 +2484,7 @@ Public Class SliderSet_Class
         If IO.File.Exists(Legacy_Osd) Then IO.File.Delete(Legacy_Osd)
         If IO.File.Exists(Legacy_htt) Then IO.File.Delete(Legacy_htt)
 
-        If Config_App.Current.Settings_Build.DeleteWithProject Then
+        If WM_Config.Current.Settings_Build.DeleteWithProject Then
             If IO.File.Exists(Built_htt) Then IO.File.Delete(Built_htt)
             If IO.File.Exists(Built_Tri) Then IO.File.Delete(Built_Tri)
             FilesDictionary_class.RemoveDictionaryEntry(IO.Path.GetRelativePath(Directorios.Fallout4data, Built_htt).Correct_Path_Separator)
@@ -2672,6 +2579,8 @@ Public Class SliderSet_Class
 
 End Class
 Public Class Shape_class
+    Implements IRenderableShape
+
     Public Property Nodo As XmlNode
     Public Property ParentSliderSet As SliderSet_Class
     Public Property MorphDiffs() As Dictionary(Of String, List(Of MorphData))
@@ -2689,7 +2598,60 @@ Public Class Shape_class
         ParentSliderSet = Sliderset
     End Sub
 
-    Public ReadOnly Property HasPhysics As Boolean
+    ' --- IRenderableShape Implementation ---
+    Public ReadOnly Property IR_ShapeName As String Implements IRenderableShape.ShapeName
+        Get
+            Return Nombre
+        End Get
+    End Property
+    Public ReadOnly Property IR_ShapeTarget As String Implements IRenderableShape.ShapeTarget
+        Get
+            Return Target
+        End Get
+    End Property
+    Public ReadOnly Property IR_ShapeIndex As Integer Implements IRenderableShape.ShapeIndex
+        Get
+            Return ParentSliderSet.Shapes.IndexOf(Me)
+        End Get
+    End Property
+    Public ReadOnly Property IR_NifContent As Nifcontent_Class_Manolo Implements IRenderableShape.NifContent
+        Get
+            Return ParentSliderSet.NIFContent
+        End Get
+    End Property
+    Public ReadOnly Property IR_NifShape As BSTriShape Implements IRenderableShape.NifShape
+        Get
+            Return RelatedNifShape
+        End Get
+    End Property
+    Public ReadOnly Property IR_NifSkin As INiSkin Implements IRenderableShape.NifSkin
+        Get
+            Return RelatedNifSkin
+        End Get
+    End Property
+    Public ReadOnly Property IR_NifShader As INiShader Implements IRenderableShape.NifShader
+        Get
+            Return RelatedNifShader
+        End Get
+    End Property
+    Public ReadOnly Property IR_ShapeBones As IReadOnlyList(Of NiNode) Implements IRenderableShape.ShapeBones
+        Get
+            Return RelatedBones
+        End Get
+    End Property
+    Public ReadOnly Property IR_ShapeBoneTransforms As IReadOnlyList(Of Transform_Class) Implements IRenderableShape.ShapeBoneTransforms
+        Get
+            Return RelatedBoneTransforms
+        End Get
+    End Property
+    Public ReadOnly Property IR_ShapeMaterial As Nifcontent_Class_Manolo.RelatedMaterial_Class Implements IRenderableShape.ShapeMaterial
+        Get
+            Return RelatedMaterial
+        End Get
+    End Property
+    ' --- End IRenderableShape Implementation ---
+
+    Public ReadOnly Property HasPhysics As Boolean Implements IRenderableShape.HasPhysics
         Get
             ' SSE can have BSClothExtraData (vanilla Havok) AND/OR sidecar HDT-SMP XML
             If Not String.IsNullOrEmpty(ParentSliderSet.PhysicsXmlContent) Then Return True
@@ -2738,7 +2700,7 @@ Public Class Shape_class
         End Get
     End Property
 
-    Public ReadOnly Property IsSkinned As Boolean
+    Public ReadOnly Property IsSkinned As Boolean Implements IRenderableShape.IsSkinned
         Get
             If IsNothing(RelatedNifShape) Then Return False
             Return RelatedNifShape.IsSkinned
@@ -2753,17 +2715,17 @@ Public Class Shape_class
 
 
 
-    Public Property ShowTexture As Boolean = True
-    Public Property ShowMask As Boolean = False
-    Public Property ShowWeight As Boolean = False
-    Public Property ShowVertexColor As Boolean = False
-    Public Property RenderHide As Boolean = False
-    Public Property ApplyZaps As Boolean = True
-    Public Property Wireframe As Boolean = False
-    Public Property Wirecolor As Color = Color.LightGray ' Color Malla
-    Public Property WireAlpha As Single = 0.5 ' Alpha Malla
-    Public Property TintColor As Color = Color.White ' TINTE
-    Public Property MaskedVertices As New HashSet(Of Integer)()
+    Public Property ShowTexture As Boolean = True Implements IRenderableShape.ShowTexture
+    Public Property ShowMask As Boolean = False Implements IRenderableShape.ShowMask
+    Public Property ShowWeight As Boolean = False Implements IRenderableShape.ShowWeight
+    Public Property ShowVertexColor As Boolean = False Implements IRenderableShape.ShowVertexColor
+    Public Property RenderHide As Boolean = False Implements IRenderableShape.RenderHide
+    Public Property ApplyZaps As Boolean = True Implements IRenderableShape.ApplyZaps
+    Public Property Wireframe As Boolean = False Implements IRenderableShape.Wireframe
+    Public Property Wirecolor As Color = Color.LightGray Implements IRenderableShape.Wirecolor ' Color Malla
+    Public Property WireAlpha As Single = 0.5 Implements IRenderableShape.WireAlpha ' Alpha Malla
+    Public Property TintColor As Color = Color.White Implements IRenderableShape.TintColor ' TINTE
+    Public Property MaskedVertices As New HashSet(Of Integer)() Implements IRenderableShape.MaskedVertices
 
     Public ReadOnly Property RelatedMaterial As Nifcontent_Class_Manolo.RelatedMaterial_Class
         Get
@@ -2920,7 +2882,7 @@ Public Class Slider_class
         End Set
     End Property
 
-    Public Property Default_Setting(size As Config_App.SliderSize) As Single
+    Public Property Default_Setting(size As WM_Config.SliderSize) As Single
         Get
             If Config_App.Current.Game = Config_App.Game_Enum.Fallout4 Then
                 Return Default_Setting_FO
@@ -2950,16 +2912,16 @@ Public Class Slider_class
             Nodo.Attributes("default").Value = value.ToString(System.Globalization.CultureInfo.InvariantCulture)
         End Set
     End Property
-    Public Property Default_Setting_SSE(size As Config_App.SliderSize) As Single
+    Public Property Default_Setting_SSE(size As WM_Config.SliderSize) As Single
         Get
-            If size = Config_App.SliderSize.Small Then
+            If size = WM_Config.SliderSize.Small Then
                 Return Default_Small_Value
             Else
                 Return Default_Big_Value
             End If
         End Get
         Set(value As Single)
-            If size = Config_App.SliderSize.Small Then
+            If size = WM_Config.SliderSize.Small Then
                 Default_Small_Value = value
             Else
                 Default_Big_Value = value

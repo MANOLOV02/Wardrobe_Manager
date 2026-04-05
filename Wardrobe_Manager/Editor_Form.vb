@@ -1,4 +1,4 @@
-﻿' Version Uploaded of Wardrobe 3.1.0
+﻿' Version Uploaded of Wardrobe 3.2.0
 Imports System.ComponentModel
 Imports System.Diagnostics.Eventing.Reader
 Imports System.Globalization
@@ -219,7 +219,7 @@ Public Class Editor_Form
         Selected_Preset.Sliders.Clear()
 
         ' De las categorias
-        For Each Cat In FilesDictionary_class.SliderPresets.Categories
+        For Each Cat In WM_SliderPresets.Categories
             For Each slid In Cat.Value
                 For x = 0 To 2
                     Dim sli As New PresetSlider_Class With {.Name = slid(0), .DisplayName = slid(1), .Value = 0, .Category = Cat.Key, .Size = x}
@@ -239,11 +239,11 @@ Public Class Editor_Form
             For Each slid In Selected_Slider.Sliders
                 Dim matches As List(Of PresetSlider_Class) = Nothing
                 If presetLookup.TryGetValue(slid.Nombre, matches) Then
-                    Dim sli0 = matches.FirstOrDefault(Function(s) s.Size = Config_App.SliderSize.Default)
-                    If Not IsNothing(sli0) Then sli0.Value = slid.Default_Setting(Config_App.SliderSize.Default)
-                    Dim sliB = matches.FirstOrDefault(Function(s) s.Size = Config_App.SliderSize.Big)
+                    Dim sli0 = matches.FirstOrDefault(Function(s) s.Size = WM_Config.SliderSize.Default)
+                    If Not IsNothing(sli0) Then sli0.Value = slid.Default_Setting(WM_Config.SliderSize.Default)
+                    Dim sliB = matches.FirstOrDefault(Function(s) s.Size = WM_Config.SliderSize.Big)
                     If Not IsNothing(sliB) Then sliB.Value = slid.Default_Big_Value
-                    Dim sliS = matches.FirstOrDefault(Function(s) s.Size = Config_App.SliderSize.Small)
+                    Dim sliS = matches.FirstOrDefault(Function(s) s.Size = WM_Config.SliderSize.Small)
                     If Not IsNothing(sliS) Then sliS.Value = slid.Default_Small_Value
                 Else
                     Dim sli As New PresetSlider_Class With {.Name = slid.Nombre, .DisplayName = slid.Nombre, .Value = slid.Default_Setting(Selected_size), .Category = nif_cat, .Size = Selected_size}
@@ -255,22 +255,22 @@ Public Class Editor_Form
 
         ' Del Preset
         If ComboBoxPresets.SelectedIndex <> -1 Then
-            Dim Selected_Combo_Preset = FilesDictionary_class.SliderPresets.Presets(ComboBoxPresets.Items(ComboBoxPresets.SelectedIndex))
+            Dim Selected_Combo_Preset = WM_SliderPresets.Presets(ComboBoxPresets.Items(ComboBoxPresets.SelectedIndex))
             Selected_Preset.Name = Selected_Combo_Preset.Name
             Selected_Preset.GroupNames = Selected_Combo_Preset.GroupNames.ToList
             Selected_Preset.SetName = Selected_Combo_Preset.SetName
-            Dim nodefault = Not Selected_Combo_Preset.Sliders.Any(Function(pf) pf.Size = Config_App.SliderSize.Default)
-            Dim nobig = Not Selected_Combo_Preset.Sliders.Any(Function(pf) pf.Size = Config_App.SliderSize.Big)
-            Dim nosmall = Not Selected_Combo_Preset.Sliders.Any(Function(pf) pf.Size = Config_App.SliderSize.Small)
+            Dim nodefault = Not Selected_Combo_Preset.Sliders.Any(Function(pf) pf.Size = WM_Config.SliderSize.Default)
+            Dim nobig = Not Selected_Combo_Preset.Sliders.Any(Function(pf) pf.Size = WM_Config.SliderSize.Big)
+            Dim nosmall = Not Selected_Combo_Preset.Sliders.Any(Function(pf) pf.Size = WM_Config.SliderSize.Small)
             For Each slid In Selected_Combo_Preset.Sliders
                 Dim matches As List(Of PresetSlider_Class) = Nothing
                 If presetLookup.TryGetValue(slid.Name, matches) Then
-                    Dim sli0 = matches.FirstOrDefault(Function(s) s.Size = Config_App.SliderSize.Default)
-                    If Not IsNothing(sli0) AndAlso slid.Size = Define_cual_size(Config_App.SliderSize.Default, nodefault, nobig, nosmall) Then sli0.Value = slid.Value
-                    Dim sliB = matches.FirstOrDefault(Function(s) s.Size = Config_App.SliderSize.Big)
-                    If Not IsNothing(sliB) AndAlso slid.Size = Define_cual_size(Config_App.SliderSize.Big, nodefault, nobig, nosmall) Then sliB.Value = slid.Value
-                    Dim sliS = matches.FirstOrDefault(Function(s) s.Size = Config_App.SliderSize.Small)
-                    If Not IsNothing(sliS) AndAlso slid.Size = Define_cual_size(Config_App.SliderSize.Small, nodefault, nobig, nosmall) Then sliS.Value = slid.Value
+                    Dim sli0 = matches.FirstOrDefault(Function(s) s.Size = WM_Config.SliderSize.Default)
+                    If Not IsNothing(sli0) AndAlso slid.Size = Define_cual_size(WM_Config.SliderSize.Default, nodefault, nobig, nosmall) Then sli0.Value = slid.Value
+                    Dim sliB = matches.FirstOrDefault(Function(s) s.Size = WM_Config.SliderSize.Big)
+                    If Not IsNothing(sliB) AndAlso slid.Size = Define_cual_size(WM_Config.SliderSize.Big, nodefault, nobig, nosmall) Then sliB.Value = slid.Value
+                    Dim sliS = matches.FirstOrDefault(Function(s) s.Size = WM_Config.SliderSize.Small)
+                    If Not IsNothing(sliS) AndAlso slid.Size = Define_cual_size(WM_Config.SliderSize.Small, nodefault, nobig, nosmall) Then sliS.Value = slid.Value
                 Else
                     Dim sli As New PresetSlider_Class With {.Name = slid.Name, .DisplayName = slid.Name, .Value = slid.Value, .Category = Slid_cat, .Size = slid.Size}
                     Selected_Preset.Sliders.Add(sli)
@@ -283,23 +283,23 @@ Public Class Editor_Form
         Habilita_Preset_Botones(False)
         Pone_SLiders()
     End Sub
-    Private Function Define_cual_size(target As Config_App.SliderSize, nodefault As Boolean, nobig As Boolean, nosmall As Boolean) As Config_App.SliderSize
+    Private Function Define_cual_size(target As WM_Config.SliderSize, nodefault As Boolean, nobig As Boolean, nosmall As Boolean) As WM_Config.SliderSize
         Select Case target
-            Case Config_App.SliderSize.Default
-                If nodefault = False Then Return Config_App.SliderSize.Default
-                If nobig = False Then Return Config_App.SliderSize.Big
-                If nosmall = False Then Return Config_App.SliderSize.Small
-                Return Config_App.SliderSize.Default
-            Case Config_App.SliderSize.Big
-                If nobig = False Then Return Config_App.SliderSize.Big
-                If nodefault = False Then Return Config_App.SliderSize.Default
-                If nosmall = False Then Return Config_App.SliderSize.Small
-                Return Config_App.SliderSize.Big
-            Case Config_App.SliderSize.Small
-                If nosmall = False Then Return Config_App.SliderSize.Small
-                If nodefault = False Then Return Config_App.SliderSize.Default
-                If nobig = False Then Return Config_App.SliderSize.Big
-                Return Config_App.SliderSize.Small
+            Case WM_Config.SliderSize.Default
+                If nodefault = False Then Return WM_Config.SliderSize.Default
+                If nobig = False Then Return WM_Config.SliderSize.Big
+                If nosmall = False Then Return WM_Config.SliderSize.Small
+                Return WM_Config.SliderSize.Default
+            Case WM_Config.SliderSize.Big
+                If nobig = False Then Return WM_Config.SliderSize.Big
+                If nodefault = False Then Return WM_Config.SliderSize.Default
+                If nosmall = False Then Return WM_Config.SliderSize.Small
+                Return WM_Config.SliderSize.Big
+            Case WM_Config.SliderSize.Small
+                If nosmall = False Then Return WM_Config.SliderSize.Small
+                If nodefault = False Then Return WM_Config.SliderSize.Default
+                If nobig = False Then Return WM_Config.SliderSize.Big
+                Return WM_Config.SliderSize.Small
         End Select
         Return target
     End Function
@@ -455,16 +455,16 @@ Public Class Editor_Form
         Next
     End Sub
 
-    Private Selected_size As Config_App.SliderSize
+    Private Selected_size As WM_Config.SliderSize
 
     ''' <summary>
     ''' Resolves the effective slider size for the current game.
     ''' FO4: Default is Default (fallback to Big handled at preset lookup).
     ''' SSE: Default IS Big (SSE presets don't use Default). Small only when explicit.
     ''' </summary>
-    Private Shared Function EffectiveSize(size As Config_App.SliderSize) As Config_App.SliderSize
-        If Config_App.Current.Game = Config_App.Game_Enum.Skyrim AndAlso size = Config_App.SliderSize.Default Then
-            Return Config_App.SliderSize.Big
+    Private Shared Function EffectiveSize(size As WM_Config.SliderSize) As WM_Config.SliderSize
+        If Config_App.Current.Game = Config_App.Game_Enum.Skyrim AndAlso size = WM_Config.SliderSize.Default Then
+            Return WM_Config.SliderSize.Big
         End If
         Return size
     End Function
@@ -484,13 +484,13 @@ Public Class Editor_Form
         CheckBoxPreventMorph.Checked = clone.PreventMorphFile
         CheckBoxGenweight.Checked = clone.GenWeights
         Label34.Visible = CheckBox2.Checked AndAlso Config_App.Current.Game = Config_App.Game_Enum.Skyrim
-        ComboBoxSize.SelectedIndex = Config_App.Current.Bodytipe
-        Selected_size = EffectiveSize(Config_App.Current.Bodytipe)
+        ComboBoxSize.SelectedIndex = WM_Config.Current.Bodytipe
+        Selected_size = EffectiveSize(WM_Config.Current.Bodytipe)
         Selected_Slider = clone
         ComboBoxPresets.Items.Clear()
         ComboBoxPoses.Items.Clear()
-        ComboBoxPresets.Items.AddRange(FilesDictionary_class.SliderPresets.Presets.Select(Function(pf) pf.Key).Order.ToArray)
-        ComboBoxPoses.Items.AddRange(FilesDictionary_class.SliderPresets.Poses.Select(Function(pf) pf.Key).Order.ToArray)
+        ComboBoxPresets.Items.AddRange(WM_SliderPresets.Presets.Select(Function(pf) pf.Key).Order.ToArray)
+        ComboBoxPoses.Items.AddRange(WM_SliderPresets.Poses.Select(Function(pf) pf.Key).Order.ToArray)
         Dim idx = ComboBoxPresets.FindString(Preset)
         Dim idx2 = ComboBoxPoses.FindString(Pose)
         If idx <> -1 Then ComboBoxPresets.SelectedIndex = idx Else ComboBoxPresets.SelectedIndex = 0
@@ -925,7 +925,7 @@ Public Class Editor_Form
                 For Each mesh In EditPreviewControl.Model.meshes
                     If Not IsNothing(mesh.MeshData.Meshgeometry) Then Continue For
                     If mesh.MeshData.Shape Is Nothing Then Continue For
-                    If Not msnChangedShapes.Contains(mesh.MeshData.Shape.Nombre) Then Continue For
+                    If Not msnChangedShapes.Contains(mesh.MeshData.Shape.ShapeName) Then Continue For
                     SkinningHelper.InjectNormalsToTrishape(mesh.MeshData.Meshgeometry)
                 Next
             End If
@@ -1572,18 +1572,18 @@ Public Class Editor_Form
 
     Private Sub Buttonsave_Click(sender As Object, e As EventArgs) Handles ButtonSavePreset.Click
         Dim nombre = ComboBoxPresets.SelectedItem.ToString
-        Dim filename = FilesDictionary_class.SliderPresets.Presets(nombre).Filename
+        Dim filename = WM_SliderPresets.Presets(nombre).Filename
         If nombre <> "" Then
             SavePresetXml(filename, nombre, False)
         End If
     End Sub
-    Private Function Size_to_str(Size As Config_App.SliderSize) As String
+    Private Function Size_to_str(Size As WM_Config.SliderSize) As String
         Select Case Size
-            Case Config_App.SliderSize.Big
+            Case WM_Config.SliderSize.Big
                 Return "big"
-            Case Config_App.SliderSize.Small
+            Case WM_Config.SliderSize.Small
                 Return "small"
-            Case Config_App.SliderSize.Default
+            Case WM_Config.SliderSize.Default
                 Return "default"
         End Select
         Return "big"
@@ -1591,8 +1591,8 @@ Public Class Editor_Form
     Public Function SavePresetXml(path As String, Nombre As String, delete As Boolean) As Boolean
         Try
             If delete = False Then
-                If FilesDictionary_class.SliderPresets.Presets.ContainsKey(Nombre) Then
-                    If FilesDictionary_class.SliderPresets.Presets(Nombre).Filename.Equals(path, StringComparison.OrdinalIgnoreCase) Then
+                If WM_SliderPresets.Presets.ContainsKey(Nombre) Then
+                    If WM_SliderPresets.Presets(Nombre).Filename.Equals(path, StringComparison.OrdinalIgnoreCase) Then
                         If MsgBox("Preset " + Nombre + " already exist. Do you want to ovewrite?", vbYesNo, "Warning") = MsgBoxResult.No Then Return False
                     Else
                         MsgBox("Preset " + Nombre + " already exist in another file ", vbCritical, "Warning")
@@ -1650,13 +1650,13 @@ Public Class Editor_Form
 
 
             If delete Then
-                FilesDictionary_class.SliderPresets.Presets.Remove(Nombre)
+                WM_SliderPresets.Presets.Remove(Nombre)
                 ComboBoxPresets.Items.Remove(Nombre)
                 If ComboBoxPresets.Items.Count > 0 Then ComboBoxPresets.SelectedIndex = 0
             Else
                 Dim cloned As SlidersPreset_Class = SliderPresetCollection.Clone(Selected_Preset, path, Nombre)
-                If FilesDictionary_class.SliderPresets.Presets.TryAdd(Nombre, cloned) = False Then
-                    FilesDictionary_class.SliderPresets.Presets(Nombre) = cloned
+                If WM_SliderPresets.Presets.TryAdd(Nombre, cloned) = False Then
+                    WM_SliderPresets.Presets(Nombre) = cloned
                 Else
                     ComboBoxPresets.Items.Add(Nombre)
                 End If
@@ -1680,9 +1680,9 @@ Public Class Editor_Form
             Dim KeynameActual As String = Poses_class.KeyName(Nombre, tipo)
 
             If delete = False Then
-                If FilesDictionary_class.SliderPresets.Poses.ContainsKey(Keyname) OrElse FilesDictionary_class.SliderPresets.Poses.ContainsKey(KeynameBS) Then
-                    Dim foundKey = If(FilesDictionary_class.SliderPresets.Poses.ContainsKey(Keyname), Keyname, KeynameBS)
-                    If FilesDictionary_class.SliderPresets.Poses(foundKey).Filename.Equals(path, StringComparison.OrdinalIgnoreCase) Then
+                If WM_SliderPresets.Poses.ContainsKey(Keyname) OrElse WM_SliderPresets.Poses.ContainsKey(KeynameBS) Then
+                    Dim foundKey = If(WM_SliderPresets.Poses.ContainsKey(Keyname), Keyname, KeynameBS)
+                    If WM_SliderPresets.Poses(foundKey).Filename.Equals(path, StringComparison.OrdinalIgnoreCase) Then
                         If MsgBox("Pose " + Nombre + " already exist. Do you want to ovewrite?", vbYesNo, "Warning") = MsgBoxResult.No Then Return False
                     Else
                         MsgBox("Pose " + Nombre + " already exist in another file ", vbCritical, "Warning")
@@ -1759,7 +1759,7 @@ Public Class Editor_Form
             If Not delete AndAlso CheckBoxSaveSAF.Checked Then SafExported = ExportSaf(Nombre)
 
             If delete Or KeynameActual <> Keyname Then
-                FilesDictionary_class.SliderPresets.Poses.Remove(KeynameActual)
+                WM_SliderPresets.Poses.Remove(KeynameActual)
                 ComboBoxPoses.Items.Remove(KeynameActual)
                 If delete Then If ComboBoxPoses.Items.Count > 0 Then ComboBoxPoses.SelectedIndex = 0
             End If
@@ -1768,8 +1768,8 @@ Public Class Editor_Form
                 Dim cloned As Poses_class = Selected_Pose.Clone
                 cloned.Filename = path
                 cloned.Name = Nombre
-                If FilesDictionary_class.SliderPresets.Poses.TryAdd(Keyname, cloned) = False Then
-                    FilesDictionary_class.SliderPresets.Poses(Keyname) = cloned
+                If WM_SliderPresets.Poses.TryAdd(Keyname, cloned) = False Then
+                    WM_SliderPresets.Poses(Keyname) = cloned
                 Else
                     ComboBoxPoses.Items.Add(Keyname)
                 End If
@@ -1827,8 +1827,8 @@ Public Class Editor_Form
             ' 2) Escribir el JSON en disco (sobrescribe o crea el archivo en xmlpath)
             IO.File.WriteAllText(Export.Filename, jsonOut)
             Dim Keyname = Poses_class.KeyName(Nombre, Poses_class.Pose_Source_Enum.ScreenArcher)
-            If FilesDictionary_class.SliderPresets.Poses.TryAdd(Keyname, Export) = False Then
-                FilesDictionary_class.SliderPresets.Poses(Keyname) = Export
+            If WM_SliderPresets.Poses.TryAdd(Keyname, Export) = False Then
+                WM_SliderPresets.Poses(Keyname) = Export
             Else
                 ComboBoxPoses.Items.Add(Keyname)
             End If
@@ -1848,7 +1848,7 @@ Public Class Editor_Form
 
     Private Sub Button10_Click(sender As Object, e As EventArgs) Handles ButtondelPreset.Click
         Dim nombre = ComboBoxPresets.SelectedItem.ToString
-        Dim filename = FilesDictionary_class.SliderPresets.Presets(nombre).Filename
+        Dim filename = WM_SliderPresets.Presets(nombre).Filename
         If nombre <> "" Then
             SavePresetXml(filename, nombre, True)
         End If
@@ -2139,7 +2139,7 @@ Public Class Editor_Form
             Selected_Pose = Nothing
             ComboSelected_Pose = Nothing
         Else
-            ComboSelected_Pose = FilesDictionary_class.SliderPresets.Poses(ComboBoxPoses.SelectedItem.ToString)
+            ComboSelected_Pose = WM_SliderPresets.Poses(ComboBoxPoses.SelectedItem.ToString)
             Selected_Pose = ComboSelected_Pose.Clone
         End If
         Selected_Pose_Transform = Nothing
@@ -2157,7 +2157,7 @@ Public Class Editor_Form
 
         ' Esta llamada es exigida por el dise�ador.
         InitializeComponent()
-        CheckBoxSaveSAF.Checked = Config_App.Current.Setting_ExportSam
+        CheckBoxSaveSAF.Checked = WM_Config.Current.Setting_ExportSam
         CheckBoxRenderFloor.Checked = Config_App.Current.Settings_RenderGrid.Enabled
         'ThemeManager.SetTheme(Config_App.Current.theme, Me)
         ' Agregue cualquier inicializaci�n despu�s de la llamada a InitializeComponent().
@@ -2265,7 +2265,7 @@ Public Class Editor_Form
         If MsgBox("Are you sure you want to bake the pose in the mesh. This will modify the nif vertex positions", vbYesNo, "Warning") = MsgBoxResult.Yes Then
             EditPreviewControl.Model.BakeOrInvertPose(False)
             Process_render_Changes(True)
-            Dim None_key1 = FilesDictionary_class.SliderPresets.Poses.FirstOrDefault(Function(pf) pf.Value.Source = Poses_class.Pose_Source_Enum.None).Key
+            Dim None_key1 = WM_SliderPresets.Poses.FirstOrDefault(Function(pf) pf.Value.Source = Poses_class.Pose_Source_Enum.None).Key
             If None_key1 IsNot Nothing Then ComboBoxPoses.SelectedIndex = ComboBoxPoses.Items.IndexOf(None_key1)
         End If
     End Sub
@@ -2274,7 +2274,7 @@ Public Class Editor_Form
         If MsgBox("Are you sure you want to bake the pose in the shape. This will modify the shape vertex positions", vbYesNo, "Warning") = MsgBoxResult.Yes Then
             EditPreviewControl.Model.BakeOrInvertPose(Selected_Shape, False)
             Process_render_Changes(True)
-            Dim None_key2 = FilesDictionary_class.SliderPresets.Poses.FirstOrDefault(Function(pf) pf.Value.Source = Poses_class.Pose_Source_Enum.None).Key
+            Dim None_key2 = WM_SliderPresets.Poses.FirstOrDefault(Function(pf) pf.Value.Source = Poses_class.Pose_Source_Enum.None).Key
             If None_key2 IsNot Nothing Then ComboBoxPoses.SelectedIndex = ComboBoxPoses.Items.IndexOf(None_key2)
         End If
     End Sub
@@ -2343,7 +2343,7 @@ Public Class Editor_Form
 
     Private Sub CheckBoxSaveSAF_CheckedChanged(sender As Object, e As EventArgs) Handles CheckBoxSaveSAF.CheckedChanged
         If IsNothing(Selected_Slider) Then Exit Sub
-        Config_App.Current.Setting_ExportSam = CheckBoxSaveSAF.Checked
+        WM_Config.Current.Setting_ExportSam = CheckBoxSaveSAF.Checked
 
     End Sub
 

@@ -22,7 +22,7 @@
 '  You should have received a copy of the GNU General Public License
 '  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 ' -----------------------------------------------------------------------------
-' Version Uploaded of Wardrobe 3.1.0
+' Version Uploaded of Wardrobe 3.2.0
 Imports System.Collections.Concurrent
 Imports System.ComponentModel
 Imports System.IO
@@ -58,7 +58,7 @@ Public Class Wardrobe_Manager_Form
 
         Public Shared ReadOnly Property SliderPresetsRoot As String
             Get
-                Return IO.Path.Combine(Config_App.Current.BsPath, "SliderPresets")
+                Return IO.Path.Combine(WM_Config.BsPath, "SliderPresets")
             End Get
         End Property
         Public Shared ReadOnly Property PosesSAMRoot As String
@@ -68,7 +68,7 @@ Public Class Wardrobe_Manager_Form
         End Property
         Public Shared ReadOnly Property PosesBSRoot As String
             Get
-                Return IO.Path.Combine(Config_App.Current.BsPath, "PoseData")
+                Return IO.Path.Combine(WM_Config.BsPath, "PoseData")
             End Get
         End Property
         Public Shared ReadOnly Property LooksMenuBSSliders As String
@@ -84,30 +84,30 @@ Public Class Wardrobe_Manager_Form
 
         Public Shared ReadOnly Property SliderSetsRoot As String
             Get
-                Return IO.Path.Combine(Config_App.Current.BsPath, "SliderSets")
+                Return IO.Path.Combine(WM_Config.BsPath, "SliderSets")
             End Get
         End Property
         Public Shared ReadOnly Property CBBESliderCategories As String
             Get
-                Return IO.Path.Combine(Config_App.Current.BsPath, "SliderCategories")
+                Return IO.Path.Combine(WM_Config.BsPath, "SliderCategories")
             End Get
         End Property
         Public Shared ReadOnly Property SkeletonPath As String
             Get
                 If Config_App.Current.SkeletonPath = "" Then
-                    Return IO.Path.Combine(Config_App.Current.BsPath, "res\skeleton_fo4.nif")
+                    Return IO.Path.Combine(WM_Config.BsPath, "res\skeleton_fo4.nif")
                 End If
                 Return Config_App.Current.SkeletonPath
             End Get
         End Property
         Public Shared ReadOnly Property SliderSets_Processed As String
             Get
-                Return IO.Path.Combine(Config_App.Current.BsPath, "SliderSets\Procesados")
+                Return IO.Path.Combine(WM_Config.BsPath, "SliderSets\Procesados")
             End Get
         End Property
         Public Shared ReadOnly Property SliderSets_Discarded As String
             Get
-                Return IO.Path.Combine(Config_App.Current.BsPath, "SliderSets\Descartados")
+                Return IO.Path.Combine(WM_Config.BsPath, "SliderSets\Descartados")
             End Get
         End Property
         Public Shared ReadOnly Property HighHeels_Plugin As String
@@ -117,7 +117,7 @@ Public Class Wardrobe_Manager_Form
         End Property
         Public Shared ReadOnly Property ShapedataRoot As String
             Get
-                Return IO.Path.Combine(Config_App.Current.BsPath, "ShapeData\")
+                Return IO.Path.Combine(WM_Config.BsPath, "ShapeData\")
             End Get
         End Property
         Public Shared ReadOnly Property SharedTexturesPath As String
@@ -433,12 +433,12 @@ Public Class Wardrobe_Manager_Form
             ' Limpiar UI
             ListViewSources.Items.Clear()
             ComboboxPacks.Items.Clear()
-            FilesDictionary_class.SliderPresets.Presets.Clear()
-            FilesDictionary_class.SliderPresets.Poses.Clear()
-            FilesDictionary_class.SliderPresets.LoadCategories(Directorios.CBBESliderCategories)
-            FilesDictionary_class.SliderPresets.LoadDefaultPose()
-            FilesDictionary_class.SliderPresets.LoadPosesSAM(Directorios.PosesSAMRoot)
-            FilesDictionary_class.SliderPresets.LoadPosesBS(Directorios.PosesBSRoot)
+            WM_SliderPresets.Presets.Clear()
+            WM_SliderPresets.Poses.Clear()
+            WM_SliderPresets.LoadCategories(Directorios.CBBESliderCategories)
+            WM_SliderPresets.LoadDefaultPose()
+            WM_SliderPresets.LoadPosesSAM(Directorios.PosesSAMRoot)
+            WM_SliderPresets.LoadPosesBS(Directorios.PosesBSRoot)
             Skeleton_Class.LoadSkeleton(False, False)
 
             OSP_Files.Clear()
@@ -454,11 +454,11 @@ Public Class Wardrobe_Manager_Form
             ProgressBar1.Value = 0
 
             For Each xm In filesPresets
-                FilesDictionary_class.SliderPresets.LoadFromXml(xm)
+                WM_SliderPresets.LoadFromXml(xm)
                 ProgressBar1.Value += 1
             Next
 
-            FilesDictionary_class.HighHeels_Plugin_Value.LoadFromDirectory()
+            WM_HighHeels.LoadFromDirectory()
 
             ' 2) Parsear en background SALVO DEEP CHECK
             Dim allOSPs = New ConcurrentBag(Of OSP_Project_Class)()
@@ -698,8 +698,8 @@ Public Class Wardrobe_Manager_Form
         ListView2.Items.Clear()
         Dim Selected_Combo_Preset As SlidersPreset_Class = Nothing
         Dim Selected_Combo_Pose As Poses_class = Nothing
-        If ComboBoxPresets.SelectedIndex <> -1 Then FilesDictionary_class.SliderPresets.Presets.TryGetValue(ComboBoxPresets.Items(ComboBoxPresets.SelectedIndex), Selected_Combo_Preset)
-        If ComboBoxPoses.SelectedIndex <> -1 Then FilesDictionary_class.SliderPresets.Poses.TryGetValue(ComboBoxPoses.Items(ComboBoxPoses.SelectedIndex), Selected_Combo_Pose)
+        If ComboBoxPresets.SelectedIndex <> -1 Then WM_SliderPresets.Presets.TryGetValue(ComboBoxPresets.Items(ComboBoxPresets.SelectedIndex), Selected_Combo_Preset)
+        If ComboBoxPoses.SelectedIndex <> -1 Then WM_SliderPresets.Poses.TryGetValue(ComboBoxPoses.Items(ComboBoxPoses.SelectedIndex), Selected_Combo_Pose)
 
         If IsNothing(Seleccionado) Then Exit Sub
         preview_Control.Model.FloorOffset = -Seleccionado.HighHeelHeight
@@ -1039,7 +1039,7 @@ Public Class Wardrobe_Manager_Form
         Try
             _ExternalEditSlider.Reload(DeepAnalize_check.Checked)
             If GetLatestExternalEditWriteTime(_ExternalEditSlider) > _ExternalEditLastOspWrite Then
-                If preview_Control.Model.Last_rendered Is _ExternalEditSlider Then
+                If preview_Control.WM_Last_rendered() Is _ExternalEditSlider Then
                     preview_Control.Model.Clean(False)
                     preview_Control.Model.CleanTextures()
                 End If
@@ -1066,7 +1066,7 @@ Public Class Wardrobe_Manager_Form
             Try
                 lockedSlider.Reload(DeepAnalize_check.Checked)
                 If GetLatestExternalEditWriteTime(lockedSlider) > _ExternalEditLastOspWrite Then
-                    If preview_Control.Model.Last_rendered Is lockedSlider Then
+                    If preview_Control.WM_Last_rendered() Is lockedSlider Then
                         preview_Control.Model.Clean(False)
                         preview_Control.Model.CleanTextures()
                     End If
@@ -1213,7 +1213,7 @@ Public Class Wardrobe_Manager_Form
 
         Strat.Arguments += "-proj" + " " + first + " " + second + " "
         Strat.Arguments = Strat.Arguments.Trim
-        Strat.FileName = Config_App.Current.OSExePath
+        Strat.FileName = WM_Config.Current.OSExePath
 
         Dim pr As Process = Process.Start(Strat)
         If Not IsNothing(pr) Then
@@ -1324,7 +1324,7 @@ Public Class Wardrobe_Manager_Form
 
     Private Sub ComboBoxPresets_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBoxPresets.SelectedIndexChanged
         If ComboBoxPresets.SelectedIndex <> -1 Then
-            Config_App.Current.Default_Preset = ComboBoxPresets.SelectedItem.ToString
+            WM_Config.Current.Default_Preset = ComboBoxPresets.SelectedItem.ToString
         End If
         RequestLeeShapes()
     End Sub
@@ -1431,8 +1431,8 @@ Public Class Wardrobe_Manager_Form
                 Merge_Part(target, Nothing, False)
             Next
             selected_target.Reload(DeepAnalize_check.Checked)
-            If preview_Control.Model.Last_rendered Is selected_target Then
-                preview_Control.Model.Last_rendered = Nothing
+            If preview_Control.WM_Last_rendered() Is selected_target Then
+                preview_Control.WM_Set_Last_rendered(Nothing)
             End If
         End If
         OSP_Project_Class.Default_Memory_Pause = False
@@ -1465,6 +1465,7 @@ Public Class Wardrobe_Manager_Form
 
     Private Sub Wardrobe_Manager_Form_FormClosing(sender As Object, e As FormClosingEventArgs) Handles Me.FormClosing
         Config_App.SaveConfig()
+        WM_Config.SaveConfig()
         If preview_Control IsNot Nothing Then
             preview_Control.Clean()
             preview_Control.Dispose()
@@ -1474,18 +1475,19 @@ Public Class Wardrobe_Manager_Form
     Private Sub Wardrobe_Manager_Form_Load(sender As Object, e As EventArgs) Handles Me.Load
         TypeDescriptor.AddProvider(New FO4UnifiedMaterialProvider(), GetType(FO4UnifiedMaterial_Class))
         Config_App.LoadConfig()
-        If Config_App.Check_All_Folder = False Then
+        WM_Config.LoadConfig()
+        If WM_Config.Check_All_Folder = False Then
             Dim Config As New Config_Form()
             Config.ShowDialog(Me)
         End If
         Config_App.Current.theme = AppTheme.Dark
         'ThemeManager.SetTheme(Config_App.Current.theme, Me)
 
-        If Config_App.Check_All_Folder = False Then End
+        If WM_Config.Check_All_Folder = False Then End
         Save_Shared()
         ColorComboBox1.Rellena()
         ColorComboBox1.SelectedColor = Config_App.Current.Setting_BackColor
-        ComboBoxSize.SelectedIndex = CInt(Config_App.Current.Bodytipe)
+        ComboBoxSize.SelectedIndex = CInt(WM_Config.Current.Bodytipe)
 
     End Sub
 
@@ -1523,7 +1525,7 @@ Public Class Wardrobe_Manager_Form
     Private Sub Build(que As SliderSet_Class())
 
         ' Borra primero 
-        If Config_App.Current.Settings_Build.DeleteUnbuilt = True Then
+        If WM_Config.Current.Settings_Build.DeleteUnbuilt = True Then
             For Each projecto In que
                 Dim fil = projecto.OutputFullPathBase
                 If fil.EndsWith(".nif", StringComparison.OrdinalIgnoreCase) = False Then fil += ".nif"
@@ -1536,7 +1538,7 @@ Public Class Wardrobe_Manager_Form
         End If
 
         ' Constuye por motor
-        If Config_App.Current.Settings_Build.OwnEngine Then
+        If WM_Config.Current.Settings_Build.OwnEngine Then
             BuildInternally(que)
         Else
             Build_WithBS(que)
@@ -1553,8 +1555,8 @@ Public Class Wardrobe_Manager_Form
     Private Sub BuildInternally(que As SliderSet_Class())
         Dim Selected_Combo_Preset As SlidersPreset_Class = Nothing
         Dim Selected_Combo_Pose As Poses_class = Nothing
-        If ComboBoxPresets.SelectedIndex <> -1 Then FilesDictionary_class.SliderPresets.Presets.TryGetValue(ComboBoxPresets.Items(ComboBoxPresets.SelectedIndex), Selected_Combo_Preset)
-        If ComboBoxPoses.SelectedIndex <> -1 Then FilesDictionary_class.SliderPresets.Poses.TryGetValue(ComboBoxPoses.Items(ComboBoxPoses.SelectedIndex), Selected_Combo_Pose)
+        If ComboBoxPresets.SelectedIndex <> -1 Then WM_SliderPresets.Presets.TryGetValue(ComboBoxPresets.Items(ComboBoxPresets.SelectedIndex), Selected_Combo_Preset)
+        If ComboBoxPoses.SelectedIndex <> -1 Then WM_SliderPresets.Poses.TryGetValue(ComboBoxPoses.Items(ComboBoxPoses.SelectedIndex), Selected_Combo_Pose)
         Dim Builder As New BuildingForm(que, Selected_Combo_Preset, Selected_Combo_Pose)
         Builder.ShowDialog()
 
@@ -1575,9 +1577,9 @@ Public Class Wardrobe_Manager_Form
             .WindowStyle = ProcessWindowStyle.Normal,
             .Arguments = ""
         }
-        Strat.Arguments += "/gbuild" + " " + first + " " + "/t" + " " + third + " " + " /p" + " " + second + IIf(Config_App.Current.Settings_Build.SaveTri, " /tri", "") + " "
+        Strat.Arguments += "/gbuild" + " " + first + " " + "/t" + " " + third + " " + " /p" + " " + second + IIf(WM_Config.Current.Settings_Build.SaveTri, " /tri", "") + " "
         Strat.Arguments = Strat.Arguments.Trim
-        Strat.FileName = Config_App.Current.BSExePath
+        Strat.FileName = WM_Config.Current.BSExePath
         Dim proc = Process.Start(Strat)
         If proc IsNot Nothing Then proc.WaitForExit()
 
@@ -1591,7 +1593,7 @@ Public Class Wardrobe_Manager_Form
         Dim nombre As String
         Dim idx As Integer = 0
         Dim TempOSDFile = IO.Path.Combine(Directorios.SliderSetsRoot, "Temp_WM_Builder.osp")
-        Dim TempGroupFile As String = IO.Path.Combine(Config_App.Current.BsPath, "SliderGroups\Temp_WM_Builder.xml")
+        Dim TempGroupFile As String = IO.Path.Combine(WM_Config.BsPath, "SliderGroups\Temp_WM_Builder.xml")
         Try
             If IO.File.Exists(TempOSDFile) Then IO.File.Delete(TempOSDFile)
             If IO.File.Exists(TempGroupFile) Then IO.File.Delete(TempGroupFile)
@@ -1640,9 +1642,9 @@ Public Class Wardrobe_Manager_Form
         If ComboBoxPresets.SelectedIndex <> -1 Then
             old_str = ComboBoxPresets.Items(ComboBoxPresets.SelectedIndex).ToString
         Else
-            old_str = Config_App.Current.Default_Preset
+            old_str = WM_Config.Current.Default_Preset
         End If
-        Dim ordered = FilesDictionary_class.SliderPresets.Presets.Keys.Order.ToArray
+        Dim ordered = WM_SliderPresets.Presets.Keys.Order.ToArray
         ComboBoxPresets.SuspendLayout()
         ComboBoxPresets.BeginUpdate()
         ComboBoxPresets.Items.Clear()
@@ -1664,7 +1666,7 @@ Public Class Wardrobe_Manager_Form
         Else
             old_str = "None (Wardrobe Manager pose)"
         End If
-        Dim ordered = FilesDictionary_class.SliderPresets.Poses.Keys.Order.ToArray
+        Dim ordered = WM_SliderPresets.Poses.Keys.Order.ToArray
         ComboBoxPoses.SuspendLayout()
         ComboBoxPoses.BeginUpdate()
         ComboBoxPoses.Items.Clear()
@@ -1718,7 +1720,7 @@ Public Class Wardrobe_Manager_Form
         Editor.RecalculateNormalsCheck.Checked = RecalculateNormalsCheck.Checked
         Dim resultado = Editor.ShowDialog(Me)
         If resultado <> DialogResult.Abort Then
-            If preview_Control.Model.Last_rendered Is selected Then
+            If preview_Control.WM_Last_rendered() Is selected Then
                 preview_Control.Model.Clean(False)
                 preview_Control.Model.CleanTextures()
             End If
@@ -1752,14 +1754,14 @@ Public Class Wardrobe_Manager_Form
         Empieza_Procesos(0)
         Dim old_game = Config_App.Current.Game
         Dim old_Data = Config_App.Current.FO4EDataPath
-        Dim old_OS = Config_App.Current.OSExePath
-        Dim old_BS = Config_App.Current.BSExePath
+        Dim old_OS = WM_Config.Current.OSExePath
+        Dim old_BS = WM_Config.Current.BSExePath
         Dim old_SK = Config_App.Current.SkeletonPath
 
         Dim Config As New Config_Form
         Dim Oldtheme = Config_App.Current.theme
         Config.ShowDialog(Me)
-        While Config_App.Check_All_Folder = False
+        While WM_Config.Check_All_Folder = False
             If MsgBox("Path error, Do you want to correct it or or exit?", vbYesNo, "Warning") = MsgBoxResult.No Then Me.Close() : Exit Sub
             Config.ShowDialog(Me)
         End While
@@ -1776,8 +1778,8 @@ Public Class Wardrobe_Manager_Form
         Dim reproces_dic As Boolean = False
         If old_game <> Config_App.Current.Game Then reproces_dic = True
         If old_Data <> Config_App.Current.FO4EDataPath Then reproces_dic = True
-        If old_OS <> Config_App.Current.OSExePath Then reproces_dic = True
-        If old_BS <> Config_App.Current.BSExePath Then reproces_dic = True
+        If old_OS <> WM_Config.Current.OSExePath Then reproces_dic = True
+        If old_BS <> WM_Config.Current.BSExePath Then reproces_dic = True
         If old_SK <> Config_App.Current.SkeletonPath Then reproces_dic = True
         CheckBoxReloadDict.Checked = reproces_dic
         Termina_Procesos()
@@ -1818,7 +1820,7 @@ Public Class Wardrobe_Manager_Form
 
     Private Sub Exclude_Reference_Checkbox_CheckedChanged(sender As Object, e As EventArgs) Handles Exclude_Reference_Checkbox.CheckedChanged
         If IsNothing(preview_Control) Then Exit Sub
-        Config_App.Current.Setting_ExcludeReference = Exclude_Reference_Checkbox.Checked
+        WM_Config.Current.Setting_ExcludeReference = Exclude_Reference_Checkbox.Checked
     End Sub
 
     Private Sub PhysicsCheckbox_CheckedChanged(sender As Object, e As EventArgs) Handles PhysicsCheckbox.CheckedChanged
@@ -1828,52 +1830,52 @@ Public Class Wardrobe_Manager_Form
 
     Private Sub CloneMaterialsCheck_CheckedChanged(sender As Object, e As EventArgs) Handles CloneMaterialsCheck.CheckedChanged
         If IsNothing(preview_Control) Then Exit Sub
-        Config_App.Current.Setting_Clone_Materials = CloneMaterialsCheck.Checked
+        WM_Config.Current.Setting_Clone_Materials = CloneMaterialsCheck.Checked
     End Sub
 
     Private Sub Ovewrite_DataFiles_CheckedChanged(sender As Object, e As EventArgs) Handles Ovewrite_DataFiles.CheckedChanged
         If IsNothing(preview_Control) Then Exit Sub
-        Config_App.Current.Setting_OverWrite = Ovewrite_DataFiles.Checked
+        WM_Config.Current.Setting_OverWrite = Ovewrite_DataFiles.Checked
     End Sub
 
     Private Sub Auto_Move_Check_CheckedChanged(sender As Object, e As EventArgs) Handles Auto_Move_Check.CheckedChanged
         If IsNothing(preview_Control) Then Exit Sub
-        Config_App.Current.Setting_Automove = Auto_Move_Check.Checked
+        WM_Config.Current.Setting_Automove = Auto_Move_Check.Checked
 
     End Sub
 
     Private Sub OutputDirChangeCheck_CheckedChanged(sender As Object, e As EventArgs) Handles OutputDirChangeCheck.CheckedChanged
         If IsNothing(preview_Control) Then Exit Sub
-        Config_App.Current.Setting_ChangeOutDir = OutputDirChangeCheck.Checked
+        WM_Config.Current.Setting_ChangeOutDir = OutputDirChangeCheck.Checked
     End Sub
     Private Sub Pone_checks()
-        OutputDirChangeCheck.Checked = Config_App.Current.Setting_ChangeOutDir
-        Auto_Move_Check.Checked = Config_App.Current.Setting_Automove
-        Ovewrite_DataFiles.Checked = Config_App.Current.Setting_OverWrite
-        CloneMaterialsCheck.Checked = Config_App.Current.Setting_Clone_Materials
+        OutputDirChangeCheck.Checked = WM_Config.Current.Setting_ChangeOutDir
+        Auto_Move_Check.Checked = WM_Config.Current.Setting_Automove
+        Ovewrite_DataFiles.Checked = WM_Config.Current.Setting_OverWrite
+        CloneMaterialsCheck.Checked = WM_Config.Current.Setting_Clone_Materials
         PhysicsCheckbox.Checked = Config_App.Current.Setting_KeepPhysics
-        Exclude_Reference_Checkbox.Checked = Config_App.Current.Setting_ExcludeReference
+        Exclude_Reference_Checkbox.Checked = WM_Config.Current.Setting_ExcludeReference
         SingleBoneCheck.Checked = Config_App.Current.Setting_SingleBoneSkinning
         RecalculateNormalsCheck.Checked = Config_App.Current.Setting_RecalculateNormals
-        ShowCollectionsCheck.Checked = Config_App.Current.Setting_ShowCollections
-        ShowCBBECheck.Checked = Config_App.Current.Setting_ShowCBBE
-        CheckShowpacks.Checked = Config_App.Current.Setting_Showpacks
+        ShowCollectionsCheck.Checked = WM_Config.Current.Setting_ShowCollections
+        ShowCBBECheck.Checked = WM_Config.Current.Setting_ShowCBBE
+        CheckShowpacks.Checked = WM_Config.Current.Setting_Showpacks
 
     End Sub
 
     Private Sub CheckShowpacks_CheckedChanged(sender As Object, e As EventArgs) Handles CheckShowpacks.CheckedChanged
         If IsNothing(preview_Control) Then Exit Sub
-        Config_App.Current.Setting_Showpacks = CheckShowpacks.Checked
+        WM_Config.Current.Setting_Showpacks = CheckShowpacks.Checked
     End Sub
 
     Private Sub ShowCBBECheck_CheckedChanged(sender As Object, e As EventArgs) Handles ShowCBBECheck.CheckedChanged
         If IsNothing(preview_Control) Then Exit Sub
-        Config_App.Current.Setting_ShowCBBE = ShowCBBECheck.Checked
+        WM_Config.Current.Setting_ShowCBBE = ShowCBBECheck.Checked
     End Sub
 
     Private Sub CheckBox1_CheckedChanged(sender As Object, e As EventArgs) Handles ShowCollectionsCheck.CheckedChanged
         If IsNothing(preview_Control) Then Exit Sub
-        Config_App.Current.Setting_ShowCollections = ShowCollectionsCheck.Checked
+        WM_Config.Current.Setting_ShowCollections = ShowCollectionsCheck.Checked
     End Sub
 
     Private Sub Button1_Click_2(sender As Object, e As EventArgs) Handles ButtonCreateFromNif.Click
@@ -2047,7 +2049,7 @@ Public Class Wardrobe_Manager_Form
 
     Private Sub ComboBox1_SelectedIndexChanged_1(sender As Object, e As EventArgs) Handles ComboBoxSize.SelectedIndexChanged
         If ComboBoxPresets.SelectedIndex <> -1 Then
-            Config_App.Current.Bodytipe = ComboBoxSize.SelectedIndex
+            WM_Config.Current.Bodytipe = ComboBoxSize.SelectedIndex
         End If
         RequestLeeShapes()
     End Sub

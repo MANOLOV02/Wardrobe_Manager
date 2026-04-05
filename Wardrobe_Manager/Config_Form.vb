@@ -1,4 +1,4 @@
-﻿' Version Uploaded of Wardrobe 3.1.0
+﻿' Version Uploaded of Wardrobe 3.2.0
 Imports System.ComponentModel
 
 Public Class Config_Form
@@ -30,24 +30,24 @@ Public Class Config_Form
             RadioButtoncombined.Checked = (Config_App.Current.Setting_TBN.WeightMode = RecalcTBN.NormalWeightMode.AreaTimesAngle)
             CheckBoxanglereset.Checked = Config_App.Current.Settings_Camara.ResetAngles
             CheckBoxzoomreset.Checked = Config_App.Current.Settings_Camara.ResetZoom
-            RadioButtonBSEngine.Checked = (Config_App.Current.Settings_Build.OwnEngine = False)
-            RadioButtonWMEngine.Checked = (Config_App.Current.Settings_Build.OwnEngine = True)
-            CheckBoxBuildHH.Checked = Config_App.Current.Settings_Build.SaveHHS
-            CheckBoxBuildTri.Checked = Config_App.Current.Settings_Build.SaveTri
-            CheckBoxDeletewithProject.Checked = Config_App.Current.Settings_Build.DeleteWithProject
-            CheckBoxDeleteBefore.Checked = Config_App.Current.Settings_Build.DeleteUnbuilt
-            CheckBoxLMReseteachBuild.Checked = Config_App.Current.Settings_Build.ResetSlidersEachBuild
-            CheckBoxLMASkipManoloFixes.Checked = Config_App.Current.Settings_Build.SkipManoloFixMorphs
-            CheckBoxLMAddAditionals.Checked = Config_App.Current.Settings_Build.AddAddintionalSliders
-            CheckBoxIgnorePrevent.Checked = Config_App.Current.Settings_Build.IgnorePreventri
-            CheckBoxBuildInPose.Checked = Config_App.Current.Settings_Build.BuildInPose
+            RadioButtonBSEngine.Checked = (WM_Config.Current.Settings_Build.OwnEngine = False)
+            RadioButtonWMEngine.Checked = (WM_Config.Current.Settings_Build.OwnEngine = True)
+            CheckBoxBuildHH.Checked = WM_Config.Current.Settings_Build.SaveHHS
+            CheckBoxBuildTri.Checked = WM_Config.Current.Settings_Build.SaveTri
+            CheckBoxDeletewithProject.Checked = WM_Config.Current.Settings_Build.DeleteWithProject
+            CheckBoxDeleteBefore.Checked = WM_Config.Current.Settings_Build.DeleteUnbuilt
+            CheckBoxLMReseteachBuild.Checked = WM_Config.Current.Settings_Build.ResetSlidersEachBuild
+            CheckBoxLMASkipManoloFixes.Checked = WM_Config.Current.Settings_Build.SkipFixMorphs
+            CheckBoxLMAddAditionals.Checked = WM_Config.Current.Settings_Build.AddAddintionalSliders
+            CheckBoxIgnorePrevent.Checked = WM_Config.Current.Settings_Build.IgnorePreventri
+            CheckBoxBuildInPose.Checked = WM_Config.Current.Settings_Build.BuildInPose
             CheckBoxFreeze.Checked = Config_App.Current.Settings_Camara.FreezeCamera
-            CheckBoxweightignore.Checked = Config_App.Current.Settings_Build.IgnoreWeightsFlags
-            RadioButtonAllwaysWeight.Checked = Config_App.Current.Settings_Build.ForceWeights
-            RadioButtonNeverWeights.Checked = Not Config_App.Current.Settings_Build.ForceWeights
-            RadioButtonNeverWeights.Enabled = Config_App.Current.Settings_Build.IgnoreWeightsFlags AndAlso Config_App.Current.Settings_Build.OwnEngine
-            RadioButtonAllwaysWeight.Enabled = Config_App.Current.Settings_Build.IgnoreWeightsFlags AndAlso Config_App.Current.Settings_Build.OwnEngine
-            CheckBoxweightignore.Enabled = Config_App.Current.Settings_Build.OwnEngine = True
+            CheckBoxweightignore.Checked = WM_Config.Current.Settings_Build.IgnoreWeightsFlags
+            RadioButtonAllwaysWeight.Checked = WM_Config.Current.Settings_Build.ForceWeights
+            RadioButtonNeverWeights.Checked = Not WM_Config.Current.Settings_Build.ForceWeights
+            RadioButtonNeverWeights.Enabled = WM_Config.Current.Settings_Build.IgnoreWeightsFlags AndAlso WM_Config.Current.Settings_Build.OwnEngine
+            RadioButtonAllwaysWeight.Enabled = WM_Config.Current.Settings_Build.IgnoreWeightsFlags AndAlso WM_Config.Current.Settings_Build.OwnEngine
+            CheckBoxweightignore.Enabled = WM_Config.Current.Settings_Build.OwnEngine = True
 
             ' GRID
             CheckBoxRenderGrid.Checked = Config_App.Current.Settings_RenderGrid.Enabled
@@ -74,14 +74,14 @@ Public Class Config_Form
           .WeldUVEpsilon = NumericUpDownWeldEpsUv.Value
           }
 
-        Dim buildSet = New Config_App.BuildSettings With {
+        Dim buildSet = New WM_Config.BuildSettings With {
             .DeleteUnbuilt = CheckBoxDeleteBefore.Checked,
             .DeleteWithProject = CheckBoxDeletewithProject.Checked,
             .OwnEngine = Not RadioButtonBSEngine.Checked,
             .SaveHHS = CheckBoxBuildHH.Checked,
             .SaveTri = CheckBoxBuildTri.Checked,
             .ResetSlidersEachBuild = CheckBoxLMReseteachBuild.Checked,
-            .SkipManoloFixMorphs = CheckBoxLMASkipManoloFixes.Checked,
+            .SkipFixMorphs = CheckBoxLMASkipManoloFixes.Checked,
             .AddAddintionalSliders = CheckBoxLMAddAditionals.Checked,
             .IgnorePreventri = CheckBoxIgnorePrevent.Checked,
             .BuildInPose = CheckBoxBuildInPose.Checked,
@@ -98,7 +98,7 @@ Public Class Config_Form
         Dim cam = New Config_App.CameraSettings With {.ResetAngles = CheckBoxanglereset.Checked, .ResetZoom = CheckBoxzoomreset.Checked, .FreezeCamera = CheckBoxFreeze.Checked}
         Config_App.Current.Settings_Camara = cam
         Config_App.Current.Setting_RenderGridColor = GridColor.SelectedColor.Name
-        Config_App.Current.Settings_Build = buildSet
+        WM_Config.Current.Settings_Build = buildSet
         Config_App.Current.Setting_TBN = opts
         Config_App.Current.Setting_RecalculateNormals = RecalculateNormalsCheck.Checked
         Config_App.Current.Setting_SingleBoneSkinning = SingleBoneCheck.Checked
@@ -108,8 +108,8 @@ Public Class Config_Form
     Private Sub Config_Form_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         'ThemeManager.SetTheme(Config_App.Current.theme, Me)
         TextBox1.Text = Config_App.Current.FO4ExePath
-        TextBox2.Text = Config_App.Current.BSExePath
-        TextBox3.Text = Config_App.Current.OSExePath
+        TextBox2.Text = WM_Config.Current.BSExePath
+        TextBox3.Text = WM_Config.Current.OSExePath
         TextBox4.Text = Config_App.Current.SkeletonPath
         ComboBoxGame.SelectedIndex = Config_App.Current.Game
         initialgame = Config_App.Current.Game
@@ -123,30 +123,30 @@ Public Class Config_Form
 
     Private Function Check_Folders() As Boolean
         If Config_App.Check_FOFolder = False Then Label1.ImageIndex = 1 Else Label1.ImageIndex = 0
-        If Config_App.Check_BSFolder = False Then Label2.ImageIndex = 1 Else Label2.ImageIndex = 0
-        If Config_App.Check_OsFolder = False Then Label3.ImageIndex = 1 Else Label3.ImageIndex = 0
+        If WM_Config.Check_BSFolder = False Then Label2.ImageIndex = 1 Else Label2.ImageIndex = 0
+        If WM_Config.Check_OsFolder = False Then Label3.ImageIndex = 1 Else Label3.ImageIndex = 0
         If Config_App.Check_Skeleton = False Then Label6.ImageIndex = 1 Else Label6.ImageIndex = 0
 
-        Dim folderschek As Boolean = Config_App.Check_FOFolder And Config_App.Check_BSFolder And Config_App.Check_OsFolder
+        Dim folderschek As Boolean = Config_App.Check_FOFolder And WM_Config.Check_BSFolder And WM_Config.Check_OsFolder
         If folderschek Then
             ListView1.Items.Clear()
-            Dim oldbsa = Config_App.Current.BSAFiles.ToList
-            Dim oldchecks = Config_App.Current.BSAFiles_Clonables.ToList
-            Config_App.Current.BSAFiles.Clear()
-            Config_App.Current.BSAFiles_Clonables.Clear()
+            Dim oldbsa = WM_Config.Current.BSAFiles.ToList
+            Dim oldchecks = WM_Config.Current.BSAFiles_Clonables.ToList
+            WM_Config.Current.BSAFiles.Clear()
+            WM_Config.Current.BSAFiles_Clonables.Clear()
             Dim idx2 As Integer = 0
             For Each fil In FilesDictionary_class.EnumerateFilesWithSymlinkSupport(Config_App.Current.FO4EDataPath, "*.ba2;*.bsa", False).Order
                 Dim it As New ListViewItem(IO.Path.GetFileName(fil))
                 Dim idx = oldbsa.FindIndex(Function(s) String.Equals(s, IO.Path.GetFileName(fil), StringComparison.OrdinalIgnoreCase))
-                Config_App.Current.BSAFiles.Add(IO.Path.GetFileName(fil))
+                WM_Config.Current.BSAFiles.Add(IO.Path.GetFileName(fil))
                 If idx <> -1 Then
-                    Config_App.Current.BSAFiles_Clonables.Add(oldchecks(idx))
+                    WM_Config.Current.BSAFiles_Clonables.Add(oldchecks(idx))
                 Else
-                    Config_App.Current.BSAFiles_Clonables.Add(False)
+                    WM_Config.Current.BSAFiles_Clonables.Add(False)
                 End If
                 ListView1.Items.Add(it)
                 it.Tag = idx2
-                it.Checked = Config_App.Current.BSAFiles_Clonables(idx2)
+                it.Checked = WM_Config.Current.BSAFiles_Clonables(idx2)
                 idx2 += 1
             Next
 
@@ -166,21 +166,21 @@ Public Class Config_Form
 
         Dim pathS As String = IIf(Config_App.Current.Game = Config_App.Game_Enum.Fallout4, "Tools", "CalienteTools")
 
-        If Config_App.Check_FOFolder And (TextBox2.Text.Contains(Config_App.Current.FO4EDataPath, StringComparison.OrdinalIgnoreCase) = False Or Config_App.Check_BSFolder = False) Then
+        If Config_App.Check_FOFolder And (TextBox2.Text.Contains(Config_App.Current.FO4EDataPath, StringComparison.OrdinalIgnoreCase) = False Or WM_Config.Check_BSFolder = False) Then
             If Environment.Is64BitOperatingSystem Then
                 TextBox2.Text = IO.Path.Combine(IO.Path.GetDirectoryName(TextBox1.Text), "Data\" + pathS + "\Bodyslide\BodySlide x64.exe")
             Else
                 TextBox2.Text = IO.Path.Combine(IO.Path.GetDirectoryName(TextBox1.Text), "Data\" + pathS + "\Bodyslide\BodySlide.exe")
             End If
-            Config_App.Current.BSExePath = TextBox2.Text
+            WM_Config.Current.BSExePath = TextBox2.Text
         End If
-        If Config_App.Check_FOFolder And (TextBox3.Text.Contains(Config_App.Current.FO4EDataPath, StringComparison.OrdinalIgnoreCase) = False Or Config_App.Check_OsFolder = False) Then
+        If Config_App.Check_FOFolder And (TextBox3.Text.Contains(Config_App.Current.FO4EDataPath, StringComparison.OrdinalIgnoreCase) = False Or WM_Config.Check_OsFolder = False) Then
             If Environment.Is64BitOperatingSystem Then
                 TextBox3.Text = IO.Path.Combine(IO.Path.GetDirectoryName(TextBox1.Text), "Data\" + pathS + "\Bodyslide\OutfitStudio x64.exe")
             Else
                 TextBox3.Text = IO.Path.Combine(IO.Path.GetDirectoryName(TextBox1.Text), "Data\" + pathS + "\Bodyslide\OutfitStudio.exe")
             End If
-            Config_App.Current.OSExePath = TextBox3.Text
+            WM_Config.Current.OSExePath = TextBox3.Text
         End If
         If Config_App.Check_FOFolder And (TextBox4.Text.Contains(Config_App.Current.FO4EDataPath, StringComparison.OrdinalIgnoreCase) = False Or Config_App.Check_Skeleton = False) Then
             Dim skel As String = IIf(Config_App.Current.Game = Config_App.Game_Enum.Fallout4, "res\skeleton_fo4.nif", "res\skeleton_female_sse.nif")
@@ -224,15 +224,15 @@ Public Class Config_Form
     Private Sub Button2_Click(sender As Object, e As EventArgs) Handles Button2.Click
         Dim result = Search_exe(IO.Path.GetDirectoryName(TextBox2.Text))
         If String.IsNullOrEmpty(result) Then Return
-        Config_App.Current.BSExePath = result
-        TextBox2.Text = Config_App.Current.BSExePath
+        WM_Config.Current.BSExePath = result
+        TextBox2.Text = WM_Config.Current.BSExePath
         Check_Folders()
     End Sub
     Private Sub Button3_Click(sender As Object, e As EventArgs) Handles Button3.Click
         Dim result = Search_exe(IO.Path.GetDirectoryName(TextBox3.Text))
         If String.IsNullOrEmpty(result) Then Return
-        Config_App.Current.OSExePath = result
-        TextBox3.Text = Config_App.Current.OSExePath
+        WM_Config.Current.OSExePath = result
+        TextBox3.Text = WM_Config.Current.OSExePath
         Check_Folders()
     End Sub
 
@@ -241,10 +241,10 @@ Public Class Config_Form
     End Sub
 
     Private Sub ListView1_ItemCheck(sender As Object, e As ItemCheckEventArgs) Handles ListView1.ItemCheck
-        If CInt(ListView1.Items(e.Index).Tag) < -1 Or CInt(ListView1.Items(e.Index).Tag) > Config_App.Current.BSAFiles_Clonables.Count - 1 Then
+        If CInt(ListView1.Items(e.Index).Tag) < -1 Or CInt(ListView1.Items(e.Index).Tag) > WM_Config.Current.BSAFiles_Clonables.Count - 1 Then
             Debugger.Break()
         End If
-        Config_App.Current.BSAFiles_Clonables(ListView1.Items(e.Index).Tag) = IIf(e.NewValue = CheckState.Checked, True, False)
+        WM_Config.Current.BSAFiles_Clonables(ListView1.Items(e.Index).Tag) = IIf(e.NewValue = CheckState.Checked, True, False)
     End Sub
 
     Private Sub Button4_Click(sender As Object, e As EventArgs) Handles Button4.Click
@@ -310,7 +310,7 @@ Public Class Config_Form
         Update_RenderGrid_Controls()
     End Sub
     Private Sub Button7_Click(sender As Object, e As EventArgs) Handles Button7.Click
-        Config_App.Current.Settings_Build = Config_App.Default_Build_Settings
+        WM_Config.Current.Settings_Build = WM_Config.Default_Build_Settings
         Setea_Render_Options()
     End Sub
 
