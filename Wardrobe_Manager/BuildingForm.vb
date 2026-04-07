@@ -28,7 +28,7 @@ Public Class BuildingForm
         Dim Errores As String = ""
         Dim Nombre As String = "Unknown"
         ' Lee los sliders de looksmenu si se graba tri
-        If WM_Config.Current.Settings_Build.SaveTri Then TriFile.Read_Looksmenu_Sliders()
+        If WM_Config.Current.Settings_Build.SaveTri Then LooksMenuSliders.Read_Looksmenu_Sliders()
         OSP_Project_Class.Default_Memory_Pause = True
         Dim has_pose = (WM_Config.Current.Settings_Build.BuildInPose AndAlso _Pose.Source <> Poses_class.Pose_Source_Enum.None)
         For Each sliderset_target In _Lista
@@ -137,7 +137,7 @@ Public Class BuildingForm
                     If Sizecount = 0 Then
                         ' Grabo archivo tri
                         If WM_Config.Current.Settings_Build.SaveTri AndAlso (builder.PreventMorphFile = False OrElse WM_Config.Current.Settings_Build.IgnorePreventri) Then
-                            TriFile.WriteMorphTRI(tri, builder)
+                            LooksMenuSliders.WriteMorphTRI(tri, builder)
                             Dim triRelative = IO.Path.GetRelativePath(Directorios.Fallout4data, tri).Correct_Path_Separator
                             FilesDictionary_class.AddOrUpdateDictionaryEntry(triRelative, New FilesDictionary_class.File_Location With {
                                 .BA2File = "", .Index = -1, .FullPath = triRelative, .FileDate = Date.Now})
@@ -170,7 +170,7 @@ Public Class BuildingForm
         Next
         OSP_Project_Class.Default_Memory_Pause = False
         ' Grabo archivo sliders.json 
-        If Config_App.Current.Game = Config_App.Game_Enum.Fallout4 AndAlso WM_Config.Current.Settings_Build.AddAddintionalSliders AndAlso WM_Config.Current.Settings_Build.SaveTri Then TriFile.Serialize_LooksmenuAdditionalSiliders()
+        If Config_App.Current.Game = Config_App.Game_Enum.Fallout4 AndAlso WM_Config.Current.Settings_Build.AddAddintionalSliders AndAlso WM_Config.Current.Settings_Build.SaveTri Then LooksMenuSliders.Serialize_LooksmenuAdditionalSiliders()
         If Errores <> "" Then
             MsgBox("Error building the following projects:" + Errores)
         End If

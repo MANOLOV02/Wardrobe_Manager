@@ -2842,12 +2842,12 @@ Public Class Slider_class
         ParentSliderSet = Sliderset
         Lee_Data()
     End Sub
-    Sub New(Name As String, ByRef Sliderset As SliderSet_Class, tipo As TriFile.MorphType)
+    Sub New(Name As String, ByRef Sliderset As SliderSet_Class, tipo As FO4_Base_Library.TriMorphType)
         Dim SliderNode As XmlElement = Sliderset.ParentOSP.xml.CreateElement("Slider")
         SliderNode.SetAttribute("invert", "false")
         SliderNode.SetAttribute("default", "0")
         SliderNode.SetAttribute("name", Name)
-        If tipo = TriFile.MorphType.MORPHTYPE_UV Then Me.IsUV = True
+        If tipo = FO4_Base_Library.TriMorphType.UV Then Me.IsUV = True
         Nodo = SliderNode
         Sliderset.Nodo.AppendChild(Nodo)
         ParentSliderSet = Sliderset

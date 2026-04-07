@@ -303,6 +303,7 @@ Public Class Wardrobe_Manager_Form
             If Not IsNothing(choosedSource) Then
                 ListViewSources.FocusedItem = choosedSource
                 choosedSource.Selected = True
+                choosedSource.EnsureVisible()
             End If
         End If
 
@@ -573,6 +574,7 @@ Public Class Wardrobe_Manager_Form
             If Not IsNothing(choosedTarget) Then
                 ListViewTargets.FocusedItem = choosedTarget
                 choosedTarget.Selected = True
+                choosedTarget.EnsureVisible()
             End If
         End If
 

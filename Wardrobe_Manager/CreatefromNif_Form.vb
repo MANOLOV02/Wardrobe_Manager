@@ -121,13 +121,13 @@ Public Class Create_from_Nif_Form
         chkDirSkeleton.Enabled = _dirSkeletonKey IsNot Nothing
 
         Try
-            Dim TriFileParese As TriFile = Nothing
+            Dim TriFileParese As FO4_Base_Library.TriFile = Nothing
 
             Dim value As FilesDictionary_class.File_Location = Nothing
 
             If FilesDictionary_class.Dictionary.TryGetValue(tri, value) AndAlso CheckBox1.Checked = True Then
                 Try
-                    TriFileParese = TriFile.ParseTriFromBytes(value.GetBytes)
+                    TriFileParese = FO4_Base_Library.TriFileParser.ParseTriFromBytes(value.GetBytes)
                 Catch ex As Exception
                 End Try
 
@@ -147,12 +147,12 @@ Public Class Create_from_Nif_Form
 
             If Not IsNothing(TriFileParese) Then
                 Try
-                    For Each shapeMorph In TriFileParese.shapeMorphs
+                    For Each shapeMorph In TriFileParese.ShapeMorphs
                         For Each morp In shapeMorph.Value
-                            If Not selected_slider.Sliders.Any(Function(pf) pf.Nombre.Equals(morp.Morph, StringComparison.OrdinalIgnoreCase)) Then
-                                selected_slider.Sliders.Add(New Slider_class(morp.Morph, selected_slider, morp.type))
+                            If Not selected_slider.Sliders.Any(Function(pf) pf.Nombre.Equals(morp.Name, StringComparison.OrdinalIgnoreCase)) Then
+                                selected_slider.Sliders.Add(New Slider_class(morp.Name, selected_slider, morp.MorphType))
                             End If
-                            Dim slider = selected_slider.Sliders.First(Function(pf) pf.Nombre.Equals(morp.Morph, StringComparison.OrdinalIgnoreCase))
+                            Dim slider = selected_slider.Sliders.First(Function(pf) pf.Nombre.Equals(morp.Name, StringComparison.OrdinalIgnoreCase))
                             Dim dat As Slider_Data_class
                             Dim datnombre = shapeMorph.Key.Replace(":", "_") + slider.Nombre
                             If Not slider.Datas.Any(Function(pf) pf.Nombre.Equals(datnombre, StringComparison.OrdinalIgnoreCase)) Then
@@ -162,7 +162,7 @@ Public Class Create_from_Nif_Form
 
                             Dim block = New OSD_Block_Class(selected_slider.OSDContent_Local) With {.BlockName = dat.Nombre, .ParentOSDContent = selected_slider.OSDContent_Local, .DataDiff = New List(Of OSD_DataDiff_Class)}
                             selected_slider.OSDContent_Local.Blocks.Add(block)
-                            For Each dif In morp.offsets
+                            For Each dif In morp.Offsets
                                 Dim newdd = New OSD_DataDiff_Class With {.Index = dif.Key, .X = dif.Value.X, .Y = dif.Value.Y, .Z = dif.Value.Z}
                                 block.DataDiff.Add(newdd)
                             Next
