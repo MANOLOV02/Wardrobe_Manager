@@ -1,4 +1,4 @@
-ï»¿' Version Uploaded of Wardrobe 3.2.0
+' Version Uploaded of Wardrobe 3.2.0
 Imports System.ComponentModel
 Imports System.Diagnostics.Eventing.Reader
 Imports System.Globalization
@@ -640,7 +640,7 @@ Public Class Editor_Form
             Next
             EditPreviewControl.RefreshRender()
         Else
-            ' Non-MSN material property change â€” only textures need reprocess
+            ' Non-MSN material property change — only textures need reprocess
             EditPreviewControl.ForceRerender(RenderDirtyFlags.Textures)
         End If
     End Sub
@@ -658,7 +658,9 @@ Public Class Editor_Form
     End Sub
     Private Sub GrayScaleTrackbar1_ValueChanged(sender As Object, e As EventArgs) Handles GrayScaleTrackbar1.ValueChanged
         If _SuppressTrackbarEvent Then Exit Sub
-        Selected_Material.GrayscaleToPaletteScale = GrayScaleTrackbar1.Setvalue
+        Dim newScale = GrayScaleTrackbar1.Setvalue
+        If FO4UnifiedMaterial_Class.AreEquivalentGrayscaleScale(Selected_Material.GrayscaleToPaletteScale, newScale, Selected_Material.GreyscaleTexture) Then Exit Sub
+        Selected_Material.GrayscaleToPaletteScale = newScale
         Iniciado_Edit()
         EditPreviewControl.ForceRerender(RenderDirtyFlags.Textures)
     End Sub
@@ -668,7 +670,7 @@ Public Class Editor_Form
             If Selected_Material.GreyscaleTexture <> "" AndAlso Not IsNothing(GrayscaleBMP_Rotated) Then
                 GrayScaleTrackbar1.BackgroundImage = GrayscaleBMP_Rotated
                 GrayScaleTrackbar1.Maximum = GrayscaleBMP_Rotated.Width
-                GrayScaleTrackbar1.Value = GrayScaleTrackbar1.Getvalue(Selected_Material.GrayscaleToPaletteScale)
+                GrayScaleTrackbar1.Value = FO4UnifiedMaterial_Class.ScaleToGrayscaleSlot(Selected_Material.GrayscaleToPaletteScale, GrayscaleBMP_Rotated.Width)
                 GrayScaleTrackbar1.Enabled = Selected_Material.GrayscaleToPaletteColor
                 ButtonMakeGradient.Enabled = False
             Else
@@ -723,7 +725,7 @@ Public Class Editor_Form
                 If FilesDictionary_class.Dictionary.TryGetValue(prefix + fullpath, locBgsm) Then
                     Selected_Material.Deserialize(prefix + fullpath, GetType(BGSM))
                     _LastMaterial.Deserialize(prefix + fullpath, GetType(BGSM))
-                    ' ShaderType is not stored in BGSM files â€” read it from the NIF shader
+                    ' ShaderType is not stored in BGSM files — read it from the NIF shader
                     Dim bslsp = TryCast(Selected_Shape.RelatedNifShader, BSLightingShaderProperty)
                     If bslsp IsNot Nothing Then
                         Selected_Material.NifShaderType = bslsp.ShaderType_SK_FO4
@@ -851,7 +853,7 @@ Public Class Editor_Form
                 End If
                 Selected_Slider.NIFContent.RemoveBlocksOfType(Of BSClothExtraData)()
             End If
-            ' SSE HDT-SMP sidecar XML â€” clear memory and delete loose copies (shapedata)
+            ' SSE HDT-SMP sidecar XML — clear memory and delete loose copies (shapedata)
             If Not String.IsNullOrEmpty(Selected_Slider.PhysicsXmlContent) Then
                 Selected_Slider.PhysicsXmlContent = Nothing
                 Dim shapedataXml = IO.Path.ChangeExtension(Selected_Slider.SourceFileFullPath, ".xml")
@@ -894,7 +896,7 @@ Public Class Editor_Form
     End Sub
     Private Sub Button3_Click(sender As Object, e As EventArgs) Handles ButtonSave.Click
         If Revisa_Material() Then
-            ' Check if ModelSpaceNormals changed for any shape â€” warn user before saving
+            ' Check if ModelSpaceNormals changed for any shape — warn user before saving
             Dim msnChangedShapes As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
             If _OriginalSlider IsNot Nothing Then
                 For Each shap In Selected_Slider.Shapes
@@ -955,6 +957,10 @@ Public Class Editor_Form
                     TestChanges.Deserialize(prefix + orig, GetType(BGEM))
                 Case ".bgsm"
                     TestChanges.Deserialize(prefix + orig, GetType(BGSM))
+                    Dim bslsp = TryCast(shap.RelatedNifShader, BSLightingShaderProperty)
+                    If bslsp IsNot Nothing Then
+                        TestChanges.NifShaderType = bslsp.ShaderType_SK_FO4
+                    End If
                 Case ""
                     Select Case shap.RelatedNifShader.GetType
                         Case GetType(BSEffectShaderProperty)
@@ -966,6 +972,7 @@ Public Class Editor_Form
                             Throw New Exception
                     End Select
             End Select
+            System.Diagnostics.Debug.Print($"[MaterialCheck] Shape={shap.Nombre} MaterialPath={FormatDebugPath(orig)} CurrentPath={FormatDebugPath(shap.RelatedMaterial.path)} MaterialType={shap.RelatedMaterial.material.MaterialType.Name}")
             If shap.RelatedMaterial.material.AreEqualTo(TestChanges) Then
                 'Simplemente cambie el material
             Else
@@ -975,6 +982,10 @@ Public Class Editor_Form
             Selected_Slider.NIFContent.SetRelatedMaterial(shap.RelatedNifShape, shap.RelatedMaterial.path, shap.RelatedMaterial.material)
         Next
         Return True
+    End Function
+    Private Shared Function FormatDebugPath(path As String) As String
+        If String.IsNullOrWhiteSpace(path) Then Return "<Embedded>"
+        Return path
     End Function
 
     Private Sub HHNumericUpDown_ValueChanged(sender As Object, e As EventArgs) Handles HHNumericUpDown.ValueChanged
@@ -1370,14 +1381,14 @@ Public Class Editor_Form
         VertsToModify.ExceptWith(VertsToInclude)
         Dim block = GetEditableSingleLocalZapBlock()
 
-        ' Inflate? â€” normals in NIF local space (pre-skinning), consistent with OSD delta space.
+        ' Inflate? — normals in NIF local space (pre-skinning), consistent with OSD delta space.
         ' Priority: (1) current viewport normals transformed back to local via M^T (covers morphs +
         ' RecalculateNormals); (2) NIF base normals; (3) vertex?center fallback.
         Dim rawNorms = Array.Empty(Of Vector3)
         If CheckBoxInflate.Checked Then
             Dim renderMesh = EditPreviewControl.Model.meshes.FirstOrDefault(Function(m) m.MeshData.Shape Is Selected_Shape)
             If renderMesh IsNot Nothing Then
-                ' Normals are already in local space (GPU skinning) â€” use directly.
+                ' Normals are already in local space (GPU skinning) — use directly.
                 Dim geom = renderMesh.MeshData.Meshgeometry
                 rawNorms = Enumerable.Range(0, geom.Normals.Length) _
                     .Select(Function(i)
@@ -1895,9 +1906,9 @@ Public Class Editor_Form
         Dim original = New HashSet(Of Integer)
         original.UnionWith(marked)
         For Each tri As NiflySharp.Structs.Triangle In triangles
-            ' si alguno de los tres ya estÃ¡ marcado...
+            ' si alguno de los tres ya está marcado...
             If original.Contains(tri(0)) OrElse original.Contains(tri(1)) OrElse original.Contains(tri(2)) Then
-                ' ...aÃ±adimos los tres al HashSet
+                ' ...añadimos los tres al HashSet
                 marked.Add(tri(0))
                 marked.Add(tri(1))
                 marked.Add(tri(2))
@@ -1910,9 +1921,9 @@ Public Class Editor_Form
         Dim original = New HashSet(Of Integer)
         original.UnionWith(marked)
         For Each tri As NiflySharp.Structs.Triangle In triangles
-            ' si alguno de los tres ya estÃ¡ marcado...
+            ' si alguno de los tres ya está marcado...
             If Not original.Contains(tri(0)) OrElse Not original.Contains(tri(1)) OrElse Not original.Contains(tri(2)) Then
-                ' ...aÃ±adimos los tres al HashSet
+                ' ...añadimos los tres al HashSet
                 marked.Remove(tri(0))
                 marked.Remove(tri(1))
                 marked.Remove(tri(2))
@@ -2159,12 +2170,12 @@ Public Class Editor_Form
 
     Public Sub New()
 
-        ' Esta llamada es exigida por el diseï¿½ador.
+        ' Esta llamada es exigida por el dise?ador.
         InitializeComponent()
         CheckBoxSaveSAF.Checked = WM_Config.Current.Setting_ExportSam
         CheckBoxRenderFloor.Checked = Config_App.Current.Settings_RenderGrid.Enabled
         'ThemeManager.SetTheme(Config_App.Current.theme, Me)
-        ' Agregue cualquier inicializaciï¿½n despuï¿½s de la llamada a InitializeComponent().
+        ' Agregue cualquier inicializaci?n despu?s de la llamada a InitializeComponent().
 
     End Sub
 
@@ -2488,8 +2499,8 @@ Public Class Editor_Form
         Next
 
         ' Find the limit from the masked vertices
-        ' selectHigh=True  â†’ limit = MIN projection (extend from the lowest masked point upward/rightward)
-        ' selectHigh=False â†’ limit = MAX projection (extend from the highest masked point downward/leftward)
+        ' selectHigh=True  ? limit = MIN projection (extend from the lowest masked point upward/rightward)
+        ' selectHigh=False ? limit = MAX projection (extend from the highest masked point downward/leftward)
         Dim limit As Single = 0
         Dim first As Boolean = True
         For Each idx In Selected_Shape.MaskedVertices
