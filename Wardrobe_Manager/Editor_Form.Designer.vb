@@ -334,13 +334,15 @@ Partial Class Editor_Form
         ' RenderCheckVertexColors
         ' 
         RenderCheckVertexColors.AutoSize = True
+        RenderCheckVertexColors.Checked = True
+        RenderCheckVertexColors.CheckState = CheckState.Checked
         RenderCheckVertexColors.Dock = DockStyle.Fill
         RenderCheckVertexColors.Location = New Point(351, 29)
         RenderCheckVertexColors.Name = "RenderCheckVertexColors"
         RenderCheckVertexColors.Size = New Size(168, 20)
         RenderCheckVertexColors.TabIndex = 13
         RenderCheckVertexColors.Text = "Vertex colors"
-        ToolTip1.SetToolTip(RenderCheckVertexColors, "Display vertex colors in preview.")
+        ToolTip1.SetToolTip(RenderCheckVertexColors, "Force vertex colors OFF for debug (unchecked).")
         RenderCheckVertexColors.UseVisualStyleBackColor = True
         ' 
         ' RenderCheckHide

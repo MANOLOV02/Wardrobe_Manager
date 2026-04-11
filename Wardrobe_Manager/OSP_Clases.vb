@@ -2718,7 +2718,7 @@ Public Class Shape_class
     Public Property ShowTexture As Boolean = True Implements IRenderableShape.ShowTexture
     Public Property ShowMask As Boolean = False Implements IRenderableShape.ShowMask
     Public Property ShowWeight As Boolean = False Implements IRenderableShape.ShowWeight
-    Public Property ShowVertexColor As Boolean = False Implements IRenderableShape.ShowVertexColor
+    Public Property ShowVertexColor As Boolean = True Implements IRenderableShape.ShowVertexColor
     Public Property RenderHide As Boolean = False Implements IRenderableShape.RenderHide
     Public Property ApplyZaps As Boolean = True Implements IRenderableShape.ApplyZaps
     Public Property Wireframe As Boolean = False Implements IRenderableShape.Wireframe
