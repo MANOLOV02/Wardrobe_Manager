@@ -471,14 +471,14 @@ Public Class Editor_Form
 
     Public Sub Lee_Edit(Seleccion As SliderSet_Class, Preset As String, Pose As String)
         ComboBoxAllXYZ.SelectedIndex = 1
-        OSP_Project_Class.Load_and_CHeck_Project(Seleccion)
-        OSP_Project_Class.Load_and_Check_Shapedata(Seleccion, True)
+        Dim selectionLoadContext = ProjectLoadContext.CreateInteractive()
+        If OSP_Project_Class.Load_and_CHeck_Project(Seleccion, selectionLoadContext) = False OrElse OSP_Project_Class.Load_and_Check_Shapedata(Seleccion, selectionLoadContext) = False Then Exit Sub
         ' Work on a clone so Cancel leaves the original untouched
         _OriginalSlider = Seleccion
         Dim cloneNode = Seleccion.ParentOSP.xml.ImportNode(Seleccion.Nodo.Clone, True)
         Dim clone As New SliderSet_Class(cloneNode, Seleccion.ParentOSP)
-        OSP_Project_Class.Load_and_CHeck_Project(clone)
-        OSP_Project_Class.Load_and_Check_Shapedata(clone, True)
+        Dim cloneLoadContext = ProjectLoadContext.CreateInteractive()
+        If OSP_Project_Class.Load_and_CHeck_Project(clone, cloneLoadContext) = False OrElse OSP_Project_Class.Load_and_Check_Shapedata(clone, cloneLoadContext) = False Then Exit Sub
         clone.BypassDiskShapeDataLoad = True
         CheckBoxZappedShapes.Checked = clone.KeepZappedShapes
         CheckBoxPreventMorph.Checked = clone.PreventMorphFile

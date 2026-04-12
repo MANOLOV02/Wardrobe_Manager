@@ -30,6 +30,10 @@ Public Class BuildingForm
         ' Lee los sliders de looksmenu si se graba tri
         If WM_Config.Current.Settings_Build.SaveTri Then LooksMenuSliders.Read_Looksmenu_Sliders()
         OSP_Project_Class.Default_Memory_Pause = True
+        ' Context unico y compartido para todo el batch de builds. Acumulamos los
+        ' issues de load en effectiveContext.Issues y al final disparamos un solo
+        ' ShowLoadIssuesDialog con la lista agregada, en vez de N popups individuales.
+        Dim buildLoadContext = ProjectLoadContext.CreateCollectOnly(False)
         Dim has_pose = (WM_Config.Current.Settings_Build.BuildInPose AndAlso _Pose.Source <> Poses_class.Pose_Source_Enum.None)
         For Each sliderset_target In _Lista
             Try
@@ -40,9 +44,8 @@ Public Class BuildingForm
                 For Sizecount = 0 To CInt(IIf(sliderset_target.Multisize, 1, 0))
                     ProgressBar1.Value = 0
                     ProgressBar1.Maximum = (builder.Shapes.Count * 4 + 6)
-                    OSP_Project_Class.Load_and_CHeck_Project(builder)
+                    If OSP_Project_Class.Load_and_CHeck_Project(builder, buildLoadContext) = False OrElse OSP_Project_Class.Load_and_Check_Shapedata(builder, buildLoadContext) = False Then Throw New InvalidOperationException("Could not load shape data for build.")
                     ProgressBar1.Value += 1
-                    OSP_Project_Class.Load_and_Check_Shapedata(builder, True)
                     builder.HighHeelHeight = sliderset_target.HighHeelHeight
                     Skeleton_Class.PrepareSkeletonForShapes(builder.Shapes, If(has_pose, _Pose, Nothing))
                     ProgressBar1.Value += 1
@@ -169,8 +172,20 @@ Public Class BuildingForm
 
         Next
         OSP_Project_Class.Default_Memory_Pause = False
-        ' Grabo archivo sliders.json 
+        ' Grabo archivo sliders.json
         If Config_App.Current.Game = Config_App.Game_Enum.Fallout4 AndAlso WM_Config.Current.Settings_Build.AddAddintionalSliders AndAlso WM_Config.Current.Settings_Build.SaveTri Then LooksMenuSliders.Serialize_LooksmenuAdditionalSiliders()
+
+        ' Mostrar los issues de load acumulados durante todo el batch en un solo dialog
+        If buildLoadContext.Issues IsNot Nothing AndAlso buildLoadContext.Issues.Count > 0 Then
+            Dim batchHandler = OSP_Project_Class.InteractiveIssueBatchDisplay
+            If batchHandler IsNot Nothing Then
+                Try
+                    batchHandler.Invoke(buildLoadContext.Issues)
+                Catch
+                End Try
+            End If
+        End If
+
         If Errores <> "" Then
             MsgBox("Error building the following projects:" + Errores)
         End If

@@ -293,16 +293,19 @@ Public Class OSD_Class
     End Sub
     Public Shared ReadOnly FileLocks As New Dictionary(Of String, Object)()
     Public Shared ReadOnly FileLocksSync As New Object
+
     Public Sub Load(FilenameParameter As String())
-        Dim fileLock As Object
         Blocks.Clear()
         For Each Filename In FilenameParameter
-            ' Obtener o crear lock por archivo
-            If IO.File.Exists(Filename) Then
+            If Not IO.File.Exists(Filename) Then Continue For
+
+            Dim fileBytes As Byte() = Nothing
+
+            ' Path single-slider: lock por archivo + lectura directa a bytes.
+            ' NO toca el FileBytesCache: fuera de bulk el cache queda vacio.
+            Dim fileLock As Object
                 SyncLock FileLocksSync
-
                     Dim value As Object = Nothing
-
                     If Not FileLocks.TryGetValue(Filename, value) Then
                         value = New Object()
                         FileLocks(Filename) = value
@@ -310,8 +313,13 @@ Public Class OSD_Class
                     fileLock = value
                 End SyncLock
                 SyncLock fileLock
-                    Using stream = IO.File.Open(Filename, IO.FileMode.Open, FileAccess.Read)
-                    Using reader As New IO.BinaryReader(stream)
+                    fileBytes = IO.File.ReadAllBytes(Filename)
+                End SyncLock
+
+            ' Parse from memory — zero contention, multiple workers pueden parsear
+            ' sus copias independientes sobre el mismo array de bytes (read-only).
+            Using stream As New IO.MemoryStream(fileBytes, writable:=False)
+                Using reader As New IO.BinaryReader(stream)
                     Header = reader.ReadBytes(4)
                     Version = reader.ReadBytes(4)
                     Datablocks = CInt(reader.ReadUInt32 And &H7FFFFFFFL)
@@ -337,10 +345,8 @@ Public Class OSD_Class
                         Next
                         Blocks.Add(block)
                     Next
-                    End Using
-                    End Using
-                End SyncLock
-            End If
+                End Using
+            End Using
         Next
         If Not IsNothing(ParentSlider) Then ParentSlider.InvalidateShapeDataLookupCache()
     End Sub
@@ -371,36 +377,36 @@ Public Class OSD_Class
 
         If IsNothing(Me.Header) Then Exit Sub
         Using stream = IO.File.Open(Filename, IO.FileMode.Create)
-        Using Writer As New IO.BinaryWriter(stream)
+            Using Writer As New IO.BinaryWriter(stream)
 
-        Writer.Write(Header)
-        Writer.Write(Version)
-        Writer.Write(CType(Blocks.Count, UInt32))
-        For x = 0 To Blocks.Count - 1
-            Dim blk = Blocks(x)
-            Writer.Write(CType(blk.BlockName.Length, Byte))
-            Writer.Write(System.Text.Encoding.UTF8.GetBytes(blk.BlockName))
-            Dim DifDatas = blk.DataDiff.Count
-            Writer.Write(CType(DifDatas, UInt16))
-            ' O5.1: Use compact arrays when available for faster sequential write
-            If blk.IndicesCompact IsNot Nothing AndAlso blk.IndicesCompact.Length = DifDatas Then
-                For y = 0 To DifDatas - 1
-                    Writer.Write(CType(blk.IndicesCompact(y), UInt16))
-                    Writer.Write(blk.DeltasCompact(y * 3))
-                    Writer.Write(blk.DeltasCompact(y * 3 + 1))
-                    Writer.Write(blk.DeltasCompact(y * 3 + 2))
+                Writer.Write(Header)
+                Writer.Write(Version)
+                Writer.Write(CType(Blocks.Count, UInt32))
+                For x = 0 To Blocks.Count - 1
+                    Dim blk = Blocks(x)
+                    Writer.Write(CType(blk.BlockName.Length, Byte))
+                    Writer.Write(System.Text.Encoding.UTF8.GetBytes(blk.BlockName))
+                    Dim DifDatas = blk.DataDiff.Count
+                    Writer.Write(CType(DifDatas, UInt16))
+                    ' O5.1: Use compact arrays when available for faster sequential write
+                    If blk.IndicesCompact IsNot Nothing AndAlso blk.IndicesCompact.Length = DifDatas Then
+                        For y = 0 To DifDatas - 1
+                            Writer.Write(CType(blk.IndicesCompact(y), UInt16))
+                            Writer.Write(blk.DeltasCompact(y * 3))
+                            Writer.Write(blk.DeltasCompact(y * 3 + 1))
+                            Writer.Write(blk.DeltasCompact(y * 3 + 2))
+                        Next
+                    Else
+                        For y = 0 To DifDatas - 1
+                            Writer.Write(CType(blk.DataDiff(y).Index, UInt16))
+                            Writer.Write(CType(blk.DataDiff(y).X, Single))
+                            Writer.Write(CType(blk.DataDiff(y).Y, Single))
+                            Writer.Write(CType(blk.DataDiff(y).Z, Single))
+                        Next
+                    End If
                 Next
-            Else
-                For y = 0 To DifDatas - 1
-                    Writer.Write(CType(blk.DataDiff(y).Index, UInt16))
-                    Writer.Write(CType(blk.DataDiff(y).X, Single))
-                    Writer.Write(CType(blk.DataDiff(y).Y, Single))
-                    Writer.Write(CType(blk.DataDiff(y).Z, Single))
-                Next
-            End If
-        Next
-        Writer.Flush()
-        End Using
+                Writer.Flush()
+            End Using
         End Using
     End Sub
 End Class
@@ -540,9 +546,10 @@ Public Class Clone_Materials_class
         Return result
     End Function
 
-    Public Shared Sub Clone_Materials_For_Project(project As SliderSet_Class, overwrite As Boolean)
+    Public Shared Sub Clone_Materials_For_Project(project As SliderSet_Class, overwrite As Boolean, Optional context As ProjectLoadContext = Nothing)
+        Dim loadContext = If(context, ProjectLoadContext.CreateInteractive())
         Dim plan As New ClonePlan
-        If OSP_Project_Class.Load_and_Check_Shapedata(project, True) = False Then Exit Sub
+        If OSP_Project_Class.Load_and_Check_Shapedata(project, loadContext) = False Then Exit Sub
         CollectClonePlan(project, plan)
 
         For Each job In plan.MaterialJobs.Values.ToList()
@@ -1151,6 +1158,8 @@ Public Class Clone_Materials_class
                         End Using
                     End Using
 
+                    ApplyBGEMResolvedReferences(material, job)
+
                     WriteMaterialJob(job, overwrite, Sub(writer)
                                                          material.Save(writer)
                                                      End Sub)
@@ -1185,9 +1194,175 @@ Public Class Clone_Materials_class
             SetShaderMaterialName(binding.Shader, finalName)
         Next
     End Sub
+
+    Private Shared Function IsMaterialAlreadyClonedReference(materialName As String) As Boolean
+        Dim normalized = NormalizeMaterialReference(materialName)
+        If String.IsNullOrWhiteSpace(normalized) Then Return True
+        If normalized.StartsWith("ManoloCloned\", StringComparison.OrdinalIgnoreCase) Then Return True
+        If normalized.StartsWith("ManoloMods\", StringComparison.OrdinalIgnoreCase) Then Return True
+        Return False
+    End Function
+
+    Private Shared Function IsMaterialCloneEligible(materialName As String) As Boolean
+        Dim key As String = NormalizeMaterialSourceKey(materialName)
+        If key = "" Then Return False
+
+        Dim location As FilesDictionary_class.File_Location = Nothing
+        If FilesDictionary_class.Dictionary.TryGetValue(key, location) = False Then Return False
+        If IsNothing(location) Then Return False
+
+        Return location.IsLosseFile OrElse WM_Config.Allowed_To_Clone(location.BA2File)
+    End Function
+
+    ''' <summary>
+    ''' Shapes cuyo material apunta fuera de ManoloCloned/ManoloMods Y cuya fuente es clonable
+    ''' (loose o BA2 permitido). Asume ShapeData ya cargado; si no lo está retorna lista vacía.
+    ''' </summary>
+    Public Shared Function GetShapesMissingCloneMaterial(project As SliderSet_Class) As List(Of Shape_class)
+        Dim result As New List(Of Shape_class)
+        If IsNothing(project) Then Return result
+        If project.ShapeDataLoaded = False Then Return result
+
+        For Each shap In project.Shapes
+            If IsNothing(shap.RelatedNifShader) Then Continue For
+
+            Dim materialName As String
+            Try
+                materialName = GetShaderMaterialName(shap.RelatedNifShader)
+            Catch
+                Continue For
+            End Try
+
+            If IsMaterialAlreadyClonedReference(materialName) Then Continue For
+            If Not IsMaterialCloneEligible(materialName) Then Continue For
+
+            result.Add(shap)
+        Next
+
+        Return result
+    End Function
+
+    Public Shared Function BuildCloneMaterialPendingIssue(project As SliderSet_Class) As ProjectLoadIssue
+        If IsNothing(project) Then Return Nothing
+
+        Dim pending = GetShapesMissingCloneMaterial(project)
+        If pending.Count = 0 Then Return Nothing
+
+        Dim osp = project.ParentOSP
+
+        Dim shapeNames = pending.
+            Select(Function(s) s.Nombre).
+            Where(Function(n) Not String.IsNullOrWhiteSpace(n)).
+            Distinct(StringComparer.OrdinalIgnoreCase).
+            OrderBy(Function(n) n, StringComparer.OrdinalIgnoreCase).
+            ToList()
+
+        Dim materialPaths As New List(Of String)
+        For Each shap In pending
+            Dim materialName As String
+            Try
+                materialName = GetShaderMaterialName(shap.RelatedNifShader)
+            Catch
+                Continue For
+            End Try
+            Dim normalized = NormalizeMaterialSourceKey(materialName)
+            If String.IsNullOrWhiteSpace(normalized) Then Continue For
+            If Not materialPaths.Contains(normalized, StringComparer.OrdinalIgnoreCase) Then materialPaths.Add(normalized)
+        Next
+        materialPaths.Sort(StringComparer.OrdinalIgnoreCase)
+
+        Return New ProjectLoadIssue With {
+            .Kind = ProjectLoadIssueKind.CloneMaterialPending,
+            .OspFile = If(osp?.Filename, "").Correct_Path_Separator,
+            .PackName = If(osp?.Nombre, ""),
+            .ProjectName = If(project.Nombre, ""),
+            .Message = $"{pending.Count} shape(s) reference clonable materials outside ManoloCloned.",
+            .ShapeNames = shapeNames,
+            .MaterialPaths = materialPaths,
+            .SourceSlider = project,
+            .SourceOsp = osp
+        }
+    End Function
 End Class
+Public Enum ProjectLoadInteractionMode
+    Silent
+    CollectIssues
+    Interactive
+End Enum
+
+Public Enum ProjectLoadIssueKind
+    OspReadError
+    ProjectValidationError
+    ShapeDataReadError
+    CloneMaterialPending
+End Enum
+
+Public Class ProjectLoadIssue
+    Public Property Kind As ProjectLoadIssueKind
+    Public Property OspFile As String = ""
+    Public Property PackName As String = ""
+    Public Property ProjectName As String = ""
+    Public Property Message As String = ""
+    Public Property ShapeNames As New List(Of String)
+    Public Property MaterialPaths As New List(Of String)
+    Public Property ProjectSignature As String = ""
+    Public Property ShapeDataSignature As String = ""
+    Public Property SourceSlider As SliderSet_Class
+    Public Property SourceOsp As OSP_Project_Class
+
+    Public ReadOnly Property IssueKey As String
+        Get
+            Return String.Join("|",
+                               CInt(Kind).ToString(CultureInfo.InvariantCulture),
+                               OspFile.Correct_Path_Separator,
+                               PackName,
+                               ProjectName,
+                               Message,
+                               String.Join(";", ShapeNames.OrderBy(Function(name) name, StringComparer.OrdinalIgnoreCase)),
+                               String.Join(";", MaterialPaths.OrderBy(Function(path) path, StringComparer.OrdinalIgnoreCase)))
+        End Get
+    End Property
+End Class
+
+Public Class ProjectLoadContext
+    Public Property InteractionMode As ProjectLoadInteractionMode = ProjectLoadInteractionMode.Silent
+    Public Property AnalyzeCloneMaterials As Boolean = False
+    Public Property Issues As New List(Of ProjectLoadIssue)
+
+    Public Shared Function CreateSilent(Optional analyzeCloneMaterials As Boolean = False) As ProjectLoadContext
+        Return New ProjectLoadContext With {
+            .InteractionMode = ProjectLoadInteractionMode.Silent,
+            .AnalyzeCloneMaterials = analyzeCloneMaterials
+        }
+    End Function
+
+    Public Shared Function CreateCollectOnly(Optional analyzeCloneMaterials As Boolean = False) As ProjectLoadContext
+        Return New ProjectLoadContext With {
+            .InteractionMode = ProjectLoadInteractionMode.CollectIssues,
+            .AnalyzeCloneMaterials = analyzeCloneMaterials
+        }
+    End Function
+
+    Public Shared Function CreateInteractive(Optional analyzeCloneMaterials As Boolean = False) As ProjectLoadContext
+        Return New ProjectLoadContext With {
+            .InteractionMode = ProjectLoadInteractionMode.Interactive,
+            .AnalyzeCloneMaterials = analyzeCloneMaterials
+        }
+    End Function
+
+    Public Function CloneWith(Optional interactionMode As ProjectLoadInteractionMode? = Nothing,
+                              Optional analyzeCloneMaterials As Boolean? = Nothing) As ProjectLoadContext
+        Return New ProjectLoadContext With {
+            .InteractionMode = If(interactionMode.HasValue, interactionMode.Value, Me.InteractionMode),
+            .AnalyzeCloneMaterials = If(analyzeCloneMaterials.HasValue, analyzeCloneMaterials.Value, Me.AnalyzeCloneMaterials),
+            .Issues = Me.Issues
+        }
+    End Function
+End Class
+
 Public Class OSP_Project_Class
     Public Property SliderSets As New List(Of SliderSet_Class)
+    Public Property LastLoadIssues As New List(Of ProjectLoadIssue)
     Public xml As New XmlDocument
     Private Shared ReadOnly LoadedShapeDataSlots As New List(Of SliderSet_Class)
     Private Shared ReadOnly LoadedShapeDataSlotsSync As New Object()
@@ -1233,12 +1408,126 @@ Public Class OSP_Project_Class
 
     Private YaEstan As New List(Of SliderSet_Class)
 
-    Sub New(Osd_File As String, Deep_Analize As Boolean)
+    Private Shared Function EnsureLoadContext(context As ProjectLoadContext,
+                                              Optional defaultMode As ProjectLoadInteractionMode = ProjectLoadInteractionMode.Interactive,
+                                              Optional analyzeCloneMaterials As Boolean = False) As ProjectLoadContext
+        If Not IsNothing(context) Then Return context
+
+        Select Case defaultMode
+            Case ProjectLoadInteractionMode.CollectIssues
+                Return ProjectLoadContext.CreateCollectOnly(analyzeCloneMaterials)
+            Case ProjectLoadInteractionMode.Interactive
+                Return ProjectLoadContext.CreateInteractive(analyzeCloneMaterials)
+            Case Else
+                Return ProjectLoadContext.CreateSilent(analyzeCloneMaterials)
+        End Select
+    End Function
+
+    Private Shared Function BuildIssueForOspRead(ospPath As String, message As String) As ProjectLoadIssue
+        Return New ProjectLoadIssue With {
+            .Kind = ProjectLoadIssueKind.OspReadError,
+            .OspFile = If(ospPath, "").Correct_Path_Separator,
+            .PackName = IO.Path.GetFileNameWithoutExtension(If(ospPath, "")),
+            .ProjectName = "",
+            .Message = message
+        }
+    End Function
+
+    Private Shared Function BuildIssueForProjectValidation(slider As SliderSet_Class, projectName As String, message As String) As ProjectLoadIssue
+        Dim osp = If(slider?.ParentOSP, Nothing)
+        Return New ProjectLoadIssue With {
+            .Kind = ProjectLoadIssueKind.ProjectValidationError,
+            .OspFile = If(osp?.Filename, "").Correct_Path_Separator,
+            .PackName = If(osp?.Nombre, ""),
+            .ProjectName = projectName,
+            .Message = message,
+            .ProjectSignature = If(slider?.LastProjectFileSignature, ""),
+            .SourceSlider = slider,
+            .SourceOsp = osp
+        }
+    End Function
+
+    Private Shared Function BuildIssueForShapeData(slider As SliderSet_Class, message As String, currentProjectSignature As String, currentShapeDataSignature As String) As ProjectLoadIssue
+        Dim osp = If(slider?.ParentOSP, Nothing)
+        Return New ProjectLoadIssue With {
+            .Kind = ProjectLoadIssueKind.ShapeDataReadError,
+            .OspFile = If(osp?.Filename, "").Correct_Path_Separator,
+            .PackName = If(osp?.Nombre, ""),
+            .ProjectName = If(slider?.Nombre, ""),
+            .Message = message,
+            .ProjectSignature = currentProjectSignature,
+            .ShapeDataSignature = currentShapeDataSignature,
+            .SourceSlider = slider,
+            .SourceOsp = osp
+        }
+    End Function
+
+    ''' <summary>
+    ''' Delegate que el form principal cablea en Load para que los issues Interactive
+    ''' se muestren con el dialog bonito (ShowLoadIssuesDialog) en vez del MsgBox legacy.
+    ''' Si no esta seteado (ej: tests, tools CLI), cae al fallback de MsgBox.
+    ''' </summary>
+    Public Shared Property InteractiveIssueDisplay As Action(Of ProjectLoadIssue) = Nothing
+
+    ''' <summary>
+    ''' Delegate para mostrar un batch de issues agregados (BuildingForm, etc.).
+    ''' Cableado por el form principal al mismo ShowLoadIssuesDialog. Los callers
+    ''' que acumulen issues durante un flujo largo (build, import, etc.) pueden
+    ''' invocarlo al final con la lista completa en vez de disparar N dialogs.
+    ''' </summary>
+    Public Shared Property InteractiveIssueBatchDisplay As Action(Of IReadOnlyList(Of ProjectLoadIssue)) = Nothing
+
+    Private Shared Sub ShowInteractiveIssue(issue As ProjectLoadIssue)
+        If IsNothing(issue) OrElse issue.Kind = ProjectLoadIssueKind.CloneMaterialPending Then Exit Sub
+
+        Dim handler = InteractiveIssueDisplay
+        If handler IsNot Nothing Then
+            Try
+                handler.Invoke(issue)
+                Return
+            Catch
+                ' Si el handler falla por cualquier razon, cae al fallback MsgBox
+            End Try
+        End If
+
+        Dim text As String
+        Select Case issue.Kind
+            Case ProjectLoadIssueKind.OspReadError
+                text = "Error reading OSP: " & issue.OspFile & " " & issue.Message
+            Case ProjectLoadIssueKind.ProjectValidationError
+                text = "Error reading project: " & issue.ProjectName & " " & issue.Message
+            Case Else
+                text = "Error reading shapedata from project: " & issue.ProjectName & " " & issue.Message
+        End Select
+
+        MsgBox(text, vbCritical Or vbOKOnly, "Error")
+    End Sub
+
+    Private Shared Sub ReportLoadIssue(context As ProjectLoadContext, issue As ProjectLoadIssue)
+        If IsNothing(issue) Then Exit Sub
+
+        Dim effectiveContext = EnsureLoadContext(context)
+        If effectiveContext.InteractionMode <> ProjectLoadInteractionMode.Silent Then
+            If effectiveContext.Issues Is Nothing Then effectiveContext.Issues = New List(Of ProjectLoadIssue)
+            If effectiveContext.Issues.Any(Function(existing) existing.IssueKey = issue.IssueKey) = False Then
+                effectiveContext.Issues.Add(issue)
+            End If
+        End If
+
+        If effectiveContext.InteractionMode = ProjectLoadInteractionMode.Interactive Then
+            ShowInteractiveIssue(issue)
+        End If
+    End Sub
+
+    Sub New(Osd_File As String, Deep_Analize As Boolean, Optional context As ProjectLoadContext = Nothing, Optional onSliderProcessed As Action = Nothing)
+        Dim loadContext = EnsureLoadContext(context, ProjectLoadInteractionMode.CollectIssues)
         Try
             xml.Load(Osd_File)
-            Lee_Slidersets(Deep_Analize)
+            Lee_Slidersets(Deep_Analize, loadContext, onSliderProcessed)
         Catch ex As Exception
-            MsgBox("Error reading OSP:" + Osd_File, vbCritical, "Error")
+            ReportLoadIssue(loadContext, BuildIssueForOspRead(Osd_File, ex.Message))
+        Finally
+            LastLoadIssues = loadContext.Issues.ToList()
         End Try
     End Sub
     Sub New()
@@ -1255,13 +1544,16 @@ Public Class OSP_Project_Class
             MsgBox("Error Creating OSP:", "Error")
         End Try
     End Sub
-    Sub Reload(Deep_Analize As Boolean)
+    Sub Reload(Deep_Analize As Boolean, Optional context As ProjectLoadContext = Nothing)
+        Dim loadContext = EnsureLoadContext(context, ProjectLoadInteractionMode.CollectIssues)
         Try
             xml.Load(Me.Filename)
             YaEstan = Me.SliderSets.ToList
-            Lee_Slidersets(Deep_Analize)
+            Lee_Slidersets(Deep_Analize, loadContext)
         Catch ex As Exception
-            MsgBox("Error reading OSP:" + Me.Filename, vbCritical, "Error")
+            ReportLoadIssue(loadContext, BuildIssueForOspRead(Me.Filename, ex.Message))
+        Finally
+            LastLoadIssues = loadContext.Issues.ToList()
         End Try
     End Sub
 
@@ -1278,10 +1570,15 @@ Public Class OSP_Project_Class
         End Using
         Return New OSP_Project_Class(Filename, True)
     End Function
-    Public Function AddProject(ByRef Template As SliderSet_Class) As SliderSet_Class
+    Public Function AddProject(ByRef Template As SliderSet_Class, Optional context As ProjectLoadContext = Nothing) As SliderSet_Class
         Dim Sliderset_Target = New SliderSet_Class(Me.xml.DocumentElement.AppendChild(Me.xml.ImportNode(Template.Nodo.Clone, True)), Me)
-        Load_and_CHeck_Project(Sliderset_Target)
-        Load_and_Check_Shapedata(Sliderset_Target, True)
+        Dim loadContext = If(context, ProjectLoadContext.CreateInteractive())
+        If Load_and_CHeck_Project(Sliderset_Target, loadContext) = False OrElse Load_and_Check_Shapedata(Sliderset_Target, loadContext) = False Then
+            If Not IsNothing(Sliderset_Target.Nodo) AndAlso Not IsNothing(Sliderset_Target.Nodo.ParentNode) Then
+                Sliderset_Target.Nodo.ParentNode.RemoveChild(Sliderset_Target.Nodo)
+            End If
+            Return Nothing
+        End If
         SliderSets.Add(Sliderset_Target)
         Return Sliderset_Target
     End Function
@@ -1313,13 +1610,19 @@ Public Class OSP_Project_Class
     Public ReadOnly Property IsManoloPack
         Get
             'ManoloPack="true"
+            If IsNothing(xml) OrElse IsNothing(xml.DocumentElement) Then Return False
             If Not IsNothing(xml.DocumentElement.Attributes("ManoloPack")) AndAlso xml.DocumentElement.Attributes("ManoloPack").Value = "true" Then Return True
             Return False
         End Get
     End Property
     Public Shared Function Load_and_Check_Shapedata(ByRef Sliderset_Target As SliderSet_Class, verbose As Boolean) As Boolean
+        Return Load_and_Check_Shapedata(Sliderset_Target, If(verbose, ProjectLoadContext.CreateInteractive(), ProjectLoadContext.CreateSilent()))
+    End Function
+
+    Public Shared Function Load_and_Check_Shapedata(ByRef Sliderset_Target As SliderSet_Class, Optional context As ProjectLoadContext = Nothing) As Boolean
         Dim currentProjectSignature As String = ""
         Dim currentShapeDataSignature As String = ""
+        Dim effectiveContext = EnsureLoadContext(context)
 
         Try
             currentProjectSignature = Sliderset_Target.GetProjectFileSignature()
@@ -1330,13 +1633,14 @@ Public Class OSP_Project_Class
                 Sliderset_Target.Unreadable_Project = False
                 Sliderset_Target.Unreadable_NIF = False
 
-                Sliderset_Target.ParentOSP.Reload(False)
+                Sliderset_Target.ParentOSP.Reload(False, effectiveContext.CloneWith(analyzeCloneMaterials:=False))
 
                 If Sliderset_Target.ParentOSP.SliderSets.Contains(Sliderset_Target) = False Then
                     Sliderset_Target.Unreadable_Project = True
-                    If verbose Then
-                        MsgBox("Project changed on disk and the selected sliderset no longer exists. Refresh the list.", vbCritical + vbOK, "Error")
-                    End If
+                    ReportLoadIssue(effectiveContext, BuildIssueForShapeData(Sliderset_Target,
+                                                                             "Project changed on disk and the selected sliderset no longer exists. Refresh the list.",
+                                                                             currentProjectSignature,
+                                                                             currentShapeDataSignature))
                     Return False
                 End If
 
@@ -1410,6 +1714,12 @@ Public Class OSP_Project_Class
 
             RememberLoadedShapeDataSlot(Sliderset_Target)
 
+            If effectiveContext.AnalyzeCloneMaterials AndAlso
+           Not IsNothing(Sliderset_Target.ParentOSP) AndAlso
+           Sliderset_Target.ParentOSP.IsManoloPack Then
+                ReportLoadIssue(effectiveContext, Clone_Materials_class.BuildCloneMaterialPendingIssue(Sliderset_Target))
+            End If
+
         Catch ex As Exception
             Sliderset_Target.UnloadShapeData(False)
             Sliderset_Target.ShapeDataLoaded = False
@@ -1418,16 +1728,18 @@ Public Class OSP_Project_Class
             End If
             Sliderset_Target.LastProjectFileSignature = currentProjectSignature
             Sliderset_Target.LastShapeDataSignature = currentShapeDataSignature
-            If verbose Then MsgBox("Error reading shapedata from project: " + Sliderset_Target.Nombre + " " + ex.Message.ToString, vbCritical + vbOK, "Error")
+            ReportLoadIssue(effectiveContext, BuildIssueForShapeData(Sliderset_Target, ex.Message, currentProjectSignature, currentShapeDataSignature))
             Return False
         End Try
 
         Return True
     End Function
 
-    Public Shared Function Load_and_CHeck_Project(ByRef Sliderset_Target As SliderSet_Class) As Boolean
+    Public Shared Function Load_and_CHeck_Project(ByRef Sliderset_Target As SliderSet_Class, Optional context As ProjectLoadContext = Nothing) As Boolean
         Dim nombre As String = "(Sin Nombre)"
         If Sliderset_Target.Unreadable_Project Then Return False
+
+        Dim effectiveContext = EnsureLoadContext(context)
 
         Try
             Dim Sset = Sliderset_Target.Nodo
@@ -1438,19 +1750,17 @@ Public Class OSP_Project_Class
             If Sset.SelectNodes("OutputPath").Count <> 1 Then Throw New Exception("OutputPath not found or more than one")
             If Sset.SelectNodes("OutputFile").Count <> 1 Then Throw New Exception("OutputFile not found or more than one")
             If Sset.SelectNodes("Shape").Count < 1 Then Throw New Exception("No Shapes")
-            'If Sliderset_Target.Shapes.Where(Function(pf) pf.IsExternal).Count > 1 Then Throw New Exception("More than one external shape")
-            'If Sliderset_Target.Shapes.Where(Function(pf) pf.Nombre <> pf.Target).Count > 1 Then Throw New Exception("Shape name and target doesnt match")
         Catch ex As Exception
             Sliderset_Target.Unreadable_Project = True
-            MsgBox("Error reading project: " + nombre + " " + ex.Message.ToString, vbCritical + vbOK, "Error")
+            ReportLoadIssue(effectiveContext, BuildIssueForProjectValidation(Sliderset_Target, nombre, ex.Message))
             Return False
         End Try
 
-        ''ESTO LO HACE LENTO PERO SIRVE PARA CONTROLLAR
         Return True
     End Function
 
-    Public Sub Lee_Slidersets(Deep_Analize As Boolean)
+    Public Sub Lee_Slidersets(Deep_Analize As Boolean, Optional context As ProjectLoadContext = Nothing, Optional onSliderProcessed As Action = Nothing)
+        Dim effectiveContext = EnsureLoadContext(context)
         SliderSets.Clear()
         Try
             For Each Sset As XmlNode In xml.DocumentElement.SelectNodes("SliderSet")
@@ -1461,16 +1771,20 @@ Public Class OSP_Project_Class
                 Else
                     Sliderset_target = New SliderSet_Class(Sset, Me)
                 End If
-                Load_and_CHeck_Project(Sliderset_target)
-                If Deep_Analize Then Load_and_Check_Shapedata(Sliderset_target, True)
+                Dim projectLoaded = Load_and_CHeck_Project(Sliderset_target, effectiveContext)
+                If Deep_Analize AndAlso projectLoaded Then Load_and_Check_Shapedata(Sliderset_target, effectiveContext.CloneWith(analyzeCloneMaterials:=effectiveContext.AnalyzeCloneMaterials))
                 SliderSets.Add(Sliderset_target)
+                If onSliderProcessed IsNot Nothing Then
+                    Try
+                        onSliderProcessed.Invoke()
+                    Catch
+                    End Try
+                End If
             Next
 
         Catch ex As Exception
-            MsgBox("Error pricessing OSP file" + Me.Filename, vbCritical, "Error")
+            ReportLoadIssue(effectiveContext, BuildIssueForOspRead(Me.Filename, "Error processing OSP file. " & ex.Message))
         End Try
-        ' Chequeos
-
     End Sub
 
     Private Function Check_repeated(Nombre As String) As Boolean
@@ -1480,10 +1794,11 @@ Public Class OSP_Project_Class
         End If
         Return True
     End Function
-    Public Function Agrega_Proyecto(Sliderset_Source As SliderSet_Class, Nombre_Proyecto As String, Filename As String, ExcludeReference As Boolean, OverwriteShapeFiles As Boolean, Keep_Physics As Boolean, ChangeOutputDir As Boolean) As SliderSet_Class
+    Public Function Agrega_Proyecto(Sliderset_Source As SliderSet_Class, Nombre_Proyecto As String, Filename As String, ExcludeReference As Boolean, OverwriteShapeFiles As Boolean, Keep_Physics As Boolean, ChangeOutputDir As Boolean, Optional context As ProjectLoadContext = Nothing) As SliderSet_Class
         If Check_repeated(Nombre_Proyecto) = False Then Return Nothing
         ' Add project and update
-        Dim Sliderset_Target As SliderSet_Class = AddProject(Sliderset_Source)
+        Dim Sliderset_Target As SliderSet_Class = AddProject(Sliderset_Source, context)
+        If IsNothing(Sliderset_Target) Then Return Nothing
         If ChangeOutputDir AndAlso Sliderset_Target.OutputPathValue.Contains("ManoloCloned") = False Then
             If Sliderset_Target.OutputPathValue.Correct_Path_Separator.StartsWith("meshes\", StringComparison.OrdinalIgnoreCase) Then
                 Sliderset_Target.OutputPathValue = String.Concat("meshes\ManoloCloned\", Sliderset_Target.OutputPathValue.Correct_Path_Separator.AsSpan("meshes\".Length))
@@ -1497,7 +1812,7 @@ Public Class OSP_Project_Class
         Dim Old_Osd = Old_Nif.Replace(".nif", ".osd", StringComparison.OrdinalIgnoreCase)
 
         ' Procesa los cambios de nombre
-        Sliderset_Target.Update_Names(Nombre_Proyecto, Me.Nombre)
+        Sliderset_Target.Update_Names(Nombre_Proyecto, Me.Nombre, context)
 
         ' Define High Heels
         Sliderset_Target.HighHeelHeight = Sliderset_Source.HighHeelHeight
@@ -1524,10 +1839,11 @@ Public Class OSP_Project_Class
         Return Sliderset_Target
     End Function
 
-    Public Shared Function Merge_Proyecto(Sliderset_Madre As SliderSet_Class, Sliderset_Source As SliderSet_Class, ExcludeReference As Boolean, Keep_Physics As Boolean) As SliderSet_Class
+    Public Shared Function Merge_Proyecto(Sliderset_Madre As SliderSet_Class, Sliderset_Source As SliderSet_Class, ExcludeReference As Boolean, Keep_Physics As Boolean, Optional context As ProjectLoadContext = Nothing) As SliderSet_Class
         ' Add project and update
         Dim Sliderset_Target = New SliderSet_Class(Sliderset_Madre.ParentOSP.xml.ImportNode(Sliderset_Source.Nodo.Clone, True), Sliderset_Madre.ParentOSP)
-        If OSP_Project_Class.Load_and_CHeck_Project(Sliderset_Target) = False OrElse OSP_Project_Class.Load_and_Check_Shapedata(Sliderset_Target, True) = False Then Return Nothing
+        Dim loadContext = If(context, ProjectLoadContext.CreateInteractive())
+        If OSP_Project_Class.Load_and_CHeck_Project(Sliderset_Target, loadContext) = False OrElse OSP_Project_Class.Load_and_Check_Shapedata(Sliderset_Target, loadContext) = False Then Return Nothing
 
         ' Define HighHeels
         If Sliderset_Target.HighHeelHeight <> 0 Then
@@ -1538,7 +1854,7 @@ Public Class OSP_Project_Class
         Dim Old_Osd = Old_Nif.Replace(".nif", ".osd", StringComparison.OrdinalIgnoreCase)
 
         ' Procesa los cambios de nombre
-        Sliderset_Target.Update_Names(Sliderset_Madre.Nombre, Sliderset_Madre.ParentOSP.Nombre)
+        Sliderset_Target.Update_Names(Sliderset_Madre.Nombre, Sliderset_Madre.ParentOSP.Nombre, context)
 
         ' Agrega Sliders Faltantes
         For Each slid In Sliderset_Target.Sliders
@@ -1750,6 +2066,15 @@ Public Class SliderSet_Class
         For Each shp In Shapes
             shp.MorphDiffs = Nothing
         Next
+        ' CRITICAL: Vaciar los dicts cacheados. Si no, las referencias a BSTriShape y
+        ' OSD_Block_Class del NIF/OSD viejos mantienen VIVO el vertex data y los morph
+        ' blocks despues de que UnloadShapeData haya reemplazado NIFContent/OSDContent.
+        ' Sin este clear, en un bulk deep load que toca cada sliderset una sola vez,
+        ' los viejos nunca se rebuildeaban y todo se acumulaba en el heap -> ~15MB/slider
+        ' de leak acumulado hasta tirar la RAM.
+        _NifShapeByNameCache.Clear()
+        _LocalOsdBlocksByNameCache.Clear()
+        _ExternalOsdBlocksByNameCache.Clear()
     End Sub
     Public Sub RebuildShapeDataLookupCache()
         _ShapeDataLookupCacheValid = False
@@ -1948,6 +2273,33 @@ Public Class SliderSet_Class
         OSP_Project_Class.ForgetLoadedShapeDataSlot(Me)
         InvalidateShapeDataLookupCache()
 
+        ' Limpieza explicita ANTES de soltar la referencia. NiflySharp.NifFile.Clear()
+        ' vacia Blocks + Header.strings/blockTypes/blockTypeIndices/blockSizes. Sin
+        ' este clear, en bulk con pause=True el heap managed se reduce correctamente
+        ' al reemplazar NIFContent, pero el working set committed no se devuelve al OS
+        ' hasta que haya presion (le quedan paginas LOH retenidas). El Clear() promueve
+        ' a colectable los objetos internos (vertex buffers, skin data, bone weight
+        ' arrays) ANTES del reemplazo para que el proximo Gen2 compacting las libere.
+        Try
+            If NIFContent IsNot Nothing Then NIFContent.Clear()
+        Catch
+        End Try
+        Try
+            If OSDContent_Local IsNot Nothing AndAlso OSDContent_Local.Blocks IsNot Nothing Then OSDContent_Local.Blocks.Clear()
+        Catch
+        End Try
+        Try
+            If OSDContent_External IsNot Nothing AndAlso OSDContent_External.Blocks IsNot Nothing Then OSDContent_External.Blocks.Clear()
+        Catch
+        End Try
+        ' BaseMaterials del viejo NIFContent: los FO4UnifiedMaterial_Class tienen
+        ' byte[] del BGSM/BGEM parseado. Si alguna estructura de NiflySharp los
+        ' retiene via el shader ref, limpiar explicitamente ayuda.
+        Try
+            If NIFContent IsNot Nothing AndAlso NIFContent.BaseMaterials IsNot Nothing Then NIFContent.BaseMaterials.Clear()
+        Catch
+        End Try
+
         OSDContent_Local = New OSD_Class(Me)
         OSDContent_External = New OSD_Class(Me)
         NIFContent = New Nifcontent_Class_Manolo()
@@ -2051,10 +2403,10 @@ Public Class SliderSet_Class
         End Try
     End Sub
 
-    Sub Reload(DeepAnalize As Boolean)
+    Sub Reload(DeepAnalize As Boolean, Optional context As ProjectLoadContext = Nothing)
         Unreadable_NIF = False
         Unreadable_Project = False
-        Me.ParentOSP.Reload(DeepAnalize)
+        Me.ParentOSP.Reload(DeepAnalize, context)
     End Sub
     Sub Reload(el As XmlNode)
         Clear()
@@ -2228,14 +2580,14 @@ Public Class SliderSet_Class
 
     End Sub
 
-    Public Sub Update_Names(Nombre As String, Pack As String)
+    Public Sub Update_Names(Nombre As String, Pack As String, Optional context As ProjectLoadContext = Nothing)
         ' Reemplaza nombres
         Dim OldNif = Me.SourceFileFullPath
         Dim Oldosd = ""
         If Me.OsdLocalFullPath.Any Then Oldosd = Me.OsdLocalFullPath.First
 
         ' Carga OSD y NIF
-        OSP_Project_Class.Load_and_Check_Shapedata(Me, True)
+        If OSP_Project_Class.Load_and_Check_Shapedata(Me, If(context, ProjectLoadContext.CreateInteractive())) = False Then Exit Sub
 
         Me.Nombre = Nombre
         Me.DataFolderValue = Pack.ToString

@@ -1,0 +1,123 @@
+﻿*** Update File: Wardrobe_Manager/OSP_Clases.vb
+@@
+ Public Class OSP_Project_Class
+     Public Property SliderSets As New List(Of SliderSet_Class)
++    Public Property LastLoadIssues As New List(Of ProjectLoadIssue)
+     Public xml As New XmlDocument
+@@
+     End Sub
+ 
+     Private YaEstan As New List(Of SliderSet_Class)
++
++    Private Shared Function EnsureLoadContext(context As ProjectLoadContext,
++                                              Optional defaultMode As ProjectLoadInteractionMode = ProjectLoadInteractionMode.Interactive,
++                                              Optional analyzeCloneMaterials As Boolean = False) As ProjectLoadContext
++        If Not IsNothing(context) Then Return context
++
++        Select Case defaultMode
++            Case ProjectLoadInteractionMode.CollectIssues
++                Return ProjectLoadContext.CreateCollectOnly(analyzeCloneMaterials)
++            Case ProjectLoadInteractionMode.Interactive
++                Return ProjectLoadContext.CreateInteractive(analyzeCloneMaterials)
++            Case Else
++                Return ProjectLoadContext.CreateSilent(analyzeCloneMaterials)
++        End Select
++    End Function
++
++    Private Shared Function BuildIssueForOspRead(ospPath As String, message As String) As ProjectLoadIssue
++        Return New ProjectLoadIssue With {
++            .Kind = ProjectLoadIssueKind.OspReadError,
++            .OspFile = If(ospPath, "").Correct_Path_Separator,
++            .PackName = IO.Path.GetFileNameWithoutExtension(If(ospPath, "")),
++            .ProjectName = "",
++            .Message = message
++        }
++    End Function
++
++    Private Shared Function BuildIssueForProjectValidation(slider As SliderSet_Class, projectName As String, message As String) As ProjectLoadIssue
++        Dim osp = If(slider?.ParentOSP, Nothing)
++        Return New ProjectLoadIssue With {
++            .Kind = ProjectLoadIssueKind.ProjectValidationError,
++            .OspFile = If(osp?.Filename, "").Correct_Path_Separator,
++            .PackName = If(osp?.Nombre, ""),
++            .ProjectName = projectName,
++            .Message = message,
++            .ProjectSignature = If(slider?.LastProjectFileSignature, "")
++        }
++    End Function
++
++    Private Shared Function BuildIssueForShapeData(slider As SliderSet_Class, message As String, currentProjectSignature As String, currentShapeDataSignature As String) As ProjectLoadIssue
++        Dim osp = If(slider?.ParentOSP, Nothing)
++        Return New ProjectLoadIssue With {
++            .Kind = ProjectLoadIssueKind.ShapeDataReadError,
++            .OspFile = If(osp?.Filename, "").Correct_Path_Separator,
++            .PackName = If(osp?.Nombre, ""),
++            .ProjectName = If(slider?.Nombre, ""),
++            .Message = message,
++            .ProjectSignature = currentProjectSignature,
++            .ShapeDataSignature = currentShapeDataSignature
++        }
++    End Function
++
++    Private Shared Sub ShowInteractiveIssue(issue As ProjectLoadIssue)
++        If IsNothing(issue) OrElse issue.Kind = ProjectLoadIssueKind.CloneMaterialPending Then Exit Sub
++
++        Dim text As String
++        Select Case issue.Kind
++            Case ProjectLoadIssueKind.OspReadError
++                text = "Error reading OSP: " & issue.OspFile & " " & issue.Message
++            Case ProjectLoadIssueKind.ProjectValidationError
++                text = "Error reading project: " & issue.ProjectName & " " & issue.Message
++            Case Else
++                text = "Error reading shapedata from project: " & issue.ProjectName & " " & issue.Message
++        End Select
++
++        MsgBox(text, vbCritical Or vbOKOnly, "Error")
++    End Sub
++
++    Private Shared Sub ReportLoadIssue(context As ProjectLoadContext, issue As ProjectLoadIssue)
++        If IsNothing(issue) Then Exit Sub
++
++        Dim effectiveContext = EnsureLoadContext(context)
++        If effectiveContext.InteractionMode <> ProjectLoadInteractionMode.Silent Then
++            If effectiveContext.Issues Is Nothing Then effectiveContext.Issues = New List(Of ProjectLoadIssue)
++            If effectiveContext.Issues.Any(Function(existing) existing.IssueKey = issue.IssueKey) = False Then
++                effectiveContext.Issues.Add(issue)
++            End If
++        End If
++
++        If effectiveContext.InteractionMode = ProjectLoadInteractionMode.Interactive Then
++            ShowInteractiveIssue(issue)
++        End If
++    End Sub
+ 
+-    Sub New(Osd_File As String, Deep_Analize As Boolean)
++    Sub New(Osd_File As String, Deep_Analize As Boolean, Optional context As ProjectLoadContext = Nothing)
++        Dim loadContext = EnsureLoadContext(context, ProjectLoadInteractionMode.CollectIssues)
+         Try
+             xml.Load(Osd_File)
+-            Lee_Slidersets(Deep_Analize)
++            Lee_Slidersets(Deep_Analize, loadContext)
+         Catch ex As Exception
+-            MsgBox("Error reading OSP:" + Osd_File, vbCritical, "Error")
++            ReportLoadIssue(loadContext, BuildIssueForOspRead(Osd_File, ex.Message))
++        Finally
++            LastLoadIssues = loadContext.Issues.ToList()
+         End Try
+     End Sub
+@@
+-    Sub Reload(Deep_Analize As Boolean)
++    Sub Reload(Deep_Analize As Boolean, Optional context As ProjectLoadContext = Nothing)
++        Dim loadContext = EnsureLoadContext(context, ProjectLoadInteractionMode.CollectIssues)
+         Try
+             xml.Load(Me.Filename)
+             YaEstan = Me.SliderSets.ToList
+-            Lee_Slidersets(Deep_Analize)
++            Lee_Slidersets(Deep_Analize, loadContext)
+         Catch ex As Exception
+-            MsgBox("Error reading OSP:" + Me.Filename, vbCritical, "Error")
++            ReportLoadIssue(loadContext, BuildIssueForOspRead(Me.Filename, ex.Message))
++        Finally
++            LastLoadIssues = loadContext.Issues.ToList()
+         End Try
+     End Sub

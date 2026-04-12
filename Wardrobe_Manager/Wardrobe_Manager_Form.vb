@@ -316,6 +316,10 @@ Public Class Wardrobe_Manager_Form
         Habilita_deshabilita()
         _LastLeeShapesRequestKey = ""
 
+        Dim deepAnalyze = DeepAnalize_check.Checked
+        Dim cloneMaterialsEnabled = CloneMaterialsCheck.Checked
+        Dim collectedOsps As New List(Of OSP_Project_Class)
+
         Try
             Empieza_Procesos(0)
 
@@ -359,7 +363,7 @@ Public Class Wardrobe_Manager_Form
 
             For Each changedPath In changedPaths
                 Dim oldOsp = currentByPath(changedPath)
-                Dim newOsp = Await Task.Run(Function() New OSP_Project_Class(changedPath, DeepAnalize_check.Checked))
+                Dim newOsp = Await Task.Run(Function() New OSP_Project_Class(changedPath, deepAnalyze, CreateCollectLoadContext(deepAnalyze, cloneMaterialsEnabled)))
 
                 If DeepAnalize_check.Checked Then
                     For Each slider In newOsp.SliderSets
@@ -375,11 +379,12 @@ Public Class Wardrobe_Manager_Form
                 End If
 
                 OSP_FileWriteTicks(changedPath) = diskTicks(changedPath)
+                collectedOsps.Add(newOsp)
                 ProgressBar1.Value = Math.Min(ProgressBar1.Value + 1, ProgressBar1.Maximum)
             Next
 
             For Each addedPath In addedPaths
-                Dim newOsp = Await Task.Run(Function() New OSP_Project_Class(addedPath, DeepAnalize_check.Checked))
+                Dim newOsp = Await Task.Run(Function() New OSP_Project_Class(addedPath, deepAnalyze, CreateCollectLoadContext(deepAnalyze, cloneMaterialsEnabled)))
 
                 If DeepAnalize_check.Checked Then
                     For Each slider In newOsp.SliderSets
@@ -389,6 +394,7 @@ Public Class Wardrobe_Manager_Form
 
                 OSP_Files.Add(newOsp)
                 OSP_FileWriteTicks(addedPath) = diskTicks(addedPath)
+                collectedOsps.Add(newOsp)
                 ProgressBar1.Value = Math.Min(ProgressBar1.Value + 1, ProgressBar1.Maximum)
             Next
 
@@ -398,12 +404,15 @@ Public Class Wardrobe_Manager_Form
             Relee_Poses()
             Relee_Presets()
 
+            ProcessCollectedLoadIssues(collectedOsps, Ovewrite_DataFiles.Checked)
+
         Catch ex As Exception
             MsgBox(ex.ToString)
         End Try
 
         Termina_Procesos()
     End Function
+
     Private Async Function Lee_Listbox() As Task
         If firstime = True Then Return
         Habilita_deshabilita()
@@ -448,7 +457,7 @@ Public Class Wardrobe_Manager_Form
             ' 0) Presets
             Dim filesPresets = FilesDictionary_class.EnumerateFilesWithSymlinkSupport(Directorios.SliderPresetsRoot, "*.xml", False).ToList
 
-            ' 1) Preparamos la lista de archivos y el ProgressBar
+            ' 1) Preparamos la lista de archivos
             Dim files = FilesDictionary_class.EnumerateFilesWithSymlinkSupport(Directorios.SliderSetsRoot, "*.osp", False).ToList()
             ProgressBar1.Value = 0
             ProgressBar1.Maximum = files.Count + filesPresets.Count
@@ -461,24 +470,137 @@ Public Class Wardrobe_Manager_Form
 
             WM_HighHeels.LoadFromDirectory()
 
+            ' Pre-scan paralelo: parsea el XML de cada OSP solo para contar <SliderSet> nodes.
+            ' Es cheap (~1-5 ms por OSP) y nos da el total real de sliders para que la
+            ' ProgressBar refleje trabajo real (sliders) y no unidades de archivo (OSPs).
+            Dim totalSliders As Integer = 0
+            Await Task.Run(Sub()
+                               Parallel.ForEach(files, Sub(fil)
+                                                           Try
+                                                               Dim xdoc As New Xml.XmlDocument()
+                                                               xdoc.Load(fil)
+                                                               Dim n = xdoc.DocumentElement.SelectNodes("SliderSet").Count
+                                                               System.Threading.Interlocked.Add(totalSliders, n)
+                                                           Catch
+                                                           End Try
+                                                       End Sub)
+                           End Sub)
+            ' Style = Continuous para defeat la animacion smooth-chase de WinForms ProgressBar.
+            ' En Blocks (default), cada Value change dispara una animacion easing y con
+            ' miles de updates seguidos la barra nunca alcanza el valor real.
+            ProgressBar1.Style = ProgressBarStyle.Continuous
+            ProgressBar1.Maximum = Math.Max(1, totalSliders)
+            ProgressBar1.Value = 0
+
             ' 2) Parsear en background SALVO DEEP CHECK
+            Dim deepAnalyze = DeepAnalize_check.Checked
+            Dim cloneMaterialsEnabled = CloneMaterialsCheck.Checked
             Dim allOSPs = New ConcurrentBag(Of OSP_Project_Class)()
 
             OSD_Class.FileLocks.Clear()
-            Await Task.Run(Sub()
-                               Parallel.ForEach(files, Sub(fil)
-                                                           Dim osp = New OSP_Project_Class(fil, DeepAnalize_check.Checked)
-                                                           allOSPs.Add(osp)
-                                                           ' Reportar progreso (invoke para UI thread)
-                                                           If DeepAnalize_check.Checked Then
-                                                               For Each slider In osp.SliderSets
-                                                                   slider.UnloadShapeData(False)
-                                                               Next
-                                                           End If
-                                                           Me.Invoke(Sub() ProgressBar1.Value += 1)
-                                                       End Sub)
-                           End Sub)
 
+            ' Limpieza inicial: texturas residuales + bytes cache + readers de BA2.
+            ' Arrancamos con el heap lo mas limpio posible.
+            Try
+                preview_Control.Model.CleanTextures()
+            Catch
+            End Try
+            FilesDictionary_class.PurgeCachesAndReaders()
+            System.Runtime.GCSettings.LargeObjectHeapCompactionMode = System.Runtime.GCLargeObjectHeapCompactionMode.CompactOnce
+            GC.Collect(2, GCCollectionMode.Forced, blocking:=True, compacting:=True)
+            GC.WaitForPendingFinalizers()
+
+            ' Pausamos el LRU auto-eviction durante el bulk. NO usamos Default_Memory=1
+            ' porque eso produce una race: Worker B puede evictar el slider de Worker A
+            ' mientras Worker A todavia esta en medio de Load_and_Check_Shapedata
+            ' (especialmente en BuildCloneMaterialPendingIssue post-Remember). Con el
+            ' pause, solo el worker dueño limpia sus propios sliders via el loop
+            ' "For Each slider In osp.SliderSets: slider.UnloadShapeData(False)" del
+            ' parallel body post-ctor. Sin races.
+            Dim savedMemoryPause = OSP_Project_Class.Default_Memory_Pause
+            OSP_Project_Class.Default_Memory_Pause = True
+
+            Dim processedSliderCount As Integer = 0
+            Dim lastPostedTicks As Long = 0
+            Dim lastPostedCount As Integer = 0
+            Dim postGateLock As New Object()
+            Dim maxSliders As Integer = ProgressBar1.Maximum  ' snapshot para acceso desde workers
+
+            ' Callback que se invoca DENTRO de Lee_Slidersets despues de cada sliderset procesado.
+            ' Ademas de reportar progreso, cada 50 slidersets forzamos un Gen2 compactante
+            ' para evitar que el heap crezca sin limite durante el bulk de cientos de NIFs
+            ' cargados/descargados secuencialmente dentro de cada worker.
+            Dim reportSliderProgress As Action = Sub()
+                                                     Dim currentSliders = System.Threading.Interlocked.Increment(processedSliderCount)
+                                                     Dim shouldPost = False
+                                                     Dim shouldGc = False
+                                                     SyncLock postGateLock
+                                                         Dim nowTicks = Date.UtcNow.Ticks
+                                                         Dim msSinceLast = (nowTicks - lastPostedTicks) / TimeSpan.TicksPerMillisecond
+                                                         Dim deltaCount = currentSliders - lastPostedCount
+                                                         If currentSliders >= maxSliders OrElse msSinceLast > 50 OrElse deltaCount >= 20 Then
+                                                             shouldPost = True
+                                                             lastPostedTicks = nowTicks
+                                                             lastPostedCount = currentSliders
+                                                         End If
+                                                     End SyncLock
+
+                                                     ' GC cada 50 slidersets — solo en deep analyze porque ahi se cargan
+                                                     ' miles de NIFs que llenan la LOH. Sin deep no se toca shapedata,
+                                                     ' la LOH queda vacia y el GC+LOH compaction es overhead puro.
+                                                     If deepAnalyze AndAlso (currentSliders Mod 50) = 0 Then shouldGc = True
+
+                                                     If shouldPost Then
+                                                         Try
+                                                             Me.BeginInvoke(Sub()
+                                                                                ProgressBar1.Value = Math.Min(currentSliders, ProgressBar1.Maximum)
+                                                                            End Sub)
+                                                         Catch
+                                                         End Try
+                                                     End If
+
+                                                     If shouldGc Then
+                                                         Try
+                                                             ' Purga caches del FilesDictionary + GC Gen2 compactante CON LOH.
+                                                             ' Clave: CompactOnce en LargeObjectHeapCompactionMode fuerza a compactar
+                                                             ' la LOH (donde van los vertex buffers de NIF >=85KB). Sin esto, el
+                                                             ' parametro compacting:=True solo compacta la SOH y la LOH queda
+                                                             ' fragmentada reteniendo GBs de paginas committed pero vacias.
+                                                             FilesDictionary_class.PurgeCachesAndReaders()
+                                                             System.Runtime.GCSettings.LargeObjectHeapCompactionMode = System.Runtime.GCLargeObjectHeapCompactionMode.CompactOnce
+                                                             GC.Collect(2, GCCollectionMode.Forced, blocking:=True, compacting:=True)
+                                                         Catch
+                                                         End Try
+                                                     End If
+                                                 End Sub
+
+            Try
+                Await Task.Run(Sub()
+                                   Parallel.ForEach(files, Sub(fil)
+                                                               Dim osp = New OSP_Project_Class(fil, deepAnalyze, CreateCollectLoadContext(deepAnalyze, cloneMaterialsEnabled), reportSliderProgress)
+                                                               allOSPs.Add(osp)
+                                                               If deepAnalyze Then
+                                                                   For Each slider In osp.SliderSets
+                                                                       slider.UnloadShapeData(False)
+                                                                   Next
+                                                               End If
+                                                           End Sub)
+                               End Sub)
+            Finally
+                ' Restaurar el LRU pause flag y forzar GC final para liberar todo lo acumulado.
+                OSP_Project_Class.Default_Memory_Pause = savedMemoryPause
+                Try
+                    ' Final GC con LOH compaction: libera todo lo que quedo de vertex buffers
+                    ' en la LOH y devuelve las paginas committed al OS.
+                    FilesDictionary_class.PurgeCachesAndReaders()
+                    System.Runtime.GCSettings.LargeObjectHeapCompactionMode = System.Runtime.GCLargeObjectHeapCompactionMode.CompactOnce
+                    GC.Collect(2, GCCollectionMode.Forced, blocking:=True, compacting:=True)
+                    GC.WaitForPendingFinalizers()
+                    System.Runtime.GCSettings.LargeObjectHeapCompactionMode = System.Runtime.GCLargeObjectHeapCompactionMode.CompactOnce
+                    GC.Collect(2, GCCollectionMode.Forced, blocking:=True, compacting:=True)
+                Catch
+                End Try
+            End Try
             ' 3) Ya en UI thread: llenar ComboBox y OSP_Files
             For Each osp In allOSPs.OrderBy(Function(pf) pf.Nombre)
                 OSP_Files.Add(osp)
@@ -497,6 +619,8 @@ Public Class Wardrobe_Manager_Form
 
             Relee_Poses()
             Relee_Presets()
+
+            ProcessCollectedLoadIssues(OSP_Files, Ovewrite_DataFiles.Checked)
         Catch ex As Exception
             MsgBox(ex.ToString)
         End Try
@@ -608,7 +732,7 @@ Public Class Wardrobe_Manager_Form
 
             If needsReload = False Then Exit Sub
 
-            Dim newPack As New OSP_Project_Class(selectedPackPath, DeepAnalize_check.Checked)
+            Dim newPack As New OSP_Project_Class(selectedPackPath, DeepAnalize_check.Checked, CreateSingleReloadContext())
 
             If DeepAnalize_check.Checked Then
                 For Each slider In newPack.SliderSets
@@ -625,6 +749,7 @@ Public Class Wardrobe_Manager_Form
 
             OSP_FileWriteTicks(selectedPackPath) = diskTick
             Rebuild_Packs_Combo(selectedPackPath)
+            ProcessCollectedLoadIssues({newPack}, Ovewrite_DataFiles.Checked)
 
         Finally
             _RefreshingTargetsFromDisk = False
@@ -959,15 +1084,17 @@ Public Class Wardrobe_Manager_Form
         Dim resultado As SliderSet_Class
         Dim fullpack As Boolean = Full_packs_Selected()
         Dim varios As Boolean = (ListViewSources.SelectedIndices.Count > 1)
+        Dim batchContext = ProjectLoadContext.CreateCollectOnly(False)
         For Each ind As ListViewItem In ListViewSources.SelectedItems
             ProgressBar1.Value += 1
             If Not varios Then Nombre = TextBox_SourceName.Text Else Nombre = Calcula_nombre(ind.Tag)
-            resultado = Pack.Agrega_Proyecto(ind.Tag, Nombre, Filename, Exclude_Reference_Checkbox.Checked, Ovewrite_DataFiles.Checked, PhysicsCheckbox.Checked, OutputDirChangeCheck.Checked)
+            resultado = Pack.Agrega_Proyecto(ind.Tag, Nombre, Filename, Exclude_Reference_Checkbox.Checked, Ovewrite_DataFiles.Checked, PhysicsCheckbox.Checked, OutputDirChangeCheck.Checked, batchContext)
             If Not IsNothing(resultado) Then
-                If CloneMaterialsCheck.Checked Then Clone_Materials_class.Clone_Materials_For_Project(resultado, Ovewrite_DataFiles.Checked)
+                If CloneMaterialsCheck.Checked Then Clone_Materials_class.Clone_Materials_For_Project(resultado, Ovewrite_DataFiles.Checked, batchContext)
                 If Auto_Move_Check.Checked Then Mueve_Singles(ind, Directorios.SliderSets_Processed, fullpack)
             End If
         Next
+        FlushBatchLoadContext(batchContext)
         Lee_Listbox_Targets()
     End Sub
     Private Sub Rename_Clone_Target(original As SliderSet_Class, pack As OSP_Project_Class, Nombre As String, DeleteAfter As Boolean)
@@ -990,24 +1117,674 @@ Public Class Wardrobe_Manager_Form
         Dim fullpack As Boolean = Full_packs_Selected()
         ProgressBar1.Value += 1
         Dim mover As ListViewItem = ListViewSources.SelectedItems(0)
-        Dim Proyecto_Madre As SliderSet_Class = Pack.Agrega_Proyecto(ListViewSources.SelectedItems(0).Tag, Nombre, Filename, Exclude_Reference_Checkbox.Checked, Ovewrite_DataFiles.Checked, PhysicsCheckbox.Checked, OutputDirChangeCheck.Checked)
+        Dim batchContext = ProjectLoadContext.CreateCollectOnly(False)
+        Dim Proyecto_Madre As SliderSet_Class = Pack.Agrega_Proyecto(ListViewSources.SelectedItems(0).Tag, Nombre, Filename, Exclude_Reference_Checkbox.Checked, Ovewrite_DataFiles.Checked, PhysicsCheckbox.Checked, OutputDirChangeCheck.Checked, batchContext)
         If Not IsNothing(Proyecto_Madre) Then
-            Merge_Part(Proyecto_Madre, mover, Auto_Move_Check.Checked)
-            If CloneMaterialsCheck.Checked Then Clone_Materials_class.Clone_Materials_For_Project(Proyecto_Madre, Ovewrite_DataFiles.Checked)
+            Merge_Part(Proyecto_Madre, mover, Auto_Move_Check.Checked, batchContext)
+            If CloneMaterialsCheck.Checked Then Clone_Materials_class.Clone_Materials_For_Project(Proyecto_Madre, Ovewrite_DataFiles.Checked, batchContext)
             If Auto_Move_Check.Checked Then Mueve_Singles(mover, Directorios.SliderSets_Processed, fullpack)
         End If
+        FlushBatchLoadContext(batchContext)
         Lee_Listbox_Targets()
     End Sub
-    Private Sub Merge_Part(Proyecto_Madre As SliderSet_Class, Movido As ListViewItem, Mueve As Boolean)
+    Private Sub Merge_Part(Proyecto_Madre As SliderSet_Class, Movido As ListViewItem, Mueve As Boolean, Optional context As ProjectLoadContext = Nothing)
         Dim resultado As SliderSet_Class
         For Each ind As ListViewItem In ListViewSources.SelectedItems
             If IsNothing(Movido) OrElse (ind Is Movido) = False Then
                 ProgressBar1.Value += 1
-                resultado = OSP_Project_Class.Merge_Proyecto(Proyecto_Madre, ind.Tag, Exclude_Reference_Checkbox.Checked, PhysicsCheckbox.Checked)
+                resultado = OSP_Project_Class.Merge_Proyecto(Proyecto_Madre, ind.Tag, Exclude_Reference_Checkbox.Checked, PhysicsCheckbox.Checked, context)
                 If Not IsNothing(resultado) AndAlso Mueve Then Mueve_Singles(ind, Directorios.SliderSets_Processed, False)
             End If
         Next
 
+    End Sub
+
+    Private Enum CloneRepairPromptResult
+        RepairOne
+        SkipOne
+        RepairAll
+        SkipAll
+    End Enum
+
+    Private Enum CloneRepairBatchMode
+        AskEach
+        RepairAll
+        SkipAll
+    End Enum
+
+    ''' <summary>
+    ''' Context para BULK loads (Lee_Listbox full reload, Refresh_OSP_Files_From_Disk).
+    ''' Habilita la detección de "clone materials pending" cuando Deep+Clone están activos,
+    ''' para que al final del bulk se pueda mostrar el prompt de reparación.
+    ''' </summary>
+    Private Shared Function CreateCollectLoadContext(deepAnalyze As Boolean, cloneMaterialsEnabled As Boolean) As ProjectLoadContext
+        Return ProjectLoadContext.CreateCollectOnly(deepAnalyze AndAlso cloneMaterialsEnabled)
+    End Function
+
+    ''' <summary>
+    ''' Context para reloads de un solo sliderset/pack (post-save, post-merge, refresh puntual).
+    ''' NUNCA dispara la detección de clone materials pending — esa revisión se hace solo
+    ''' en los bulk loads. Evita que se abra el prompt de reparación cada vez que se graba un NIF.
+    ''' </summary>
+    Private Shared Function CreateSingleReloadContext() As ProjectLoadContext
+        Return ProjectLoadContext.CreateCollectOnly(False)
+    End Function
+
+    ' Muestra un batch de issues acumulados durante un flujo loop (Procesa_Singles,
+    ' Merge_Singles, merge targets, etc.) en un solo dialog agregado.
+    Private Sub FlushBatchLoadContext(context As ProjectLoadContext)
+        If IsNothing(context) OrElse IsNothing(context.Issues) OrElse context.Issues.Count = 0 Then Exit Sub
+        ShowLoadIssuesDialog(context.Issues)
+    End Sub
+
+    Private Function DrainCollectedLoadIssues(osps As IEnumerable(Of OSP_Project_Class)) As List(Of ProjectLoadIssue)
+        Dim drained As New List(Of ProjectLoadIssue)
+        If IsNothing(osps) Then Return drained
+
+        Dim seen As New HashSet(Of String)(StringComparer.Ordinal)
+        For Each osp In osps.Where(Function(item) item IsNot Nothing)
+            If IsNothing(osp.LastLoadIssues) Then Continue For
+
+            For Each issue In osp.LastLoadIssues
+                If IsNothing(issue) Then Continue For
+                If seen.Add(issue.IssueKey) Then drained.Add(issue)
+            Next
+
+            osp.LastLoadIssues.Clear()
+        Next
+
+        Return drained.
+            OrderBy(Function(issue) (issue.PackName & issue.OspFile).ToUpperInvariant()).
+            ThenBy(Function(issue) issue.ProjectName.ToUpperInvariant()).
+            ThenBy(Function(issue) CInt(issue.Kind)).
+            ToList()
+    End Function
+
+    Private Function DescribeLoadIssue(issue As ProjectLoadIssue) As String
+        If IsNothing(issue) Then Return ""
+
+        Select Case issue.Kind
+            Case ProjectLoadIssueKind.OspReadError
+                Return "OSP: " & issue.OspFile & " - " & issue.Message
+            Case Else
+                Dim scope = (issue.PackName & " / " & issue.ProjectName).Trim(" "c, "/"c)
+                If String.IsNullOrWhiteSpace(scope) Then scope = issue.OspFile
+                Return scope & ": " & issue.Message
+        End Select
+    End Function
+
+    Private Function BuildLoadIssuesSummary(issues As IEnumerable(Of ProjectLoadIssue)) As String
+        Dim list = issues.Where(Function(issue) Not IsNothing(issue)).ToList()
+        If list.Count = 0 Then Return ""
+
+        Dim lines As New List(Of String) From {
+            $"Found {list.Count} load issue(s)."
+        }
+
+        For Each issue In list.Take(20)
+            lines.Add(DescribeLoadIssue(issue))
+        Next
+
+        If list.Count > 20 Then
+            lines.Add($"... and {list.Count - 20} more.")
+        End If
+
+        Return String.Join(vbCrLf, lines)
+    End Function
+
+    Private Shared Function LoadIssueKindCaption(kind As ProjectLoadIssueKind) As String
+        Select Case kind
+            Case ProjectLoadIssueKind.OspReadError
+                Return "OSP file read errors"
+            Case ProjectLoadIssueKind.ProjectValidationError
+                Return "Project validation errors"
+            Case ProjectLoadIssueKind.ShapeDataReadError
+                Return "Shape data read errors (NIF / OSD)"
+            Case ProjectLoadIssueKind.CloneMaterialPending
+                Return "Clone material pending"
+            Case Else
+                Return kind.ToString()
+        End Select
+    End Function
+
+    Private Sub ShowLoadIssuesDialog(issues As IReadOnlyList(Of ProjectLoadIssue))
+        If IsNothing(issues) OrElse issues.Count = 0 Then Exit Sub
+
+        Using frm As New Form With {
+            .Text = "Load issues",
+            .StartPosition = FormStartPosition.CenterParent,
+            .FormBorderStyle = FormBorderStyle.Sizable,
+            .ShowInTaskbar = False,
+            .MinimizeBox = False,
+            .MaximizeBox = True,
+            .ClientSize = New Size(780, 520),
+            .MinimumSize = New Size(520, 320),
+            .Font = Me.Font,
+            .BackColor = SystemColors.Control
+        }
+            Dim root As New TableLayoutPanel With {
+                .Dock = DockStyle.Fill,
+                .ColumnCount = 1,
+                .RowCount = 3,
+                .Padding = New Padding(16),
+                .BackColor = SystemColors.Control
+            }
+            root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+            root.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+            root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+
+            Dim boldFont As New Font(Me.Font, FontStyle.Bold)
+            Dim headerFont As New Font(Me.Font.FontFamily, Me.Font.Size + 1, FontStyle.Bold)
+
+            ' ── Header ──
+            Dim lblHeader As New Label With {
+                .Text = $"Found {issues.Count} load issue(s) during bulk load.",
+                .Font = headerFont,
+                .AutoSize = True,
+                .Margin = New Padding(0, 0, 0, 12)
+            }
+
+            ' ── Body: panel scrollable con secciones por tipo ──
+            Dim body As New Panel With {
+                .Dock = DockStyle.Fill,
+                .AutoScroll = True,
+                .BorderStyle = BorderStyle.FixedSingle,
+                .BackColor = SystemColors.Window,
+                .Padding = New Padding(12)
+            }
+
+            Dim bodyInner As New FlowLayoutPanel With {
+                .Dock = DockStyle.Top,
+                .FlowDirection = FlowDirection.TopDown,
+                .WrapContents = False,
+                .AutoSize = True,
+                .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                .BackColor = SystemColors.Window,
+                .Width = body.ClientSize.Width - 24
+            }
+
+            ' Asegurar que el panel interno se expanda en ancho con el form
+            AddHandler body.Resize, Sub() bodyInner.Width = body.ClientSize.Width - 24
+
+            ' Orden fijo de secciones para consistencia visual
+            Dim orderedKinds As ProjectLoadIssueKind() = {
+                ProjectLoadIssueKind.OspReadError,
+                ProjectLoadIssueKind.ProjectValidationError,
+                ProjectLoadIssueKind.ShapeDataReadError,
+                ProjectLoadIssueKind.CloneMaterialPending
+            }
+
+            Dim grouped = issues.GroupBy(Function(iss) iss.Kind).ToDictionary(Function(g) g.Key, Function(g) g.ToList())
+
+            Dim firstSection As Boolean = True
+            For Each kind In orderedKinds
+                Dim group As List(Of ProjectLoadIssue) = Nothing
+                If Not grouped.TryGetValue(kind, group) Then Continue For
+                If group.Count = 0 Then Continue For
+
+                If Not firstSection Then
+                    bodyInner.Controls.Add(New Label With {
+                        .Text = "",
+                        .AutoSize = True,
+                        .Margin = New Padding(0, 10, 0, 0)
+                    })
+                End If
+                firstSection = False
+
+                Dim lblSection As New Label With {
+                    .Text = $"{LoadIssueKindCaption(kind)} ({group.Count}):",
+                    .Font = boldFont,
+                    .AutoSize = True,
+                    .Margin = New Padding(0, 0, 0, 4)
+                }
+                bodyInner.Controls.Add(lblSection)
+
+                For Each issue In group
+                    Dim scope As String
+                    If kind = ProjectLoadIssueKind.OspReadError Then
+                        scope = If(String.IsNullOrWhiteSpace(issue.OspFile), "(unknown)", IO.Path.GetFileName(issue.OspFile))
+                    Else
+                        Dim packName = If(String.IsNullOrWhiteSpace(issue.PackName), "(unknown)", issue.PackName)
+                        Dim projectName = If(String.IsNullOrWhiteSpace(issue.ProjectName), "(unknown)", issue.ProjectName)
+                        scope = packName & " / " & projectName
+                    End If
+
+                    Dim lblScope As New Label With {
+                        .Text = "    " & scope,
+                        .AutoSize = True,
+                        .Margin = New Padding(0, 1, 0, 0),
+                        .Font = boldFont
+                    }
+                    bodyInner.Controls.Add(lblScope)
+
+                    Dim msg = If(String.IsNullOrWhiteSpace(issue.Message), "(no details)", issue.Message)
+                    Dim lblMsg As New Label With {
+                        .Text = "        " & msg,
+                        .AutoSize = True,
+                        .Margin = New Padding(0, 0, 0, 2),
+                        .ForeColor = Color.FromArgb(80, 80, 80)
+                    }
+                    bodyInner.Controls.Add(lblMsg)
+                Next
+            Next
+
+            body.Controls.Add(bodyInner)
+
+            ' ── Footer: botones ──
+            Dim buttons As New FlowLayoutPanel With {
+                .Dock = DockStyle.Fill,
+                .FlowDirection = FlowDirection.RightToLeft,
+                .WrapContents = False,
+                .AutoSize = True,
+                .Margin = New Padding(0, 12, 0, 0)
+            }
+
+            Dim btnOk As New System.Windows.Forms.Button With {.Text = "OK", .AutoSize = True, .Padding = New Padding(10, 2, 10, 2)}
+            AddHandler btnOk.Click, Sub()
+                                        frm.DialogResult = DialogResult.OK
+                                        frm.Close()
+                                    End Sub
+
+            Dim btnCopy As New System.Windows.Forms.Button With {.Text = "Copy to clipboard", .AutoSize = True, .Padding = New Padding(10, 2, 10, 2)}
+            AddHandler btnCopy.Click, Sub()
+                                          Try
+                                              Clipboard.SetText(BuildLoadIssuesSummary(issues))
+                                          Catch
+                                          End Try
+                                      End Sub
+
+            buttons.Controls.Add(btnOk)
+            buttons.Controls.Add(btnCopy)
+
+            frm.AcceptButton = btnOk
+
+            root.Controls.Add(lblHeader, 0, 0)
+            root.Controls.Add(body, 0, 1)
+            root.Controls.Add(buttons, 0, 2)
+            frm.Controls.Add(root)
+
+            frm.ShowDialog(Me)
+        End Using
+    End Sub
+
+    Private Function ShowCloneRepairPrompt(issue As ProjectLoadIssue) As CloneRepairPromptResult
+        Dim result As CloneRepairPromptResult = CloneRepairPromptResult.SkipOne
+
+        Using frm As New Form With {
+            .Text = "Repair clone materials",
+            .StartPosition = FormStartPosition.CenterParent,
+            .FormBorderStyle = FormBorderStyle.FixedDialog,
+            .ShowInTaskbar = False,
+            .MinimizeBox = False,
+            .MaximizeBox = False,
+            .ClientSize = New Size(720, 460),
+            .Font = Me.Font,
+            .BackColor = SystemColors.Control
+        }
+            Dim root As New TableLayoutPanel With {
+                .Dock = DockStyle.Fill,
+                .ColumnCount = 1,
+                .RowCount = 3,
+                .Padding = New Padding(16),
+                .BackColor = SystemColors.Control
+            }
+            root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+            root.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+            root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+
+            ' ── Header: Pack + Project en grid 2×2 ──
+            Dim header As New TableLayoutPanel With {
+                .Dock = DockStyle.Fill,
+                .ColumnCount = 2,
+                .RowCount = 2,
+                .AutoSize = True,
+                .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                .Margin = New Padding(0, 0, 0, 12)
+            }
+            header.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
+            header.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+            header.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+            header.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+
+            Dim boldFont As New Font(Me.Font, FontStyle.Bold)
+
+            Dim lblPackCaption As New Label With {
+                .Text = "Pack:",
+                .Font = boldFont,
+                .AutoSize = True,
+                .Margin = New Padding(0, 2, 8, 2),
+                .TextAlign = ContentAlignment.MiddleLeft
+            }
+            Dim lblPackValue As New Label With {
+                .Text = If(String.IsNullOrWhiteSpace(issue.PackName), "(unknown)", issue.PackName),
+                .AutoSize = True,
+                .Margin = New Padding(0, 2, 0, 2),
+                .TextAlign = ContentAlignment.MiddleLeft
+            }
+
+            Dim lblProjectCaption As New Label With {
+                .Text = "Project:",
+                .Font = boldFont,
+                .AutoSize = True,
+                .Margin = New Padding(0, 2, 8, 2),
+                .TextAlign = ContentAlignment.MiddleLeft
+            }
+            Dim lblProjectValue As New Label With {
+                .Text = If(String.IsNullOrWhiteSpace(issue.ProjectName), "(unknown)", issue.ProjectName),
+                .AutoSize = True,
+                .Margin = New Padding(0, 2, 0, 2),
+                .TextAlign = ContentAlignment.MiddleLeft
+            }
+
+            header.Controls.Add(lblPackCaption, 0, 0)
+            header.Controls.Add(lblPackValue, 1, 0)
+            header.Controls.Add(lblProjectCaption, 0, 1)
+            header.Controls.Add(lblProjectValue, 1, 1)
+
+            ' ── Body: Shapes + Material paths en panel scrollable con labels ──
+            Dim body As New Panel With {
+                .Dock = DockStyle.Fill,
+                .AutoScroll = True,
+                .BorderStyle = BorderStyle.FixedSingle,
+                .BackColor = SystemColors.Window,
+                .Padding = New Padding(12)
+            }
+
+            Dim bodyInner As New FlowLayoutPanel With {
+                .Dock = DockStyle.Top,
+                .FlowDirection = FlowDirection.TopDown,
+                .WrapContents = False,
+                .AutoSize = True,
+                .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                .BackColor = SystemColors.Window
+            }
+
+            Dim lblShapesHeader As New Label With {
+                .Text = $"Shapes pointing outside ManoloCloned ({issue.ShapeNames.Count}):",
+                .Font = boldFont,
+                .AutoSize = True,
+                .Margin = New Padding(0, 0, 0, 4)
+            }
+            bodyInner.Controls.Add(lblShapesHeader)
+
+            For Each shapeName In issue.ShapeNames
+                Dim lbl As New Label With {
+                    .Text = "    " & shapeName,
+                    .AutoSize = True,
+                    .Margin = New Padding(0, 1, 0, 1)
+                }
+                bodyInner.Controls.Add(lbl)
+            Next
+
+            Dim spacer As New Label With {
+                .Text = "",
+                .AutoSize = True,
+                .Margin = New Padding(0, 8, 0, 0)
+            }
+            bodyInner.Controls.Add(spacer)
+
+            Dim lblMatsHeader As New Label With {
+                .Text = $"Material paths ({issue.MaterialPaths.Count}):",
+                .Font = boldFont,
+                .AutoSize = True,
+                .Margin = New Padding(0, 0, 0, 4)
+            }
+            bodyInner.Controls.Add(lblMatsHeader)
+
+            For Each matPath In issue.MaterialPaths
+                Dim lbl As New Label With {
+                    .Text = "    " & matPath,
+                    .AutoSize = True,
+                    .Margin = New Padding(0, 1, 0, 1),
+                    .ForeColor = Color.FromArgb(60, 60, 60)
+                }
+                bodyInner.Controls.Add(lbl)
+            Next
+
+            body.Controls.Add(bodyInner)
+
+            ' ── Footer: botones ──
+            Dim buttons As New FlowLayoutPanel With {
+                .Dock = DockStyle.Fill,
+                .FlowDirection = FlowDirection.RightToLeft,
+                .WrapContents = False,
+                .AutoSize = True,
+                .Margin = New Padding(0, 12, 0, 0)
+            }
+
+            Dim btnNoAll As New System.Windows.Forms.Button With {.Text = "No to all", .AutoSize = True, .Padding = New Padding(6, 2, 6, 2)}
+            AddHandler btnNoAll.Click, Sub()
+                                           result = CloneRepairPromptResult.SkipAll
+                                           frm.DialogResult = DialogResult.No
+                                           frm.Close()
+                                       End Sub
+
+            Dim btnYesAll As New System.Windows.Forms.Button With {.Text = "Yes to all", .AutoSize = True, .Padding = New Padding(6, 2, 6, 2)}
+            AddHandler btnYesAll.Click, Sub()
+                                            result = CloneRepairPromptResult.RepairAll
+                                            frm.DialogResult = DialogResult.Yes
+                                            frm.Close()
+                                        End Sub
+
+            Dim btnNo As New System.Windows.Forms.Button With {.Text = "No", .AutoSize = True, .Padding = New Padding(6, 2, 6, 2)}
+            AddHandler btnNo.Click, Sub()
+                                        result = CloneRepairPromptResult.SkipOne
+                                        frm.DialogResult = DialogResult.No
+                                        frm.Close()
+                                    End Sub
+
+            Dim btnYes As New System.Windows.Forms.Button With {.Text = "Yes", .AutoSize = True, .Padding = New Padding(6, 2, 6, 2)}
+            AddHandler btnYes.Click, Sub()
+                                         result = CloneRepairPromptResult.RepairOne
+                                         frm.DialogResult = DialogResult.Yes
+                                         frm.Close()
+                                     End Sub
+
+            buttons.Controls.Add(btnNoAll)
+            buttons.Controls.Add(btnYesAll)
+            buttons.Controls.Add(btnNo)
+            buttons.Controls.Add(btnYes)
+
+            frm.AcceptButton = btnYes
+
+            root.Controls.Add(header, 0, 0)
+            root.Controls.Add(body, 0, 1)
+            root.Controls.Add(buttons, 0, 2)
+            frm.Controls.Add(root)
+
+            frm.ShowDialog(Me)
+        End Using
+
+        Return result
+    End Function
+
+    Private Class CloneRepairOutcome
+        Public Property Succeeded As Boolean
+        Public Property InitialCount As Integer
+        Public Property RemainingCount As Integer
+        Public Property RemainingDescriptions As New List(Of String)
+        Public Property ErrorMessage As String = ""
+    End Class
+
+    Private Shared Function DescribeRemainingShape(shap As Shape_class) As String
+        If IsNothing(shap) Then Return ""
+        Dim shader = shap.RelatedNifShader
+        Dim materialName As String = ""
+        If Not IsNothing(shader) Then
+            Try
+                Select Case shader.GetType
+                    Case GetType(NiflySharp.Blocks.BSLightingShaderProperty)
+                        materialName = CType(shader, NiflySharp.Blocks.BSLightingShaderProperty).Name.String
+                    Case GetType(NiflySharp.Blocks.BSEffectShaderProperty)
+                        materialName = CType(shader, NiflySharp.Blocks.BSEffectShaderProperty).Name.String
+                End Select
+            Catch
+                materialName = "(unreadable)"
+            End Try
+        End If
+        Return shap.Nombre & " -> " & materialName
+    End Function
+
+    Private Function TryRepairCloneIssue(issue As ProjectLoadIssue, overwrite As Boolean) As CloneRepairOutcome
+        Dim outcome As New CloneRepairOutcome
+        If IsNothing(issue) Then
+            outcome.ErrorMessage = "Issue was null."
+            Return outcome
+        End If
+
+        Dim slider As SliderSet_Class = issue.SourceSlider
+
+        ' Fallback: si la referencia directa está Nothing (por ejemplo porque el OSP
+        ' fue reemplazado en memoria tras un refresh), resolver por path/nombre.
+        If IsNothing(slider) OrElse IsNothing(slider.ParentOSP) OrElse OSP_Files.Contains(slider.ParentOSP) = False Then
+            Dim osp = OSP_Files.FirstOrDefault(Function(candidate)
+                                                   If candidate Is issue.SourceOsp Then Return True
+                                                   Return String.Equals(candidate.Filename.Correct_Path_Separator, issue.OspFile.Correct_Path_Separator, StringComparison.OrdinalIgnoreCase)
+                                               End Function)
+            If IsNothing(osp) Then
+                outcome.ErrorMessage = "OSP pack not found in memory (looked up by path: " & issue.OspFile & ")."
+                Return outcome
+            End If
+
+            slider = osp.SliderSets.FirstOrDefault(Function(candidate)
+                                                       Return candidate.Nombre.Equals(issue.ProjectName, StringComparison.OrdinalIgnoreCase)
+                                                   End Function)
+            If IsNothing(slider) Then
+                outcome.ErrorMessage = "Sliderset '" & issue.ProjectName & "' not found in pack '" & osp.Nombre & "'."
+                Return outcome
+            End If
+        End If
+
+        Dim previewed = If(preview_Control Is Nothing, Nothing, preview_Control.WM_Last_rendered())
+        Dim previewTouched = Object.ReferenceEquals(previewed, slider)
+
+        Try
+            Dim silentContext = ProjectLoadContext.CreateSilent()
+
+            If OSP_Project_Class.Load_and_Check_Shapedata(slider, silentContext) = False Then
+                outcome.ErrorMessage = "Could not load shapedata before repair."
+                Return outcome
+            End If
+
+            Dim pending = Clone_Materials_class.GetShapesMissingCloneMaterial(slider)
+            outcome.InitialCount = pending.Count
+            If pending.Count = 0 Then
+                outcome.Succeeded = True
+                Return outcome
+            End If
+
+            Try
+                Clone_Materials_class.Clone_Materials_For_Project(slider, overwrite, silentContext)
+            Catch ex As Exception
+                outcome.ErrorMessage = "Clone_Materials_For_Project threw: " & ex.Message
+                Return outcome
+            End Try
+
+            If OSP_Project_Class.Load_and_Check_Shapedata(slider, silentContext) = False Then
+                outcome.ErrorMessage = "Could not reload shapedata after repair."
+                Return outcome
+            End If
+
+            Dim remaining = Clone_Materials_class.GetShapesMissingCloneMaterial(slider)
+            outcome.RemainingCount = remaining.Count
+            For Each shap In remaining
+                outcome.RemainingDescriptions.Add(DescribeRemainingShape(shap))
+            Next
+
+            outcome.Succeeded = (remaining.Count = 0)
+            Return outcome
+        Finally
+            If previewTouched AndAlso Not IsNothing(preview_Control) Then
+                If Not IsNothing(preview_Control.Model) Then
+                    preview_Control.Model.Clean(False)
+                    preview_Control.Model.CleanTextures()
+                End If
+                preview_Control.WM_Set_Last_rendered(Nothing)
+                OSP_Project_Class.PinnedForPreview = Nothing
+            End If
+
+            If slider.ShapeDataLoaded Then
+                slider.UnloadShapeData(False)
+            End If
+        End Try
+    End Function
+
+    Private Sub ProcessCollectedLoadIssues(osps As IEnumerable(Of OSP_Project_Class), overwrite As Boolean)
+        Dim issues = DrainCollectedLoadIssues(osps)
+        If issues.Count = 0 Then Exit Sub
+
+        Dim nonCloneIssues = issues.Where(Function(issue) issue.Kind <> ProjectLoadIssueKind.CloneMaterialPending).ToList()
+        If nonCloneIssues.Count > 0 Then
+            ShowLoadIssuesDialog(nonCloneIssues)
+        End If
+
+        If Not CloneMaterialsCheck.Checked Then Exit Sub
+
+        Dim cloneIssues = issues.Where(Function(issue) issue.Kind = ProjectLoadIssueKind.CloneMaterialPending).ToList()
+        If cloneIssues.Count = 0 Then Exit Sub
+
+        Dim batchMode As CloneRepairBatchMode = CloneRepairBatchMode.AskEach
+        Dim repaired As New List(Of String)
+        Dim failed As New List(Of String)
+
+        For Each issue In cloneIssues
+            Dim answer As CloneRepairPromptResult
+
+            Select Case batchMode
+                Case CloneRepairBatchMode.RepairAll
+                    answer = CloneRepairPromptResult.RepairOne
+                Case CloneRepairBatchMode.SkipAll
+                    answer = CloneRepairPromptResult.SkipOne
+                Case Else
+                    answer = ShowCloneRepairPrompt(issue)
+            End Select
+
+            If answer = CloneRepairPromptResult.SkipAll Then
+                batchMode = CloneRepairBatchMode.SkipAll
+                Continue For
+            End If
+
+            If answer = CloneRepairPromptResult.RepairAll Then
+                batchMode = CloneRepairBatchMode.RepairAll
+                answer = CloneRepairPromptResult.RepairOne
+            End If
+
+            If answer = CloneRepairPromptResult.SkipOne Then Continue For
+
+            Dim label = issue.PackName & " / " & issue.ProjectName
+            Dim outcome = TryRepairCloneIssue(issue, overwrite)
+
+            If outcome.Succeeded Then
+                repaired.Add(label)
+            ElseIf outcome.InitialCount > 0 AndAlso outcome.RemainingCount < outcome.InitialCount AndAlso String.IsNullOrEmpty(outcome.ErrorMessage) Then
+                ' Parcial: algunos shapes quedaron fuera pero se limpió la mayoría.
+                Dim details = $"{label} (partial: {outcome.InitialCount - outcome.RemainingCount}/{outcome.InitialCount} fixed)" & vbCrLf &
+                              "Shapes aún pendientes:" & vbCrLf &
+                              String.Join(vbCrLf, outcome.RemainingDescriptions)
+                failed.Add(details)
+            Else
+                Dim details As String
+                If String.IsNullOrEmpty(outcome.ErrorMessage) = False Then
+                    details = $"{label}: {outcome.ErrorMessage}"
+                ElseIf outcome.RemainingCount > 0 Then
+                    details = $"{label}: {outcome.RemainingCount} shape(s) still pending" & vbCrLf &
+                              String.Join(vbCrLf, outcome.RemainingDescriptions)
+                Else
+                    details = label
+                End If
+                failed.Add(details)
+            End If
+        Next
+
+        If repaired.Count > 0 OrElse failed.Count > 0 Then
+            RequestLeeShapes(True)
+        End If
+
+        If failed.Count > 0 Then
+            MsgBox("Clone material repair failed for:" & vbCrLf & vbCrLf &
+                   String.Join(vbCrLf & vbCrLf, failed),
+                   vbExclamation Or vbOKOnly, "Repair clone materials")
+        End If
     End Sub
 
     Private Sub Mueve_Singles(ind As ListViewItem, Directorio As String, Mueve_Pack As Boolean)
@@ -1039,13 +1816,14 @@ Public Class Wardrobe_Manager_Form
 
         _ExternalEditReloading = True
         Try
-            _ExternalEditSlider.Reload(DeepAnalize_check.Checked)
+            _ExternalEditSlider.Reload(DeepAnalize_check.Checked, CreateSingleReloadContext())
             If GetLatestExternalEditWriteTime(_ExternalEditSlider) > _ExternalEditLastOspWrite Then
                 If preview_Control.WM_Last_rendered() Is _ExternalEditSlider Then
                     preview_Control.Model.Clean(False)
                     preview_Control.Model.CleanTextures()
                 End If
             End If
+            ProcessCollectedLoadIssues({_ExternalEditSlider.ParentOSP}, Ovewrite_DataFiles.Checked)
             RequestLeeShapes(True)
             _ExternalEditReloading = Not (Not _ExternalEditSlider.Unreadable_NIF And Not _ExternalEditSlider.Unreadable_Project)
         Catch ex As Exception
@@ -1066,7 +1844,7 @@ Public Class Wardrobe_Manager_Form
 
         If doFinalReload AndAlso Not IsNothing(lockedSlider) Then
             Try
-                lockedSlider.Reload(DeepAnalize_check.Checked)
+                lockedSlider.Reload(DeepAnalize_check.Checked, CreateSingleReloadContext())
                 If GetLatestExternalEditWriteTime(lockedSlider) > _ExternalEditLastOspWrite Then
                     If preview_Control.WM_Last_rendered() Is lockedSlider Then
                         preview_Control.Model.Clean(False)
@@ -1076,6 +1854,7 @@ Public Class Wardrobe_Manager_Form
             Catch ex As Exception
                 MsgBox("Final external edit reload failed: " & ex.Message, MsgBoxStyle.Exclamation, "Error")
             End Try
+            ProcessCollectedLoadIssues({lockedSlider.ParentOSP}, Ovewrite_DataFiles.Checked)
         End If
         _ExternalEditLastOspWrite = Date.MinValue
 
@@ -1283,6 +2062,7 @@ Public Class Wardrobe_Manager_Form
             firstime = False
             Await Lee_Listbox()
 
+
             'Dim yy As New StikyNote
             'yy.Show()
 
@@ -1302,6 +2082,18 @@ Public Class Wardrobe_Manager_Form
         End Sub)
         Await FilesDictionary_class.Fill_DictionaryAsync(Directorios.Fallout4data, progress)
         ProgressBar1.Value = 0
+
+        ' Drenar errores acumulados por los workers del scan (BA2/loose/outer).
+        ' NUNCA estos errores se muestran desde el worker — ahí colgaban la app
+        ' con un MsgBox oculto detrás de la ventana principal.
+        Dim scanErrors = FilesDictionary_class.DrainScanErrors()
+        If scanErrors.Count > 0 Then
+            Dim shown = scanErrors.Take(20).ToList()
+            Dim extra = scanErrors.Count - shown.Count
+            Dim body = String.Join(vbCrLf, shown)
+            If extra > 0 Then body &= vbCrLf & $"... and {extra} more."
+            MsgBox(body, vbExclamation Or vbOKOnly, "Dictionary scan errors")
+        End If
     End Function
 
     Private Sub RadioButton1_CheckedChanged(sender As Object, e As EventArgs) Handles RadioButton1.CheckedChanged
@@ -1427,12 +2219,16 @@ Public Class Wardrobe_Manager_Form
                 Termina_Procesos()
                 Exit Sub
             End If
+            Dim mergeTargetsBatch = ProjectLoadContext.CreateCollectOnly(False)
             For Each it In ListViewTargets.SelectedItems
                 Dim target As SliderSet_Class = it.Tag
-                OSP_Project_Class.Load_and_Check_Shapedata(target, True)
-                Merge_Part(target, Nothing, False)
+                If OSP_Project_Class.Load_and_Check_Shapedata(target, mergeTargetsBatch) = False Then Continue For
+                Merge_Part(target, Nothing, False, mergeTargetsBatch)
+                If CloneMaterialsCheck.Checked Then Clone_Materials_class.Clone_Materials_For_Project(target, Ovewrite_DataFiles.Checked, mergeTargetsBatch)
             Next
-            selected_target.Reload(DeepAnalize_check.Checked)
+            FlushBatchLoadContext(mergeTargetsBatch)
+            selected_target.Reload(DeepAnalize_check.Checked, CreateSingleReloadContext())
+            ProcessCollectedLoadIssues({selected_target.ParentOSP}, Ovewrite_DataFiles.Checked)
             If preview_Control.WM_Last_rendered() Is selected_target Then
                 preview_Control.WM_Set_Last_rendered(Nothing)
             End If
@@ -1476,6 +2272,39 @@ Public Class Wardrobe_Manager_Form
 
     Private Sub Wardrobe_Manager_Form_Load(sender As Object, e As EventArgs) Handles Me.Load
         TypeDescriptor.AddProvider(New FO4UnifiedMaterialProvider(), GetType(FO4UnifiedMaterial_Class))
+
+        ' Ruteamos los issues Interactive al dialog bonito (ShowLoadIssuesDialog)
+        ' en vez del MsgBox legacy de ShowInteractiveIssue. Si el form ya no esta
+        ' visible (cierre de app), caemos al fallback.
+        OSP_Project_Class.InteractiveIssueDisplay = Sub(issue As ProjectLoadIssue)
+                                                        If IsNothing(issue) Then Return
+                                                        Try
+                                                            If Me.IsDisposed OrElse Not Me.IsHandleCreated Then Return
+                                                            If Me.InvokeRequired Then
+                                                                Me.Invoke(Sub() ShowLoadIssuesDialog({issue}))
+                                                            Else
+                                                                ShowLoadIssuesDialog({issue})
+                                                            End If
+                                                        Catch
+                                                        End Try
+                                                    End Sub
+
+        ' Batch equivalente: callers como BuildingForm acumulan issues durante un
+        ' flujo largo y al final invocan este delegate con la lista completa, para
+        ' mostrar un solo dialog agregado en vez de N popups.
+        OSP_Project_Class.InteractiveIssueBatchDisplay = Sub(batch As IReadOnlyList(Of ProjectLoadIssue))
+                                                             If IsNothing(batch) OrElse batch.Count = 0 Then Return
+                                                             Try
+                                                                 If Me.IsDisposed OrElse Not Me.IsHandleCreated Then Return
+                                                                 If Me.InvokeRequired Then
+                                                                     Me.Invoke(Sub() ShowLoadIssuesDialog(batch))
+                                                                 Else
+                                                                     ShowLoadIssuesDialog(batch)
+                                                                 End If
+                                                             Catch
+                                                             End Try
+                                                         End Sub
+
         Config_App.LoadConfig()
         WM_Config.LoadConfig()
         If WM_Config.Check_All_Folder = False Then
@@ -1726,7 +2555,8 @@ Public Class Wardrobe_Manager_Form
                 preview_Control.Model.Clean(False)
                 preview_Control.Model.CleanTextures()
             End If
-            selected.Reload(DeepAnalize_check.Checked)
+            selected.Reload(DeepAnalize_check.Checked, CreateSingleReloadContext())
+            ProcessCollectedLoadIssues({selected.ParentOSP}, Ovewrite_DataFiles.Checked)
             Relee_Presets()
             Relee_Poses()
             Termina_Procesos()
