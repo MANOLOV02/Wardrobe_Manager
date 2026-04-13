@@ -549,6 +549,10 @@ Public Class Editor_Form
         RenderCheckWireframe.Checked = Selected_Shape.Wireframe
         RenderCheckZap.Checked = Selected_Shape.ApplyZaps
         RenderCheckHide.Checked = Selected_Shape.RenderHide
+        ' VertexColors toggle: enable only when the NIF shape actually has them.
+        ' Don't override .Checked — the user's preference is preserved even when disabled.
+        Dim hasVtxColors = Selected_Shape.RelatedNifShape IsNot Nothing AndAlso Selected_Shape.RelatedNifShape.HasVertexColors
+        RenderCheckVertexColors.Enabled = hasVtxColors
         RenderCheckVertexColors.Checked = Selected_Shape.ShowVertexColor
         ColorComboBox1.SelectedColor = Selected_Shape.Wirecolor
         TrackBar1.Value = Math.Max(0, Math.Min(100, CInt(Selected_Shape.WireAlpha * 100)))
@@ -972,7 +976,6 @@ Public Class Editor_Form
                             Throw New Exception
                     End Select
             End Select
-            System.Diagnostics.Debug.Print($"[MaterialCheck] Shape={shap.Nombre} MaterialPath={FormatDebugPath(orig)} CurrentPath={FormatDebugPath(shap.RelatedMaterial.path)} MaterialType={shap.RelatedMaterial.material.MaterialType.Name}")
             If shap.RelatedMaterial.material.AreEqualTo(TestChanges) Then
                 'Simplemente cambie el material
             Else
