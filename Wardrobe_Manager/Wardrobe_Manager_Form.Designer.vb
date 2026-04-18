@@ -77,6 +77,7 @@ Partial Class Wardrobe_Manager_Form
         SplitPrincipal_1 = New SplitContainer()
         Split_Split_y_Menu_Sources = New SplitContainer()
         Panel2 = New Panel()
+        CheckBoxFixUncloned = New CheckBox()
         CheckBoxReloadDict = New CheckBox()
         TextBox2 = New TextBox()
         ShowCollectionsCheck = New CheckBox()
@@ -836,6 +837,7 @@ Partial Class Wardrobe_Manager_Form
         ' Panel2
         ' 
         Panel2.AutoSizeMode = AutoSizeMode.GrowAndShrink
+        Panel2.Controls.Add(CheckBoxFixUncloned)
         Panel2.Controls.Add(CheckBoxReloadDict)
         Panel2.Controls.Add(TextBox2)
         Panel2.Controls.Add(ShowCollectionsCheck)
@@ -850,11 +852,24 @@ Partial Class Wardrobe_Manager_Form
         Panel2.Size = New Size(644, 80)
         Panel2.TabIndex = 1
         ' 
+        ' CheckBoxFixUncloned
+        ' 
+        CheckBoxFixUncloned.Anchor = AnchorStyles.Top Or AnchorStyles.Right
+        CheckBoxFixUncloned.AutoSize = True
+        CheckBoxFixUncloned.Enabled = False
+        CheckBoxFixUncloned.Location = New Point(520, 59)
+        CheckBoxFixUncloned.Name = "CheckBoxFixUncloned"
+        CheckBoxFixUncloned.Size = New Size(98, 19)
+        CheckBoxFixUncloned.TabIndex = 25
+        CheckBoxFixUncloned.Text = "Fix un-cloned"
+        ToolTip1.SetToolTip(CheckBoxFixUncloned, "Mark the file dictionary to be rebuilt on the next refresh.")
+        CheckBoxFixUncloned.UseVisualStyleBackColor = True
+        ' 
         ' CheckBoxReloadDict
         ' 
         CheckBoxReloadDict.Anchor = AnchorStyles.Top Or AnchorStyles.Right
         CheckBoxReloadDict.AutoSize = True
-        CheckBoxReloadDict.Location = New Point(520, 52)
+        CheckBoxReloadDict.Location = New Point(520, 40)
         CheckBoxReloadDict.Name = "CheckBoxReloadDict"
         CheckBoxReloadDict.Size = New Size(118, 19)
         CheckBoxReloadDict.TabIndex = 24
@@ -1347,7 +1362,6 @@ Partial Class Wardrobe_Manager_Form
         ColorComboBox1.DrawMode = DrawMode.OwnerDrawFixed
         ColorComboBox1.DropDownStyle = ComboBoxStyle.DropDownList
         ColorComboBox1.FormattingEnabled = True
-        ColorComboBox1.Items.AddRange(New Object() {"None"})
         ColorComboBox1.Location = New Point(151, 3)
         ColorComboBox1.Name = "ColorComboBox1"
         ColorComboBox1.SelectedColor = Color.Black
@@ -1629,4 +1643,5 @@ Partial Class Wardrobe_Manager_Form
     Friend WithEvents CheckBoxReloadDict As CheckBox
     Friend WithEvents ComboBoxSize As ComboBox
     Friend WithEvents ToolTip1 As ToolTip
+    Friend WithEvents CheckBoxFixUncloned As CheckBox
 End Class

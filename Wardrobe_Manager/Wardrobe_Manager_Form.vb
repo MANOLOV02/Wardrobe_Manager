@@ -193,6 +193,7 @@ Public Class Wardrobe_Manager_Form
         ButtonDataSheetSelected.Enabled = normalUi
         ComboBoxSize.Enabled = normalUi
         ButtonSkeleton.Enabled = normalUi
+        CheckBoxFixUncloned.Enabled = normalUi AndAlso CloneMaterialsCheck.Checked AndAlso DeepAnalize_check.Checked
 
         If Skeleton_Class.HasSkeleton = True Then
             ButtonSkeleton.ForeColor = Color.Black
@@ -317,7 +318,7 @@ Public Class Wardrobe_Manager_Form
         _LastLeeShapesRequestKey = ""
 
         Dim deepAnalyze = DeepAnalize_check.Checked
-        Dim cloneMaterialsEnabled = CloneMaterialsCheck.Checked
+        Dim cloneMaterialsEnabled = CloneMaterialsCheck.Checked AndAlso CheckBoxFixUncloned.Checked
         Dim collectedOsps As New List(Of OSP_Project_Class)
 
         Try
@@ -494,7 +495,7 @@ Public Class Wardrobe_Manager_Form
 
             ' 2) Parsear en background SALVO DEEP CHECK
             Dim deepAnalyze = DeepAnalize_check.Checked
-            Dim cloneMaterialsEnabled = CloneMaterialsCheck.Checked
+            Dim cloneMaterialsEnabled = CloneMaterialsCheck.Checked AndAlso CheckBoxFixUncloned.Checked
             Dim allOSPs = New ConcurrentBag(Of OSP_Project_Class)()
 
             OSD_Class.FileLocks.Clear()
@@ -1718,7 +1719,7 @@ Public Class Wardrobe_Manager_Form
             ShowLoadIssuesDialog(nonCloneIssues)
         End If
 
-        If Not CloneMaterialsCheck.Checked Then Exit Sub
+        If Not CloneMaterialsCheck.Checked OrElse Not CheckBoxFixUncloned.Checked Then Exit Sub
 
         Dim cloneIssues = issues.Where(Function(issue) issue.Kind = ProjectLoadIssueKind.CloneMaterialPending).ToList()
         If cloneIssues.Count = 0 Then Exit Sub
@@ -2659,8 +2660,14 @@ Public Class Wardrobe_Manager_Form
         If IsNothing(preview_Control) Then Exit Sub
         Config_App.Current.Setting_KeepPhysics = PhysicsCheckbox.Checked
     End Sub
+    Private Sub CheckBoxFixUncloned_CheckedChanged(sender As Object, e As EventArgs) Handles CheckBoxFixUncloned.CheckedChanged
+        If IsNothing(preview_Control) Then Exit Sub
+        WM_Config.Current.Setting_Fix_Uncloned = CheckBoxFixUncloned.Checked
+    End Sub
+
 
     Private Sub CloneMaterialsCheck_CheckedChanged(sender As Object, e As EventArgs) Handles CloneMaterialsCheck.CheckedChanged
+        CheckBoxFixUncloned.Enabled = CloneMaterialsCheck.Checked AndAlso DeepAnalize_check.Checked
         If IsNothing(preview_Control) Then Exit Sub
         WM_Config.Current.Setting_Clone_Materials = CloneMaterialsCheck.Checked
     End Sub
@@ -2692,6 +2699,7 @@ Public Class Wardrobe_Manager_Form
         ShowCollectionsCheck.Checked = WM_Config.Current.Setting_ShowCollections
         ShowCBBECheck.Checked = WM_Config.Current.Setting_ShowCBBE
         CheckShowpacks.Checked = WM_Config.Current.Setting_Showpacks
+        CheckBoxFixUncloned.Checked = WM_Config.Current.Setting_Fix_Uncloned
 
     End Sub
 
@@ -2886,7 +2894,9 @@ Public Class Wardrobe_Manager_Form
         RequestLeeShapes()
     End Sub
 
-
+    Private Sub DeepAnalize_check_CheckedChanged(sender As Object, e As EventArgs) Handles DeepAnalize_check.CheckedChanged
+        CheckBoxFixUncloned.Enabled = CloneMaterialsCheck.Checked AndAlso DeepAnalize_check.Checked
+    End Sub
 End Class
 
 

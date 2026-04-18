@@ -45,6 +45,7 @@ Public Class WM_Config
     Public Property Bodytipe As SliderSize = SliderSize.Default
     Public Property Default_Preset As String = ""
     Public Property Settings_Build As BuildSettings = Default_Build_Settings()
+    Public Property Setting_Fix_Uncloned As Boolean = True
 
     Public Property Setting_OverWrite As Boolean = False
     Public Property Setting_ChangeOutDir As Boolean = False
@@ -201,6 +202,7 @@ Public Class WM_Config
             If TryGetBool(root, "Setting_ShowCBBE", boolVal) Then Current.Setting_ShowCBBE = boolVal
             If TryGetBool(root, "Setting_ShowCollections", boolVal) Then Current.Setting_ShowCollections = boolVal
             If TryGetBool(root, "Setting_ExportSam", boolVal) Then Current.Setting_ExportSam = boolVal
+            If TryGetBool(root, "Setting_Fix_Uncloned", boolVal) Then Current.Setting_Fix_Uncloned = boolVal
 
             Dim intVal As Integer
             If TryGetInt(root, "Bodytipe", intVal) Then Current.Bodytipe = CType(intVal, SliderSize)

@@ -658,7 +658,6 @@ Partial Class Config_Form
         GridColor.DropDownStyle = ComboBoxStyle.DropDownList
         GridColor.Enabled = False
         GridColor.FormattingEnabled = True
-        GridColor.Items.AddRange(New Object() {"None"})
         GridColor.Location = New Point(471, 45)
         GridColor.Name = "GridColor"
         GridColor.SelectedColor = Color.Black

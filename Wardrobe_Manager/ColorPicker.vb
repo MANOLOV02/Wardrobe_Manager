@@ -7,7 +7,6 @@ Public Class ColorComboBox
         ' Modo de dibujo personalizado y estilo de lista desplegable
         Me.DropDownStyle = ComboBoxStyle.DropDownList
         Me.DrawMode = DrawMode.OwnerDrawFixed
-        Me.Items.Add("None")
         ' Cargar todos los KnownColor uno por uno
 
     End Sub
