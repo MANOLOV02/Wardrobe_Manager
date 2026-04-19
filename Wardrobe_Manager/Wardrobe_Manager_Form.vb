@@ -2081,6 +2081,7 @@ Public Class Wardrobe_Manager_Form
             ProgressBar1.Maximum = update.Max
             ProgressBar1.Value = Math.Min(update.Value, update.Max)
         End Sub)
+        FilesDictionary_class.CacheDirectory = Application.StartupPath
         Await FilesDictionary_class.Fill_DictionaryAsync(Directorios.Fallout4data, progress)
         ProgressBar1.Value = 0
 
