@@ -1,4 +1,5 @@
 ﻿' Version Uploaded of Wardrobe 3.2.0
+Imports NiflySharp
 Imports NiflySharp.Blocks
 Imports NiflySharp.Structs
 
@@ -28,21 +29,32 @@ Public Class SplitShapeHelper
     End Function
 
     Public Shared Sub Split(shape As Shape_class, sliderSet As SliderSet_Class)
-        Dim origNif = shape.RelatedNifShape
+        ' INiShape (BSTriShape, BSSubIndex, BSDynamic, BSMeshLOD, NiTriShape, BSLOD,
+        ' NiTriStrips, BSSegmented).  Polymorphic vertex/skin handling via adapter.
+        Dim origNif As INiShape = shape.RelatedNifShape
         If origNif Is Nothing Then Throw New InvalidOperationException("Shape has no NIF data.")
 
         Dim maskedSet = shape.MaskedVertices
         If maskedSet.Count = 0 Then Throw New InvalidOperationException("Shape has no masked vertices.")
 
-        Dim isSSE = origNif.VertexDataSSE IsNot Nothing AndAlso origNif.VertexDataSSE.Count > 0
-        Dim totalVerts = If(isSSE, origNif.VertexDataSSE.Count, origNif.VertexData.Count)
+        ' Adapter for the original shape — single source of truth for vertex/skin reads
+        ' regardless of BSTriShape vs NiTriBasedGeom layout.  No more BS/NiTri branching
+        ' in this file — everything flows through the adapter + ShapeArrays (including
+        ' Skinning).
+        Dim origGeom As IShapeGeometry = ShapeGeometryFactory.[For](origNif, sliderSet.NIFContent)
+        Dim totalVerts As Integer = origGeom.VertexCount
         If totalVerts = 0 Then Throw New InvalidOperationException("Shape has no vertex data.")
 
         ' 1. Classify triangles using original indices.
         ' Original keeps any triangle that is not fully masked.
         ' Split shape gets only fully masked triangles.
+        ' Track per-half the OLD triangle index so the adapter can redistribute Segments
+        ' / LOD sizes via TriangleRemap (see SkinningHelper.ApplyShapeGeometry signature).
         Dim origTrisRaw As New List(Of (V0 As Integer, V1 As Integer, V2 As Integer))
         Dim splitTrisRaw As New List(Of (V0 As Integer, V1 As Integer, V2 As Integer))
+        Dim origTriOldIdx As New List(Of Integer)
+        Dim splitTriOldIdx As New List(Of Integer)
+        Dim oldTriCounter As Integer = 0
 
         For Each t In origNif.Triangles
             Dim v0 = CInt(t(CUShort(0)))
@@ -54,9 +66,12 @@ Public Class SplitShapeHelper
 
             If m0 AndAlso m1 AndAlso m2 Then
                 splitTrisRaw.Add((v0, v1, v2))
+                splitTriOldIdx.Add(oldTriCounter)
             Else
                 origTrisRaw.Add((v0, v1, v2))
+                origTriOldIdx.Add(oldTriCounter)
             End If
+            oldTriCounter += 1
         Next
 
         ' 2. Collect vertices actually referenced by surviving triangles.
@@ -100,39 +115,71 @@ Public Class SplitShapeHelper
 
         ' 5. Unique split name.
         Dim splitName = sliderSet.Check_Unique_Shapename(shape.Target & "_Split")
-        Dim version = sliderSet.NIFContent.Header.Version
 
-        ' 6. Clone NIF shape while original still has full vertex data.
-        Dim splitNifRaw = sliderSet.NIFContent.CloneShape_Original(origNif, splitName, sliderSet.NIFContent)
-        Dim splitBST = TryCast(splitNifRaw, BSTriShape)
+        ' 6. Clone NIF shape while original still has full vertex data.  CloneShape_Original
+        ' takes INiShape so it works for any supported family (BSTriShape, BSSubIndex,
+        ' NiTriShape, BSSegmented, etc.).
+        Dim splitNifRaw As INiShape = sliderSet.NIFContent.CloneShape_Original(origNif, splitName, sliderSet.NIFContent)
+
+        ' Deep-copy safety: for BSSubIndexTriShape / BSSegmentedTriShape, NiflySharp's
+        ' clone may or may not deep-copy the Segments list (List<BSGeometrySegmentData>
+        ' of structs — reference shared unless NiflySharp explicitly clones).  If the
+        ' split half shares the original's Segments reference, our post-Apply
+        ' RedistributeSegments on split would mutate the original's Segments too →
+        ' both halves end up with the split-half's segment layout → dismember broken on
+        ' both.  Force a shallow-clone of the Segments list to break the alias.
+        Dim splitSubIdx = TryCast(splitNifRaw, BSSubIndexTriShape)
+        Dim origSubIdx = TryCast(origNif, BSSubIndexTriShape)
+        If splitSubIdx IsNot Nothing AndAlso origSubIdx IsNot Nothing AndAlso
+           splitSubIdx.Segments IsNot Nothing AndAlso
+           Object.ReferenceEquals(splitSubIdx.Segments, origSubIdx.Segments) Then
+            ' Shallow copy of the List (structs are value-copied; SubSegment lists are
+            ' the only nested reference — also needs its own copy per segment).
+            Dim cloned As New List(Of NiflySharp.Structs.BSGeometrySegmentData)(splitSubIdx.Segments.Count)
+            For Each seg In splitSubIdx.Segments
+                Dim segCopy = seg   ' struct copy (Flags/StartIndex/NumPrimitives/etc.)
+                If seg.SubSegment IsNot Nothing Then
+                    segCopy.SubSegment = New List(Of NiflySharp.Structs.BSGeometrySubSegment)(seg.SubSegment)
+                End If
+                cloned.Add(segCopy)
+            Next
+            splitSubIdx.Segments = cloned
+        End If
+
+        ' Polymorphic split-shape adapter — BSTriShape-family clones into BSTriShape,
+        ' NiTriShape-family clones into NiTriShape (NiflySharp's CloneShape preserves the
+        ' concrete type).  Reuse the existing origGeom from the entry block.
+        Dim splitGeom As IShapeGeometry = If(splitNifRaw Is Nothing, Nothing,
+                                              ShapeGeometryFactory.[For](splitNifRaw, sliderSet.NIFContent))
 
         ' 7. Update vertex data via centralized helper (snapshot -> filter -> apply).
-        Dim snap = SkinningHelper.SnapshotSeparateArrays(origNif)
+        Dim snap = SkinningHelper.SnapshotSeparateArrays(origGeom)
         Dim origArrays = snap.FilterByIndices(usedOrig)
         Dim splitArrays = snap.FilterByIndices(usedSplit)
 
-        If isSSE Then
-            Dim all = origNif.VertexDataSSE.ToList()
-            SkinningHelper.ApplyShapeGeometry(origNif, version, True,
-                all.Where(Function(v, i) usedOrig.Contains(i)).ToList(), Nothing, origTris, origArrays)
-            SkinningHelper.ApplyShapeGeometry(splitBST, version, True,
-                all.Where(Function(v, i) usedSplit.Contains(i)).ToList(), Nothing, splitTris, splitArrays)
-        Else
-            Dim all = origNif.VertexData.ToList()
-            SkinningHelper.ApplyShapeGeometry(origNif, version, False,
-                Nothing, all.Where(Function(v, i) usedOrig.Contains(i)).ToList(), origTris, origArrays)
-            SkinningHelper.ApplyShapeGeometry(splitBST, version, False,
-                Nothing, all.Where(Function(v, i) usedSplit.Contains(i)).ToList(), splitTris, splitArrays)
+        ' Provenance maps for both halves so ApplyShapeGeometry can redistribute Segments
+        ' / LOD sizes when the underlying shape is BSSubIndex / BSMeshLOD / BSSegmented.
+        Dim origProv = TriangleRemap.SameShape(origTriOldIdx)
+        Dim splitProv = TriangleRemap.SameShape(splitTriOldIdx)
+
+        ' Unified apply: ShapeArrays (positions/normals/tangents/uvs/colors + Skinning) +
+        ' triangles + provenance.  Works for BSTriShape family AND NiTriShape family —
+        ' the adapter's ResizeVertices + per-field setters + SetSkinning handle the
+        ' layout differences internally.
+        SkinningHelper.ApplyShapeGeometry(origGeom, origTris, origArrays, origProv)
+        If splitGeom IsNot Nothing Then
+            SkinningHelper.ApplyShapeGeometry(splitGeom, splitTris, splitArrays, splitProv)
         End If
 
-        origNif.UpdateBounds()
-        splitNifRaw?.UpdateBounds()
+        origGeom.UpdateBounds()
+        splitGeom?.UpdateBounds()
 
-        ' 8. Skin partitions.
+        ' 8. Skin partitions — regeneration via NifContent for both halves; handles
+        ' BSTriShape and NiTriShape uniformly (both go through UpdateSkinPartitions).
         sliderSet.NIFContent.RemapSkinPartitionTriangles(origNif, origRemap)
-        If splitBST IsNot Nothing Then sliderSet.NIFContent.RemapSkinPartitionTriangles(splitBST, splitRemap)
+        If splitNifRaw IsNot Nothing Then sliderSet.NIFContent.RemapSkinPartitionTriangles(splitNifRaw, splitRemap)
         sliderSet.NIFContent.UpdateSkinPartitions(origNif)
-        If splitBST IsNot Nothing Then sliderSet.NIFContent.UpdateSkinPartitions(splitBST)
+        If splitNifRaw IsNot Nothing Then sliderSet.NIFContent.UpdateSkinPartitions(splitNifRaw)
 
         ' 9. Register split shape in BaseMaterials.
         ' Create a new RelatedMaterial_Class wrapper (not an alias) so that changing the

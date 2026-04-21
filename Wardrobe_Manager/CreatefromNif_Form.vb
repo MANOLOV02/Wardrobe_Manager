@@ -107,7 +107,22 @@ Public Class Create_from_Nif_Form
 
     Private Sub Read_selected(key As String)
         Dim fil As String = key
+        ' TRI lookup: first try the exact .nif → .tri replacement (cubre NIFs sin sufijo,
+        ' y casos FO4 donde body_0.nif puede tener body_0.tri propio).  Si no existe y el
+        ' NIF termina en _0.nif / _1.nif, fallback a la convención Outfit Studio: un solo
+        ' body.tri compartido entre ambos tamaños.
         Dim tri = fil.Replace(".nif", ".tri", StringComparison.OrdinalIgnoreCase)
+        If Not FilesDictionary_class.Dictionary.ContainsKey(tri) Then
+            Dim stripped As String = Nothing
+            If fil.EndsWith("_0.nif", StringComparison.OrdinalIgnoreCase) Then
+                stripped = fil.Substring(0, fil.Length - "_0.nif".Length) & ".tri"
+            ElseIf fil.EndsWith("_1.nif", StringComparison.OrdinalIgnoreCase) Then
+                stripped = fil.Substring(0, fil.Length - "_1.nif".Length) & ".tri"
+            End If
+            If stripped IsNot Nothing AndAlso FilesDictionary_class.Dictionary.ContainsKey(stripped) Then
+                tri = stripped
+            End If
+        End If
         selected_slider.ParentOSP.xml.DocumentElement.InnerText = ""
         selected_slider = New SliderSet_Class(selected_slider.ParentOSP) With {
             .BypassDiskShapeDataLoad = True
@@ -177,6 +192,20 @@ Public Class Create_from_Nif_Form
             selected_slider.ShapeDataLoaded = True
             selected_slider.InvalidateShapeDataLookupCache()
             selected_slider.RebuildShapeDataLookupCache()
+
+            ' ── Shape type validator hook — DISABLED AFTER INITIAL VALIDATION PASS ──
+            ' ShapeTypeValidator runs the A/B/C/D harness (round-trip, split, merge, zap)
+            ' on shape types not yet marked "Validated" in shape_validator_cache.json.
+            ' Needed only when refactoring the geometry adapter path or when adding support
+            ' for a new shape type.  Re-enable by uncommenting this block; the validator's
+            ' code lives in ShapeTypeValidator.vb and remains intact.
+            '
+            'Try
+            '    ShapeTypeValidator.ValidateUntestedTypes(selected_slider, filLoc.FullPath)
+            'Catch exValidator As Exception
+            '    MsgBox("Shape Validator error (no bloquea el load): " & exValidator.Message,
+            '           vbInformation, "Shape Validator")
+            'End Try
 
         Catch ex As Exception
             Debugger.Break()

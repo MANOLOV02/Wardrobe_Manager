@@ -127,7 +127,8 @@ Public Class MorphingHelper
         If Not shape.ParentSliderSet.Sliders.Any(Function(pf) pf.IsZap) Then Exit Sub
 
         ' ==== 0) Datos locales / alias ====
-        Dim tri As INiShape = geom.TriShape
+        ' Geometry backing shape (INiShape) — used below for partition operations.
+        Dim tri As INiShape = geom.Geometry?.BackingShape
         Dim vm = geom.VertexMask
         Dim nOld As Integer = geom.Vertices.Length
         Dim haszapped As Boolean = False
@@ -155,17 +156,16 @@ Public Class MorphingHelper
         Dim UVW = geom.Uvs_Weight
         Dim VC = geom.VertexColors
         Dim ED = geom.Eyedata
-        Dim VD = geom.VertexData
-        Dim VDSSE = geom.VertexDataSSE
-        ' NOTA: si VD es List, la paso a array para compactar in-place y luego la rearmo
-        Dim VDarr() As BSVertexData = Nothing
-        Dim VDarrsse() As BSVertexDataSSE = Nothing
 
-        If geom.Version.IsSSE Then
-            VDarrsse = VDSSE.ToArray()
-        Else
-            VDarr = VD.ToArray()
-        End If
+        ' Polymorphic per-vertex skinning compaction — parallel slot copy keyed by survivor
+        ' position.  Works uniformly for BSTriShape (flat bytes + halfs) and NiTriShape
+        ' (same flat layout, sourced from NiSkinPartition or NiSkinData).  The packed
+        ' BSVertexData/SSE list is rebuilt by adapter.ResizeVertices in InjectToTrishape
+        ' — no need for an in-place struct copy here anymore.
+        Dim hasSkin As Boolean = (geom.Skinning.BoneIndices IsNot Nothing AndAlso geom.Skinning.BoneWeights IsNot Nothing AndAlso geom.Skinning.VertexCount = nOld)
+        Dim skinWpv As Integer = If(geom.Skinning.WeightsPerVertex > 0, geom.Skinning.WeightsPerVertex, 4)
+        Dim skinIdxArr = geom.Skinning.BoneIndices
+        Dim skinWgtArr = geom.Skinning.BoneWeights
 
         For i As Integer = 0 To nOld - 1
             If Not removed(i) Then
@@ -178,12 +178,17 @@ Public Class MorphingHelper
                 B(w) = B(i)
                 UVW(w) = UVW(i)
                 VC(w) = VC(i)
-                If geom.Version.IsSSE Then
-                    VDarrsse(w) = VDarrsse(i)
-                Else
-                    VDarr(w) = VDarr(i)
-                End If
                 ED(w) = ED(i)
+                If hasSkin Then
+                    Dim srcBase As Integer = i * skinWpv
+                    Dim dstBase As Integer = w * skinWpv
+                    If srcBase <> dstBase Then
+                        For j = 0 To skinWpv - 1
+                            skinIdxArr(dstBase + j) = skinIdxArr(srcBase + j)
+                            skinWgtArr(dstBase + j) = skinWgtArr(srcBase + j)
+                        Next
+                    End If
+                End If
                 w += 1
             End If
         Next
@@ -200,31 +205,48 @@ Public Class MorphingHelper
         Array.Resize(VC, nNew) : geom.VertexColors = VC
         Array.Resize(ED, nNew) : geom.Eyedata = ED
 
-        ' Rehacer la lista con backing array ya compactado
-        If geom.Version.IsSSE Then
-            VDSSE.Clear() : VDSSE.Capacity = nNew : VDSSE.AddRange(VDarrsse.AsSpan(0, nNew).ToArray())
-        Else
-            VD.Clear() : VD.Capacity = nNew : VD.AddRange(VDarr.AsSpan(0, nNew).ToArray())
+        ' Resize compacted skinning to new vertex count.  Published in InjectToTrishape
+        ' via adapter.SetSkinning (writes BSVertexData inline for BS, rebuilds NiSkinData
+        ' BoneList for NiTri).
+        If hasSkin Then
+            Dim newIdxArr(nNew * skinWpv - 1) As Byte
+            Dim newWgtArr(nNew * skinWpv - 1) As System.Half
+            Array.Copy(skinIdxArr, newIdxArr, nNew * skinWpv)
+            Array.Copy(skinWgtArr, newWgtArr, nNew * skinWpv)
+            geom.Skinning = New ShapeSkinningData() With {
+                .BoneIndices = newIdxArr,
+                .BoneWeights = newWgtArr,
+                .WeightsPerVertex = skinWpv,
+                .VertexCount = nNew,
+                .BoneRefIndices = geom.Skinning.BoneRefIndices
+            }
         End If
 
 
-        ' ==== 3) Reindexado de triángulos con mínima asignación ====
+        ' ==== 3) Reindexado de triángulos con mínima asignación + tracking de provenance
+        ' (oldTriIdx por cada nuevo triángulo) — el adapter usa esto para redistribuir
+        ' Segments/LOD sizes en BSSubIndex / BSMeshLOD / BSSegmented.  Para BSTriShape plano
+        ' la lista existe pero no se consume.
         Dim idxArr = geom.Indices
         Dim tmpTris(idxArr.Length \ 3 - 1) As Triangle
+        Dim provenance As New List(Of Integer)(idxArr.Length \ 3)
         Dim w2 As Integer = 0
 
         For tr As Integer = 0 To idxArr.Length - 3 Step 3
+            Dim oldTriIdx As Integer = tr \ 3
             Dim n1 = oldToNew(CInt(idxArr(tr)))
             Dim n2 = oldToNew(CInt(idxArr(tr + 1)))
             Dim n3 = oldToNew(CInt(idxArr(tr + 2)))
             If n1 >= 0 AndAlso n2 >= 0 AndAlso n3 >= 0 Then
                 tmpTris(w2) = New Triangle(n1, n2, n3)
+                provenance.Add(oldTriIdx)
                 w2 += 1
 
             End If
         Next
 
         If w2 < tmpTris.Length Then ReDim Preserve tmpTris(w2 - 1)
+        geom.TriangleProvenance = TriangleRemap.SameShape(provenance)
 
         Dim newIdx(3 * w2 - 1) As UInteger
         For i As Integer = 0 To w2 - 1
@@ -246,7 +268,7 @@ Public Class MorphingHelper
         For i As Integer = 0 To nOld - 1
             If oldToNew(i) >= 0 Then remapDict(i) = oldToNew(i)
         Next
-        shape.ParentSliderSet.NIFContent.RemapSkinPartitionTriangles(geom.TriShape, remapDict)
+        shape.ParentSliderSet.NIFContent.RemapSkinPartitionTriangles(tri, remapDict)
 
         ' ==== 4) Reindexado de morphs
         For Each dat In shape.Related_Slider_data.
@@ -273,6 +295,13 @@ Public Class MorphingHelper
                 End If
             Next
         Next
+
+        ' Invalidate the in-memory MorphDiffs cache so the next LoadMorphTargets rebuilds
+        ' it from the (now remapped) OSD DataDiff indices + the (now compacted) VC.
+        ' Without this, BuildingForm's multi-size iteration (build_0 → build_1) would
+        ' re-use MorphDiffs built against pre-compaction VC, producing IndexOutOfRange
+        ' when applying morphs to the shrunken NifLocalVertices array.
+        shape.MorphDiffs = Nothing
     End Sub
 
     Private Shared Sub ApplyMask_CPU(shape As Shape_class, ByRef Geometry As SkinnedGeometry, AllowMask As Boolean)

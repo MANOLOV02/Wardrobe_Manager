@@ -2049,7 +2049,11 @@ Public Class SliderSet_Class
     Private _ShapeHasLocalCache As New Dictionary(Of String, Boolean)(StringComparer.OrdinalIgnoreCase)
     Private _ShapeHasExternalCache As New Dictionary(Of String, Boolean)(StringComparer.OrdinalIgnoreCase)
 
-    Private _NifShapeByNameCache As New Dictionary(Of String, BSTriShape)(StringComparer.OrdinalIgnoreCase)
+    ' Polymorphic cache: any shape that ShapeGeometryFactory.IsSupported accepts (BSTriShape
+    ' family + NiTriShape family) lives here.  Callers that need BSTriShape-specific fields
+    ' (Editor_Form weight viz, MergeShapesHelper packed VertexData concat) must TryCast at
+    ' the access site and gracefully degrade for non-BS shapes.
+    Private _NifShapeByNameCache As New Dictionary(Of String, INiShape)(StringComparer.OrdinalIgnoreCase)
     Private _LocalOsdBlocksByNameCache As New Dictionary(Of String, List(Of OSD_Block_Class))(StringComparer.OrdinalIgnoreCase)
     Private _ExternalOsdBlocksByNameCache As New Dictionary(Of String, List(Of OSD_Block_Class))(StringComparer.OrdinalIgnoreCase)
     Public Property BypassDiskShapeDataLoad As Boolean = False
@@ -2116,7 +2120,7 @@ Public Class SliderSet_Class
     Private Sub EnsureShapeDataLookupCache()
         If _ShapeDataLookupCacheValid Then Exit Sub
 
-        _NifShapeByNameCache = New Dictionary(Of String, BSTriShape)(StringComparer.OrdinalIgnoreCase)
+        _NifShapeByNameCache = New Dictionary(Of String, INiShape)(StringComparer.OrdinalIgnoreCase)
         _LocalOsdBlocksByNameCache = New Dictionary(Of String, List(Of OSD_Block_Class))(StringComparer.OrdinalIgnoreCase)
         _ExternalOsdBlocksByNameCache = New Dictionary(Of String, List(Of OSD_Block_Class))(StringComparer.OrdinalIgnoreCase)
 
@@ -2124,11 +2128,15 @@ Public Class SliderSet_Class
 
         If Not IsNothing(NIFContent) AndAlso Not IsNothing(NIFContent.NifShapes) Then
             For Each nifShape In NIFContent.NifShapes
-                Dim tri = TryCast(nifShape, BSTriShape)
-                If IsNothing(tri) Then Continue For
-                If IsNothing(tri.Name) OrElse String.IsNullOrWhiteSpace(tri.Name.String) Then Continue For
+                ' Accept any shape the factory supports — BSTriShape family (FO4 outfits) +
+                ' NiTriShape family (NiTriShape, BSLODTriShape, NiTriStrips, BSSegmentedTriShape).
+                ' Editor_Form / MergeShapesHelper / PhysicsWeightCollapseHelper that need
+                ' BSTriShape-specific paths must TryCast at the access site.
+                If nifShape Is Nothing Then Continue For
+                If Not ShapeGeometryFactory.IsSupported(nifShape) Then Continue For
+                If IsNothing(nifShape.Name) OrElse String.IsNullOrWhiteSpace(nifShape.Name.String) Then Continue For
 
-                _NifShapeByNameCache.TryAdd(tri.Name.String, tri)
+                _NifShapeByNameCache.TryAdd(nifShape.Name.String, nifShape)
             Next
         End If
 
@@ -2169,9 +2177,9 @@ Public Class SliderSet_Class
         Return Nothing
     End Function
 
-    Friend Function GetNifShapeByNameCached(name As String) As BSTriShape
+    Friend Function GetNifShapeByNameCached(name As String) As INiShape
         EnsureShapeDataLookupCache()
-        Dim result As BSTriShape = Nothing
+        Dim result As INiShape = Nothing
         If _NifShapeByNameCache.TryGetValue(name, result) Then Return result
         Return Nothing
     End Function
@@ -2971,9 +2979,30 @@ Public Class Shape_class
             Return ParentSliderSet.NIFContent
         End Get
     End Property
-    Public ReadOnly Property IR_NifShape As BSTriShape Implements IRenderableShape.NifShape
+    Public ReadOnly Property IR_NifShape As INiShape Implements IRenderableShape.NifShape
         Get
             Return RelatedNifShape
+        End Get
+    End Property
+
+    ''' <summary>
+    ''' Polymorphic geometry adapter for the BSTriShape backing this shape.  BodySlide outfits
+    ''' are always BSTriShape so the factory always returns a BSTriShapeGeometry, but we keep
+    ''' the IShapeGeometry abstraction here so SkinningHelper can stay polymorphic.
+    ''' Cached lazily — resets when RelatedNifShape returns a new instance (e.g. after
+    ''' UnloadShapeData clears the NIF and a fresh load repopulates _NifShapeByNameCache).
+    ''' </summary>
+    Private _cachedGeometry As IShapeGeometry
+    Private _cachedGeometryFor As INiShape
+    Public ReadOnly Property IR_Geometry As IShapeGeometry Implements IRenderableShape.Geometry
+        Get
+            Dim current As INiShape = RelatedNifShape
+            If current Is Nothing Then Return Nothing
+            If _cachedGeometry Is Nothing OrElse Not Object.ReferenceEquals(_cachedGeometryFor, current) Then
+                _cachedGeometry = ShapeGeometryFactory.[For](current, ParentSliderSet.NIFContent)
+                _cachedGeometryFor = current
+            End If
+            Return _cachedGeometry
         End Get
     End Property
     Public ReadOnly Property IR_NifSkin As INiSkin Implements IRenderableShape.NifSkin
@@ -3059,7 +3088,15 @@ Public Class Shape_class
         End Get
     End Property
 
-    Public ReadOnly Property RelatedNifShape As BSTriShape
+    ''' <summary>
+    ''' The underlying NIF shape this WM Shape_class wraps.  Returns INiShape (polymorphic):
+    ''' BodySlide outfits are typically BSTriShape but SSE-era NIFs may carry BSSegmented /
+    ''' BSLOD / NiTriShape / NiTriStrips, all of which now flow through zap/split via the
+    ''' IShapeGeometry adapter (ShapeGeometryFactory).  Callers that need BSTriShape-specific
+    ''' fields (Editor_Form weight viz, MergeShapesHelper packed VertexData concat) must
+    ''' TryCast and gracefully degrade for non-BS shapes.
+    ''' </summary>
+    Public ReadOnly Property RelatedNifShape As INiShape
         Get
             Return Me.ParentSliderSet.GetNifShapeByNameCached(Me.Nombre)
         End Get

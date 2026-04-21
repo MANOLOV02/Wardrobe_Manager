@@ -847,7 +847,9 @@ Public Class Wardrobe_Manager_Form
             Physics_Label.Visible = True
         End If
 
-        it = New ListViewItem({Seleccionado.OutputFileValue, "Output", Seleccionado.HighHeelHeight.ToString("F2"), Seleccionado.OutputPathValue}) With {
+        ' Columns: Shape/Output | Type | Local | HighHeel | Datafolder/Output dir
+        ' Output row has no shape type — empty dash.
+        it = New ListViewItem({Seleccionado.OutputFileValue, "—", "Output", Seleccionado.HighHeelHeight.ToString("F2"), Seleccionado.OutputPathValue}) With {
             .Tag = Nothing,
             .BackColor = Color.FromKnownColor(KnownColor.Control)
         }
@@ -866,7 +868,8 @@ Public Class Wardrobe_Manager_Form
                 If shap.HasExternalSliders Then locals = "No"
                 If locals = "No" AndAlso shap.HasLocalSliders Then locals = "Mixed"
             End If
-            it = New ListViewItem({shap.Nombre, locals, hh, String.Join(";", shap.Datafolder)}) With {.Tag = shap}
+            Dim shapeType As String = If(shap.RelatedNifShape IsNot Nothing, shap.RelatedNifShape.GetType().Name, "—")
+            it = New ListViewItem({shap.Nombre, shapeType, locals, hh, String.Join(";", shap.Datafolder)}) With {.Tag = shap}
             If shap.IsExternal Then it.ForeColor = Color.Green
             If shap.IsExternal AndAlso locals <> "No" Then it.BackColor = Color.LightYellow
             ListView2.Items.Add(it)

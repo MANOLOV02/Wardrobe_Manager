@@ -1,4 +1,5 @@
 ﻿' Version Uploaded of Wardrobe 3.2.0
+Imports NiflySharp
 Imports NiflySharp.Blocks
 Imports NiflySharp.Structs
 
@@ -29,16 +30,21 @@ Public Class MergeShapesHelper
     End Function
 
     Public Shared Sub Merge(targetShape As Shape_class, donorShapes As List(Of Shape_class), sliderSet As SliderSet_Class)
-        Dim targetNif = targetShape.RelatedNifShape
-        If targetNif Is Nothing Then Throw New InvalidOperationException("Target shape has no NIF data.")
+        ' Unified merge — works for the BSTriShape family AND NiTriShape family.  Per-vertex
+        ' positions/normals/tangents/etc. are concatenated via ShapeArrays (polymorphic);
+        ' per-vertex skin comes through ShapeArrays.Skinning (flat ShapeSkinningData).
+        ' Bone palette remap is applied to the flat BoneIndices byte array during concat.
+        Dim targetNifRaw As INiShape = targetShape.RelatedNifShape
+        If targetNifRaw Is Nothing Then Throw New InvalidOperationException("Target shape has no NIF data.")
         If donorShapes.Count = 0 Then Throw New InvalidOperationException("No donor shapes specified.")
 
-        Dim version = sliderSet.NIFContent.Header.Version
-        Dim isSSE = targetNif.VertexDataSSE IsNot Nothing AndAlso targetNif.VertexDataSSE.Count > 0
+        Dim targetGeom As IShapeGeometry = targetShape.IR_Geometry
 
-        ' ── 1. Build merged bone list and per-donor bone remaps ───────────────
-        Dim mergedBoneNifIndices As New List(Of Integer)()   ' NIF block index of each merged bone
-        Dim mergedBoneTrans As New List(Of BSSkinBoneTrans)() ' Bind transforms in same order
+        ' ── 1. Build merged bone list and per-donor bone remaps (BSSkin_Instance path) ──
+        ' Merged palette tracks NIF block indices of each bone; donor-local bone idx gets
+        ' translated to merged-local idx via donorBoneRemaps(di)(localIdx) → mergedIdx.
+        Dim mergedBoneNifIndices As New List(Of Integer)()
+        Dim mergedBoneTrans As New List(Of BSSkinBoneTrans)()
 
         Dim targetSkin = TryCast(targetShape.RelatedNifSkin, BSSkin_Instance)
         If targetSkin IsNot Nothing Then
@@ -49,7 +55,6 @@ Public Class MergeShapesHelper
             If tbd IsNot Nothing Then mergedBoneTrans.AddRange(tbd.BoneList)
         End If
 
-        ' donorBoneRemap(di)(localBoneIdx) = mergedBoneIdx
         Dim donorBoneRemaps As New List(Of Dictionary(Of Integer, Integer))()
         For Each donor In donorShapes
             Dim remap As New Dictionary(Of Integer, Integer)()
@@ -75,89 +80,90 @@ Public Class MergeShapesHelper
             Next
         Next
 
-        ' ── 2. Snapshot vertex data and compute donor offsets ─────────────────
-        ' Vertices are NOT welded — seam duplicates are kept as-is.
+        ' ── 2. Snapshot target + donors polymorphically, compute donor vertex offsets ──
         Dim donorOffsets As New List(Of Integer)()
-        Dim cumulative = If(isSSE, targetNif.VertexDataSSE.Count, targetNif.VertexData.Count)
+        Dim cumulative As Integer = targetGeom.VertexCount
+
+        Dim allTris = targetGeom.GetTriangles()
+        Dim mergedArrays = SkinningHelper.SnapshotSeparateArrays(targetGeom)
 
         For Each donor In donorShapes
             donorOffsets.Add(cumulative)
-            cumulative += If(isSSE,
-                             donor.RelatedNifShape.VertexDataSSE.Count,
-                             donor.RelatedNifShape.VertexData.Count)
+            cumulative += donor.IR_Geometry.VertexCount
         Next
 
-        ' Snapshot triangles and separate arrays BEFORE SetVertexDataSSE — it resets them.
-        Dim allTris = targetNif.Triangles.ToList()
-        Dim mergedArrays = SkinningHelper.SnapshotSeparateArrays(targetNif)
-        For Each donor In donorShapes
-            mergedArrays.Append(SkinningHelper.SnapshotSeparateArrays(donor.RelatedNifShape))
+        ' Apply bone remap to each donor's Skinning.BoneIndices, then append per-vertex
+        ' arrays to mergedArrays.  Works for any shape family — BoneIndices is a flat
+        ' byte array regardless of whether skin came from BSVertexData (BS) or
+        ' NiSkinData/NiSkinPartition (NiTri).
+        For di = 0 To donorShapes.Count - 1
+            Dim donorArrays = SkinningHelper.SnapshotSeparateArrays(donorShapes(di).IR_Geometry)
+            Dim boneRemap = donorBoneRemaps(di)
+            If donorArrays.Skinning.HasValue AndAlso boneRemap.Count > 0 Then
+                Dim sk = donorArrays.Skinning.Value
+                If sk.BoneIndices IsNot Nothing Then
+                    ' Clone the BoneIndices array before mutating — Skinning is a struct
+                    ' but its array field is a shared reference.
+                    Dim cloned(sk.BoneIndices.Length - 1) As Byte
+                    Array.Copy(sk.BoneIndices, cloned, sk.BoneIndices.Length)
+                    Dim value As Integer = Nothing
+                    For b = 0 To cloned.Length - 1
+                        Dim orig As Integer = CInt(cloned(b))
+                        If boneRemap.TryGetValue(orig, value) Then cloned(b) = CByte(value And &HFF)
+                    Next
+                    Dim remappedSk = sk
+                    remappedSk.BoneIndices = cloned
+                    donorArrays.Skinning = remappedSk
+                End If
+            End If
+            mergedArrays.Append(donorArrays)
         Next
 
         ' ── 2b. Capture per-triangle body-part assignments BEFORE geometry changes ───
-        ' GetTriangleBodyParts returns Nothing for FO4 (BSSkin_Instance) — no-op for FO4.
-        Dim targetBodyParts = sliderSet.NIFContent.GetTriangleBodyParts(targetNif)
+        ' GetTriangleBodyParts returns Nothing for FO4 BSSkin_Instance — no-op for FO4.
+        Dim targetBodyParts = sliderSet.NIFContent.GetTriangleBodyParts(targetNifRaw)
         Dim donorBodyParts As New List(Of List(Of Integer))()
         For Each donor In donorShapes
             donorBodyParts.Add(sliderSet.NIFContent.GetTriangleBodyParts(donor.RelatedNifShape))
         Next
 
-        ' ── 3. Concatenate vertex data with bone index remapping ──────────────
-        Dim allSSE As List(Of BSVertexDataSSE) = Nothing
-        Dim allNon As List(Of BSVertexData) = Nothing
-        If isSSE Then
-            allSSE = targetNif.VertexDataSSE.ToList()
-            For di = 0 To donorShapes.Count - 1
-                Dim remap = donorBoneRemaps(di)
-                For Each vd In donorShapes(di).RelatedNifShape.VertexDataSSE
-                    Dim nv = vd   ' struct copy
-
-                    Dim value As Integer = Nothing
-
-                    If nv.BoneIndices IsNot Nothing Then
-                        nv.BoneIndices = nv.BoneIndices.ToArray()   ' clone ref array before mutating
-                        For b = 0 To nv.BoneIndices.Length - 1
-                            Dim orig = CInt(nv.BoneIndices(b))
-                            If remap.TryGetValue(orig, value) Then nv.BoneIndices(b) = CByte(value)
-                        Next
-                    End If
-                    allSSE.Add(nv)
-                Next
-            Next
-        Else
-            allNon = targetNif.VertexData.ToList()
-            For di = 0 To donorShapes.Count - 1
-                Dim remap = donorBoneRemaps(di)
-                For Each vd In donorShapes(di).RelatedNifShape.VertexData
-                    Dim nv = vd   ' struct copy
-
-                    Dim value As Integer = Nothing
-
-                    If nv.BoneIndices IsNot Nothing Then
-                        nv.BoneIndices = nv.BoneIndices.ToArray()   ' clone ref array before mutating
-                        For b = 0 To nv.BoneIndices.Length - 1
-                            Dim orig = CInt(nv.BoneIndices(b))
-                            If remap.TryGetValue(orig, value) Then nv.BoneIndices(b) = CByte(value)
-                        Next
-                    End If
-                    allNon.Add(nv)
-                Next
-            Next
-        End If
-
-        ' ── 4. Concatenate triangles with vertex offset ───────────────────────
+        ' ── 3. Concatenate triangles with vertex offset, building multi-source provenance ──
+        ' Target triangles: same-shape provenance (oldIdx = original tri idx).
+        ' Donor triangles: cross-shape provenance (donor adapter + donor-local oldIdx).
+        ' The adapter's RedistributeSegments preserves target segments; donor segments are
+        ' appended manually in MergeMetadataAfterApply.
+        Dim mergedProv As New List(Of TriangleSource)(allTris.Count + 100)
+        For tIdx = 0 To allTris.Count - 1
+            mergedProv.Add(New TriangleSource(Nothing, tIdx))
+        Next
         For di = 0 To donorShapes.Count - 1
             Dim off = donorOffsets(di)
-            For Each t In donorShapes(di).RelatedNifShape.Triangles
+            Dim donorGeomForProv = donorShapes(di).IR_Geometry
+            Dim donorTriList = donorGeomForProv.GetTriangles()
+            For dIdx = 0 To donorTriList.Count - 1
+                Dim t = donorTriList(dIdx)
                 allTris.Add(New Triangle(
-                    CUShort(CInt(t(CUShort(0))) + off),
-                    CUShort(CInt(t(CUShort(1))) + off),
-                    CUShort(CInt(t(CUShort(2))) + off)))
+                    CUShort(CInt(t.V1) + off),
+                    CUShort(CInt(t.V2) + off),
+                    CUShort(CInt(t.V3) + off)))
+                mergedProv.Add(New TriangleSource(donorGeomForProv, dIdx))
             Next
         Next
+        Dim mergedProvenance As New TriangleRemap(mergedProv)
 
-        ' ── Apply all geometry via centralized helper ─────────────────────────
-        SkinningHelper.ApplyShapeGeometry(targetNif, version, isSSE, allSSE, allNon, allTris, mergedArrays)
+        ' ── Apply all geometry via centralized helper (fully polymorphic) ─────
+        SkinningHelper.ApplyShapeGeometry(targetGeom, allTris, mergedArrays, mergedProvenance)
+
+        ' ── 4b. Merge-specific metadata append (BSSubIndex Segments + BSMeshLOD lossy).
+        ' The adapter's provenance handler preserves target Segments correctly (same-shape
+        ' entries → counted) but skips cross-shape entries (donors).  Append donor segments
+        ' here with proper StartIndex offset so dismember regions survive merge.  Only
+        ' applies when target is BSTriShape family (BSSubIndex/BSMeshLOD specifically);
+        ' for NiTri family targets MergeMetadataAfterApply no-ops internally.
+        Dim targetBsTri = TryCast(targetNifRaw, BSTriShape)
+        If targetBsTri IsNot Nothing Then
+            MergeMetadataAfterApply(targetBsTri, donorShapes, donorOffsets)
+        End If
 
         ' ── 5. Update BSSkin_Instance bones and bone data ────────────────────
         If targetSkin IsNot Nothing Then
@@ -169,13 +175,13 @@ Public Class MergeShapesHelper
             If tbd IsNot Nothing Then tbd.BoneList = mergedBoneTrans
         End If
 
-        targetNif.UpdateBounds()
+        targetGeom.UpdateBounds()
 
         ' ── 5b. Update NiSkinInstance + NiSkinData for SSE shapes ────────────────
         ' BSSkin_Instance (FO4) was handled above.  For NiSkinInstance (SSE/Oblivion):
         ' NiSkinData.BoneList is what UpdateSkinPartitions reads to build vertBoneWeights.
         ' After merge, donor vertices are absent → crash.  Rebuild the bone list here.
-        Dim niSkinInst = sliderSet.NIFContent.GetBlock(Of NiSkinInstance)(targetNif.SkinInstanceRef)
+        Dim niSkinInst = sliderSet.NIFContent.GetBlock(Of NiSkinInstance)(targetNifRaw.SkinInstanceRef)
         If niSkinInst IsNot Nothing Then
             ' Build merged NiSkinInstance bone list from the target + all donors.
             Dim niMergedBoneNifIndices = niSkinInst.Bones.Indices.ToList()
@@ -184,6 +190,9 @@ Public Class MergeShapesHelper
             For Each donor In donorShapes
                 Dim niRemap As New Dictionary(Of Integer, Integer)()
                 niDonorBoneRemaps.Add(niRemap)
+                ' SkinInstanceRef is defined on INiShape — no need to downcast.  The old
+                ' `DirectCast(..., BSTriShape)` was a residue from the pre-refactor path
+                ' and fails for NiTriShape family.
                 Dim dNiSkinInst = sliderSet.NIFContent.GetBlock(Of NiSkinInstance)(
                     donor.RelatedNifShape.SkinInstanceRef)
                 If dNiSkinInst Is Nothing Then Continue For
@@ -226,7 +235,7 @@ Public Class MergeShapesHelper
                     Dim vertOffset = donorOffsets(di)
                     Dim niRemap = niDonorBoneRemaps(di)
                     Dim dNiSkinInst = sliderSet.NIFContent.GetBlock(Of NiSkinInstance)(
-                        donorShapes(di).RelatedNifShape.SkinInstanceRef)
+                        donorShapes(di).RelatedNifShape?.SkinInstanceRef)
                     If dNiSkinInst Is Nothing Then Continue For
                     Dim dNiSkinData = sliderSet.NIFContent.GetBlock(dNiSkinInst.Data)
                     If dNiSkinData Is Nothing Then Continue For
@@ -269,10 +278,10 @@ Public Class MergeShapesHelper
                     mergedBP.AddRange(Enumerable.Repeat(-1, donorShapes(di).RelatedNifShape.Triangles.Count))
                 End If
             Next
-            sliderSet.NIFContent.SetTriangleBodyParts(targetNif, mergedBP)
+            sliderSet.NIFContent.SetTriangleBodyParts(targetNifRaw, mergedBP)
         End If
 
-        sliderSet.NIFContent.UpdateSkinPartitions(targetNif)
+        sliderSet.NIFContent.UpdateSkinPartitions(targetNifRaw)
 
         ' ── 6. Merge OSD blocks: donor deltas offset into target blocks ───────
         Dim osdFilename = IO.Path.GetFileName(
@@ -323,5 +332,101 @@ Public Class MergeShapesHelper
 
         sliderSet.InvalidateAllLookupCaches()
     End Sub
+
+    ''' <summary>
+    ''' Merge-specific append/collapse for count-derived metadata that the per-triangle
+    ''' provenance redistribution can't express on its own.  Called after
+    ''' SkinningHelper.ApplyShapeGeometry has written the merged triangle list (target +
+    ''' donors concat) and the adapter has already preserved target-side metadata via the
+    ''' same-shape provenance entries.
+    '''
+    ''' BSSubIndexTriShape: target's Segments are intact post-Apply; append each donor's
+    ''' Segments with StartIndex offset by accumulated triangle count (×3 for vertex-index
+    ''' units).  SubSegmentDatas inherit the same offset.  Preserves dismember granularity
+    ''' across the merged shape.
+    '''
+    ''' BSMeshLODTriShape: lossy collapse to LOD2 — target's LOD layout doesn't survive
+    ''' a concat that doesn't reorder triangles per LOD bucket.  Same canonical behaviour
+    ''' as BodySlide-and-Outfit-Studio Geometry.cpp:1522 BSMeshLODTriShape::
+    ''' notifyVerticesDelete (lodSize2 = numTriangles).
+    '''
+    ''' DEBUGGER.BREAK / TO TEST: this path activates only on actor/armor merges where the
+    ''' target is BSSubIndex (rare in BodySlide outfits).  First execution should be
+    ''' verified in NifSkope: target Segments preserved + donor Segments appended at correct
+    ''' StartIndex.  See memory: pending_tests_shape_metadata.md
+    ''' </summary>
+    Private Shared Sub MergeMetadataAfterApply(targetNif As BSTriShape,
+                                                donorShapes As List(Of Shape_class),
+                                                donorOffsets As List(Of Integer))
+        Dim targetSubIndex = TryCast(targetNif, BSSubIndexTriShape)
+        Dim targetMeshLod = TryCast(targetNif, BSMeshLODTriShape)
+        If targetSubIndex Is Nothing AndAlso targetMeshLod Is Nothing Then Return
+
+        ' DEBUGGER.BREAK: TO TEST — verify segments append/LOD collapse behaviour first time
+        ' merge runs on a metadata-bearing target.  Remove after validation.
+        Debugger.Break()
+
+        ' BSSubIndex: append donor segments with offset.
+        If targetSubIndex IsNot Nothing Then
+            Dim merged As New List(Of BSGeometrySegmentData)()
+            If targetSubIndex.Segments IsNot Nothing Then merged.AddRange(targetSubIndex.Segments)
+            For di = 0 To donorShapes.Count - 1
+                Dim donorSub = TryCast(donorShapes(di).RelatedNifShape, BSSubIndexTriShape)
+                If donorSub Is Nothing OrElse donorSub.Segments Is Nothing Then Continue For
+                Dim triOffset As UInteger = CUInt(donorOffsets(di))   ' donor triangle offset = vertex offset / 3 — actually donor triangles started at the END of target triangles.
+                ' Actually triangle offset = current cumulative triangle count BEFORE this donor.
+                ' donorOffsets(di) is VERTEX offset, not triangle.  Need to recompute triangle offset.
+                Dim triOffsetTris As Integer = If(targetSubIndex.Triangles Is Nothing, 0, targetSubIndex.Triangles.Count)
+                For prev = 0 To di - 1
+                    triOffsetTris += If(donorShapes(prev).RelatedNifShape.Triangles Is Nothing, 0, donorShapes(prev).RelatedNifShape.Triangles.Count)
+                Next
+                Dim startIdxOffsetUnits As UInteger = CUInt(triOffsetTris) * 3UI
+                For Each dSeg In donorSub.Segments
+                    Dim newSeg As New BSGeometrySegmentData() With {
+                        .Flags = dSeg.Flags,
+                        .StartIndex = dSeg.StartIndex + startIdxOffsetUnits,
+                        .NumPrimitives = dSeg.NumPrimitives,
+                        .ParentArrayIndex = dSeg.ParentArrayIndex,
+                        .NumSubSegments = dSeg.NumSubSegments,
+                        .SubSegment = OffsetSubSegments(dSeg.SubSegment, startIdxOffsetUnits)
+                    }
+                    merged.Add(newSeg)
+                Next
+            Next
+            targetSubIndex.Segments = merged
+            Return
+        End If
+
+        ' BSMeshLOD: lossy collapse to LOD2 (matches BS-OS canonical).
+        If targetMeshLod IsNot Nothing Then
+            Dim newTriCount = If(targetMeshLod.Triangles Is Nothing, 0, targetMeshLod.Triangles.Count)
+            targetMeshLod.LOD0Size = 0UI
+            targetMeshLod.LOD1Size = 0UI
+            targetMeshLod.LOD2Size = CUInt(newTriCount)
+            ' Strong note: merging shapes lost LOD subdivision because triangle reorder
+            ' isn't done.  All triangles end up in LOD2 (always-rendered bucket).  Phase 2
+            ' of plan C would restore LOD coherence by reordering triangles per bucket.
+        End If
+    End Sub
+
+    ''' <summary>
+    ''' Helper: clones a sub-segment list and bumps every StartIndex by the given offset
+    ''' (in vertex-index units, ×3 from triangle count).  NumPrimitives and ParentArrayIndex
+    ''' are preserved verbatim.
+    ''' </summary>
+    Private Shared Function OffsetSubSegments(subs As List(Of BSGeometrySubSegment),
+                                               startIdxOffsetUnits As UInteger) As List(Of BSGeometrySubSegment)
+        If subs Is Nothing Then Return New List(Of BSGeometrySubSegment)()
+        Dim result As New List(Of BSGeometrySubSegment)(subs.Count)
+        For Each s In subs
+            result.Add(New BSGeometrySubSegment() With {
+                .StartIndex = s.StartIndex + startIdxOffsetUnits,
+                .NumPrimitives = s.NumPrimitives,
+                .ParentArrayIndex = s.ParentArrayIndex,
+                .Unused = s.Unused
+            })
+        Next
+        Return result
+    End Function
 
 End Class

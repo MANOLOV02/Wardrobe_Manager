@@ -135,8 +135,9 @@ Public Class Conform_Form
                         Throw New InvalidOperationException("Target shape has no NIF data.")
                     End If
 
-                    Dim srcNif = sourceShape.RelatedNifShape
-                    Dim srcPosRaw = srcNif.VertexPositions
+                    ' Polymorphic via adapter (works for BSTriShape and NiTriShape families).
+                    Dim srcGeom = sourceShape.IR_Geometry
+                    Dim srcPosRaw = srcGeom.GetVertexPositions()
                     If srcPosRaw Is Nothing OrElse srcPosRaw.Count = 0 Then
                         Throw New InvalidOperationException("Source shape has no vertex positions.")
                     End If
@@ -145,13 +146,13 @@ Public Class Conform_Form
                         srcPos(i) = New Vector3(srcPosRaw(i).X, srcPosRaw(i).Y, srcPosRaw(i).Z)
                     Next
 
-                    Dim sourceTris = srcNif.Triangles
+                    Dim sourceTris = srcGeom.GetTriangles()
                     If sourceTris Is Nothing OrElse sourceTris.Count = 0 Then
                         Throw New InvalidOperationException("Source shape has no triangles.")
                     End If
 
-                    Dim tgtNif = targetShape.RelatedNifShape
-                    Dim tgtPosRaw = tgtNif.VertexPositions
+                    Dim tgtGeom = targetShape.IR_Geometry
+                    Dim tgtPosRaw = tgtGeom.GetVertexPositions()
                     If tgtPosRaw Is Nothing OrElse tgtPosRaw.Count = 0 Then
                         Throw New InvalidOperationException("Target shape has no vertex positions.")
                     End If

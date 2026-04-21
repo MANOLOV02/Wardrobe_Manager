@@ -32,6 +32,7 @@ Partial Class Wardrobe_Manager_Form
         ImageList1 = New ImageList(components)
         ListView2 = New ListView()
         Shapecol = New ColumnHeader()
+        ShapeTypeCol = New ColumnHeader()
         Local = New ColumnHeader()
         ColumnHeader5 = New ColumnHeader()
         Datasources = New ColumnHeader()
@@ -233,7 +234,7 @@ Partial Class Wardrobe_Manager_Form
         ' 
         ' ListView2
         ' 
-        ListView2.Columns.AddRange(New ColumnHeader() {Shapecol, Local, ColumnHeader5, Datasources})
+        ListView2.Columns.AddRange(New ColumnHeader() {Shapecol, ShapeTypeCol, Local, ColumnHeader5, Datasources})
         ListView2.Dock = DockStyle.Fill
         ListView2.FullRowSelect = True
         ListView2.Location = New Point(0, 0)
@@ -245,24 +246,29 @@ Partial Class Wardrobe_Manager_Form
         ListView2.Visible = False
         ' 
         ' Shapecol
-        ' 
-        Shapecol.Text = "Shape / Otuput"
-        Shapecol.Width = 180
-        ' 
+        '
+        Shapecol.Text = "Shape / Output"
+        Shapecol.Width = 160
+        '
+        ' ShapeTypeCol
+        '
+        ShapeTypeCol.Text = "Type"
+        ShapeTypeCol.Width = 130
+        '
         ' Local
-        ' 
-        Local.Text = "Local sliders"
-        Local.Width = 100
-        ' 
+        '
+        Local.Text = "Local"
+        Local.Width = 55
+        '
         ' ColumnHeader5
-        ' 
+        '
         ColumnHeader5.Text = "HighHeel"
-        ColumnHeader5.Width = 100
-        ' 
+        ColumnHeader5.Width = 60
+        '
         ' Datasources
-        ' 
+        '
         Datasources.Text = "Datafolder / Output dir"
-        Datasources.Width = 200
+        Datasources.Width = 175
         ' 
         ' Exclude_Reference_Checkbox
         ' 
@@ -1566,6 +1572,7 @@ Partial Class Wardrobe_Manager_Form
     Friend WithEvents Auto_Move_Check As CheckBox
     Friend WithEvents Local As ColumnHeader
     Friend WithEvents ColumnHeader5 As ColumnHeader
+    Friend WithEvents ShapeTypeCol As ColumnHeader
     Friend WithEvents GroupBox1 As GroupBox
     Friend WithEvents RadioButton2 As RadioButton
     Friend WithEvents RadioButton1 As RadioButton

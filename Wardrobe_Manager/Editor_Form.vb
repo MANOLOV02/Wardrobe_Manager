@@ -440,12 +440,26 @@ Public Class Editor_Form
         For i = 0 To Selected_Shape.RelatedBones.Count - 1
             Dim bonIt = ListView1.Items.Find(Selected_Shape.RelatedBones(i).Name.String, False).FirstOrDefault
             j = i
-            Dim Nifversion = Selected_Shape.ParentSliderSet.NIFContent.Header.Version
-            Dim vert As Integer
-            If Nifversion.IsSSE Then
-                vert = Selected_Shape.RelatedNifShape.VertexDataSSE.Where(Function(pf) pf.BoneIndices.Contains(j)).Count
-            Else
-                vert = Selected_Shape.RelatedNifShape.VertexData.Where(Function(pf) pf.BoneIndices.Contains(j)).Count
+            ' Per-bone vertex count via polymorphic ShapeSkinningData (flat 4-slot per-vertex
+            ' layout).  Hides the BSTriShape inline VertexData/SSE split AND works uniformly
+            ' for NiTriShape family (reads NiSkinData).  One vertex counts once even if it
+            ' has bone j in multiple slots (matches the original "Contains" semantics).
+            Dim vert As Integer = 0
+            Dim vertSkin = Selected_Shape.IR_Geometry?.GetSkinning()
+            If vertSkin.HasValue Then
+                Dim sk = vertSkin.Value
+                Dim wpvV As Integer = If(sk.WeightsPerVertex > 0, sk.WeightsPerVertex, 4)
+                If sk.BoneIndices IsNot Nothing Then
+                    For vi = 0 To sk.VertexCount - 1
+                        Dim baseIdx = vi * wpvV
+                        For s = 0 To wpvV - 1
+                            If sk.BoneIndices(baseIdx + s) = CByte(j And &HFF) Then
+                                vert += 1
+                                Exit For
+                            End If
+                        Next
+                    Next
+                End If
             End If
 
             If Not IsNothing(bonIt) Then
@@ -705,7 +719,16 @@ Public Class Editor_Form
             End If
             Dim nif = Selected_Shape.ParentSliderSet.NIFContent
             Dim shad = New BSLightingShaderProperty
-            Selected_Shape.RelatedNifShape.ShaderPropertyRef = New NiBlockRef(Of BSShaderProperty) With {.Index = nif.AddBlock(shad)}
+            ' ShaderPropertyRef on INiShape is read-only.  The writable setter lives on the
+            ' concrete BSTriShape.  SSE outfits use BSTriShape too — this setter exists for
+            ' all supported editor shapes.  NiTriShape family would use the Properties
+            ' legacy list instead (out of scope; editor creation of shader materials is
+            ' FO4/SSE modern pipeline only).
+            Dim bsShapeForShader = TryCast(Selected_Shape.RelatedNifShape, NiflySharp.Blocks.BSTriShape)
+            If bsShapeForShader Is Nothing Then
+                Throw New NotSupportedException("Shader creation from editor requires BSTriShape family shape.")
+            End If
+            bsShapeForShader.ShaderPropertyRef = New NiBlockRef(Of BSShaderProperty) With {.Index = nif.AddBlock(shad)}
             Dim texset1 = New BSShaderTextureSet
             shad.TextureSetRef = New NiBlockRef(Of BSShaderTextureSet) With {.Index = nif.AddBlock(texset1)}
             texset1.Textures = New List(Of NiString4)
@@ -1187,48 +1210,44 @@ Public Class Editor_Form
         Dim bonesNames = Selected_Shape.RelatedBones.Select(Function(pf) pf.Name.String).ToList
         Dim lista As New HashSet(Of Integer)()
 
+        ' Polymorphic bone-weight mask via ShapeSkinningData (flat 4-slot per-vertex).
+        ' Hides the BSTriShape inline VertexData/SSE split AND works for NiTriShape family.
+        ' Source of truth: adapter.GetSkinning() — reads BSVertexData inline for BS,
+        ' NiSkinPartition/NiSkinData for NiTri (see NiTriShapeGeometry.FillFromPartition /
+        ' FillFromSkinData).
+        Dim maskSkinNullable = Selected_Shape.IR_Geometry?.GetSkinning()
+        If Not maskSkinNullable.HasValue Then Return lista
+        Dim maskSkin = maskSkinNullable.Value
+        If maskSkin.BoneIndices Is Nothing OrElse maskSkin.BoneWeights Is Nothing Then Return lista
+        Dim wpvM As Integer = If(maskSkin.WeightsPerVertex > 0, maskSkin.WeightsPerVertex, 4)
+
         For Each it As ListViewItem In ListView1.SelectedItems
             Dim min = CType(NumericUpDown1.Value, System.Half)
             Dim max = CType(NumericUpDown2.Value, System.Half)
             Dim bidx = bonesNames.IndexOf(it.Name)
-            Dim vert As Integer
+            If bidx < 0 OrElse bidx > 255 Then Continue For  ' bone idx over byte range — out of palette
 
-            If bidx <> -1 Then
-                Dim Nifversion = Selected_Shape.ParentSliderSet.NIFContent.Header.Version
-                If Nifversion.IsSSE Then
-                    Dim verst As IEnumerable(Of Integer) = Selected_Shape.RelatedNifShape.VertexDataSSE.Select(Function(pq, idx) New With {Key .pf = pq, Key .origIdx = idx}).Where(Function(item) item.pf.BoneIndices.Contains(bidx)).Select(Function(item) item.origIdx)
-                    For Each vert In verst
-                        Dim widx = Selected_Shape.RelatedNifShape.VertexDataSSE(vert).BoneIndices.ToList.IndexOf(bidx)
-                        Dim weight = Selected_Shape.RelatedNifShape.VertexDataSSE(vert).BoneWeights(widx)
+            Dim bidxByte As Byte = CByte(bidx And &HFF)
+            For vi = 0 To maskSkin.VertexCount - 1
+                Dim baseIdx = vi * wpvM
+                For s = 0 To wpvM - 1
+                    If maskSkin.BoneIndices(baseIdx + s) = bidxByte Then
+                        Dim weight = maskSkin.BoneWeights(baseIdx + s)
                         If weight >= min AndAlso weight <= max Then
-                            lista.Add(vert)
+                            lista.Add(vi)
                         End If
-                    Next
-                Else
-                    Dim verst As IEnumerable(Of Integer) = Selected_Shape.RelatedNifShape.VertexData.Select(Function(pq, idx) New With {Key .pf = pq, Key .origIdx = idx}).Where(Function(item) item.pf.BoneIndices.Contains(bidx)).Select(Function(item) item.origIdx)
-                    For Each vert In verst
-                        Dim widx = Selected_Shape.RelatedNifShape.VertexData(vert).BoneIndices.ToList.IndexOf(bidx)
-                        Dim weight = Selected_Shape.RelatedNifShape.VertexData(vert).BoneWeights(widx)
-                        If weight >= min AndAlso weight <= max Then
-                            lista.Add(vert)
-                        End If
-                    Next
-                End If
-
-
-            End If
+                        Exit For   ' first matching slot wins (matches original Contains semantics)
+                    End If
+                Next
+            Next
         Next
         Return lista
     End Function
 
     Private Sub Button4_Click_1(sender As Object, e As EventArgs) Handles ButtonMaskAll.Click
-        Dim Nifversion = Selected_Shape.ParentSliderSet.NIFContent.Header.Version
-        If Nifversion.IsSSE Then
-            Selected_Shape.MaskedVertices.UnionWith(Enumerable.Range(0, Selected_Shape.RelatedNifShape.VertexDataSSE.Count))
-        Else
-            Selected_Shape.MaskedVertices.UnionWith(Enumerable.Range(0, Selected_Shape.RelatedNifShape.VertexData.Count))
-        End If
-
+        ' Total vertex count via INiShape.VertexCount (polymorphic across BSTriShape and
+        ' NiTriShape families).  Cast to Integer because Enumerable.Range expects Int32.
+        Selected_Shape.MaskedVertices.UnionWith(Enumerable.Range(0, CInt(Selected_Shape.RelatedNifShape.VertexCount)))
         Process_render_Changes(False)
     End Sub
 
@@ -1240,12 +1259,8 @@ Public Class Editor_Form
     Private Sub Button6_Click(sender As Object, e As EventArgs) Handles ButtonInvertMask.Click
         Dim lista As New HashSet(Of Integer)
         lista.UnionWith(Selected_Shape.MaskedVertices)
-        Dim Nifversion = Selected_Shape.ParentSliderSet.NIFContent.Header.Version
-        If Nifversion.IsSSE Then
-            Selected_Shape.MaskedVertices.UnionWith(Enumerable.Range(0, Selected_Shape.RelatedNifShape.VertexDataSSE.Count))
-        Else
-            Selected_Shape.MaskedVertices.UnionWith(Enumerable.Range(0, Selected_Shape.RelatedNifShape.VertexData.Count))
-        End If
+        ' Total vertex count via INiShape.VertexCount (polymorphic).
+        Selected_Shape.MaskedVertices.UnionWith(Enumerable.Range(0, CInt(Selected_Shape.RelatedNifShape.VertexCount)))
 
         Selected_Shape.MaskedVertices.ExceptWith(lista)
         Process_render_Changes(False)
@@ -1399,14 +1414,17 @@ Public Class Editor_Form
                                 Return SafeNormalize(New Vector3(CSng(n.X), CSng(n.Y), CSng(n.Z)))
                             End Function).ToArray()
             Else
-                Dim tri = Selected_Shape.RelatedNifShape
+                ' Polymorphic via IR_Geometry (adapter).  HasNormals / GetNormals /
+                ' GetVertexPositions / Bounds are all on IShapeGeometry.  Bounds comes from
+                ' BSTriShape.Bounds (struct) or NiTriShapeData.Bounds via the adapter.
+                Dim tri = Selected_Shape.IR_Geometry
                 If tri.HasNormals Then
-                    rawNorms = tri.Normals.Select(Function(n) SafeNormalize(New Vector3(n.X, n.Y, n.Z))).ToArray()
+                    rawNorms = tri.GetNormals().Select(Function(n) SafeNormalize(New Vector3(n.X, n.Y, n.Z))).ToArray()
                 Else
-                    Dim sphereCenter = New Vector3(tri.BoundingVolume.Sphere.Center.X,
-                                                   tri.BoundingVolume.Sphere.Center.Y,
-                                                   tri.BoundingVolume.Sphere.Center.Z)
-                    rawNorms = tri.VertexPositions.Select(Function(v) SafeNormalize(New Vector3(v.X, v.Y, v.Z) - sphereCenter)).ToArray()
+                    Dim sphereCenter = New Vector3(tri.Bounds.Center.X,
+                                                   tri.Bounds.Center.Y,
+                                                   tri.Bounds.Center.Z)
+                    rawNorms = tri.GetVertexPositions().Select(Function(v) SafeNormalize(New Vector3(v.X, v.Y, v.Z) - sphereCenter)).ToArray()
                 End If
             End If
         End If
@@ -1941,7 +1959,9 @@ Public Class Editor_Form
     End Sub
 
     Private Sub Button8_Click_2(sender As Object, e As EventArgs) Handles ButtonShrinkMask.Click
-        RemoveNeighborVerticesOnce(Selected_Shape.MaskedVertices, Selected_Shape.RelatedNifShape.Triangles, Selected_Shape.RelatedNifShape.VertexPositions.Count)
+        ' Polymorphic: VertexCount via INiShape interface (BSTriShape.VertexCount and
+        ' NiTriShape.VertexCount both return ushort).
+        RemoveNeighborVerticesOnce(Selected_Shape.MaskedVertices, Selected_Shape.RelatedNifShape.Triangles, CInt(Selected_Shape.RelatedNifShape.VertexCount))
         Process_render_Changes(False)
     End Sub
 
@@ -2469,8 +2489,9 @@ Public Class Editor_Form
             Dim sv = SkinningHelper.GetWorldVertices(geomMesh.MeshData.Meshgeometry)
             positions = sv.Select(Function(v) New Vector3(CSng(v.X), CSng(v.Y), CSng(v.Z))).ToArray()
         Else
-            If IsNothing(Selected_Shape.RelatedNifShape.VertexPositions) OrElse Selected_Shape.RelatedNifShape.VertexPositions.Count = 0 Then Return result
-            Dim bv = Selected_Shape.RelatedNifShape.VertexPositions
+            ' Polymorphic vertex positions via adapter (works for BSTriShape and NiTriShape families).
+            Dim bv = Selected_Shape.IR_Geometry.GetVertexPositions()
+            If bv Is Nothing OrElse bv.Count = 0 Then Return result
             positions = bv.Select(Function(v) New Vector3(v.X, v.Y, v.Z)).ToArray()
         End If
 
@@ -2582,7 +2603,7 @@ Public Class Editor_Form
             MsgBox("Select a shape that has masked vertices.", vbInformation, "Split Shape")
             Exit Sub
         End If
-        Dim totalVerts = Selected_Shape.RelatedNifShape.VertexPositions.Count
+        Dim totalVerts = CInt(Selected_Shape.RelatedNifShape.VertexCount)
         Dim maskedCount = Selected_Shape.MaskedVertices.Count
         Dim msg = $"Split '{Selected_Shape.Target}' into two shapes?" & vbCrLf &
                   "  - Original keeps the non-fully-masked geometry and the cut border." & vbCrLf &
