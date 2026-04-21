@@ -359,12 +359,12 @@ Public Class MergeShapesHelper
                                                 donorShapes As List(Of Shape_class),
                                                 donorOffsets As List(Of Integer))
         Dim targetSubIndex = TryCast(targetNif, BSSubIndexTriShape)
-        Dim targetMeshLod = TryCast(targetNif, BSMeshLODTriShape)
-        If targetSubIndex Is Nothing AndAlso targetMeshLod Is Nothing Then Return
-
-        ' DEBUGGER.BREAK: TO TEST — verify segments append/LOD collapse behaviour first time
-        ' merge runs on a metadata-bearing target.  Remove after validation.
-        Debugger.Break()
+        ' BSMeshLOD merge LOD handling is now done by the adapter's ReorderTrianglesByLODTier
+        ' during ApplyShapeGeometry — cross-shape (donor) triangles default to LOD2, target
+        ' triangles preserve their original tier.  This function only handles BSSubIndex
+        ' donor-segment append (the one piece the adapter's same-shape RedistributeSegments
+        ' can't cover since donor entries are cross-shape).
+        If targetSubIndex Is Nothing Then Return
 
         ' BSSubIndex: append donor segments with offset.
         If targetSubIndex IsNot Nothing Then
@@ -394,18 +394,6 @@ Public Class MergeShapesHelper
                 Next
             Next
             targetSubIndex.Segments = merged
-            Return
-        End If
-
-        ' BSMeshLOD: lossy collapse to LOD2 (matches BS-OS canonical).
-        If targetMeshLod IsNot Nothing Then
-            Dim newTriCount = If(targetMeshLod.Triangles Is Nothing, 0, targetMeshLod.Triangles.Count)
-            targetMeshLod.LOD0Size = 0UI
-            targetMeshLod.LOD1Size = 0UI
-            targetMeshLod.LOD2Size = CUInt(newTriCount)
-            ' Strong note: merging shapes lost LOD subdivision because triangle reorder
-            ' isn't done.  All triangles end up in LOD2 (always-rendered bucket).  Phase 2
-            ' of plan C would restore LOD coherence by reordering triangles per bucket.
         End If
     End Sub
 
