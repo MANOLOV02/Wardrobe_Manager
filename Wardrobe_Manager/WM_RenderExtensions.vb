@@ -116,13 +116,17 @@ Public Module WM_RenderExtensions
 
         ' Detect what changed
         Dim sameSet = (s.Last_rendered Is seleccionado) AndAlso ctrl.Model.Cleaned = False AndAlso Force = False
-        Dim poseChanged = Not (ctrl.Model.Last_Pose Is Pose)
         Dim presetChanged = Not (prevPreset Is Preset) OrElse (prevSize <> weight)
+        ' Pose change detected against the SkeletonInstance's last applied pose (only used to
+        ' pick the dirty flag below). Apply pose UNCONDITIONALLY here — idempotent and trivial
+        ' (~200 bones × ~5µs), guarantees DeltaTransforms reflect the requested pose even if
+        ' another flow (e.g. CreatefromNif with Pose=Nothing) reset them in between frames.
+        Dim poseChanged = Not (SkeletonInstance.Default.Pose Is Pose)
+        SkeletonInstance.Default.ApplyPose(Pose)
 
-        ' Fill the intent — the pipeline decides HOW based on dirty flags
+        ' Fill the intent — the pipeline decides HOW based on dirty flags.
         Dim intent = ctrl.Intent
         intent.Shapes = seleccionado.Shapes
-        intent.Pose = Pose
         intent.FloorOffset = -seleccionado.HighHeelHeight
         intent.RecalculateNormals = ctrl.Model.RecalculateNormals
         intent.SkeletonResolver = Nothing  ' default skeleton resolver

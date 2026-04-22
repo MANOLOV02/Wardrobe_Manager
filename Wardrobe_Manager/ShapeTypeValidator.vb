@@ -572,7 +572,11 @@ Public Class ShapeTypeValidator
     ''' corren durante un build real.
     ''' </summary>
     Private Shared Sub ZapShapePercent(shape As Shape_class, sliderSet As SliderSet_Class, pct As Double)
-        Dim geom = SkinningHelper.ExtractSkinnedGeometry(shape, ApplyPose:=False,
+        ' Test harness must extract/bake against bind regardless of any stale pose left on the
+        ' default SkeletonInstance by previous renders. Reset() ensures DeltaTransforms=Nothing
+        ' so Extract/Bake collapse to bind transforms.
+        SkeletonInstance.Default.Reset()
+        Dim geom = SkinningHelper.ExtractSkinnedGeometry(shape,
                                                          singleboneskinning:=False,
                                                          RecalculateNormals:=False)
         Dim vc As Integer = geom.Vertices.Length
@@ -581,7 +585,7 @@ Public Class ShapeTypeValidator
             geom.VertexMask(i) = -1.0F
         Next
         SkinningHelper.BakeFromMemoryUsingOriginal(shape, geom,
-                                                    ApplyPose:=False, inverse:=False,
+                                                    inverse:=False,
                                                     ApplyMorph:=True, RemoveZaps:=True,
                                                     singleBoneSkinning:=False,
                                                     geometryModifier:=New ZapGeometryModifier())

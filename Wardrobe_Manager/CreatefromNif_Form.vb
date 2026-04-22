@@ -89,7 +89,7 @@ Public Class Create_from_Nif_Form
 
     Private Sub Create_from_Nif_2_FormClosing(sender As Object, e As FormClosingEventArgs) Handles Me.FormClosing
         ' Restore global skeleton
-        Skeleton_Class.LoadSkeleton(True, True)
+        SkeletonInstance.Default.LoadFromConfig(True, True)
         EditPreviewControl.Clean()
         EditPreviewControl.Dispose()
         If Me.HasSaved = True Then
@@ -221,9 +221,9 @@ Public Class Create_from_Nif_Form
         Dim targetSkelKey = If(chkDirSkeleton.Checked AndAlso _dirSkeletonKey IsNot Nothing, _dirSkeletonKey, "")
         If Not String.Equals(_loadedSkeletonKey, targetSkelKey, StringComparison.OrdinalIgnoreCase) Then
             If targetSkelKey <> "" Then
-                Skeleton_Class.LoadSkeletonFromKey(targetSkelKey)
+                SkeletonInstance.Default.LoadFromKey(targetSkelKey)
             Else
-                Skeleton_Class.LoadSkeleton(True, True)
+                SkeletonInstance.Default.LoadFromConfig(True, True)
             End If
             _loadedSkeletonKey = targetSkelKey
         End If

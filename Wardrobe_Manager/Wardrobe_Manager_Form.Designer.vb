@@ -34,7 +34,6 @@ Partial Class Wardrobe_Manager_Form
         Shapecol = New ColumnHeader()
         ShapeTypeCol = New ColumnHeader()
         Local = New ColumnHeader()
-        ColumnHeader5 = New ColumnHeader()
         Datasources = New ColumnHeader()
         Exclude_Reference_Checkbox = New CheckBox()
         Ovewrite_DataFiles = New CheckBox()
@@ -171,7 +170,7 @@ Partial Class Wardrobe_Manager_Form
         ' 
         ComboboxPacks.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
         ComboboxPacks.DropDownStyle = ComboBoxStyle.DropDownList
-        ComboboxPacks.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ComboboxPacks.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ComboboxPacks.FormattingEnabled = True
         ComboboxPacks.Location = New Point(154, 34)
         ComboboxPacks.Name = "ComboboxPacks"
@@ -181,7 +180,7 @@ Partial Class Wardrobe_Manager_Form
         ' 
         ' Label1
         ' 
-        Label1.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label1.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Label1.Location = New Point(6, 34)
         Label1.Name = "Label1"
         Label1.Size = New Size(132, 29)
@@ -191,7 +190,7 @@ Partial Class Wardrobe_Manager_Form
         ' 
         ' Label2
         ' 
-        Label2.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label2.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Label2.Location = New Point(0, 4)
         Label2.Name = "Label2"
         Label2.Size = New Size(138, 28)
@@ -202,7 +201,7 @@ Partial Class Wardrobe_Manager_Form
         ' TextBox_SourceName
         ' 
         TextBox_SourceName.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        TextBox_SourceName.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        TextBox_SourceName.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         TextBox_SourceName.Location = New Point(139, 3)
         TextBox_SourceName.Name = "TextBox_SourceName"
         TextBox_SourceName.Size = New Size(451, 29)
@@ -234,7 +233,7 @@ Partial Class Wardrobe_Manager_Form
         ' 
         ' ListView2
         ' 
-        ListView2.Columns.AddRange(New ColumnHeader() {Shapecol, ShapeTypeCol, Local, ColumnHeader5, Datasources})
+        ListView2.Columns.AddRange(New ColumnHeader() {Shapecol, ShapeTypeCol, Local, Datasources})
         ListView2.Dock = DockStyle.Fill
         ListView2.FullRowSelect = True
         ListView2.Location = New Point(0, 0)
@@ -246,29 +245,24 @@ Partial Class Wardrobe_Manager_Form
         ListView2.Visible = False
         ' 
         ' Shapecol
-        '
+        ' 
         Shapecol.Text = "Shape / Output"
         Shapecol.Width = 160
-        '
+        ' 
         ' ShapeTypeCol
-        '
+        ' 
         ShapeTypeCol.Text = "Type"
         ShapeTypeCol.Width = 130
-        '
+        ' 
         ' Local
-        '
+        ' 
         Local.Text = "Local"
         Local.Width = 55
-        '
-        ' ColumnHeader5
-        '
-        ColumnHeader5.Text = "HighHeel"
-        ColumnHeader5.Width = 60
-        '
+        ' 
         ' Datasources
-        '
+        ' 
         Datasources.Text = "Datafolder / Output dir"
-        Datasources.Width = 175
+        Datasources.Width = 235
         ' 
         ' Exclude_Reference_Checkbox
         ' 
@@ -297,7 +291,7 @@ Partial Class Wardrobe_Manager_Form
         ' NewPackButton
         ' 
         NewPackButton.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        NewPackButton.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        NewPackButton.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         NewPackButton.Location = New Point(576, 36)
         NewPackButton.Name = "NewPackButton"
         NewPackButton.Size = New Size(64, 29)
@@ -496,7 +490,7 @@ Partial Class Wardrobe_Manager_Form
         TableLayoutPanel1.RowStyles.Add(New RowStyle(SizeType.Percent, 33.3333321F))
         TableLayoutPanel1.RowStyles.Add(New RowStyle(SizeType.Percent, 33.3333321F))
         TableLayoutPanel1.RowStyles.Add(New RowStyle(SizeType.Percent, 33.3333321F))
-        TableLayoutPanel1.RowStyles.Add(New RowStyle(SizeType.Absolute, 20F))
+        TableLayoutPanel1.RowStyles.Add(New RowStyle(SizeType.Absolute, 20.0F))
         TableLayoutPanel1.Size = New Size(586, 103)
         TableLayoutPanel1.TabIndex = 41
         ' 
@@ -587,7 +581,7 @@ Partial Class Wardrobe_Manager_Form
         ' TextBox_TargetName
         ' 
         TextBox_TargetName.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        TextBox_TargetName.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        TextBox_TargetName.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         TextBox_TargetName.Location = New Point(154, 3)
         TextBox_TargetName.Name = "TextBox_TargetName"
         TextBox_TargetName.Size = New Size(486, 29)
@@ -596,7 +590,7 @@ Partial Class Wardrobe_Manager_Form
         ' 
         ' Label3
         ' 
-        Label3.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label3.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Label3.Location = New Point(6, 3)
         Label3.Name = "Label3"
         Label3.Size = New Size(132, 29)
@@ -776,7 +770,7 @@ Partial Class Wardrobe_Manager_Form
         ' 
         ' Label7
         ' 
-        Label7.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label7.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Label7.Location = New Point(0, 36)
         Label7.Name = "Label7"
         Label7.Size = New Size(141, 27)
@@ -788,7 +782,7 @@ Partial Class Wardrobe_Manager_Form
         ' 
         ComboBoxPresets.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
         ComboBoxPresets.DropDownStyle = ComboBoxStyle.DropDownList
-        ComboBoxPresets.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ComboBoxPresets.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ComboBoxPresets.FormattingEnabled = True
         ComboBoxPresets.Location = New Point(138, 34)
         ComboBoxPresets.Name = "ComboBoxPresets"
@@ -886,7 +880,7 @@ Partial Class Wardrobe_Manager_Form
         ' TextBox2
         ' 
         TextBox2.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        TextBox2.Font = New Font("Segoe UI", 12F, FontStyle.Bold)
+        TextBox2.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold)
         TextBox2.Location = New Point(170, 9)
         TextBox2.Name = "TextBox2"
         TextBox2.Size = New Size(468, 29)
@@ -919,7 +913,7 @@ Partial Class Wardrobe_Manager_Form
         ' RefreshButton
         ' 
         RefreshButton.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        RefreshButton.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        RefreshButton.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         RefreshButton.Location = New Point(286, 44)
         RefreshButton.Name = "RefreshButton"
         RefreshButton.Size = New Size(228, 29)
@@ -930,7 +924,7 @@ Partial Class Wardrobe_Manager_Form
         ' 
         ' Label5
         ' 
-        Label5.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label5.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Label5.Location = New Point(3, 10)
         Label5.Name = "Label5"
         Label5.Size = New Size(164, 28)
@@ -1282,7 +1276,7 @@ Partial Class Wardrobe_Manager_Form
         ' 
         ComboBoxSize.Anchor = AnchorStyles.Top Or AnchorStyles.Right
         ComboBoxSize.DropDownStyle = ComboBoxStyle.DropDownList
-        ComboBoxSize.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ComboBoxSize.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ComboBoxSize.FormattingEnabled = True
         ComboBoxSize.Items.AddRange(New Object() {"Default", "Big", "Small"})
         ComboBoxSize.Location = New Point(491, 34)
@@ -1294,10 +1288,10 @@ Partial Class Wardrobe_Manager_Form
         ' TableLayoutPanel4
         ' 
         TableLayoutPanel4.ColumnCount = 4
-        TableLayoutPanel4.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
-        TableLayoutPanel4.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
-        TableLayoutPanel4.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
-        TableLayoutPanel4.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
+        TableLayoutPanel4.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
+        TableLayoutPanel4.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
+        TableLayoutPanel4.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
+        TableLayoutPanel4.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
         TableLayoutPanel4.Controls.Add(ButtonLightRigSettings, 2, 0)
         TableLayoutPanel4.Controls.Add(ButtonLeftPanel, 0, 0)
         TableLayoutPanel4.Controls.Add(ButtonRightPanel, 3, 0)
@@ -1306,7 +1300,7 @@ Partial Class Wardrobe_Manager_Form
         TableLayoutPanel4.Location = New Point(0, 114)
         TableLayoutPanel4.Name = "TableLayoutPanel4"
         TableLayoutPanel4.RowCount = 1
-        TableLayoutPanel4.RowStyles.Add(New RowStyle(SizeType.Percent, 100F))
+        TableLayoutPanel4.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
         TableLayoutPanel4.Size = New Size(592, 34)
         TableLayoutPanel4.TabIndex = 45
         ' 
@@ -1385,7 +1379,7 @@ Partial Class Wardrobe_Manager_Form
         ' 
         ' Label4
         ' 
-        Label4.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label4.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Label4.Location = New Point(0, 67)
         Label4.Name = "Label4"
         Label4.Size = New Size(141, 28)
@@ -1413,7 +1407,7 @@ Partial Class Wardrobe_Manager_Form
         ' 
         ComboBoxPoses.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
         ComboBoxPoses.DropDownStyle = ComboBoxStyle.DropDownList
-        ComboBoxPoses.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ComboBoxPoses.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ComboBoxPoses.FormattingEnabled = True
         ComboBoxPoses.Location = New Point(139, 66)
         ComboBoxPoses.Name = "ComboBoxPoses"
@@ -1571,7 +1565,6 @@ Partial Class Wardrobe_Manager_Form
     Friend WithEvents EditTargetButton As Button
     Friend WithEvents Auto_Move_Check As CheckBox
     Friend WithEvents Local As ColumnHeader
-    Friend WithEvents ColumnHeader5 As ColumnHeader
     Friend WithEvents ShapeTypeCol As ColumnHeader
     Friend WithEvents GroupBox1 As GroupBox
     Friend WithEvents RadioButton2 As RadioButton

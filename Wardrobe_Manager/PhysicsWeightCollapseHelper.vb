@@ -32,12 +32,12 @@ Public NotInheritable Class PhysicsWeightCollapseHelper
             Return True
         End If
 
-        If Skeleton_Class.HasSkeleton = False AndAlso Skeleton_Class.LoadSkeleton(False, False) = False Then
+        If SkeletonInstance.Default.HasSkeleton = False AndAlso SkeletonInstance.Default.LoadFromConfig(False, False) = False Then
             report = "The base skeleton could not be loaded."
             Return False
         End If
 
-        Skeleton_Class.PrepareSkeletonForShapes(slider.Shapes)
+        SkeletonInstance.Default.PrepareForShapes(slider.Shapes)
 
         Dim injectedReplacementMap = BuildInjectedBoneReplacementMap(slider)
         Dim plans As New List(Of ShapeRewritePlan)
@@ -76,7 +76,7 @@ Public NotInheritable Class PhysicsWeightCollapseHelper
             For Each boneName In GetShapeBoneNames(shape)
                 Dim normalized = NormalizeBoneName(boneName)
                 If String.IsNullOrWhiteSpace(normalized) Then Continue For
-                If Skeleton_Class.IsInjectedBone(normalized) Then injectedUsedByShapes.Add(normalized)
+                If SkeletonInstance.Default.IsInjectedBone(normalized) Then injectedUsedByShapes.Add(normalized)
             Next
         Next
 
@@ -337,7 +337,7 @@ Public NotInheritable Class PhysicsWeightCollapseHelper
             Dim boneName = NormalizeBoneName(boneNames(localIndex))
             If String.IsNullOrWhiteSpace(boneName) Then Continue For
 
-            If Skeleton_Class.IsInjectedBone(boneName) = False Then
+            If SkeletonInstance.Default.IsInjectedBone(boneName) = False Then
                 AddWeight(merged, localIndex, influence.Weight)
                 Continue For
             End If
@@ -401,8 +401,8 @@ Public NotInheritable Class PhysicsWeightCollapseHelper
             Dim targetIndex = GetPredictedPaletteIndex(targetBone, palette, pendingPaletteBones)
             If targetIndex < 0 Then
                 If allowPaletteExpansion Then
-                    If Skeleton_Class.IsInjectedBone(targetBone) Then targetBone = FindNearestNonInjectedAncestor(targetBone)
-                    If String.IsNullOrWhiteSpace(targetBone) OrElse Skeleton_Class.SkeletonDictionary.ContainsKey(targetBone) = False Then
+                    If SkeletonInstance.Default.IsInjectedBone(targetBone) Then targetBone = FindNearestNonInjectedAncestor(targetBone)
+                    If String.IsNullOrWhiteSpace(targetBone) OrElse SkeletonInstance.Default.SkeletonDictionary.ContainsKey(targetBone) = False Then
                         report = $"The replacement bone '{kvp.Key}' for injected bone '{sourceInjectedBone}' does not exist in the base skeleton."
                         Return Nothing
                     End If
@@ -493,12 +493,12 @@ Public NotInheritable Class PhysicsWeightCollapseHelper
         Dim existingIndex As Integer
         If existing IsNot Nothing AndAlso slider.NIFContent.GetBlockIndex(existing, existingIndex) Then Return existingIndex
 
-        If Skeleton_Class.Skeleton Is Nothing Then
+        If SkeletonInstance.Default.Skeleton Is Nothing Then
             report = $"The base skeleton is not loaded, so bone '{boneName}' cannot be cloned."
             Return -1
         End If
 
-        Dim sourceNode = Skeleton_Class.Skeleton.FindBlockByName(Of NiNode)(boneName)
+        Dim sourceNode = SkeletonInstance.Default.Skeleton.FindBlockByName(Of NiNode)(boneName)
         If sourceNode Is Nothing Then
             report = $"Bone '{boneName}' does not exist in the base skeleton."
             Return -1
@@ -511,7 +511,7 @@ Public NotInheritable Class PhysicsWeightCollapseHelper
         End If
 
         Dim parentNode As NiNode = rootNode
-        Dim sourceParent = Skeleton_Class.GetParentNodeSkeleton(boneName)
+        Dim sourceParent = SkeletonInstance.Default.GetParentNodeSkeleton(boneName)
         If sourceParent IsNot Nothing Then
             Dim parentIndex = EnsureBaseBoneNodeExistsInNif(slider, sourceParent.Name.String, report)
             If parentIndex < 0 Then Return -1
@@ -519,7 +519,7 @@ Public NotInheritable Class PhysicsWeightCollapseHelper
             If parentNode Is Nothing Then parentNode = rootNode
         End If
 
-        Dim clonedIndex = slider.NIFContent.CloneNamedNode(boneName, Skeleton_Class.Skeleton)
+        Dim clonedIndex = slider.NIFContent.CloneNamedNode(boneName, SkeletonInstance.Default.Skeleton)
         If clonedIndex < 0 Then
             report = $"Bone '{boneName}' could not be cloned into the current NIF."
             Return -1
@@ -573,8 +573,8 @@ Public NotInheritable Class PhysicsWeightCollapseHelper
     End Function
 
     Private Shared Function BuildLocalSkinTransformForAddedBaseBone(shape As Shape_class, nifShape As INiShape, boneName As String) As Transform_Class
-        Dim bindBone As Skeleton_Class.HierarchiBone_class = Nothing
-        If Skeleton_Class.SkeletonDictionary.TryGetValue(boneName, bindBone) = False OrElse bindBone Is Nothing Then
+        Dim bindBone As HierarchiBone_class = Nothing
+        If SkeletonInstance.Default.SkeletonDictionary.TryGetValue(boneName, bindBone) = False OrElse bindBone Is Nothing Then
             Return New Transform_Class()
         End If
 
@@ -838,7 +838,7 @@ Public NotInheritable Class PhysicsWeightCollapseHelper
             If kvp.Value <= WeightEpsilon Then Continue For
             Dim targetBone = NormalizeBoneName(kvp.Key)
             If String.IsNullOrWhiteSpace(targetBone) Then Continue For
-            If Skeleton_Class.IsInjectedBone(targetBone) Then targetBone = FindNearestNonInjectedAncestor(targetBone)
+            If SkeletonInstance.Default.IsInjectedBone(targetBone) Then targetBone = FindNearestNonInjectedAncestor(targetBone)
             If String.IsNullOrWhiteSpace(targetBone) Then Continue For
             AddWeight(result, targetBone, kvp.Value)
         Next
@@ -858,11 +858,11 @@ Public NotInheritable Class PhysicsWeightCollapseHelper
         boneName = NormalizeBoneName(boneName)
         If String.IsNullOrWhiteSpace(boneName) Then Return ""
 
-        Dim current As Skeleton_Class.HierarchiBone_class = Nothing
-        If Skeleton_Class.SkeletonDictionary.TryGetValue(boneName, current) = False Then Return ""
+        Dim current As HierarchiBone_class = Nothing
+        If SkeletonInstance.Default.SkeletonDictionary.TryGetValue(boneName, current) = False Then Return ""
 
         While current IsNot Nothing
-            If Skeleton_Class.IsInjectedBone(current.BoneName) = False Then Return current.BoneName
+            If SkeletonInstance.Default.IsInjectedBone(current.BoneName) = False Then Return current.BoneName
             current = current.Parent
         End While
 
@@ -877,12 +877,12 @@ Public NotInheritable Class PhysicsWeightCollapseHelper
         If String.IsNullOrWhiteSpace(boneName) Then Return ""
         If candidateSet.Contains(boneName) Then Return boneName
 
-        Dim current As Skeleton_Class.HierarchiBone_class = Nothing
-        If Skeleton_Class.SkeletonDictionary.TryGetValue(boneName, current) = False Then Return ""
+        Dim current As HierarchiBone_class = Nothing
+        If SkeletonInstance.Default.SkeletonDictionary.TryGetValue(boneName, current) = False Then Return ""
 
         current = current.Parent
         While current IsNot Nothing
-            If Skeleton_Class.IsInjectedBone(current.BoneName) = False AndAlso candidateSet.Contains(current.BoneName) Then Return current.BoneName
+            If SkeletonInstance.Default.IsInjectedBone(current.BoneName) = False AndAlso candidateSet.Contains(current.BoneName) Then Return current.BoneName
             current = current.Parent
         End While
 

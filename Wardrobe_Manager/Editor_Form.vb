@@ -165,8 +165,8 @@ Public Class Editor_Form
         TreeViewSkeleton.BeginUpdate()
         TreeViewSkeleton.Nodes.Clear()
 
-        If Skeleton_Class.HasSkeleton Then
-            For Each it In Skeleton_Class.SkeletonStructure
+        If SkeletonInstance.Default.HasSkeleton Then
+            For Each it In SkeletonInstance.Default.SkeletonStructure
                 Recurse(Nothing, it)
             Next
         End If
@@ -189,7 +189,7 @@ Public Class Editor_Form
         Lee_Zaps()
         If Not IsNothing(Selected_Shape) Then MarcaBones()
     End Sub
-    Private Sub Recurse(Parentnode As TreeNode, sknode As Skeleton_Class.HierarchiBone_class)
+    Private Sub Recurse(Parentnode As TreeNode, sknode As HierarchiBone_class)
         Dim node As TreeNode
         If IsNothing(Parentnode) Then
             node = TreeViewSkeleton.Nodes.Add(sknode.BoneName)
@@ -1830,7 +1830,7 @@ Public Class Editor_Form
     Private opts As New JsonSerializerOptions With {.PropertyNameCaseInsensitive = True, .NumberHandling = JsonNumberHandling.AllowReadingFromString, .WriteIndented = True}
 
     Private Function ExportSaf(Nombre As String) As Boolean
-        If Skeleton_Class.HasSkeleton = False Then Return False
+        If SkeletonInstance.Default.HasSkeleton = False Then Return False
         Try
             Dim Export As New Poses_class With {
                 .Filename = IO.Path.Combine(IO.Path.Combine(Wardrobe_Manager_Form.Directorios.PosesSAMRoot), Nombre + ".json"),
@@ -1840,7 +1840,7 @@ Public Class Editor_Form
                 .Transforms = New Dictionary(Of String, PoseTransformData),
                 .Name = Nombre
             }
-            For Each sk In Skeleton_Class.SkeletonDictionary
+            For Each sk In SkeletonInstance.Default.SkeletonDictionary
                 Dim tr = sk.Value.LocaLTransform
                 Dim nuevo As New PoseTransformData With {
                     .X = tr.Translation.X,
@@ -1989,7 +1989,7 @@ Public Class Editor_Form
 
     Private Sub Editor_Form_Load(sender As Object, e As EventArgs) Handles Me.Load
         ColorComboBox1.Rellena()
-        If Skeleton_Class.HasSkeleton = False Then GroupBox9.Enabled = False
+        If SkeletonInstance.Default.HasSkeleton = False Then GroupBox9.Enabled = False
     End Sub
 
     Private Const trackbarscale As Integer = 100000
@@ -2002,9 +2002,9 @@ Public Class Editor_Form
         _Prevent_Changes = True
         Dim cual = TreeViewSkeleton.SelectedNode
         If IsNothing(cual) Then GroupBox10.Enabled = False Else GroupBox10.Enabled = True
-        Dim Bone As Skeleton_Class.HierarchiBone_class = Nothing
+        Dim Bone As HierarchiBone_class = Nothing
         If Not IsNothing(cual) Then
-            Bone = Skeleton_Class.SkeletonDictionary(cual.Text)
+            Bone = SkeletonInstance.Default.SkeletonDictionary(cual.Text)
         End If
 
 
@@ -2288,11 +2288,14 @@ Public Class Editor_Form
     End Sub
     Private Sub Render_Pose_Change(Edited As Boolean?)
         If Not IsNothing(Edited) Then pose_is_Edited = Edited
-        Skeleton_Class.PrepareSkeletonForShapes(Selected_Slider.Shapes, Selected_Pose)
+        ' Cloth-bone injection over the current shape set (state may have shifted).
+        SkeletonInstance.Default.PrepareForShapes(Selected_Slider.Shapes)
+        ' Apply the edited pose explicitly. Selected_Pose is the same object reference (only
+        ' its internal transforms were edited), so Update_Render's reference-equality check
+        ' would miss it — we apply here and mark Pose dirty so the pipeline recomputes.
+        SkeletonInstance.Default.ApplyPose(Selected_Pose)
         Update_Bone_Sliders()
-        ' Invalidate Last_Pose so Update_Render detects the pose change
-        ' (Selected_Pose is the same object reference, only its internal transforms changed)
-        EditPreviewControl.Model.Last_Pose = Nothing
+        EditPreviewControl.Intent.MarkDirty(RenderDirtyFlags.Pose)
         Process_render_Changes(False)
     End Sub
     Private Sub Process_render_Changes(Force As Boolean)

@@ -186,7 +186,7 @@ Public Class Config_Form
             Dim skel As String = IIf(Config_App.Current.Game = Config_App.Game_Enum.Fallout4, "res\skeleton_fo4.nif", "res\skeleton_female_sse.nif")
             TextBox4.Text = IO.Path.Combine(IO.Path.GetDirectoryName(TextBox1.Text), "Data\" + pathS + "\Bodyslide\" + skel)
             Config_App.Current.SkeletonPath = TextBox4.Text
-            Skeleton_Class.Skeleton = Nothing
+            SkeletonInstance.Default.Skeleton = Nothing
         End If
         Check_Folders()
     End Sub
@@ -252,7 +252,7 @@ Public Class Config_Form
         If String.IsNullOrEmpty(result) Then Return
         Config_App.Current.SkeletonPath = result
         TextBox4.Text = Config_App.Current.SkeletonPath
-        Skeleton_Class.Skeleton = Nothing
+        SkeletonInstance.Default.Skeleton = Nothing
         Check_Folders()
     End Sub
 

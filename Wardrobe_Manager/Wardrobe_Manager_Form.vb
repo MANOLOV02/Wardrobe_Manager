@@ -29,6 +29,7 @@ Imports System.IO
 Imports System.Runtime.InteropServices.JavaScript.JSType
 Imports System.Windows.Forms.VisualStyles.VisualStyleElement
 Imports System.Windows.Forms.VisualStyles.VisualStyleElement.ToolTip
+Imports NiflySharp.Enums
 
 Public Class Wardrobe_Manager_Form
 
@@ -195,7 +196,7 @@ Public Class Wardrobe_Manager_Form
         ButtonSkeleton.Enabled = normalUi
         CheckBoxFixUncloned.Enabled = normalUi AndAlso CloneMaterialsCheck.Checked AndAlso DeepAnalize_check.Checked
 
-        If Skeleton_Class.HasSkeleton = True Then
+        If SkeletonInstance.Default.HasSkeleton = True Then
             ButtonSkeleton.ForeColor = Color.Black
         Else
             ButtonSkeleton.ForeColor = Color.Red
@@ -450,7 +451,7 @@ Public Class Wardrobe_Manager_Form
             WM_SliderPresets.LoadDefaultPose()
             WM_SliderPresets.LoadPosesSAM(Directorios.PosesSAMRoot)
             WM_SliderPresets.LoadPosesBS(Directorios.PosesBSRoot)
-            Skeleton_Class.LoadSkeleton(False, False)
+            SkeletonInstance.Default.LoadFromConfig(False, False)
 
             OSP_Files.Clear()
             OSP_FileWriteTicks.Clear()
@@ -849,17 +850,17 @@ Public Class Wardrobe_Manager_Form
 
         ' Columns: Shape/Output | Type | Local | HighHeel | Datafolder/Output dir
         ' Output row has no shape type — empty dash.
-        it = New ListViewItem({Seleccionado.OutputFileValue, "—", "Output", Seleccionado.HighHeelHeight.ToString("F2"), Seleccionado.OutputPathValue}) With {
+        it = New ListViewItem({Seleccionado.OutputFileValue, "—", "Output", Seleccionado.OutputPathValue}) With {
             .Tag = Nothing,
             .BackColor = Color.FromKnownColor(KnownColor.Control)
         }
         ListView2.Items.Add(it)
 
-        Dim hh As String = "No"
         If Seleccionado.IsHighHeel Then
-            hh = "Yes"
+            Label6.Text = "High Heels (" + Seleccionado.HighHeelHeight.ToString("F2") + ")"
             Label6.Visible = True
         Else
+            Label6.Text = "High Heels"
             Label6.Visible = False
         End If
         For Each shap In Seleccionado.Shapes
@@ -869,7 +870,7 @@ Public Class Wardrobe_Manager_Form
                 If locals = "No" AndAlso shap.HasLocalSliders Then locals = "Mixed"
             End If
             Dim shapeType As String = If(shap.RelatedNifShape IsNot Nothing, shap.RelatedNifShape.GetType().Name, "—")
-            it = New ListViewItem({shap.Nombre, shapeType, locals, hh, String.Join(";", shap.Datafolder)}) With {.Tag = shap}
+            it = New ListViewItem({shap.Nombre, shapeType, locals, String.Join(";", shap.Datafolder)}) With {.Tag = shap}
             If shap.IsExternal Then it.ForeColor = Color.Green
             If shap.IsExternal AndAlso locals <> "No" Then it.BackColor = Color.LightYellow
             ListView2.Items.Add(it)
@@ -2747,7 +2748,7 @@ Public Class Wardrobe_Manager_Form
         Using frm As New DictionaryFilePicker_Form(filtered, dict_used.RootPrefix, dict_used.AllowedExtensions, initialKey)
             If frm.ShowDialog() = DialogResult.OK Then
                 Config_App.Current.SkeletonPath = IO.Path.Combine(Directorios.Fallout4data, frm.DictionaryPicker_Control1.SelectedKey)
-                Skeleton_Class.LoadSkeleton(True, True)
+                SkeletonInstance.Default.LoadFromConfig(True, True)
                 preview_Control.Model.Clean(False)
                 preview_Control.Model.CleanTextures()
                 Habilita_deshabilita()

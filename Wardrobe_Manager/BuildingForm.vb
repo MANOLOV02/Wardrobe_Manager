@@ -47,7 +47,8 @@ Public Class BuildingForm
                     If OSP_Project_Class.Load_and_CHeck_Project(builder, buildLoadContext) = False OrElse OSP_Project_Class.Load_and_Check_Shapedata(builder, buildLoadContext) = False Then Throw New InvalidOperationException("Could not load shape data for build.")
                     ProgressBar1.Value += 1
                     builder.HighHeelHeight = sliderset_target.HighHeelHeight
-                    Skeleton_Class.PrepareSkeletonForShapes(builder.Shapes, If(has_pose, _Pose, Nothing))
+                    SkeletonInstance.Default.PrepareForShapes(builder.Shapes)
+                    SkeletonInstance.Default.ApplyPose(If(has_pose, _Pose, Nothing))
                     ProgressBar1.Value += 1
 
                     Dim fil = builder.OutputFullPathBase + If(sliderset_target.Multisize, "_" + Sizecount.ToString, "") + ".nif"
@@ -65,19 +66,20 @@ Public Class BuildingForm
                     ' --- O6.1: Parallel shape processing (compute-heavy part) ---
                     Dim shapeList = builder.Shapes.ToList
                     Dim shapeResults As New System.Collections.Concurrent.ConcurrentDictionary(Of Shape_class, SkinnedGeometry)
-                    Dim localHasPose = has_pose
                     Dim localSingleBone = Config_App.Current.Setting_SingleBoneSkinning
                     Dim localRecalcNormals = Config_App.Current.Setting_RecalculateNormals
 
-                    ' Phase 1: parallel compute (Extract + Morph + Bake/InjectToTrishape)
+                    ' Phase 1: parallel compute (Extract + Morph + Bake/InjectToTrishape).
+                    ' Pose state was applied above via ApplyPose (or Reset when has_pose=False);
+                    ' Extract/Bake read it from the SkeletonInstance's DeltaTransforms.
                     Parallel.ForEach(shapeList.Where(Function(s) s.RelatedNifShape IsNot Nothing),
                         Sub(shap)
                             ' 1- cargo geometria
-                            Dim geom = SkinningHelper.ExtractSkinnedGeometry(shap, ApplyPose:=localHasPose, singleboneskinning:=localSingleBone, RecalculateNormals:=False)
+                            Dim geom = SkinningHelper.ExtractSkinnedGeometry(shap, singleboneskinning:=localSingleBone, RecalculateNormals:=False)
                             ' 3- aplico morph (y recalculo normales si esta elegido)
                             MorphingHelper.ApplyMorph_CPU(shap, geom, localRecalcNormals, AllowMask:=False)
                             ' 4- Borro zaps y revierto bakeo (includes InjectToTrishape per-shape)
-                            SkinningHelper.BakeFromMemoryUsingOriginal(shap, geom, ApplyPose:=localHasPose, inverse:=False, ApplyMorph:=True, RemoveZaps:=True, singleBoneSkinning:=localSingleBone, geometryModifier:=New ZapGeometryModifier())
+                            SkinningHelper.BakeFromMemoryUsingOriginal(shap, geom, inverse:=False, ApplyMorph:=True, RemoveZaps:=True, singleBoneSkinning:=localSingleBone, geometryModifier:=New ZapGeometryModifier())
                             shapeResults(shap) = geom
                         End Sub)
 
