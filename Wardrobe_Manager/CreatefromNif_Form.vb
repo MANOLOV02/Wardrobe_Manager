@@ -151,7 +151,33 @@ Public Class Create_from_Nif_Form
             Dim filLoc As FilesDictionary_class.File_Location = Nothing
             If Not FilesDictionary_class.Dictionary.TryGetValue(fil, filLoc) Then Return
             selected_slider.NIFContent.Load_Manolo(filLoc.GetBytes)
+
+            Dim OptResult As NifFileOptimizeResult = Nothing
+            Dim ver = selected_slider.NIFContent.Header.Version
+
+            If Config_App.Current.Game = Config_App.Game_Enum.Skyrim Then
+
+                ' Solo soportado: Skyrim LE -> Skyrim SE
+                If ver.IsSK Then
+                    If MsgBox("Current nif is Skyrim LE. Try to optimize it to Skyrim SE?", MsgBoxStyle.Information Or MsgBoxStyle.YesNo, "Warning") = MsgBoxResult.Yes Then
+                        OptResult = selected_slider.NIFContent.Optimize(Config_App.Game_Enum.Skyrim)
+                        If Not IsNothing(OptResult) AndAlso OptResult.VersionMismatch Then
+                            MsgBox("Optimization failed, not supported for this file and game.", MsgBoxStyle.Critical, "Error")
+                        End If
+                    End If
+                ElseIf Not ver.IsSSE Then
+                    MsgBox("Current nif does not match Skyrim SE, and automatic optimization is only supported from Skyrim LE to Skyrim SE.", MsgBoxStyle.Critical, "Warning")
+                End If
+
+            ElseIf Config_App.Current.Game = Config_App.Game_Enum.Fallout4 Then
+                If Not ver.IsFO4 Then
+                    MsgBox("Current nif does not match Fallout 4, and automatic optimization to Fallout 4 is not supported.", MsgBoxStyle.Critical, "Warning")
+                End If
+
+            End If
+
             For Each shap In selected_slider.NIFContent.GetShapes
+
                 If Nifcontent_Class_Manolo.SupportedShape(shap.GetType) Then
                     Dim shapec As New Shape_class(shap.Name.String, selected_slider)
                     selected_slider.Shapes.Add(shapec)
