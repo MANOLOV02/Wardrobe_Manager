@@ -582,9 +582,9 @@ Public Class Editor_Form
         ComboBoxMaterials.Items.Clear()
         If Not IsNothing(Selected_Shape) Then
 
-            Dim path As String = IO.Path.GetDirectoryName(Selected_Shape.RelatedMaterial.path).Correct_Path_Separator
-            path = path.StripPrefix(prefix)
-            Dim fil As String = IO.Path.GetFileName(Selected_Shape.RelatedMaterial.path)
+            Dim relativeMaterialPath As String = FO4UnifiedMaterial_Class.CorrectMaterialPath(Selected_Shape.RelatedMaterial.path).StripPrefix(prefix)
+            Dim path As String = IO.Path.GetDirectoryName(relativeMaterialPath).Correct_Path_Separator
+            Dim fil As String = IO.Path.GetFileName(relativeMaterialPath)
             Dim ext As String = IO.Path.GetExtension(fil)
             Dim pathtxt = prefix + path
             If pathtxt.EndsWith("\"c) Then pathtxt = pathtxt.Substring(0, pathtxt.Length - 1)
@@ -592,7 +592,7 @@ Public Class Editor_Form
             If fil <> "" Then ComboBoxMaterials.Items.AddRange(FilesDictionary_class.GetFileNamesInDirectory(pathtxt, New String() {ext}))
             idx = ComboBoxMaterials.FindStringExact(fil)
             If idx <> -1 Then ComboBoxMaterials.SelectedIndex = idx Else If ComboBoxMaterials.Items.Count > 0 Then ComboBoxMaterials.SelectedIndex = 0
-            If Selected_Shape.RelatedMaterial.path = "" OrElse idx = -1 Then
+            If relativeMaterialPath = "" OrElse idx = -1 Then
                 MaterialPathTextbox.Text = prefix
                 ComboBoxMaterials.Items.Add("Embedded")
                 ComboBoxMaterials.SelectedIndex = 0
@@ -712,6 +712,12 @@ Public Class Editor_Form
     Private Sub Lee_Comboselected_Material(fullpath As String)
         Selected_Material = New FO4UnifiedMaterial_Class
         Dim prefix = MaterialsPrefix
+        Dim relativePath = fullpath.Correct_Path_Separator.StripPrefix(prefix)
+        Dim isEmbedded = relativePath.Equals("Embedded", StringComparison.OrdinalIgnoreCase)
+        If Not isEmbedded Then
+            fullpath = FO4UnifiedMaterial_Class.CorrectMaterialPath(fullpath)
+            relativePath = fullpath.StripPrefix(prefix)
+        End If
         If IsNothing(Selected_Shape.RelatedNifShader) Then
             If Selected_Shape.RelatedNifShape.ShaderPropertyRef.Index <> -1 Then
                 Debugger.Break()
@@ -739,8 +745,7 @@ Public Class Editor_Form
         End If
         Select Case Selected_Shape.RelatedNifShader.GetType
             Case GetType(BSLightingShaderProperty)
-                fullpath = fullpath.StripPrefix(prefix)
-                If fullpath = "Embedded" Then
+                If isEmbedded Then
                     Selected_Material.Create_From_Shader(Selected_Slider.NIFContent, Selected_Shape.RelatedNifShape, CType(Selected_Shape.RelatedNifShader, BSLightingShaderProperty))
                     _LastMaterial.Create_From_Shader(Selected_Slider.NIFContent, Selected_Shape.RelatedNifShape, CType(Selected_Shape.RelatedNifShader, BSLightingShaderProperty))
                     Selected_Shape.RelatedMaterial.material = Selected_Material
@@ -749,9 +754,9 @@ Public Class Editor_Form
                     Exit Select
                 End If
                 Dim locBgsm As FilesDictionary_class.File_Location = Nothing
-                If FilesDictionary_class.Dictionary.TryGetValue(prefix + fullpath, locBgsm) Then
-                    Selected_Material.Deserialize(prefix + fullpath, GetType(BGSM))
-                    _LastMaterial.Deserialize(prefix + fullpath, GetType(BGSM))
+                If FilesDictionary_class.Dictionary.TryGetValue(fullpath, locBgsm) Then
+                    Selected_Material.Deserialize(fullpath, GetType(BGSM))
+                    _LastMaterial.Deserialize(fullpath, GetType(BGSM))
                     ' ShaderType is not stored in BGSM files — read it from the NIF shader
                     Dim bslsp = TryCast(Selected_Shape.RelatedNifShader, BSLightingShaderProperty)
                     If bslsp IsNot Nothing Then
@@ -769,12 +774,11 @@ Public Class Editor_Form
                         Label6.Text = IO.Path.GetExtension(locBgsm.BA2File)
                         Label6.ForeColor = Color.FromKnownColor(KnownColor.Brown)
                     End If
-                    Selected_Shape.RelatedMaterial.path = fullpath
+                    Selected_Shape.RelatedMaterial.path = relativePath
                     Selected_Shape.RelatedMaterial.material = Selected_Material
                 End If
             Case GetType(BSEffectShaderProperty)
-                fullpath = fullpath.StripPrefix(prefix)
-                If fullpath = "Embedded" Then
+                If isEmbedded Then
                     Selected_Material.Create_From_Shader(Selected_Slider.NIFContent, Selected_Shape.RelatedNifShape, CType(Selected_Shape.RelatedNifShader, BSEffectShaderProperty))
                     Selected_Material.NifShaderType = NiflySharp.Enums.BSLightingShaderType.Default
                     _LastMaterial.Create_From_Shader(Selected_Slider.NIFContent, Selected_Shape.RelatedNifShape, CType(Selected_Shape.RelatedNifShader, BSEffectShaderProperty))
@@ -785,17 +789,17 @@ Public Class Editor_Form
                     Exit Select
                 End If
                 Dim locBgem As FilesDictionary_class.File_Location = Nothing
-                If FilesDictionary_class.Dictionary.TryGetValue(prefix + fullpath, locBgem) Then
-                    Selected_Material.Deserialize(prefix + fullpath, GetType(BGEM))
+                If FilesDictionary_class.Dictionary.TryGetValue(fullpath, locBgem) Then
+                    Selected_Material.Deserialize(fullpath, GetType(BGEM))
                     Selected_Material.NifShaderType = NiflySharp.Enums.BSLightingShaderType.Default
-                    _LastMaterial.Deserialize(prefix + fullpath, GetType(BGEM))
+                    _LastMaterial.Deserialize(fullpath, GetType(BGEM))
                     _LastMaterial.NifShaderType = NiflySharp.Enums.BSLightingShaderType.Default
                     If locBgem.IsLosseFile Then
                         Label6.Text = "Loose"
                     Else
                         Label6.Text = IO.Path.GetExtension(locBgem.BA2File)
                     End If
-                    Selected_Shape.RelatedMaterial.path = fullpath
+                    Selected_Shape.RelatedMaterial.path = relativePath
                     Selected_Shape.RelatedMaterial.material = Selected_Material
                 End If
             Case Else
@@ -977,8 +981,7 @@ Public Class Editor_Form
         Dim prefix = MaterialsPrefix
         Dim TestChanges As New FO4UnifiedMaterial_Class
         For Each shap In Selected_Slider.Shapes
-            Dim orig = shap.RelatedMaterial.path.Correct_Path_Separator
-            orig = orig.StripPrefix(prefix)
+            Dim orig = FO4UnifiedMaterial_Class.CorrectMaterialPath(shap.RelatedMaterial.path).StripPrefix(prefix)
             Select Case Path.GetExtension(orig).ToLower
                 Case ".bgem"
                     TestChanges.Deserialize(prefix + orig, GetType(BGEM))
@@ -1119,8 +1122,7 @@ Public Class Editor_Form
 
     Private Sub ButtonMatSave_Click(sender As Object, e As EventArgs) Handles ButtonMatSave.Click
         Dim prefix = MaterialsPrefix
-        Dim fil = Selected_Shape.RelatedMaterial.path.Correct_Path_Separator
-        If fil.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) = False Then fil = prefix + fil
+        Dim fil = FO4UnifiedMaterial_Class.CorrectMaterialPath(Selected_Shape.RelatedMaterial.path)
         If fil = "" OrElse FilesDictionary_class.Dictionary.ContainsKey(fil) = False Then
             ButtonMatSaveAs.PerformClick()
             Exit Sub
@@ -1137,8 +1139,9 @@ Public Class Editor_Form
                 WroteFilesToDisk = True
             End Using
         End If
-        MaterialPathTextbox.Text = prefix + Path.GetDirectoryName(Selected_Shape.RelatedMaterial.path)
-        Dim fname = Path.GetFileName(Selected_Shape.RelatedMaterial.path)
+        Dim relativePath = fil.StripPrefix(prefix)
+        MaterialPathTextbox.Text = prefix + Path.GetDirectoryName(relativePath)
+        Dim fname = Path.GetFileName(relativePath)
         Dim existingIdx = ComboBoxMaterials.FindStringExact(fname)
         If existingIdx = -1 Then
             ComboBoxMaterials.SelectedIndex = ComboBoxMaterials.Items.Add(fname)
@@ -1150,8 +1153,8 @@ Public Class Editor_Form
 
     Private Sub ButtonMatSaveAs_Click(sender As Object, e As EventArgs) Handles ButtonMatSaveAs.Click
         Dim prefix = MaterialsPrefix
-        Dim fil = Selected_Shape.RelatedMaterial.path.Correct_Path_Separator
-        If fil.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) = False Then fil = prefix + fil
+        Dim fil = FO4UnifiedMaterial_Class.CorrectMaterialPath(Selected_Shape.RelatedMaterial.path)
+        If fil = "" Then fil = prefix
         If IO.Directory.Exists(Path.Combine(Wardrobe_Manager_Form.Directorios.Fallout4data, IO.Path.GetDirectoryName(fil))) = False Then
             IO.Directory.CreateDirectory(Path.Combine(Wardrobe_Manager_Form.Directorios.Fallout4data, IO.Path.GetDirectoryName(fil)))
         End If
@@ -1167,7 +1170,7 @@ Public Class Editor_Form
                 WroteFilesToDisk = True
                 Writer.Close()
             End Using
-            Dim fullpath = Path.GetRelativePath(Wardrobe_Manager_Form.Directorios.Fallout4data, sd.FileName).Correct_Path_Separator
+            Dim fullpath = FO4UnifiedMaterial_Class.CorrectMaterialPath(Path.GetRelativePath(Wardrobe_Manager_Form.Directorios.Fallout4data, sd.FileName))
             fullpath = fullpath.StripPrefix(prefix)
             Selected_Shape.RelatedMaterial.path = fullpath
             Dim Location As New FilesDictionary_class.File_Location With {.BA2File = "", .Index = -1, .FullPath = prefix + Selected_Shape.RelatedMaterial.path, .FileDate = IO.File.GetLastWriteTime(sd.FileName)}
@@ -1180,8 +1183,8 @@ Public Class Editor_Form
 
     Private Sub ButtonMatLoad_Click(sender As Object, e As EventArgs) Handles ButtonMatLoad.Click
         Dim prefix = MaterialsPrefix
-        Dim fil = Selected_Shape.RelatedMaterial.path.Correct_Path_Separator
-        If fil.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) = False Then fil = prefix + fil
+        Dim fil = FO4UnifiedMaterial_Class.CorrectMaterialPath(Selected_Shape.RelatedMaterial.path)
+        If fil = "" Then fil = prefix
 
         Dim dict_used As FilesDictionary_class.DictionaryFilePickerConfig = FilesDictionary_class.MaterialsDictionary_BGSM_Filter
         If Selected_Shape.RelatedNifShader.GetType Is GetType(BSEffectShaderProperty) Then
@@ -1193,8 +1196,7 @@ Public Class Editor_Form
         Using frm As New DictionaryFilePicker_Form(filtered, dict_used.RootPrefix, dict_used.AllowedExtensions, initialKey)
             If frm.ShowDialog() = DialogResult.OK Then
                 Dim sel = frm.DictionaryPicker_Control1.SelectedKey
-                Dim fullpath = sel.Correct_Path_Separator
-                fullpath = fullpath.StripPrefix(prefix)
+                Dim fullpath = FO4UnifiedMaterial_Class.CorrectMaterialPath(sel).StripPrefix(prefix)
                 Selected_Shape.RelatedMaterial.path = fullpath
                 Lee_Materials()
             End If
@@ -1584,7 +1586,12 @@ Public Class Editor_Form
     Private Sub ButtonCopyPath_Click(sender As Object, e As EventArgs) Handles ButtonCopyPath.Click
         If ComboBoxMaterials.SelectedIndex = -1 Then Exit Sub
         Dim path = (MaterialPathTextbox.Text + "\" + ComboBoxMaterials.SelectedItem.ToString).Correct_Path_Separator
-        path = path.StripPrefix(MaterialsPrefix)
+        Dim relativePath = path.StripPrefix(MaterialsPrefix)
+        If relativePath.Equals("Embedded", StringComparison.OrdinalIgnoreCase) Then
+            path = relativePath
+        Else
+            path = FO4UnifiedMaterial_Class.CorrectMaterialPath(path).StripPrefix(MaterialsPrefix)
+        End If
         Clipboard.SetText(path)
     End Sub
 
@@ -1975,7 +1982,7 @@ Public Class Editor_Form
     Private Sub Button9_Click(sender As Object, e As EventArgs) Handles ButonMatBackToOriginal.Click
         Dim prefix = MaterialsPrefix
         Dim combinado = Path.Combine(MaterialPathTextbox.Text.Replace("ManoloCloned\", "", StringComparison.OrdinalIgnoreCase), ComboBoxMaterials.SelectedItem)
-        Dim fullpath = combinado.Correct_Path_Separator
+        Dim fullpath = FO4UnifiedMaterial_Class.CorrectMaterialPath(combinado)
         If FilesDictionary_class.Dictionary.ContainsKey(fullpath) = False Then
             MsgBox("Original material not found in files.", vbCritical, "Error")
             Exit Sub

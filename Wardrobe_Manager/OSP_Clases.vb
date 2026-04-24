@@ -515,7 +515,7 @@ Public Class Clone_Materials_class
     Private Shared Function BuildTextureDictionaryKey(filename As String) As String
         If String.IsNullOrWhiteSpace(filename) Then Return ""
 
-        Dim normalized = filename.Correct_Path_Separator.StripPrefix(TexturesPrefix)
+        Dim normalized = NormalizeTextureReference(filename)
         Return (TexturesPrefix & normalized).Correct_Path_Separator
     End Function
 
@@ -620,7 +620,8 @@ Public Class Clone_Materials_class
     End Function
 
     Private Shared Function NormalizeMaterialReference(materialName As String) As String
-        Return materialName.Correct_Path_Separator.StripPrefix(MaterialsPrefix)
+        Dim normalized = FO4UnifiedMaterial_Class.CorrectMaterialPath(materialName)
+        Return normalized.StripPrefix(MaterialsPrefix)
     End Function
 
     Private Shared Function NormalizeMaterialSourceKey(materialName As String) As String
@@ -630,7 +631,8 @@ Public Class Clone_Materials_class
     End Function
 
     Private Shared Function NormalizeTextureReference(textureName As String) As String
-        Return textureName.Correct_Path_Separator.StripPrefix(TexturesPrefix)
+        Dim normalized = FO4UnifiedMaterial_Class.CorrectTexturePath(textureName)
+        Return normalized.StripPrefix(TexturesPrefix)
     End Function
 
     Private Shared Function BuildClonedTextureRelativePath(textureName As String) As String
@@ -754,8 +756,7 @@ Public Class Clone_Materials_class
                 RegisterMaterialTextureReference(plan, job, "DistanceFieldAlphaTexture", material.DistanceFieldAlphaTexture)
                 RegisterMaterialTextureReference(plan, job, "DiffuseTexture", material.DiffuseTexture)
 
-                Dim temp = material.RootMaterialPath.Correct_Path_Separator
-                temp = temp.StripPrefix(MaterialsPrefix)
+                Dim temp = NormalizeMaterialReference(material.RootMaterialPath)
 
                 If temp <> "" Then
                     Dim rootSource As String = (MaterialsPrefix & temp).Correct_Path_Separator
