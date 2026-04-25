@@ -574,7 +574,7 @@ Public Class Clone_Materials_class
 
             Dim shad = shap.RelatedNifShader
             Dim originalMaterialName As String = GetShaderMaterialName(shad)
-            Dim materialSourceKey As String = NormalizeMaterialSourceKey(originalMaterialName)
+            Dim materialSourceKey As String = ResolveCloneRepairSourceKey(originalMaterialName)
 
             plan.Bindings.Add(New ShapeMaterialBinding With {
                 .Shader = shad,
@@ -628,6 +628,47 @@ Public Class Clone_Materials_class
         Dim mate As String = NormalizeMaterialReference(materialName)
         If mate = "" Then Return ""
         Return (MaterialsPrefix & mate).Correct_Path_Separator
+    End Function
+
+    Private Shared Function ResolveCloneRepairSourceKey(materialName As String) As String
+        Dim directKey As String = NormalizeMaterialSourceKey(materialName)
+        If directKey = "" Then Return ""
+        If FilesDictionary_class.Dictionary.ContainsKey(directKey) Then Return directKey
+
+        Dim originalSourceKey As String = ""
+        If TryResolveBrokenCloneOriginalSourceKey(materialName, originalSourceKey) Then
+            Return originalSourceKey
+        End If
+
+        Return directKey
+    End Function
+
+    Private Shared Function TryResolveBrokenCloneOriginalSourceKey(materialName As String, ByRef originalSourceKey As String) As Boolean
+        originalSourceKey = ""
+
+        Dim normalized = NormalizeMaterialReference(materialName)
+        If normalized.StartsWith("ManoloCloned\", StringComparison.OrdinalIgnoreCase) = False Then Return False
+
+        originalSourceKey = NormalizeMaterialSourceKey(normalized.Substring("ManoloCloned\".Length))
+        If originalSourceKey = "" Then Return False
+
+        Return FilesDictionary_class.Dictionary.ContainsKey(originalSourceKey)
+    End Function
+
+    Private Shared Function IsBrokenCloneMissingOriginal(materialName As String, ByRef originalSourceKey As String) As Boolean
+        originalSourceKey = ""
+
+        Dim directKey As String = NormalizeMaterialSourceKey(materialName)
+        If directKey = "" Then Return False
+        If FilesDictionary_class.Dictionary.ContainsKey(directKey) Then Return False
+
+        Dim normalized = NormalizeMaterialReference(materialName)
+        If normalized.StartsWith("ManoloCloned\", StringComparison.OrdinalIgnoreCase) = False Then Return False
+
+        originalSourceKey = NormalizeMaterialSourceKey(normalized.Substring("ManoloCloned\".Length))
+        If originalSourceKey = "" Then Return True
+
+        Return FilesDictionary_class.Dictionary.ContainsKey(originalSourceKey) = False
     End Function
 
     Private Shared Function NormalizeTextureReference(textureName As String) As String
@@ -1204,10 +1245,8 @@ Public Class Clone_Materials_class
         Return False
     End Function
 
-    Private Shared Function IsMaterialCloneEligible(materialName As String) As Boolean
-        Dim key As String = NormalizeMaterialSourceKey(materialName)
+    Private Shared Function IsMaterialCloneEligibleSourceKey(key As String) As Boolean
         If key = "" Then Return False
-
         Dim location As FilesDictionary_class.File_Location = Nothing
         If FilesDictionary_class.Dictionary.TryGetValue(key, location) = False Then Return False
         If IsNothing(location) Then Return False
@@ -1216,8 +1255,10 @@ Public Class Clone_Materials_class
     End Function
 
     ''' <summary>
-    ''' Shapes cuyo material apunta fuera de ManoloCloned/ManoloMods Y cuya fuente es clonable
-    ''' (loose o BA2 permitido). Asume ShapeData ya cargado; si no lo está retorna lista vacía.
+    ''' Shapes cuyo material aun necesita clone repair:
+    ''' - referencia fuera de ManoloCloned/ManoloMods, o
+    ''' - referencia a ManoloCloned faltante que puede reconstruirse desde el original.
+    ''' Asume ShapeData ya cargado; si no lo está retorna lista vacía.
     ''' </summary>
     Public Shared Function GetShapesMissingCloneMaterial(project As SliderSet_Class) As List(Of Shape_class)
         Dim result As New List(Of Shape_class)
@@ -1234,13 +1275,85 @@ Public Class Clone_Materials_class
                 Continue For
             End Try
 
-            If IsMaterialAlreadyClonedReference(materialName) Then Continue For
-            If Not IsMaterialCloneEligible(materialName) Then Continue For
+            Dim missingOriginalSourceKey As String = ""
+            If IsBrokenCloneMissingOriginal(materialName, missingOriginalSourceKey) Then Continue For
+
+            Dim directKey As String = NormalizeMaterialSourceKey(materialName)
+            Dim repairSourceKey As String = ResolveCloneRepairSourceKey(materialName)
+            If repairSourceKey = "" Then Continue For
+
+            If IsMaterialAlreadyClonedReference(materialName) AndAlso
+               directKey.Equals(repairSourceKey, StringComparison.OrdinalIgnoreCase) Then
+                Continue For
+            End If
+
+            If Not IsMaterialCloneEligibleSourceKey(repairSourceKey) Then Continue For
 
             result.Add(shap)
         Next
 
         Return result
+    End Function
+
+    Public Shared Function BuildCloneMaterialMissingOriginalIssue(project As SliderSet_Class) As ProjectLoadIssue
+        If IsNothing(project) Then Return Nothing
+        If project.ShapeDataLoaded = False Then Return Nothing
+
+        Dim osp = project.ParentOSP
+        Dim shapeNames As New List(Of String)
+        Dim materialPaths As New List(Of String)
+
+        For Each shap In project.Shapes
+            If IsNothing(shap.RelatedNifShader) Then Continue For
+
+            Dim materialName As String
+            Try
+                materialName = GetShaderMaterialName(shap.RelatedNifShader)
+            Catch
+                Continue For
+            End Try
+
+            Dim originalSourceKey As String = ""
+            If IsBrokenCloneMissingOriginal(materialName, originalSourceKey) = False Then Continue For
+
+            If String.IsNullOrWhiteSpace(shap.Nombre) = False AndAlso
+               Not shapeNames.Contains(shap.Nombre, StringComparer.OrdinalIgnoreCase) Then
+                shapeNames.Add(shap.Nombre)
+            End If
+
+            Dim brokenCloneKey = NormalizeMaterialSourceKey(materialName)
+            Dim detail = brokenCloneKey
+            If String.IsNullOrWhiteSpace(detail) Then
+                detail = NormalizeMaterialReference(materialName)
+            End If
+
+            If String.IsNullOrWhiteSpace(originalSourceKey) = False Then
+                detail &= " -> original missing: " & originalSourceKey
+            Else
+                detail &= " -> original source could not be resolved"
+            End If
+
+            If Not materialPaths.Contains(detail, StringComparer.OrdinalIgnoreCase) Then
+                materialPaths.Add(detail)
+            End If
+        Next
+
+        If shapeNames.Count = 0 Then Return Nothing
+
+        shapeNames.Sort(StringComparer.OrdinalIgnoreCase)
+        materialPaths.Sort(StringComparer.OrdinalIgnoreCase)
+
+        Return New ProjectLoadIssue With {
+            .Kind = ProjectLoadIssueKind.CloneMaterialSourceMissing,
+            .OspFile = If(osp?.Filename, "").Correct_Path_Separator,
+            .PackName = If(osp?.Nombre, ""),
+            .ProjectName = If(project.Nombre, ""),
+            .Message = $"{shapeNames.Count} shape(s) point to missing ManoloCloned materials and the original source is not available, so clone repair was skipped.",
+            .ShapeNames = shapeNames,
+            .MaterialPaths = materialPaths,
+            .SourceSlider = project,
+            .SourceOsp = osp
+        }
     End Function
 
     Public Shared Function BuildCloneMaterialPendingIssue(project As SliderSet_Class) As ProjectLoadIssue
@@ -1266,7 +1379,7 @@ Public Class Clone_Materials_class
             Catch
                 Continue For
             End Try
-            Dim normalized = NormalizeMaterialSourceKey(materialName)
+            Dim normalized = ResolveCloneRepairSourceKey(materialName)
             If String.IsNullOrWhiteSpace(normalized) Then Continue For
             If Not materialPaths.Contains(normalized, StringComparer.OrdinalIgnoreCase) Then materialPaths.Add(normalized)
         Next
@@ -1277,7 +1390,7 @@ Public Class Clone_Materials_class
             .OspFile = If(osp?.Filename, "").Correct_Path_Separator,
             .PackName = If(osp?.Nombre, ""),
             .ProjectName = If(project.Nombre, ""),
-            .Message = $"{pending.Count} shape(s) reference clonable materials outside ManoloCloned.",
+            .Message = $"{pending.Count} shape(s) need clone material repair.",
             .ShapeNames = shapeNames,
             .MaterialPaths = materialPaths,
             .SourceSlider = project,
@@ -1295,6 +1408,7 @@ Public Enum ProjectLoadIssueKind
     OspReadError
     ProjectValidationError
     ShapeDataReadError
+    CloneMaterialSourceMissing
     CloneMaterialPending
 End Enum
 
@@ -1497,6 +1611,8 @@ Public Class OSP_Project_Class
                 text = "Error reading OSP: " & issue.OspFile & " " & issue.Message
             Case ProjectLoadIssueKind.ProjectValidationError
                 text = "Error reading project: " & issue.ProjectName & " " & issue.Message
+            Case ProjectLoadIssueKind.CloneMaterialSourceMissing
+                text = "Clone material repair skipped for project: " & issue.ProjectName & " " & issue.Message
             Case Else
                 text = "Error reading shapedata from project: " & issue.ProjectName & " " & issue.Message
         End Select
@@ -1718,6 +1834,7 @@ Public Class OSP_Project_Class
             If effectiveContext.AnalyzeCloneMaterials AndAlso
            Not IsNothing(Sliderset_Target.ParentOSP) AndAlso
            Sliderset_Target.ParentOSP.IsManoloPack Then
+                ReportLoadIssue(effectiveContext, Clone_Materials_class.BuildCloneMaterialMissingOriginalIssue(Sliderset_Target))
                 ReportLoadIssue(effectiveContext, Clone_Materials_class.BuildCloneMaterialPendingIssue(Sliderset_Target))
             End If
 

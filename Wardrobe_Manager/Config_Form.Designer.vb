@@ -104,6 +104,32 @@ Partial Class Config_Form
         CheckBoxBuildHH = New CheckBox()
         RadioButtonWMEngine = New RadioButton()
         Label12 = New Label()
+        TabPagePack = New TabPage()
+        PackRootLayout = New TableLayoutPanel()
+        PackHeaderPanel = New Panel()
+        PackHeaderTitleLabel = New Label()
+        PackHeaderSubtitleLabel = New Label()
+        PackStatusGroup = New GroupBox()
+        PackStatusGrid = New TableLayoutPanel()
+        PackStatusLooseCaption = New Label()
+        PackStatusLooseValue = New Label()
+        PackStatusLooseSizeCaption = New Label()
+        PackStatusLooseSizeValue = New Label()
+        PackStatusArchivesCaption = New Label()
+        PackStatusArchivesValue = New Label()
+        PackStatusArchiveSizeCaption = New Label()
+        PackStatusArchiveSizeValue = New Label()
+        PackActionGroup = New GroupBox()
+        PackActionLayout = New TableLayoutPanel()
+        PackButtonRow = New FlowLayoutPanel()
+        PackButton = New Button()
+        UnpackButton = New Button()
+        StopButton = New Button()
+        PackProgressBar = New ProgressBar()
+        PackProgressRow = New TableLayoutPanel()
+        PackProgressLabel = New Label()
+        PackElapsedLabel = New Label()
+        PackLastActionLabel = New Label()
         ToolTip1 = New ToolTip(components)
         GroupBox1.SuspendLayout()
         CType(NumericUpDownUVEps, ComponentModel.ISupportInitialize).BeginInit()
@@ -121,6 +147,15 @@ Partial Class Config_Form
         TabPage3.SuspendLayout()
         GroupBoxweights.SuspendLayout()
         GroupBoxLooksmenu.SuspendLayout()
+        TabPagePack.SuspendLayout()
+        PackRootLayout.SuspendLayout()
+        PackHeaderPanel.SuspendLayout()
+        PackStatusGroup.SuspendLayout()
+        PackStatusGrid.SuspendLayout()
+        PackActionGroup.SuspendLayout()
+        PackActionLayout.SuspendLayout()
+        PackButtonRow.SuspendLayout()
+        PackProgressRow.SuspendLayout()
         SuspendLayout()
         ' 
         ' TextBox1
@@ -487,6 +522,7 @@ Partial Class Config_Form
         TabControl1.Controls.Add(TabPage1)
         TabControl1.Controls.Add(TabPage2)
         TabControl1.Controls.Add(TabPage3)
+        TabControl1.Controls.Add(TabPagePack)
         TabControl1.Dock = DockStyle.Fill
         TabControl1.ImageList = ImageList1
         TabControl1.Location = New Point(0, 0)
@@ -1103,8 +1139,354 @@ Partial Class Config_Form
         Label12.Text = "Build engine:"
         Label12.TextAlign = ContentAlignment.MiddleLeft
         ' 
-        ' Config_Form
+        ' TabPagePack
         ' 
+        TabPagePack.Controls.Add(PackRootLayout)
+        TabPagePack.Location = New Point(4, 27)
+        TabPagePack.Name = "TabPagePack"
+        TabPagePack.Size = New Size(944, 449)
+        TabPagePack.TabIndex = 3
+        TabPagePack.Text = "Cloned Material"
+        TabPagePack.UseVisualStyleBackColor = True
+        ' 
+        ' PackRootLayout
+        ' 
+        PackRootLayout.ColumnCount = 1
+        PackRootLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100F))
+        PackRootLayout.Controls.Add(PackHeaderPanel, 0, 0)
+        PackRootLayout.Controls.Add(PackStatusGroup, 0, 1)
+        PackRootLayout.Controls.Add(PackActionGroup, 0, 2)
+        PackRootLayout.Controls.Add(PackLastActionLabel, 0, 3)
+        PackRootLayout.Dock = DockStyle.Fill
+        PackRootLayout.Location = New Point(0, 0)
+        PackRootLayout.Name = "PackRootLayout"
+        PackRootLayout.Padding = New Padding(12)
+        PackRootLayout.RowCount = 4
+        PackRootLayout.RowStyles.Add(New RowStyle())
+        PackRootLayout.RowStyles.Add(New RowStyle())
+        PackRootLayout.RowStyles.Add(New RowStyle())
+        PackRootLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100F))
+        PackRootLayout.Size = New Size(944, 449)
+        PackRootLayout.TabIndex = 0
+        ' 
+        ' PackHeaderPanel
+        ' 
+        PackHeaderPanel.Controls.Add(PackHeaderTitleLabel)
+        PackHeaderPanel.Controls.Add(PackHeaderSubtitleLabel)
+        PackHeaderPanel.Dock = DockStyle.Fill
+        PackHeaderPanel.Location = New Point(12, 12)
+        PackHeaderPanel.Margin = New Padding(0, 0, 0, 8)
+        PackHeaderPanel.Name = "PackHeaderPanel"
+        PackHeaderPanel.Padding = New Padding(12, 8, 12, 8)
+        PackHeaderPanel.Size = New Size(920, 56)
+        PackHeaderPanel.TabIndex = 0
+        ' 
+        ' PackHeaderTitleLabel
+        ' 
+        PackHeaderTitleLabel.AutoSize = True
+        PackHeaderTitleLabel.Font = New Font("Segoe UI", 11F, FontStyle.Bold)
+        PackHeaderTitleLabel.Location = New Point(0, 0)
+        PackHeaderTitleLabel.Name = "PackHeaderTitleLabel"
+        PackHeaderTitleLabel.Size = New Size(230, 20)
+        PackHeaderTitleLabel.TabIndex = 0
+        PackHeaderTitleLabel.Text = "Pack Cloned Materials & Textures"
+        ' 
+        ' PackHeaderSubtitleLabel
+        ' 
+        PackHeaderSubtitleLabel.AutoSize = True
+        PackHeaderSubtitleLabel.ForeColor = SystemColors.GrayText
+        PackHeaderSubtitleLabel.Location = New Point(0, 22)
+        PackHeaderSubtitleLabel.MaximumSize = New Size(700, 0)
+        PackHeaderSubtitleLabel.Name = "PackHeaderSubtitleLabel"
+        PackHeaderSubtitleLabel.Size = New Size(509, 15)
+        PackHeaderSubtitleLabel.TabIndex = 1
+        PackHeaderSubtitleLabel.Text = "Bundles ManoloCloned\ output (.bgsm/.bgem/.dds) into BA2/BSA archives + dummy plugins. "
+        ' 
+        ' PackStatusGroup
+        ' 
+        PackStatusGroup.Controls.Add(PackStatusGrid)
+        PackStatusGroup.Dock = DockStyle.Fill
+        PackStatusGroup.Location = New Point(12, 76)
+        PackStatusGroup.Margin = New Padding(0, 0, 0, 8)
+        PackStatusGroup.Name = "PackStatusGroup"
+        PackStatusGroup.Padding = New Padding(12, 8, 12, 12)
+        PackStatusGroup.Size = New Size(920, 100)
+        PackStatusGroup.TabIndex = 1
+        PackStatusGroup.TabStop = False
+        PackStatusGroup.Text = "Current state"
+        ' 
+        ' PackStatusGrid
+        ' 
+        PackStatusGrid.AutoSize = True
+        PackStatusGrid.AutoSizeMode = AutoSizeMode.GrowAndShrink
+        PackStatusGrid.ColumnCount = 4
+        PackStatusGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 15F))
+        PackStatusGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 45F))
+        PackStatusGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 15F))
+        PackStatusGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
+        PackStatusGrid.Controls.Add(PackStatusLooseCaption, 0, 0)
+        PackStatusGrid.Controls.Add(PackStatusLooseValue, 1, 0)
+        PackStatusGrid.Controls.Add(PackStatusLooseSizeCaption, 2, 0)
+        PackStatusGrid.Controls.Add(PackStatusLooseSizeValue, 3, 0)
+        PackStatusGrid.Controls.Add(PackStatusArchivesCaption, 0, 1)
+        PackStatusGrid.Controls.Add(PackStatusArchivesValue, 1, 1)
+        PackStatusGrid.Controls.Add(PackStatusArchiveSizeCaption, 2, 1)
+        PackStatusGrid.Controls.Add(PackStatusArchiveSizeValue, 3, 1)
+        PackStatusGrid.Dock = DockStyle.Fill
+        PackStatusGrid.Location = New Point(12, 24)
+        PackStatusGrid.Name = "PackStatusGrid"
+        PackStatusGrid.Padding = New Padding(0, 4, 0, 0)
+        PackStatusGrid.RowCount = 2
+        PackStatusGrid.RowStyles.Add(New RowStyle())
+        PackStatusGrid.RowStyles.Add(New RowStyle())
+        PackStatusGrid.Size = New Size(896, 64)
+        PackStatusGrid.TabIndex = 0
+        ' 
+        ' PackStatusLooseCaption
+        ' 
+        PackStatusLooseCaption.Anchor = AnchorStyles.Left
+        PackStatusLooseCaption.AutoSize = True
+        PackStatusLooseCaption.ForeColor = SystemColors.GrayText
+        PackStatusLooseCaption.Location = New Point(0, 8)
+        PackStatusLooseCaption.Margin = New Padding(0, 4, 8, 4)
+        PackStatusLooseCaption.Name = "PackStatusLooseCaption"
+        PackStatusLooseCaption.Size = New Size(65, 15)
+        PackStatusLooseCaption.TabIndex = 0
+        PackStatusLooseCaption.Text = "Loose files:"
+        ' 
+        ' PackStatusLooseValue
+        ' 
+        PackStatusLooseValue.Anchor = AnchorStyles.Left
+        PackStatusLooseValue.AutoSize = True
+        PackStatusLooseValue.Font = New Font("Segoe UI", 9F, FontStyle.Bold)
+        PackStatusLooseValue.Location = New Point(134, 8)
+        PackStatusLooseValue.Margin = New Padding(0, 4, 24, 4)
+        PackStatusLooseValue.Name = "PackStatusLooseValue"
+        PackStatusLooseValue.Size = New Size(19, 15)
+        PackStatusLooseValue.TabIndex = 1
+        PackStatusLooseValue.Text = "—"
+        ' 
+        ' PackStatusLooseSizeCaption
+        ' 
+        PackStatusLooseSizeCaption.Anchor = AnchorStyles.Left
+        PackStatusLooseSizeCaption.AutoSize = True
+        PackStatusLooseSizeCaption.ForeColor = SystemColors.GrayText
+        PackStatusLooseSizeCaption.Location = New Point(537, 8)
+        PackStatusLooseSizeCaption.Margin = New Padding(0, 4, 8, 4)
+        PackStatusLooseSizeCaption.Name = "PackStatusLooseSizeCaption"
+        PackStatusLooseSizeCaption.Size = New Size(63, 15)
+        PackStatusLooseSizeCaption.TabIndex = 2
+        PackStatusLooseSizeCaption.Text = "Loose size:"
+        ' 
+        ' PackStatusLooseSizeValue
+        ' 
+        PackStatusLooseSizeValue.Anchor = AnchorStyles.Left
+        PackStatusLooseSizeValue.AutoSize = True
+        PackStatusLooseSizeValue.Font = New Font("Segoe UI", 9F, FontStyle.Bold)
+        PackStatusLooseSizeValue.Location = New Point(671, 8)
+        PackStatusLooseSizeValue.Margin = New Padding(0, 4, 24, 4)
+        PackStatusLooseSizeValue.Name = "PackStatusLooseSizeValue"
+        PackStatusLooseSizeValue.Size = New Size(19, 15)
+        PackStatusLooseSizeValue.TabIndex = 3
+        PackStatusLooseSizeValue.Text = "—"
+        ' 
+        ' PackStatusArchivesCaption
+        ' 
+        PackStatusArchivesCaption.Anchor = AnchorStyles.Left
+        PackStatusArchivesCaption.AutoSize = True
+        PackStatusArchivesCaption.ForeColor = SystemColors.GrayText
+        PackStatusArchivesCaption.Location = New Point(0, 38)
+        PackStatusArchivesCaption.Margin = New Padding(0, 4, 8, 4)
+        PackStatusArchivesCaption.Name = "PackStatusArchivesCaption"
+        PackStatusArchivesCaption.Size = New Size(55, 15)
+        PackStatusArchivesCaption.TabIndex = 4
+        PackStatusArchivesCaption.Text = "Archives:"
+        ' 
+        ' PackStatusArchivesValue
+        ' 
+        PackStatusArchivesValue.Anchor = AnchorStyles.Left
+        PackStatusArchivesValue.AutoSize = True
+        PackStatusArchivesValue.Font = New Font("Segoe UI", 9F, FontStyle.Bold)
+        PackStatusArchivesValue.Location = New Point(134, 38)
+        PackStatusArchivesValue.Margin = New Padding(0, 4, 24, 4)
+        PackStatusArchivesValue.Name = "PackStatusArchivesValue"
+        PackStatusArchivesValue.Size = New Size(19, 15)
+        PackStatusArchivesValue.TabIndex = 5
+        PackStatusArchivesValue.Text = "—"
+        ' 
+        ' PackStatusArchiveSizeCaption
+        ' 
+        PackStatusArchiveSizeCaption.Anchor = AnchorStyles.Left
+        PackStatusArchiveSizeCaption.AutoSize = True
+        PackStatusArchiveSizeCaption.ForeColor = SystemColors.GrayText
+        PackStatusArchiveSizeCaption.Location = New Point(537, 38)
+        PackStatusArchiveSizeCaption.Margin = New Padding(0, 4, 8, 4)
+        PackStatusArchiveSizeCaption.Name = "PackStatusArchiveSizeCaption"
+        PackStatusArchiveSizeCaption.Size = New Size(113, 15)
+        PackStatusArchiveSizeCaption.TabIndex = 6
+        PackStatusArchiveSizeCaption.Text = "Archive size on disk:"
+        ' 
+        ' PackStatusArchiveSizeValue
+        ' 
+        PackStatusArchiveSizeValue.Anchor = AnchorStyles.Left
+        PackStatusArchiveSizeValue.AutoSize = True
+        PackStatusArchiveSizeValue.Font = New Font("Segoe UI", 9F, FontStyle.Bold)
+        PackStatusArchiveSizeValue.Location = New Point(671, 38)
+        PackStatusArchiveSizeValue.Margin = New Padding(0, 4, 24, 4)
+        PackStatusArchiveSizeValue.Name = "PackStatusArchiveSizeValue"
+        PackStatusArchiveSizeValue.Size = New Size(19, 15)
+        PackStatusArchiveSizeValue.TabIndex = 7
+        PackStatusArchiveSizeValue.Text = "—"
+        ' 
+        ' PackActionGroup
+        ' 
+        PackActionGroup.Controls.Add(PackActionLayout)
+        PackActionGroup.Dock = DockStyle.Fill
+        PackActionGroup.Location = New Point(12, 184)
+        PackActionGroup.Margin = New Padding(0, 0, 0, 8)
+        PackActionGroup.Name = "PackActionGroup"
+        PackActionGroup.Padding = New Padding(12, 10, 12, 12)
+        PackActionGroup.Size = New Size(920, 100)
+        PackActionGroup.TabIndex = 2
+        PackActionGroup.TabStop = False
+        PackActionGroup.Text = "Actions"
+        ' 
+        ' PackActionLayout
+        ' 
+        PackActionLayout.AutoSize = True
+        PackActionLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink
+        PackActionLayout.ColumnCount = 1
+        PackActionLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100F))
+        PackActionLayout.Controls.Add(PackButtonRow, 0, 0)
+        PackActionLayout.Controls.Add(PackProgressBar, 0, 1)
+        PackActionLayout.Controls.Add(PackProgressRow, 0, 2)
+        PackActionLayout.Dock = DockStyle.Fill
+        PackActionLayout.Location = New Point(12, 26)
+        PackActionLayout.Name = "PackActionLayout"
+        PackActionLayout.Padding = New Padding(0, 4, 0, 0)
+        PackActionLayout.RowCount = 3
+        PackActionLayout.RowStyles.Add(New RowStyle())
+        PackActionLayout.RowStyles.Add(New RowStyle())
+        PackActionLayout.RowStyles.Add(New RowStyle())
+        PackActionLayout.Size = New Size(896, 62)
+        PackActionLayout.TabIndex = 0
+        ' 
+        ' PackButtonRow
+        ' 
+        PackButtonRow.AutoSize = True
+        PackButtonRow.AutoSizeMode = AutoSizeMode.GrowAndShrink
+        PackButtonRow.Controls.Add(PackButton)
+        PackButtonRow.Controls.Add(UnpackButton)
+        PackButtonRow.Controls.Add(StopButton)
+        PackButtonRow.Dock = DockStyle.Fill
+        PackButtonRow.Location = New Point(0, 4)
+        PackButtonRow.Margin = New Padding(0, 0, 0, 8)
+        PackButtonRow.Name = "PackButtonRow"
+        PackButtonRow.Size = New Size(896, 36)
+        PackButtonRow.TabIndex = 0
+        PackButtonRow.WrapContents = False
+        ' 
+        ' PackButton
+        ' 
+        PackButton.Location = New Point(0, 0)
+        PackButton.Margin = New Padding(0, 0, 8, 0)
+        PackButton.Name = "PackButton"
+        PackButton.Size = New Size(180, 36)
+        PackButton.TabIndex = 0
+        PackButton.Text = "Pack to BA2 / BSA"
+        PackButton.UseVisualStyleBackColor = True
+        ' 
+        ' UnpackButton
+        ' 
+        UnpackButton.Location = New Point(188, 0)
+        UnpackButton.Margin = New Padding(0, 0, 8, 0)
+        UnpackButton.Name = "UnpackButton"
+        UnpackButton.Size = New Size(180, 36)
+        UnpackButton.TabIndex = 1
+        UnpackButton.Text = "Unpack to loose"
+        UnpackButton.UseVisualStyleBackColor = True
+        ' 
+        ' StopButton
+        ' 
+        StopButton.Location = New Point(376, 0)
+        StopButton.Margin = New Padding(0)
+        StopButton.Name = "StopButton"
+        StopButton.Size = New Size(180, 36)
+        StopButton.TabIndex = 2
+        StopButton.Text = "Stop"
+        StopButton.UseVisualStyleBackColor = True
+        StopButton.Visible = False
+        ' 
+        ' PackProgressBar
+        ' 
+        PackProgressBar.Dock = DockStyle.Fill
+        PackProgressBar.Location = New Point(0, 48)
+        PackProgressBar.Margin = New Padding(0, 0, 0, 4)
+        PackProgressBar.Name = "PackProgressBar"
+        PackProgressBar.Size = New Size(896, 22)
+        PackProgressBar.Style = ProgressBarStyle.Continuous
+        PackProgressBar.TabIndex = 0
+        PackProgressBar.Visible = False
+        ' 
+        ' PackProgressRow
+        ' 
+        PackProgressRow.AutoSize = True
+        PackProgressRow.AutoSizeMode = AutoSizeMode.GrowAndShrink
+        PackProgressRow.ColumnCount = 2
+        PackProgressRow.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100F))
+        PackProgressRow.ColumnStyles.Add(New ColumnStyle())
+        PackProgressRow.Controls.Add(PackProgressLabel, 0, 0)
+        PackProgressRow.Controls.Add(PackElapsedLabel, 1, 0)
+        PackProgressRow.Dock = DockStyle.Fill
+        PackProgressRow.Location = New Point(0, 74)
+        PackProgressRow.Margin = New Padding(0)
+        PackProgressRow.Name = "PackProgressRow"
+        PackProgressRow.RowCount = 1
+        PackProgressRow.RowStyles.Add(New RowStyle())
+        PackProgressRow.Size = New Size(896, 15)
+        PackProgressRow.TabIndex = 1
+        ' 
+        ' PackElapsedLabel
+        ' 
+        PackElapsedLabel.AutoSize = True
+        PackElapsedLabel.ForeColor = SystemColors.GrayText
+        PackElapsedLabel.Location = New Point(896, 0)
+        PackElapsedLabel.Margin = New Padding(8, 0, 0, 0)
+        PackElapsedLabel.Name = "PackElapsedLabel"
+        PackElapsedLabel.Size = New Size(0, 15)
+        PackElapsedLabel.TabIndex = 0
+        PackElapsedLabel.Visible = False
+        '
+        ' PackProgressLabel
+        '
+        PackProgressLabel.AutoSize = True
+        PackProgressLabel.Anchor = AnchorStyles.Left Or AnchorStyles.Right
+        PackProgressLabel.AutoEllipsis = True
+        PackProgressLabel.Margin = New Padding(0)
+        PackProgressLabel.MinimumSize = New Size(0, 18)
+        PackProgressLabel.Name = "PackProgressLabel"
+        PackProgressLabel.TabIndex = 1
+        PackProgressLabel.Text = ""
+        PackProgressLabel.Visible = False
+        '
+        ' PackLastActionLabel
+        '
+        ' AutoSize = True so the label grows to fit multi-line warnings — the row is set to
+        ' RowStyle.Percent = 100 in the root layout, but with a Label-default of AutoSize = False
+        ' the text gets clipped vertically and the warning is invisible. AutoSize lets the layout
+        ' allocate the height needed.
+        PackLastActionLabel.AutoSize = True
+        PackLastActionLabel.Dock = DockStyle.Fill
+        PackLastActionLabel.ForeColor = SystemColors.ControlText
+        PackLastActionLabel.Margin = New Padding(0)
+        PackLastActionLabel.MaximumSize = New Size(900, 0)
+        PackLastActionLabel.Name = "PackLastActionLabel"
+        PackLastActionLabel.Padding = New Padding(8, 8, 8, 8)
+        PackLastActionLabel.TabIndex = 3
+        PackLastActionLabel.Text = ""
+        '
+        ' Config_Form
+        '
         AutoScaleDimensions = New SizeF(7F, 15F)
         AutoScaleMode = AutoScaleMode.Font
         ClientSize = New Size(952, 480)
@@ -1140,6 +1522,21 @@ Partial Class Config_Form
         GroupBoxweights.PerformLayout()
         GroupBoxLooksmenu.ResumeLayout(False)
         GroupBoxLooksmenu.PerformLayout()
+        TabPagePack.ResumeLayout(False)
+        PackRootLayout.ResumeLayout(False)
+        PackHeaderPanel.ResumeLayout(False)
+        PackHeaderPanel.PerformLayout()
+        PackStatusGroup.ResumeLayout(False)
+        PackStatusGroup.PerformLayout()
+        PackStatusGrid.ResumeLayout(False)
+        PackStatusGrid.PerformLayout()
+        PackActionGroup.ResumeLayout(False)
+        PackActionGroup.PerformLayout()
+        PackActionLayout.ResumeLayout(False)
+        PackActionLayout.PerformLayout()
+        PackButtonRow.ResumeLayout(False)
+        PackProgressRow.ResumeLayout(False)
+        PackProgressRow.PerformLayout()
         ResumeLayout(False)
     End Sub
 
@@ -1222,5 +1619,31 @@ Partial Class Config_Form
     Friend WithEvents NumericUpDownRenderGridStep As NumericUpDown
     Friend WithEvents Label16 As Label
     Friend WithEvents GridColor As ColorComboBox
+    Friend WithEvents TabPagePack As TabPage
+    Friend WithEvents PackRootLayout As TableLayoutPanel
+    Friend WithEvents PackHeaderPanel As Panel
+    Friend WithEvents PackHeaderTitleLabel As Label
+    Friend WithEvents PackHeaderSubtitleLabel As Label
+    Friend WithEvents PackStatusGroup As GroupBox
+    Friend WithEvents PackStatusGrid As TableLayoutPanel
+    Friend WithEvents PackStatusLooseCaption As Label
+    Friend WithEvents PackStatusLooseValue As Label
+    Friend WithEvents PackStatusLooseSizeCaption As Label
+    Friend WithEvents PackStatusLooseSizeValue As Label
+    Friend WithEvents PackStatusArchivesCaption As Label
+    Friend WithEvents PackStatusArchivesValue As Label
+    Friend WithEvents PackStatusArchiveSizeCaption As Label
+    Friend WithEvents PackStatusArchiveSizeValue As Label
+    Friend WithEvents PackActionGroup As GroupBox
+    Friend WithEvents PackActionLayout As TableLayoutPanel
+    Friend WithEvents PackButtonRow As FlowLayoutPanel
+    Friend WithEvents PackButton As Button
+    Friend WithEvents UnpackButton As Button
+    Friend WithEvents StopButton As Button
+    Friend WithEvents PackProgressBar As ProgressBar
+    Friend WithEvents PackProgressRow As TableLayoutPanel
+    Friend WithEvents PackProgressLabel As Label
+    Friend WithEvents PackElapsedLabel As Label
+    Friend WithEvents PackLastActionLabel As Label
     Friend WithEvents CheckBoxGPUSkinning As CheckBox
 End Class

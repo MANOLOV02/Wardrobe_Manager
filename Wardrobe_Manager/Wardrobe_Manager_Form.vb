@@ -1245,6 +1245,8 @@ Public Class Wardrobe_Manager_Form
                 Return "Project validation errors"
             Case ProjectLoadIssueKind.ShapeDataReadError
                 Return "Shape data read errors (NIF / OSD)"
+            Case ProjectLoadIssueKind.CloneMaterialSourceMissing
+                Return "Clone material source missing"
             Case ProjectLoadIssueKind.CloneMaterialPending
                 Return "Clone material pending"
             Case Else
@@ -1316,6 +1318,7 @@ Public Class Wardrobe_Manager_Form
                 ProjectLoadIssueKind.OspReadError,
                 ProjectLoadIssueKind.ProjectValidationError,
                 ProjectLoadIssueKind.ShapeDataReadError,
+                ProjectLoadIssueKind.CloneMaterialSourceMissing,
                 ProjectLoadIssueKind.CloneMaterialPending
             }
 
@@ -1370,6 +1373,28 @@ Public Class Wardrobe_Manager_Form
                         .ForeColor = Color.FromArgb(80, 80, 80)
                     }
                     bodyInner.Controls.Add(lblMsg)
+
+                    If issue.ShapeNames.Count > 0 Then
+                        Dim lblShapes As New Label With {
+                            .Text = "        Shapes: " & String.Join(", ", issue.ShapeNames),
+                            .AutoSize = True,
+                            .Margin = New Padding(0, 0, 0, 1),
+                            .ForeColor = Color.FromArgb(80, 80, 80)
+                        }
+                        bodyInner.Controls.Add(lblShapes)
+                    End If
+
+                    If issue.MaterialPaths.Count > 0 Then
+                        For Each matPath In issue.MaterialPaths
+                            Dim lblPath As New Label With {
+                                .Text = "        " & matPath,
+                                .AutoSize = True,
+                                .Margin = New Padding(0, 0, 0, 1),
+                                .ForeColor = Color.FromArgb(80, 80, 80)
+                            }
+                            bodyInner.Controls.Add(lblPath)
+                        Next
+                    End If
                 Next
             Next
 
@@ -1505,7 +1530,7 @@ Public Class Wardrobe_Manager_Form
             }
 
             Dim lblShapesHeader As New Label With {
-                .Text = $"Shapes pointing outside ManoloCloned ({issue.ShapeNames.Count}):",
+                .Text = $"Shapes needing clone repair ({issue.ShapeNames.Count}):",
                 .Font = boldFont,
                 .AutoSize = True,
                 .Margin = New Padding(0, 0, 0, 4)
@@ -1529,7 +1554,7 @@ Public Class Wardrobe_Manager_Form
             bodyInner.Controls.Add(spacer)
 
             Dim lblMatsHeader As New Label With {
-                .Text = $"Material paths ({issue.MaterialPaths.Count}):",
+                .Text = $"Source material paths ({issue.MaterialPaths.Count}):",
                 .Font = boldFont,
                 .AutoSize = True,
                 .Margin = New Padding(0, 0, 0, 4)
@@ -1609,6 +1634,12 @@ Public Class Wardrobe_Manager_Form
         Public Property RemainingCount As Integer
         Public Property RemainingDescriptions As New List(Of String)
         Public Property ErrorMessage As String = ""
+
+        Public ReadOnly Property AlreadyResolvedBeforeRepair As Boolean
+            Get
+                Return Succeeded AndAlso InitialCount = 0
+            End Get
+        End Property
     End Class
 
     Private Shared Function DescribeRemainingShape(shap As Shape_class) As String
@@ -1730,6 +1761,7 @@ Public Class Wardrobe_Manager_Form
 
         Dim batchMode As CloneRepairBatchMode = CloneRepairBatchMode.AskEach
         Dim repaired As New List(Of String)
+        Dim alreadyResolved As New List(Of String)
         Dim failed As New List(Of String)
 
         For Each issue In cloneIssues
@@ -1759,7 +1791,9 @@ Public Class Wardrobe_Manager_Form
             Dim label = issue.PackName & " / " & issue.ProjectName
             Dim outcome = TryRepairCloneIssue(issue, overwrite)
 
-            If outcome.Succeeded Then
+            If outcome.AlreadyResolvedBeforeRepair Then
+                alreadyResolved.Add(label)
+            ElseIf outcome.Succeeded Then
                 repaired.Add(label)
             ElseIf outcome.InitialCount > 0 AndAlso outcome.RemainingCount < outcome.InitialCount AndAlso String.IsNullOrEmpty(outcome.ErrorMessage) Then
                 ' Parcial: algunos shapes quedaron fuera pero se limpió la mayoría.
@@ -1783,6 +1817,13 @@ Public Class Wardrobe_Manager_Form
 
         If repaired.Count > 0 OrElse failed.Count > 0 Then
             RequestLeeShapes(True)
+        End If
+
+        If cloneIssues.Count > 1 AndAlso failed.Count = 0 AndAlso (repaired.Count > 0 OrElse alreadyResolved.Count > 0) Then
+            MsgBox($"Clone material batch processed {cloneIssues.Count} project(s)." & vbCrLf & vbCrLf &
+                   $"Repaired now: {repaired.Count}" & vbCrLf &
+                   $"Already resolved by previous repairs in this batch: {alreadyResolved.Count}",
+                   vbInformation Or vbOKOnly, "Repair clone materials")
         End If
 
         If failed.Count > 0 Then
