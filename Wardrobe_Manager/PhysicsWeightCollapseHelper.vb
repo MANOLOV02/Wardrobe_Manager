@@ -214,12 +214,7 @@ Public NotInheritable Class PhysicsWeightCollapseHelper
     End Function
     Private Shared Function ApplyTriShapeVertexRewrites(plan As ShapeRewritePlan, ByRef report As String) As Boolean
         Dim tri = plan.TriShape
-        If tri Is Nothing Then
-            Debug.WriteLine($"[PhysCollapse]   ApplyTriShapeVertexRewrites: tri Is Nothing, skip")
-            Return True
-        End If
-
-        Debug.WriteLine($"[PhysCollapse]   ApplyTriShapeVertexRewrites: UseSse={plan.UseSse}  rewrites={plan.VertexRewrites.Count}")
+        If tri Is Nothing Then Return True
 
         If plan.UseSse Then
             If tri.VertexDataSSE Is Nothing Then
@@ -228,7 +223,6 @@ Public NotInheritable Class PhysicsWeightCollapseHelper
             End If
 
             Dim all = tri.VertexDataSSE.ToList()
-            Dim sampleIdx As Integer = -1
             For Each rewrite In plan.VertexRewrites
                 If rewrite.VertexIndex < 0 OrElse rewrite.VertexIndex >= all.Count Then
                     report = $"Vertex {rewrite.VertexIndex} is outside the SSE vertex buffer for shape '{plan.Shape.Target}'."
@@ -243,19 +237,8 @@ Public NotInheritable Class PhysicsWeightCollapseHelper
                 vertex.BoneIndices = bi
                 vertex.BoneWeights = bw
                 all(rewrite.VertexIndex) = vertex
-                If sampleIdx < 0 Then sampleIdx = rewrite.VertexIndex
             Next
             tri.SetVertexDataSSE(all)
-
-            ' Verify persistence on a sample vertex
-            If sampleIdx >= 0 AndAlso sampleIdx < tri.VertexDataSSE.Count Then
-                Dim chk = tri.VertexDataSSE(sampleIdx)
-                Dim chkIdx(BoneIndices4.Length - 1) As Byte
-                Dim chkWgt(BoneWeights4.Length - 1) As Half
-                chk.BoneIndices.CopyTo(chkIdx, 0, BoneIndices4.Length)
-                chk.BoneWeights.CopyTo(chkWgt, 0, BoneWeights4.Length)
-                Debug.WriteLine($"[PhysCollapse]   POST-WRITE sample vertex[{sampleIdx}] BoneIndices=[{String.Join(",", chkIdx)}]  BoneWeights=[{String.Join(",", chkWgt.Select(Function(w) CSng(w).ToString("F3")))}]")
-            End If
         Else
             If tri.VertexData Is Nothing Then
                 report = $"Shape '{plan.Shape.Target}' has no vertex data to rewrite."
@@ -263,7 +246,6 @@ Public NotInheritable Class PhysicsWeightCollapseHelper
             End If
 
             Dim all = tri.VertexData.ToList()
-            Dim sampleIdx As Integer = -1
             For Each rewrite In plan.VertexRewrites
                 If rewrite.VertexIndex < 0 OrElse rewrite.VertexIndex >= all.Count Then
                     report = $"Vertex {rewrite.VertexIndex} is outside the vertex buffer for shape '{plan.Shape.Target}'."
@@ -278,18 +260,8 @@ Public NotInheritable Class PhysicsWeightCollapseHelper
                 vertex.BoneIndices = bi
                 vertex.BoneWeights = bw
                 all(rewrite.VertexIndex) = vertex
-                If sampleIdx < 0 Then sampleIdx = rewrite.VertexIndex
             Next
             tri.SetVertexData(all)
-
-            If sampleIdx >= 0 AndAlso sampleIdx < tri.VertexData.Count Then
-                Dim chk = tri.VertexData(sampleIdx)
-                Dim chkIdx(BoneIndices4.Length - 1) As Byte
-                Dim chkWgt(BoneWeights4.Length - 1) As Half
-                chk.BoneIndices.CopyTo(chkIdx, 0, BoneIndices4.Length)
-                chk.BoneWeights.CopyTo(chkWgt, 0, BoneWeights4.Length)
-                Debug.WriteLine($"[PhysCollapse]   POST-WRITE sample vertex[{sampleIdx}] BoneIndices=[{String.Join(",", chkIdx)}]  BoneWeights=[{String.Join(",", chkWgt.Select(Function(w) CSng(w).ToString("F3")))}]")
-            End If
         End If
 
         Return True
@@ -486,99 +458,8 @@ Public NotInheritable Class PhysicsWeightCollapseHelper
         If boneBlockIndex < 0 Then Return -1
 
         If skin.Bones Is Nothing Then skin.Bones = New NiBlockPtrArray(Of NiNode)
-        Dim preCount = skin.Bones.Count
-
-        ' Sample one preexisting BSSkinBoneTrans + recompute it with our formula to compare convention.
-        If preCount > 0 AndAlso TypeOf skin Is BSSkin_Instance Then
-            Dim ts = TryCast(skin, BSSkin_Instance)
-            Dim ed = TryCast(shape.ParentSliderSet.NIFContent.Blocks(ts.Data.Index), BSSkin_BoneData)
-            If ed IsNot Nothing AndAlso ed.BoneList IsNot Nothing AndAlso ed.BoneList.Count > 0 Then
-                Static loggedShape As String = ""
-                If loggedShape <> shape.Target Then
-                    loggedShape = shape.Target
-                    Dim refBoneName As String = ""
-                    Try
-                        Dim refIdx0 = skin.Bones.GetBlockRef(0)
-                        Dim refNode = TryCast(shape.ParentSliderSet.NIFContent.Blocks(refIdx0), NiNode)
-                        If refNode IsNot Nothing Then refBoneName = If(refNode.Name?.String, "(unnamed)")
-                    Catch
-                    End Try
-                    Dim refTrans = ed.BoneList(0)
-                    Debug.WriteLine($"[PhysCollapse]     REFERENCE preexisting bone[0]='{refBoneName}' STORED BSSkinBoneTrans T=({refTrans.Translation.X:F2},{refTrans.Translation.Y:F2},{refTrans.Translation.Z:F2}) scale={refTrans.Scale:F3}")
-                    ' Dump full palette: stored BSSkinBoneTrans vs bone.global from skeleton.
-                    ' The pattern (relationship between stored and bone.global) reveals the convention.
-                    Debug.WriteLine($"[PhysCollapse]     PALETTE DUMP for shape '{shape.Target}':")
-                    Dim allBoneIdxList = skin.Bones.Indices.ToList()
-                    For pi = 0 To Math.Min(allBoneIdxList.Count, ed.BoneList.Count) - 1
-                        Dim node = TryCast(shape.ParentSliderSet.NIFContent.Blocks(allBoneIdxList(pi)), NiNode)
-                        If node Is Nothing OrElse node.Name Is Nothing Then Continue For
-                        Dim bn = node.Name.String
-                        Dim bt = ed.BoneList(pi)
-                        Dim bbDict As HierarchiBone_class = Nothing
-                        Dim bbGStr As String = "(not in skel)"
-                        If SkeletonInstance.Default.SkeletonDictionary.TryGetValue(bn, bbDict) AndAlso bbDict IsNot Nothing Then
-                            Dim g = bbDict.OriginalGetGlobalTransform
-                            bbGStr = $"({g.Translation.X:F2},{g.Translation.Y:F2},{g.Translation.Z:F2})"
-                        End If
-                        Debug.WriteLine($"[PhysCollapse]       [{pi}] '{bn}' stored T=({bt.Translation.X:F2},{bt.Translation.Y:F2},{bt.Translation.Z:F2})  skel.global T={bbGStr}")
-                    Next
-
-                    ' Self-test: pretend bone[0] is being added and try ALL 4 composition variants.
-                    If Not String.IsNullOrEmpty(refBoneName) AndAlso ed.BoneList.Count > 1 Then
-                        Dim selfTestNames As New List(Of String)
-                        Dim selfTestTrans As New List(Of Transform_Class)
-                        Dim boneIdxList = skin.Bones.Indices.ToList()
-                        For i = 1 To Math.Min(boneIdxList.Count, ed.BoneList.Count) - 1
-                            Dim node = TryCast(shape.ParentSliderSet.NIFContent.Blocks(boneIdxList(i)), NiNode)
-                            If node Is Nothing OrElse node.Name Is Nothing Then Continue For
-                            Dim bt = ed.BoneList(i)
-                            selfTestNames.Add(node.Name.String)
-                            selfTestTrans.Add(New Transform_Class With {.Translation = bt.Translation, .Rotation = bt.Rotation, .Scale = bt.Scale})
-                        Next
-
-                        ' Locate the ancestor manually for raw computation.
-                        Dim refBindBone As HierarchiBone_class = Nothing
-                        SkeletonInstance.Default.SkeletonDictionary.TryGetValue(refBoneName, refBindBone)
-                        If refBindBone IsNot Nothing Then
-                            Dim ancestor As HierarchiBone_class = refBindBone.Parent
-                            Dim ancestorStored As Transform_Class = Nothing
-                            Dim ancestorBone As HierarchiBone_class = Nothing
-                            While ancestor IsNot Nothing AndAlso ancestorStored Is Nothing
-                                For i = 0 To selfTestNames.Count - 1
-                                    If String.Equals(NormalizeBoneName(selfTestNames(i)), NormalizeBoneName(ancestor.BoneName), StringComparison.OrdinalIgnoreCase) Then
-                                        ancestorStored = selfTestTrans(i)
-                                        ancestorBone = ancestor
-                                        Exit For
-                                    End If
-                                Next
-                                If ancestorStored Is Nothing Then ancestor = ancestor.Parent
-                            End While
-
-                            If ancestorStored IsNot Nothing Then
-                                Dim ancG = ancestorBone.OriginalGetGlobalTransform
-                                Dim boneG = refBindBone.OriginalGetGlobalTransform
-                                Dim deltaA = ancG.Inverse.ComposeTransforms(boneG)         ' inv(anc).Compose(bone) = bone-relative-to-anc
-                                Dim deltaB = boneG.ComposeTransforms(ancG.Inverse)         ' bone.Compose(inv(anc))
-                                Dim r1 = ancestorStored.ComposeTransforms(deltaA)
-                                Dim r2 = deltaA.ComposeTransforms(ancestorStored)
-                                Dim r3 = ancestorStored.ComposeTransforms(deltaB)
-                                Dim r4 = deltaB.ComposeTransforms(ancestorStored)
-                                Debug.WriteLine($"[PhysCollapse]     SELF-TEST '{refBoneName}' ancestor='{ancestorBone.BoneName}' stored T=({ancestorStored.Translation.X:F2},{ancestorStored.Translation.Y:F2},{ancestorStored.Translation.Z:F2})")
-                                Debug.WriteLine($"[PhysCollapse]     SELF-TEST STORED          T=({refTrans.Translation.X:F2},{refTrans.Translation.Y:F2},{refTrans.Translation.Z:F2})")
-                                Debug.WriteLine($"[PhysCollapse]     SELF-TEST R1 stored.C(deltaA={{inv(anc).C(bone)}}) T=({r1.Translation.X:F2},{r1.Translation.Y:F2},{r1.Translation.Z:F2})")
-                                Debug.WriteLine($"[PhysCollapse]     SELF-TEST R2 deltaA.C(stored)                     T=({r2.Translation.X:F2},{r2.Translation.Y:F2},{r2.Translation.Z:F2})")
-                                Debug.WriteLine($"[PhysCollapse]     SELF-TEST R3 stored.C(deltaB={{bone.C(inv(anc))}}) T=({r3.Translation.X:F2},{r3.Translation.Y:F2},{r3.Translation.Z:F2})")
-                                Debug.WriteLine($"[PhysCollapse]     SELF-TEST R4 deltaB.C(stored)                     T=({r4.Translation.X:F2},{r4.Translation.Y:F2},{r4.Translation.Z:F2})")
-                            End If
-                        End If
-                    End If
-                End If
-            End If
-        End If
-
         skin.Bones.AddBlockRef(boneBlockIndex)
         skin.NumBones = CUInt(skin.Bones.Count)
-        Debug.WriteLine($"[PhysCollapse]     EnsureBaseBoneInSkinPalette: added '{boneName}' (block#{boneBlockIndex}) at palette[{preCount}]  newCount={skin.Bones.Count}  skinType={skin.GetType().Name}")
 
         If TypeOf skin Is BSSkin_Instance Then
             Dim typedSkin = DirectCast(skin, BSSkin_Instance)
@@ -738,7 +619,6 @@ Public NotInheritable Class PhysicsWeightCollapseHelper
                                                                     existingPaletteBoneTrans As List(Of Transform_Class)) As Transform_Class
         Dim bindBoneNew As HierarchiBone_class = Nothing
         If SkeletonInstance.Default.SkeletonDictionary.TryGetValue(boneName, bindBoneNew) = False OrElse bindBoneNew Is Nothing Then
-            Debug.WriteLine($"[PhysCollapse]     ⚠ '{boneName}' NOT in SkeletonDictionary → IDENTITY")
             Return New Transform_Class()
         End If
 
@@ -755,24 +635,16 @@ Public NotInheritable Class PhysicsWeightCollapseHelper
         Next
 
         If anchorIdx < 0 OrElse anchorBindBone Is Nothing Then
-            Debug.WriteLine($"[PhysCollapse]     ⚠ '{boneName}' has no palette anchor in skeleton — using legacy formula")
-            Dim shapeNode = TryCast(shape.ParentSliderSet.NIFContent.GetParentNode(nifShape), NiNode)
-            If shapeNode Is Nothing Then shapeNode = shape.ParentSliderSet.NIFContent.GetRootNode()
-            Dim shapeGlobal As Transform_Class = If(shapeNode Is Nothing,
-                                                    New Transform_Class(),
-                                                    Transform_Class.GetGlobalTransform(shapeNode, shape.ParentSliderSet.NIFContent))
-            Return bindBoneNew.OriginalGetGlobalTransform.Inverse.ComposeTransforms(shapeGlobal)
+            ' No anchor: fall back to identity (rare — happens only if the shape has no
+            ' bones in common with the skeleton dictionary).
+            Return New Transform_Class()
         End If
 
-        ' matsBind_anchor = bindT_anchor ∘ stored_anchor (this is what the render computes for the anchor).
-        Dim bindAnchor = anchorBindBone.OriginalGetGlobalTransform
-        Dim storedAnchor = existingPaletteBoneTrans(anchorIdx)
-        Dim matsBindAnchor = bindAnchor.ComposeTransforms(storedAnchor)
-        ' stored_new = inv(bindT_new) ∘ matsBind_anchor
-        Dim bindNew = bindBoneNew.OriginalGetGlobalTransform
-        Dim result = bindNew.Inverse.ComposeTransforms(matsBindAnchor)
-        Debug.WriteLine($"[PhysCollapse]     BuildLocalSkinTransform '{boneName}' anchor='{existingPaletteBoneNames(anchorIdx)}' → T=({result.Translation.X:F2},{result.Translation.Y:F2},{result.Translation.Z:F2}) scale={result.Scale:F3}")
-        Return result
+        ' matsBind_anchor = bindT_anchor ∘ stored_anchor (the matrix the renderer computes for the anchor).
+        ' We want matsBind_new = matsBind_anchor so the new bone composes vertices into the same
+        ' shape-coordinate frame ⇒ stored_new = inv(bindT_new) ∘ matsBind_anchor.
+        Dim matsBindAnchor = anchorBindBone.OriginalGetGlobalTransform.ComposeTransforms(existingPaletteBoneTrans(anchorIdx))
+        Return bindBoneNew.OriginalGetGlobalTransform.Inverse.ComposeTransforms(matsBindAnchor)
     End Function
 
     Private Shared Function TryResolveShapeContext(shape As Shape_class, ByRef context As ShapeAccessContext, ByRef report As String) As Boolean
