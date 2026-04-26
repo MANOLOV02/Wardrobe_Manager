@@ -160,10 +160,7 @@ Public Class MergeShapesHelper
         ' here with proper StartIndex offset so dismember regions survive merge.  Only
         ' applies when target is BSTriShape family (BSSubIndex/BSMeshLOD specifically);
         ' for NiTri family targets MergeMetadataAfterApply no-ops internally.
-        Dim targetBsTri = TryCast(targetNifRaw, BSTriShape)
-        If targetBsTri IsNot Nothing Then
-            MergeMetadataAfterApply(targetBsTri, donorShapes, donorOffsets)
-        End If
+        MergeMetadataAfterApply(targetNifRaw, donorShapes, donorOffsets)
 
         ' ── 5. Update BSSkin_Instance bones and bone data ────────────────────
         If targetSkin IsNot Nothing Then
@@ -275,7 +272,7 @@ Public Class MergeShapesHelper
                     mergedBP.AddRange(dBP)
                 Else
                     ' Donor had no NiSkinPartition — fall back to partition 0.
-                    mergedBP.AddRange(Enumerable.Repeat(-1, donorShapes(di).RelatedNifShape.Triangles.Count))
+                    mergedBP.AddRange(Enumerable.Repeat(-1, donorShapes(di).IR_Geometry.TriangleCount))
                 End If
             Next
             sliderSet.NIFContent.SetTriangleBodyParts(targetNifRaw, mergedBP)
@@ -355,7 +352,7 @@ Public Class MergeShapesHelper
     ''' verified in NifSkope: target Segments preserved + donor Segments appended at correct
     ''' StartIndex.  See memory: pending_tests_shape_metadata.md
     ''' </summary>
-    Private Shared Sub MergeMetadataAfterApply(targetNif As BSTriShape,
+    Private Shared Sub MergeMetadataAfterApply(targetNif As INiShape,
                                                 donorShapes As List(Of Shape_class),
                                                 donorOffsets As List(Of Integer))
         Dim targetSubIndex = TryCast(targetNif, BSSubIndexTriShape)
@@ -376,9 +373,9 @@ Public Class MergeShapesHelper
                 Dim triOffset As UInteger = CUInt(donorOffsets(di))   ' donor triangle offset = vertex offset / 3 — actually donor triangles started at the END of target triangles.
                 ' Actually triangle offset = current cumulative triangle count BEFORE this donor.
                 ' donorOffsets(di) is VERTEX offset, not triangle.  Need to recompute triangle offset.
-                Dim triOffsetTris As Integer = If(targetSubIndex.Triangles Is Nothing, 0, targetSubIndex.Triangles.Count)
+                Dim triOffsetTris As Integer = targetSubIndex.TriangleCount
                 For prev = 0 To di - 1
-                    triOffsetTris += If(donorShapes(prev).RelatedNifShape.Triangles Is Nothing, 0, donorShapes(prev).RelatedNifShape.Triangles.Count)
+                    triOffsetTris += donorShapes(prev).RelatedNifShape.TriangleCount
                 Next
                 Dim startIdxOffsetUnits As UInteger = CUInt(triOffsetTris) * 3UI
                 For Each dSeg In donorSub.Segments

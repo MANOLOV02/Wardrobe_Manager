@@ -557,7 +557,7 @@ Public Class Editor_Form
 
 
         RenderCheckWeights.Checked = Selected_Shape.ShowWeight
-        RenderCheckcolors.Checked = Selected_Shape.RelatedNifShape.HasVertexColors
+        RenderCheckcolors.Checked = Selected_Shape.IR_Geometry.HasVertexColors
         RenderCheckMasks.Checked = Selected_Shape.ShowMask
         RenderCheckTexture.Checked = Selected_Shape.ShowTexture
         RenderCheckWireframe.Checked = Selected_Shape.Wireframe
@@ -565,7 +565,7 @@ Public Class Editor_Form
         RenderCheckHide.Checked = Selected_Shape.RenderHide
         ' VertexColors toggle: enable only when the NIF shape actually has them.
         ' Don't override .Checked — the user's preference is preserved even when disabled.
-        Dim hasVtxColors = Selected_Shape.RelatedNifShape IsNot Nothing AndAlso Selected_Shape.RelatedNifShape.HasVertexColors
+        Dim hasVtxColors = Selected_Shape.RelatedNifShape IsNot Nothing AndAlso Selected_Shape.IR_Geometry.HasVertexColors
         RenderCheckVertexColors.Enabled = hasVtxColors
         RenderCheckVertexColors.Checked = Selected_Shape.ShowVertexColor
         ColorComboBox1.SelectedColor = Selected_Shape.Wirecolor
@@ -1247,9 +1247,7 @@ Public Class Editor_Form
     End Function
 
     Private Sub Button4_Click_1(sender As Object, e As EventArgs) Handles ButtonMaskAll.Click
-        ' Total vertex count via INiShape.VertexCount (polymorphic across BSTriShape and
-        ' NiTriShape families).  Cast to Integer because Enumerable.Range expects Int32.
-        Selected_Shape.MaskedVertices.UnionWith(Enumerable.Range(0, CInt(Selected_Shape.RelatedNifShape.VertexCount)))
+        Selected_Shape.MaskedVertices.UnionWith(Enumerable.Range(0, Selected_Shape.IR_Geometry.VertexCount))
         Process_render_Changes(False)
     End Sub
 
@@ -1261,8 +1259,7 @@ Public Class Editor_Form
     Private Sub Button6_Click(sender As Object, e As EventArgs) Handles ButtonInvertMask.Click
         Dim lista As New HashSet(Of Integer)
         lista.UnionWith(Selected_Shape.MaskedVertices)
-        ' Total vertex count via INiShape.VertexCount (polymorphic).
-        Selected_Shape.MaskedVertices.UnionWith(Enumerable.Range(0, CInt(Selected_Shape.RelatedNifShape.VertexCount)))
+        Selected_Shape.MaskedVertices.UnionWith(Enumerable.Range(0, Selected_Shape.IR_Geometry.VertexCount))
 
         Selected_Shape.MaskedVertices.ExceptWith(lista)
         Process_render_Changes(False)
@@ -1926,7 +1923,7 @@ Public Class Editor_Form
     End Sub
 
     Private Sub Button8_Click_1(sender As Object, e As EventArgs) Handles ButtonGrowMask.Click
-        AddNeighborVerticesOnce(Selected_Shape.MaskedVertices, Selected_Shape.RelatedNifShape.Triangles)
+        AddNeighborVerticesOnce(Selected_Shape.MaskedVertices, Selected_Shape.IR_Geometry.GetTriangles())
         Process_render_Changes(False)
     End Sub
 
@@ -1966,9 +1963,8 @@ Public Class Editor_Form
     End Sub
 
     Private Sub Button8_Click_2(sender As Object, e As EventArgs) Handles ButtonShrinkMask.Click
-        ' Polymorphic: VertexCount via INiShape interface (BSTriShape.VertexCount and
-        ' NiTriShape.VertexCount both return ushort).
-        RemoveNeighborVerticesOnce(Selected_Shape.MaskedVertices, Selected_Shape.RelatedNifShape.Triangles, CInt(Selected_Shape.RelatedNifShape.VertexCount))
+        Dim geom = Selected_Shape.IR_Geometry
+        RemoveNeighborVerticesOnce(Selected_Shape.MaskedVertices, geom.GetTriangles(), geom.VertexCount)
         Process_render_Changes(False)
     End Sub
 
@@ -2613,7 +2609,7 @@ Public Class Editor_Form
             MsgBox("Select a shape that has masked vertices.", vbInformation, "Split Shape")
             Exit Sub
         End If
-        Dim totalVerts = CInt(Selected_Shape.RelatedNifShape.VertexCount)
+        Dim totalVerts = Selected_Shape.IR_Geometry.VertexCount
         Dim maskedCount = Selected_Shape.MaskedVertices.Count
         Dim msg = $"Split '{Selected_Shape.Target}' into two shapes?" & vbCrLf &
                   "  - Original keeps the non-fully-masked geometry and the cut border." & vbCrLf &

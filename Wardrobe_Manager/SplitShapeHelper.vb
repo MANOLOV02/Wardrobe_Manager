@@ -56,7 +56,7 @@ Public Class SplitShapeHelper
         Dim splitTriOldIdx As New List(Of Integer)
         Dim oldTriCounter As Integer = 0
 
-        For Each t In origNif.Triangles
+        For Each t In origGeom.GetTriangles()
             Dim v0 = CInt(t(CUShort(0)))
             Dim v1 = CInt(t(CUShort(1)))
             Dim v2 = CInt(t(CUShort(2)))

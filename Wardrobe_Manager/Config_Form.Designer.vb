@@ -199,6 +199,9 @@ Partial Class Config_Form
         ImageList1.Images.SetKeyName(2, "thumbnail.ico")
         ImageList1.Images.SetKeyName(3, "attach.ico")
         ImageList1.Images.SetKeyName(4, "agt_update_drivers.ico")
+        ImageList1.Images.SetKeyName(5, "add_group.ico")
+        ImageList1.Images.SetKeyName(6, "db_comit.ico")
+        ImageList1.Images.SetKeyName(7, "db_update.ico")
         ' 
         ' Label2
         ' 
@@ -1142,6 +1145,7 @@ Partial Class Config_Form
         ' TabPagePack
         ' 
         TabPagePack.Controls.Add(PackRootLayout)
+        TabPagePack.ImageKey = "add_group.ico"
         TabPagePack.Location = New Point(4, 27)
         TabPagePack.Name = "TabPagePack"
         TabPagePack.Size = New Size(944, 449)
@@ -1388,32 +1392,41 @@ Partial Class Config_Form
         ' 
         ' PackButton
         ' 
+        PackButton.ImageKey = "db_update.ico"
+        PackButton.ImageList = ImageList1
         PackButton.Location = New Point(0, 0)
         PackButton.Margin = New Padding(0, 0, 8, 0)
         PackButton.Name = "PackButton"
         PackButton.Size = New Size(180, 36)
         PackButton.TabIndex = 0
         PackButton.Text = "Pack to BA2 / BSA"
+        PackButton.TextImageRelation = TextImageRelation.ImageBeforeText
         PackButton.UseVisualStyleBackColor = True
         ' 
         ' UnpackButton
         ' 
+        UnpackButton.ImageKey = "db_comit.ico"
+        UnpackButton.ImageList = ImageList1
         UnpackButton.Location = New Point(188, 0)
         UnpackButton.Margin = New Padding(0, 0, 8, 0)
         UnpackButton.Name = "UnpackButton"
         UnpackButton.Size = New Size(180, 36)
         UnpackButton.TabIndex = 1
         UnpackButton.Text = "Unpack to loose"
+        UnpackButton.TextImageRelation = TextImageRelation.ImageBeforeText
         UnpackButton.UseVisualStyleBackColor = True
         ' 
         ' StopButton
         ' 
+        StopButton.ImageKey = "cancel.ico"
+        StopButton.ImageList = ImageList1
         StopButton.Location = New Point(376, 0)
         StopButton.Margin = New Padding(0)
         StopButton.Name = "StopButton"
         StopButton.Size = New Size(180, 36)
         StopButton.TabIndex = 2
         StopButton.Text = "Stop"
+        StopButton.TextImageRelation = TextImageRelation.ImageBeforeText
         StopButton.UseVisualStyleBackColor = True
         StopButton.Visible = False
         ' 
@@ -1443,8 +1456,21 @@ Partial Class Config_Form
         PackProgressRow.Name = "PackProgressRow"
         PackProgressRow.RowCount = 1
         PackProgressRow.RowStyles.Add(New RowStyle())
-        PackProgressRow.Size = New Size(896, 15)
+        PackProgressRow.Size = New Size(896, 18)
         PackProgressRow.TabIndex = 1
+        ' 
+        ' PackProgressLabel
+        ' 
+        PackProgressLabel.Anchor = AnchorStyles.Left Or AnchorStyles.Right
+        PackProgressLabel.AutoEllipsis = True
+        PackProgressLabel.AutoSize = True
+        PackProgressLabel.Location = New Point(0, 0)
+        PackProgressLabel.Margin = New Padding(0)
+        PackProgressLabel.MinimumSize = New Size(0, 18)
+        PackProgressLabel.Name = "PackProgressLabel"
+        PackProgressLabel.Size = New Size(888, 18)
+        PackProgressLabel.TabIndex = 1
+        PackProgressLabel.Visible = False
         ' 
         ' PackElapsedLabel
         ' 
@@ -1456,37 +1482,22 @@ Partial Class Config_Form
         PackElapsedLabel.Size = New Size(0, 15)
         PackElapsedLabel.TabIndex = 0
         PackElapsedLabel.Visible = False
-        '
-        ' PackProgressLabel
-        '
-        PackProgressLabel.AutoSize = True
-        PackProgressLabel.Anchor = AnchorStyles.Left Or AnchorStyles.Right
-        PackProgressLabel.AutoEllipsis = True
-        PackProgressLabel.Margin = New Padding(0)
-        PackProgressLabel.MinimumSize = New Size(0, 18)
-        PackProgressLabel.Name = "PackProgressLabel"
-        PackProgressLabel.TabIndex = 1
-        PackProgressLabel.Text = ""
-        PackProgressLabel.Visible = False
-        '
+        ' 
         ' PackLastActionLabel
-        '
-        ' AutoSize = True so the label grows to fit multi-line warnings — the row is set to
-        ' RowStyle.Percent = 100 in the root layout, but with a Label-default of AutoSize = False
-        ' the text gets clipped vertically and the warning is invisible. AutoSize lets the layout
-        ' allocate the height needed.
+        ' 
         PackLastActionLabel.AutoSize = True
         PackLastActionLabel.Dock = DockStyle.Fill
         PackLastActionLabel.ForeColor = SystemColors.ControlText
+        PackLastActionLabel.Location = New Point(12, 292)
         PackLastActionLabel.Margin = New Padding(0)
         PackLastActionLabel.MaximumSize = New Size(900, 0)
         PackLastActionLabel.Name = "PackLastActionLabel"
-        PackLastActionLabel.Padding = New Padding(8, 8, 8, 8)
+        PackLastActionLabel.Padding = New Padding(8)
+        PackLastActionLabel.Size = New Size(900, 145)
         PackLastActionLabel.TabIndex = 3
-        PackLastActionLabel.Text = ""
-        '
+        ' 
         ' Config_Form
-        '
+        ' 
         AutoScaleDimensions = New SizeF(7F, 15F)
         AutoScaleMode = AutoScaleMode.Font
         ClientSize = New Size(952, 480)
@@ -1524,6 +1535,7 @@ Partial Class Config_Form
         GroupBoxLooksmenu.PerformLayout()
         TabPagePack.ResumeLayout(False)
         PackRootLayout.ResumeLayout(False)
+        PackRootLayout.PerformLayout()
         PackHeaderPanel.ResumeLayout(False)
         PackHeaderPanel.PerformLayout()
         PackStatusGroup.ResumeLayout(False)

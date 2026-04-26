@@ -350,7 +350,7 @@ Public Module WM_PackUnpack
             .Entries = chunkEntries,
             .MaxArchiveBytes = chunkMaxComp,
             .BundleAlreadyCompressed = True,
-            .ReuseThreshold = 1.0,
+            .MinFreeSpaceToFill = 100L * 1024L * 1024L,
             .Overflow = ArchiveOverflowPolicy.SplitByPlugin,
             .PluginWriter = Sub(p As String, g As GameKind)
                                 PluginWriter.WriteLightMasterDummy(p, MapGameBack(g), "Wardrobe Manager")

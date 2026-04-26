@@ -52,7 +52,7 @@ Public NotInheritable Class PhysicsWeightCollapseHelper
             End If
             plans.Add(plan)
             touchedShapes += 1
-            touchedVertices += plan.VertexRewrites.Count
+            touchedVertices += plan.RewrittenVertexIndices.Count
         Next
 
         If plans.Count = 0 Then
@@ -129,10 +129,8 @@ Public NotInheritable Class PhysicsWeightCollapseHelper
         Dim plan As New ShapeRewritePlan With {
             .Shape = shape,
             .NifShape = context.NifShape,
-            .TriShape = context.TriShape,
+            .Geometry = context.Geometry,
             .Skin = context.Skin,
-            .SkinData = context.SkinData,
-            .UseSse = context.UseSse,
             .AllVertexInfluences = CloneInfluenceSnapshot(context.SourceInfluences)
         }
 
@@ -165,17 +163,7 @@ Public NotInheritable Class PhysicsWeightCollapseHelper
 
             foundInjectedWeights = True
             plan.AllVertexInfluences(vertexIndex) = collapsed
-
-            Dim newIndices As Byte() = Nothing
-            Dim newWeights As Half() = Nothing
-            ConvertInfluenceListToSkinArrays(collapsed, newIndices, newWeights)
-
-            plan.VertexRewrites.Add(New VertexRewritePlan With {
-                .VertexIndex = vertexIndex,
-                .Influences = collapsed,
-                .BoneIndices = newIndices,
-                .BoneWeights = newWeights
-            })
+            plan.RewrittenVertexIndices.Add(vertexIndex)
         Next
 
         If foundInjectedWeights = False Then Return Nothing
@@ -185,7 +173,7 @@ Public NotInheritable Class PhysicsWeightCollapseHelper
     End Function
 
     Private Shared Function ApplyShapeRewritePlan(plan As ShapeRewritePlan, ByRef report As String) As Boolean
-        If plan Is Nothing OrElse plan.Shape Is Nothing OrElse plan.NifShape Is Nothing Then
+        If plan Is Nothing OrElse plan.Shape Is Nothing OrElse plan.NifShape Is Nothing OrElse plan.Geometry Is Nothing Then
             report = "Internal error applying the physics collapse plan."
             Return False
         End If
@@ -196,13 +184,10 @@ Public NotInheritable Class PhysicsWeightCollapseHelper
             Next
         End If
 
-        If plan.TriShape IsNot Nothing Then
-            If ApplyTriShapeVertexRewrites(plan, report) = False Then Return False
-        End If
-
-        If plan.SkinData IsNot Nothing Then
-            If RewriteNiSkinDataWeights(plan, report) = False Then Return False
-        End If
+        Dim skinning = BuildShapeSkinningFromInfluences(plan.AllVertexInfluences)
+        skinning.BoneRefIndices = If(plan.Skin?.Bones?.Indices?.Select(Function(i) CInt(i))?.ToArray(),
+                                     Array.Empty(Of Integer)())
+        plan.Geometry.SetSkinning(skinning)
 
         plan.NifShape.UpdateBounds()
 
@@ -212,110 +197,35 @@ Public NotInheritable Class PhysicsWeightCollapseHelper
 
         Return True
     End Function
-    Private Shared Function ApplyTriShapeVertexRewrites(plan As ShapeRewritePlan, ByRef report As String) As Boolean
-        Dim tri = plan.TriShape
-        If tri Is Nothing Then Return True
 
-        If plan.UseSse Then
-            If tri.VertexDataSSE Is Nothing Then
-                report = $"Shape '{plan.Shape.Target}' has no SSE vertex data to rewrite."
-                Return False
-            End If
+    ''' <summary>
+    ''' Pivots per-vertex influence lists (ordered, normalized, max 4 slots) into the flat
+    ''' 4-slot-per-vertex layout that <see cref="IShapeGeometry.SetSkinning"/> expects.
+    ''' Empty slots stay (idx=0, weight=0).
+    ''' </summary>
+    Private Shared Function BuildShapeSkinningFromInfluences(perVertex As List(Of List(Of VertexInfluence))) As ShapeSkinningData
+        Const wpv As Integer = 4
+        Dim n As Integer = perVertex.Count
+        Dim flatIdx(n * wpv - 1) As Byte
+        Dim flatWgt(n * wpv - 1) As Half
 
-            Dim all = tri.VertexDataSSE.ToList()
-            For Each rewrite In plan.VertexRewrites
-                If rewrite.VertexIndex < 0 OrElse rewrite.VertexIndex >= all.Count Then
-                    report = $"Vertex {rewrite.VertexIndex} is outside the SSE vertex buffer for shape '{plan.Shape.Target}'."
-                    Return False
-                End If
-
-                Dim vertex = all(rewrite.VertexIndex)
-                Dim bi = vertex.BoneIndices
-                Dim bw = vertex.BoneWeights
-                bi.CopyFrom(rewrite.BoneIndices, 0, BoneIndices4.Length)
-                bw.CopyFrom(rewrite.BoneWeights, 0, BoneWeights4.Length)
-                vertex.BoneIndices = bi
-                vertex.BoneWeights = bw
-                all(rewrite.VertexIndex) = vertex
-            Next
-            tri.SetVertexDataSSE(all)
-        Else
-            If tri.VertexData Is Nothing Then
-                report = $"Shape '{plan.Shape.Target}' has no vertex data to rewrite."
-                Return False
-            End If
-
-            Dim all = tri.VertexData.ToList()
-            For Each rewrite In plan.VertexRewrites
-                If rewrite.VertexIndex < 0 OrElse rewrite.VertexIndex >= all.Count Then
-                    report = $"Vertex {rewrite.VertexIndex} is outside the vertex buffer for shape '{plan.Shape.Target}'."
-                    Return False
-                End If
-
-                Dim vertex = all(rewrite.VertexIndex)
-                Dim bi = vertex.BoneIndices
-                Dim bw = vertex.BoneWeights
-                bi.CopyFrom(rewrite.BoneIndices, 0, BoneIndices4.Length)
-                bw.CopyFrom(rewrite.BoneWeights, 0, BoneWeights4.Length)
-                vertex.BoneIndices = bi
-                vertex.BoneWeights = bw
-                all(rewrite.VertexIndex) = vertex
-            Next
-            tri.SetVertexData(all)
-        End If
-
-        Return True
-    End Function
-
-    Private Shared Function RewriteNiSkinDataWeights(plan As ShapeRewritePlan, ByRef report As String) As Boolean
-        Dim skinData = plan.SkinData
-        If skinData Is Nothing Then Return True
-
-        skinData.HasVertexWeights = True
-
-        Dim boneList = If(skinData.BoneList, New List(Of BoneData)()).ToList()
-        If boneList.Count = 0 AndAlso plan.Skin IsNot Nothing AndAlso plan.Skin.Bones IsNot Nothing Then
-            boneList = New List(Of BoneData)(plan.Skin.Bones.Count)
-        End If
-
-        While boneList.Count < plan.Skin.Bones.Count
-            boneList.Add(New BoneData With {
-                .SkinTransform = New NiTransform(),
-                .BoundingSphere = New NiBound(),
-                .VertexWeights = New List(Of BoneVertData)(),
-                .NumVertices = 0
-            })
-        End While
-
-        For i = 0 To boneList.Count - 1
-            Dim bone = boneList(i)
-            bone.VertexWeights = New List(Of BoneVertData)()
-            bone.NumVertices = 0
-            boneList(i) = bone
-        Next
-
-        For vertexIndex = 0 To plan.AllVertexInfluences.Count - 1
-            For Each influence In plan.AllVertexInfluences(vertexIndex)
-                If influence.Weight <= WeightEpsilon Then Continue For
-                If influence.PaletteIndex < 0 OrElse influence.PaletteIndex >= boneList.Count Then
-                    report = $"Shape '{plan.Shape.Target}' resolved palette index {influence.PaletteIndex}, but NiSkinData only contains {boneList.Count} bones."
-                    Return False
-                End If
-
-                Dim bone = boneList(influence.PaletteIndex)
-                If bone.VertexWeights Is Nothing Then bone.VertexWeights = New List(Of BoneVertData)()
-                bone.VertexWeights.Add(New BoneVertData With {
-                    .Index = CUShort(vertexIndex),
-                    .Weight = influence.Weight
-                })
-                bone.NumVertices = CUShort(Math.Min(UShort.MaxValue, bone.VertexWeights.Count))
-                boneList(influence.PaletteIndex) = bone
+        For vIdx = 0 To n - 1
+            Dim influences = perVertex(vIdx)
+            If influences Is Nothing Then Continue For
+            Dim baseIdx = vIdx * wpv
+            Dim slots = Math.Min(wpv, influences.Count)
+            For j = 0 To slots - 1
+                flatIdx(baseIdx + j) = CByte(influences(j).PaletteIndex And &HFF)
+                flatWgt(baseIdx + j) = CType(influences(j).Weight, Half)
             Next
         Next
 
-        skinData.BoneList = boneList
-        skinData.NumBones = CUInt(boneList.Count)
-        Return True
+        Return New ShapeSkinningData With {
+            .BoneIndices = flatIdx,
+            .BoneWeights = flatWgt,
+            .WeightsPerVertex = wpv,
+            .VertexCount = n
+        }
     End Function
 
     Private Shared Function CollapseVertexWeights(shape As Shape_class,
@@ -660,56 +570,26 @@ Public NotInheritable Class PhysicsWeightCollapseHelper
         Dim boneNames = GetShapeBoneNames(shape, nifShape)
         If boneNames.Count = 0 Then Return False
 
-        Dim tri = TryCast(nifShape, BSTriShape)
-        Dim skinData As NiSkinData = Nothing
-        Dim niSkin = TryCast(skin, NiSkinInstance)
-        If niSkin IsNot Nothing AndAlso niSkin.Data IsNot Nothing AndAlso niSkin.Data.Index >= 0 Then
-            skinData = TryCast(shape.ParentSliderSet.NIFContent.Blocks(niSkin.Data.Index), NiSkinData)
-        End If
+        Dim geom = shape.IR_Geometry
+        If geom Is Nothing Then Return False
 
-        Dim useSse = False
-        Dim sourceInfluences = BuildVertexInfluenceSnapshot(shape.ParentSliderSet.NIFContent, nifShape, tri, skinData, useSse, report)
+        Dim sourceInfluences = BuildInfluenceSnapshotFromGeometry(geom)
         If sourceInfluences Is Nothing OrElse sourceInfluences.Count = 0 Then Return False
 
         context = New ShapeAccessContext With {
             .NifShape = nifShape,
-            .TriShape = tri,
+            .Geometry = geom,
             .Skin = skin,
-            .SkinData = skinData,
             .BoneNames = boneNames,
-            .SourceInfluences = sourceInfluences,
-            .UseSse = useSse
+            .SourceInfluences = sourceInfluences
         }
         Return True
     End Function
-    Private Shared Function BuildVertexInfluenceSnapshot(nif As Nifcontent_Class_Manolo,
-                                                         nifShape As INiShape,
-                                                         tri As BSTriShape,
-                                                         skinData As NiSkinData,
-                                                         ByRef useSse As Boolean,
-                                                         ByRef report As String) As List(Of List(Of VertexInfluence))
-        Dim triSnapshot = BuildTriShapeInfluenceSnapshot(nif, tri, useSse)
-        If triSnapshot IsNot Nothing AndAlso HasAnyInfluences(triSnapshot) Then Return triSnapshot
+    Private Shared Function BuildInfluenceSnapshotFromGeometry(geom As IShapeGeometry) As List(Of List(Of VertexInfluence))
+        If geom Is Nothing Then Return Nothing
 
-        Dim vertexCount = If(nifShape Is Nothing, 0, CInt(nifShape.VertexCount))
-        Dim skinSnapshot = BuildNiSkinDataInfluenceSnapshot(skinData, vertexCount, report)
-        If skinSnapshot IsNot Nothing AndAlso HasAnyInfluences(skinSnapshot) Then Return skinSnapshot
-
-        If triSnapshot IsNot Nothing Then Return triSnapshot
-        Return skinSnapshot
-    End Function
-
-    Private Shared Function BuildTriShapeInfluenceSnapshot(nif As Nifcontent_Class_Manolo, tri As BSTriShape, ByRef useSse As Boolean) As List(Of List(Of VertexInfluence))
-        useSse = False
-        If tri Is Nothing OrElse nif Is Nothing Then Return Nothing
-
-        ' useSse remains exposed to the caller because downstream code branches on it
-        ' (ApplyTriShapeVertexRewrites picks VertexData vs VertexDataSSE).
-        useSse = tri.VertexDataSSE IsNot Nothing AndAlso tri.VertexDataSSE.Count > 0
-
-        ' Use the shape geometry adapter: one bulk read of skinning into flat arrays
-        ' instead of N per-vertex reads through the inline BoneIndices4/BoneWeights4 structs.
-        Dim geom = ShapeGeometryFactory.For(tri, nif)
+        ' One bulk read via IShapeGeometry — covers BSTriShape (inline BSVertexData) and
+        ' NiTriShape family (NiSkinPartition or NiSkinData fallback) uniformly.
         Dim skin = geom.GetSkinning()
         If skin.VertexCount <= 0 Then Return Nothing
 
@@ -726,49 +606,6 @@ Public NotInheritable Class PhysicsWeightCollapseHelper
             snapshot.Add(ConvertInfluenceMapToOrderedList(merged, 4, True))
         Next
 
-        Return snapshot
-    End Function
-
-    Private Shared Function BuildNiSkinDataInfluenceSnapshot(skinData As NiSkinData,
-                                                             vertexCount As Integer,
-                                                             ByRef report As String) As List(Of List(Of VertexInfluence))
-        If skinData Is Nothing Then Return Nothing
-
-        Dim inferredVertexCount = vertexCount
-        If skinData.BoneList IsNot Nothing Then
-            For Each bone In skinData.BoneList
-                If bone.VertexWeights Is Nothing Then Continue For
-                For Each bw In bone.VertexWeights
-                    inferredVertexCount = Math.Max(inferredVertexCount, CInt(bw.Index) + 1)
-                Next
-            Next
-        End If
-
-        If inferredVertexCount <= 0 Then Return Nothing
-
-        Dim merged As New List(Of Dictionary(Of Integer, Single))(inferredVertexCount)
-        For i = 0 To inferredVertexCount - 1
-            merged.Add(New Dictionary(Of Integer, Single)())
-        Next
-
-        If skinData.BoneList IsNot Nothing Then
-            For boneIndex = 0 To skinData.BoneList.Count - 1
-                Dim bone = skinData.BoneList(boneIndex)
-                If bone.VertexWeights Is Nothing Then Continue For
-                For Each bw In bone.VertexWeights
-                    If bw.Index >= inferredVertexCount Then
-                        report = $"A NiSkinData entry references vertex {bw.Index}, but the shape only exposes {inferredVertexCount} vertices."
-                        Return Nothing
-                    End If
-                    AddWeight(merged(CInt(bw.Index)), boneIndex, bw.Weight)
-                Next
-            Next
-        End If
-
-        Dim snapshot As New List(Of List(Of VertexInfluence))(inferredVertexCount)
-        For Each dict In merged
-            snapshot.Add(ConvertInfluenceMapToOrderedList(dict, 4, True))
-        Next
         Return snapshot
     End Function
 
@@ -987,17 +824,6 @@ Public NotInheritable Class PhysicsWeightCollapseHelper
         Return candidate.Values.Sum() > current.Values.Sum()
     End Function
 
-    Private Shared Sub ConvertInfluenceListToSkinArrays(influences As List(Of VertexInfluence), ByRef boneIndices As Byte(), ByRef boneWeights As Half())
-        boneIndices = New Byte(3) {}
-        boneWeights = New Half(3) {}
-        If influences Is Nothing Then Exit Sub
-
-        For i = 0 To Math.Min(3, influences.Count - 1)
-            boneIndices(i) = CByte(influences(i).PaletteIndex)
-            boneWeights(i) = CType(influences(i).Weight, Half)
-        Next
-    End Sub
-
     Private Shared Function ConvertInfluenceMapToOrderedList(source As Dictionary(Of Integer, Single),
                                                              maxInfluences As Integer,
                                                              normalize As Boolean) As List(Of VertexInfluence)
@@ -1046,11 +872,6 @@ Public NotInheritable Class PhysicsWeightCollapseHelper
         Next
 
         Return clone
-    End Function
-
-    Private Shared Function HasAnyInfluences(snapshot As List(Of List(Of VertexInfluence))) As Boolean
-        If snapshot Is Nothing Then Return False
-        Return snapshot.Any(Function(entry) entry IsNot Nothing AndAlso entry.Any(Function(weight) weight.Weight > WeightEpsilon))
     End Function
 
     Private Shared Sub AddWeight(target As Dictionary(Of String, Single), boneName As String, weight As Single)
@@ -1104,36 +925,25 @@ Public NotInheritable Class PhysicsWeightCollapseHelper
 
     Private NotInheritable Class ShapeAccessContext
         Public Property NifShape As INiShape
-        Public Property TriShape As BSTriShape
+        Public Property Geometry As IShapeGeometry
         Public Property Skin As INiSkin
-        Public Property SkinData As NiSkinData
         Public Property BoneNames As List(Of String)
         Public Property SourceInfluences As List(Of List(Of VertexInfluence))
-        Public Property UseSse As Boolean
     End Class
 
     Private NotInheritable Class ShapeRewritePlan
         Public Property Shape As Shape_class
         Public Property NifShape As INiShape
-        Public Property TriShape As BSTriShape
+        Public Property Geometry As IShapeGeometry
         Public Property Skin As INiSkin
-        Public Property SkinData As NiSkinData
-        Public Property UseSse As Boolean
         Public Property AllVertexInfluences As List(Of List(Of VertexInfluence))
         Public ReadOnly Property MissingPaletteBones As New List(Of String)
-        Public ReadOnly Property VertexRewrites As New List(Of VertexRewritePlan)
+        Public ReadOnly Property RewrittenVertexIndices As New List(Of Integer)
     End Class
 
     Private Structure VertexInfluence
         Public Property PaletteIndex As Integer
         Public Property Weight As Single
-    End Structure
-
-    Private Structure VertexRewritePlan
-        Public Property VertexIndex As Integer
-        Public Property Influences As List(Of VertexInfluence)
-        Public Property BoneIndices As Byte()
-        Public Property BoneWeights As Half()
     End Structure
 End Class
 
