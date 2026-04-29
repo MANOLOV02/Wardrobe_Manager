@@ -968,8 +968,7 @@ Public Class Editor_Form
 
             Selected_Slider.Save_Shapedatas(True)
             Selected_Slider.ParentOSP.Save_Pack(True)
-            Dim hhfile = Selected_Slider.SourceFileFullPath
-            If hhfile.EndsWith(".hht") = False Then hhfile += ".hht"
+            Dim hhfile = IO.Path.ChangeExtension(Selected_Slider.SourceFileFullPath, ".hht")
             Selected_Slider.SaveHighHeel(hhfile, True)
             Finalizado_Edit()
             SavedTargetProject = True
