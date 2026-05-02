@@ -142,11 +142,12 @@ Partial Class Create_from_Nif_Form
         ' 
         AutoScaleDimensions = New SizeF(7F, 15F)
         AutoScaleMode = AutoScaleMode.Font
+        AutoScroll = True
         ClientSize = New Size(1236, 582)
         Controls.Add(SplitContainer1)
         MaximizeBox = False
         MinimizeBox = False
-        MinimumSize = New Size(500, 500)
+        MinimumSize = New Size(800, 500)
         Name = "Create_from_Nif_Form"
         StartPosition = FormStartPosition.CenterParent
         Text = "Create project from nif file"

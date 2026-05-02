@@ -26,8 +26,9 @@ Public Class Create_from_Nif_Form
         ArgumentNullException.ThrowIfNull(allowedExts)
         Me.DictionaryPicker_Control1.Initialize(keys, rootPrefix, allowedExts)
         Me.DictionaryPicker_Control1.Preselect(initialkey)
-        Me.DictionaryPicker_Control1.AllowClone = False
+        Me.DictionaryPicker_Control1.AllowClone = True
         Me.DictionaryPicker_Control1.btnOk.Text = "Create"
+        Me.DictionaryPicker_Control1.btnOk.Font = New Font(Me.DictionaryPicker_Control1.btnOk.Font, FontStyle.Bold)
         Me.DictionaryPicker_Control1.btnCancel.Text = "Exit"
     End Sub
 

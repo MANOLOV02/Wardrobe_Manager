@@ -2079,6 +2079,7 @@ Public Class Wardrobe_Manager_Form
     Private Async Sub OSPManager_Form_Shown(sender As Object, e As EventArgs) Handles Me.Shown
         preview_Control = New PreviewControl With {.Dock = DockStyle.Fill}
         Panel_Preview_Container.Controls.Add(preview_Control)
+        preview_Control.BringToFront()
         'SingleBoneCheck.Checked = preview_Control.Model.SingleBoneSkinning
         'RecalculateNormalsCheck.Checked = preview_Control.Model.RecalculateNormals
         Pone_checks()

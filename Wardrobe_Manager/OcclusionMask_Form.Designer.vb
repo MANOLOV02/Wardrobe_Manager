@@ -228,6 +228,9 @@ Partial Class OcclusionMask_Form
         ' 
         ' OcclusionMask_Form
         ' 
+        AutoScaleDimensions = New SizeF(7F, 15F)
+        AutoScaleMode = AutoScaleMode.Font
+        AutoScroll = True
         CancelButton = btnClose
         ClientSize = New Size(360, 312)
         Controls.Add(btnApply)

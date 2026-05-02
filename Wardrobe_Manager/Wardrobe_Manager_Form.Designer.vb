@@ -45,14 +45,15 @@ Partial Class Wardrobe_Manager_Form
         EditTargetButton = New Button()
         Auto_Move_Check = New CheckBox()
         GroupBox1 = New GroupBox()
-        RadioButton3 = New RadioButton()
-        Physics_Label = New Label()
-        ButtonDataSheetSelected = New Button()
-        ButtonPreviewSelected = New Button()
-        Panel_Preview_Container = New Panel()
-        Label6 = New Label()
-        RadioButton2 = New RadioButton()
+        Split_Details = New SplitContainer()
         RadioButton1 = New RadioButton()
+        RadioButton2 = New RadioButton()
+        RadioButton3 = New RadioButton()
+        Label6 = New Label()
+        Physics_Label = New Label()
+        ButtonPreviewSelected = New Button()
+        ButtonDataSheetSelected = New Button()
+        Panel_Preview_Container = New Panel()
         TableLayoutPanel1 = New TableLayoutPanel()
         RecalculateNormalsCheck = New CheckBox()
         SingleBoneCheck = New CheckBox()
@@ -122,6 +123,10 @@ Partial Class Wardrobe_Manager_Form
         Panel4 = New Panel()
         ToolTip1 = New ToolTip(components)
         GroupBox1.SuspendLayout()
+        CType(Split_Details, ComponentModel.ISupportInitialize).BeginInit()
+        Split_Details.Panel1.SuspendLayout()
+        Split_Details.Panel2.SuspendLayout()
+        Split_Details.SuspendLayout()
         Panel_Preview_Container.SuspendLayout()
         TableLayoutPanel1.SuspendLayout()
         GroupBox2.SuspendLayout()
@@ -174,7 +179,7 @@ Partial Class Wardrobe_Manager_Form
         ComboboxPacks.FormattingEnabled = True
         ComboboxPacks.Location = New Point(154, 34)
         ComboboxPacks.Name = "ComboboxPacks"
-        ComboboxPacks.Size = New Size(408, 29)
+        ComboboxPacks.Size = New Size(268, 29)
         ComboboxPacks.TabIndex = 1
         ToolTip1.SetToolTip(ComboboxPacks, "Select the current destination pack. All target operations apply to this pack.")
         ' 
@@ -204,7 +209,7 @@ Partial Class Wardrobe_Manager_Form
         TextBox_SourceName.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         TextBox_SourceName.Location = New Point(139, 3)
         TextBox_SourceName.Name = "TextBox_SourceName"
-        TextBox_SourceName.Size = New Size(451, 29)
+        TextBox_SourceName.Size = New Size(319, 29)
         TextBox_SourceName.TabIndex = 0
         ToolTip1.SetToolTip(TextBox_SourceName, "Filter source projects by name, description, or file.")
         ' 
@@ -238,7 +243,7 @@ Partial Class Wardrobe_Manager_Form
         ListView2.FullRowSelect = True
         ListView2.Location = New Point(0, 0)
         ListView2.Name = "ListView2"
-        ListView2.Size = New Size(584, 681)
+        ListView2.Size = New Size(454, 327)
         ListView2.TabIndex = 12
         ListView2.UseCompatibleStateImageBehavior = False
         ListView2.View = View.Details
@@ -270,7 +275,7 @@ Partial Class Wardrobe_Manager_Form
         Exclude_Reference_Checkbox.Dock = DockStyle.Fill
         Exclude_Reference_Checkbox.Location = New Point(3, 3)
         Exclude_Reference_Checkbox.Name = "Exclude_Reference_Checkbox"
-        Exclude_Reference_Checkbox.Size = New Size(189, 28)
+        Exclude_Reference_Checkbox.Size = New Size(145, 28)
         Exclude_Reference_Checkbox.TabIndex = 0
         Exclude_Reference_Checkbox.Text = "Exclude reference"
         ToolTip1.SetToolTip(Exclude_Reference_Checkbox, "When enabled, removes the reference shape while copying or merging projects.")
@@ -282,7 +287,7 @@ Partial Class Wardrobe_Manager_Form
         Ovewrite_DataFiles.Dock = DockStyle.Fill
         Ovewrite_DataFiles.Location = New Point(3, 37)
         Ovewrite_DataFiles.Name = "Ovewrite_DataFiles"
-        Ovewrite_DataFiles.Size = New Size(189, 28)
+        Ovewrite_DataFiles.Size = New Size(145, 28)
         Ovewrite_DataFiles.TabIndex = 3
         Ovewrite_DataFiles.Text = "Overwrite files"
         ToolTip1.SetToolTip(Ovewrite_DataFiles, "Allow existing output files, shapedata, materials, or textures to be overwritten without asking.")
@@ -292,7 +297,7 @@ Partial Class Wardrobe_Manager_Form
         ' 
         NewPackButton.Anchor = AnchorStyles.Top Or AnchorStyles.Right
         NewPackButton.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        NewPackButton.Location = New Point(576, 36)
+        NewPackButton.Location = New Point(436, 36)
         NewPackButton.Name = "NewPackButton"
         NewPackButton.Size = New Size(64, 29)
         NewPackButton.TabIndex = 2
@@ -307,7 +312,7 @@ Partial Class Wardrobe_Manager_Form
         ListViewTargets.FullRowSelect = True
         ListViewTargets.Location = New Point(0, 0)
         ListViewTargets.Name = "ListViewTargets"
-        ListViewTargets.Size = New Size(646, 820)
+        ListViewTargets.Size = New Size(506, 480)
         ListViewTargets.TabIndex = 0
         ToolTip1.SetToolTip(ListViewTargets, "Targets projects loaded from SliderSets. Select one or more projects to copy, merge, edit, or build.")
         ListViewTargets.UseCompatibleStateImageBehavior = False
@@ -338,7 +343,7 @@ Partial Class Wardrobe_Manager_Form
         EditTargetButton.ImageList = ImageList1
         EditTargetButton.Location = New Point(3, 71)
         EditTargetButton.Name = "EditTargetButton"
-        EditTargetButton.Size = New Size(207, 29)
+        EditTargetButton.Size = New Size(160, 29)
         EditTargetButton.TabIndex = 5
         EditTargetButton.Text = "Edit in OS"
         EditTargetButton.TextImageRelation = TextImageRelation.ImageBeforeText
@@ -349,9 +354,9 @@ Partial Class Wardrobe_Manager_Form
         ' 
         Auto_Move_Check.AutoSize = True
         Auto_Move_Check.Dock = DockStyle.Fill
-        Auto_Move_Check.Location = New Point(198, 37)
+        Auto_Move_Check.Location = New Point(154, 37)
         Auto_Move_Check.Name = "Auto_Move_Check"
-        Auto_Move_Check.Size = New Size(189, 28)
+        Auto_Move_Check.Size = New Size(146, 28)
         Auto_Move_Check.TabIndex = 4
         Auto_Move_Check.Text = "Auto move"
         ToolTip1.SetToolTip(Auto_Move_Check, "After a successful operation, move processed source projects to the Processed folder automatically.")
@@ -359,27 +364,69 @@ Partial Class Wardrobe_Manager_Form
         ' 
         ' GroupBox1
         ' 
-        GroupBox1.Controls.Add(RadioButton3)
-        GroupBox1.Controls.Add(Physics_Label)
-        GroupBox1.Controls.Add(ButtonDataSheetSelected)
-        GroupBox1.Controls.Add(ButtonPreviewSelected)
-        GroupBox1.Controls.Add(Panel_Preview_Container)
-        GroupBox1.Controls.Add(Label6)
-        GroupBox1.Controls.Add(RadioButton2)
-        GroupBox1.Controls.Add(RadioButton1)
+        GroupBox1.Controls.Add(Split_Details)
         GroupBox1.Dock = DockStyle.Fill
         GroupBox1.Location = New Point(0, 0)
         GroupBox1.Name = "GroupBox1"
-        GroupBox1.Size = New Size(592, 752)
+        GroupBox1.Size = New Size(462, 412)
         GroupBox1.TabIndex = 30
         GroupBox1.TabStop = False
         GroupBox1.Text = "Details for"
+        ' 
+        ' Split_Details
+        ' 
+        Split_Details.Dock = DockStyle.Fill
+        Split_Details.FixedPanel = FixedPanel.Panel1
+        Split_Details.IsSplitterFixed = True
+        Split_Details.Location = New Point(3, 19)
+        Split_Details.Name = "Split_Details"
+        Split_Details.Orientation = Orientation.Horizontal
+        ' 
+        ' Split_Details.Panel1
+        ' 
+        Split_Details.Panel1.Controls.Add(RadioButton1)
+        Split_Details.Panel1.Controls.Add(RadioButton2)
+        Split_Details.Panel1.Controls.Add(RadioButton3)
+        Split_Details.Panel1.Controls.Add(Label6)
+        Split_Details.Panel1.Controls.Add(Physics_Label)
+        Split_Details.Panel1.Controls.Add(ButtonPreviewSelected)
+        Split_Details.Panel1.Controls.Add(ButtonDataSheetSelected)
+        ' 
+        ' Split_Details.Panel2
+        ' 
+        Split_Details.Panel2.Controls.Add(Panel_Preview_Container)
+        Split_Details.Size = New Size(456, 390)
+        Split_Details.SplitterDistance = 60
+        Split_Details.SplitterWidth = 1
+        Split_Details.TabIndex = 0
+        ' 
+        ' RadioButton1
+        ' 
+        RadioButton1.AutoSize = True
+        RadioButton1.Location = New Point(8, 3)
+        RadioButton1.Name = "RadioButton1"
+        RadioButton1.Size = New Size(61, 19)
+        RadioButton1.TabIndex = 13
+        RadioButton1.Text = "Source"
+        ToolTip1.SetToolTip(RadioButton1, "Show preview and details for the selected source project.")
+        RadioButton1.UseVisualStyleBackColor = True
+        ' 
+        ' RadioButton2
+        ' 
+        RadioButton2.AutoSize = True
+        RadioButton2.Location = New Point(94, 3)
+        RadioButton2.Name = "RadioButton2"
+        RadioButton2.Size = New Size(58, 19)
+        RadioButton2.TabIndex = 14
+        RadioButton2.Text = "Target"
+        ToolTip1.SetToolTip(RadioButton2, "Show preview and  details for the selected target project.")
+        RadioButton2.UseVisualStyleBackColor = True
         ' 
         ' RadioButton3
         ' 
         RadioButton3.AutoSize = True
         RadioButton3.Checked = True
-        RadioButton3.Location = New Point(175, 21)
+        RadioButton3.Location = New Point(178, 3)
         RadioButton3.Name = "RadioButton3"
         RadioButton3.Size = New Size(51, 19)
         RadioButton3.TabIndex = 41
@@ -388,33 +435,36 @@ Partial Class Wardrobe_Manager_Form
         ToolTip1.SetToolTip(RadioButton3, "Automatically show preview and details for the list that currently has focus.")
         RadioButton3.UseVisualStyleBackColor = True
         ' 
+        ' Label6
+        ' 
+        Label6.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
+        Label6.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label6.ForeColor = Color.Red
+        Label6.Location = New Point(268, 3)
+        Label6.Name = "Label6"
+        Label6.Size = New Size(186, 20)
+        Label6.TabIndex = 31
+        Label6.Text = "High Heels"
+        Label6.TextAlign = ContentAlignment.MiddleLeft
+        Label6.Visible = False
+        ' 
         ' Physics_Label
         ' 
         Physics_Label.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
         Physics_Label.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Physics_Label.ForeColor = Color.Brown
-        Physics_Label.Location = New Point(267, 38)
+        Physics_Label.Location = New Point(268, 23)
         Physics_Label.Name = "Physics_Label"
-        Physics_Label.Size = New Size(322, 20)
+        Physics_Label.Size = New Size(186, 20)
         Physics_Label.TabIndex = 39
         Physics_Label.Text = "Physics"
         Physics_Label.TextAlign = ContentAlignment.MiddleLeft
         Physics_Label.Visible = False
         ' 
-        ' ButtonDataSheetSelected
-        ' 
-        ButtonDataSheetSelected.Location = New Point(83, 46)
-        ButtonDataSheetSelected.Name = "ButtonDataSheetSelected"
-        ButtonDataSheetSelected.Size = New Size(72, 22)
-        ButtonDataSheetSelected.TabIndex = 38
-        ButtonDataSheetSelected.Text = "Data"
-        ToolTip1.SetToolTip(ButtonDataSheetSelected, "Show project data instead of the 3D preview.")
-        ButtonDataSheetSelected.UseVisualStyleBackColor = True
-        ' 
         ' ButtonPreviewSelected
         ' 
         ButtonPreviewSelected.FlatStyle = FlatStyle.Flat
-        ButtonPreviewSelected.Location = New Point(5, 46)
+        ButtonPreviewSelected.Location = New Point(8, 28)
         ButtonPreviewSelected.Name = "ButtonPreviewSelected"
         ButtonPreviewSelected.Size = New Size(72, 22)
         ButtonPreviewSelected.TabIndex = 37
@@ -422,50 +472,25 @@ Partial Class Wardrobe_Manager_Form
         ToolTip1.SetToolTip(ButtonPreviewSelected, "Show the 3D preview for the selected project.")
         ButtonPreviewSelected.UseVisualStyleBackColor = True
         ' 
+        ' ButtonDataSheetSelected
+        ' 
+        ButtonDataSheetSelected.Location = New Point(86, 28)
+        ButtonDataSheetSelected.Name = "ButtonDataSheetSelected"
+        ButtonDataSheetSelected.Size = New Size(72, 22)
+        ButtonDataSheetSelected.TabIndex = 38
+        ButtonDataSheetSelected.Text = "Data"
+        ToolTip1.SetToolTip(ButtonDataSheetSelected, "Show project data instead of the 3D preview.")
+        ButtonDataSheetSelected.UseVisualStyleBackColor = True
+        ' 
         ' Panel_Preview_Container
         ' 
-        Panel_Preview_Container.Anchor = AnchorStyles.Top Or AnchorStyles.Bottom Or AnchorStyles.Left Or AnchorStyles.Right
         Panel_Preview_Container.BorderStyle = BorderStyle.FixedSingle
         Panel_Preview_Container.Controls.Add(ListView2)
-        Panel_Preview_Container.Location = New Point(2, 69)
+        Panel_Preview_Container.Dock = DockStyle.Fill
+        Panel_Preview_Container.Location = New Point(0, 0)
         Panel_Preview_Container.Name = "Panel_Preview_Container"
-        Panel_Preview_Container.Size = New Size(586, 683)
+        Panel_Preview_Container.Size = New Size(456, 329)
         Panel_Preview_Container.TabIndex = 36
-        ' 
-        ' Label6
-        ' 
-        Label6.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        Label6.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        Label6.ForeColor = Color.Red
-        Label6.Location = New Point(267, 18)
-        Label6.Name = "Label6"
-        Label6.Size = New Size(319, 20)
-        Label6.TabIndex = 31
-        Label6.Text = "High Heels"
-        Label6.TextAlign = ContentAlignment.MiddleLeft
-        Label6.Visible = False
-        ' 
-        ' RadioButton2
-        ' 
-        RadioButton2.AutoSize = True
-        RadioButton2.Location = New Point(91, 21)
-        RadioButton2.Name = "RadioButton2"
-        RadioButton2.Size = New Size(58, 19)
-        RadioButton2.TabIndex = 14
-        RadioButton2.Text = "Target"
-        ToolTip1.SetToolTip(RadioButton2, "Show preview and  details for the selected target project.")
-        RadioButton2.UseVisualStyleBackColor = True
-        ' 
-        ' RadioButton1
-        ' 
-        RadioButton1.AutoSize = True
-        RadioButton1.Location = New Point(5, 21)
-        RadioButton1.Name = "RadioButton1"
-        RadioButton1.Size = New Size(61, 19)
-        RadioButton1.TabIndex = 13
-        RadioButton1.Text = "Source"
-        ToolTip1.SetToolTip(RadioButton1, "Show preview and details for the selected source project.")
-        RadioButton1.UseVisualStyleBackColor = True
         ' 
         ' TableLayoutPanel1
         ' 
@@ -491,7 +516,7 @@ Partial Class Wardrobe_Manager_Form
         TableLayoutPanel1.RowStyles.Add(New RowStyle(SizeType.Percent, 33.3333321F))
         TableLayoutPanel1.RowStyles.Add(New RowStyle(SizeType.Percent, 33.3333321F))
         TableLayoutPanel1.RowStyles.Add(New RowStyle(SizeType.Absolute, 20F))
-        TableLayoutPanel1.Size = New Size(586, 103)
+        TableLayoutPanel1.Size = New Size(456, 103)
         TableLayoutPanel1.TabIndex = 41
         ' 
         ' RecalculateNormalsCheck
@@ -500,9 +525,9 @@ Partial Class Wardrobe_Manager_Form
         RecalculateNormalsCheck.Checked = True
         RecalculateNormalsCheck.CheckState = CheckState.Checked
         RecalculateNormalsCheck.Dock = DockStyle.Fill
-        RecalculateNormalsCheck.Location = New Point(198, 71)
+        RecalculateNormalsCheck.Location = New Point(154, 71)
         RecalculateNormalsCheck.Name = "RecalculateNormalsCheck"
-        RecalculateNormalsCheck.Size = New Size(189, 29)
+        RecalculateNormalsCheck.Size = New Size(146, 29)
         RecalculateNormalsCheck.TabIndex = 9
         RecalculateNormalsCheck.Text = "Recalculate Normals"
         ToolTip1.SetToolTip(RecalculateNormalsCheck, "Recalculate normals in preview and building using the current normal reconstruction settings.")
@@ -512,9 +537,9 @@ Partial Class Wardrobe_Manager_Form
         ' 
         SingleBoneCheck.AutoSize = True
         SingleBoneCheck.Dock = DockStyle.Fill
-        SingleBoneCheck.Location = New Point(393, 71)
+        SingleBoneCheck.Location = New Point(306, 71)
         SingleBoneCheck.Name = "SingleBoneCheck"
-        SingleBoneCheck.Size = New Size(190, 29)
+        SingleBoneCheck.Size = New Size(147, 29)
         SingleBoneCheck.TabIndex = 8
         SingleBoneCheck.Text = "Single bone skinning"
         ToolTip1.SetToolTip(SingleBoneCheck, "Use single-bone skinning in preview. Faster, more resilient to complex physics, but posing support is not compatible.")
@@ -529,7 +554,7 @@ Partial Class Wardrobe_Manager_Form
         ButtonOpenConfig.ImageList = ImageList1
         ButtonOpenConfig.Location = New Point(3, 71)
         ButtonOpenConfig.Name = "ButtonOpenConfig"
-        ButtonOpenConfig.Size = New Size(189, 29)
+        ButtonOpenConfig.Size = New Size(145, 29)
         ButtonOpenConfig.TabIndex = 7
         ButtonOpenConfig.Text = "Settings"
         ButtonOpenConfig.TextImageRelation = TextImageRelation.ImageBeforeText
@@ -542,9 +567,9 @@ Partial Class Wardrobe_Manager_Form
         PhysicsCheckbox.Checked = True
         PhysicsCheckbox.CheckState = CheckState.Checked
         PhysicsCheckbox.Dock = DockStyle.Fill
-        PhysicsCheckbox.Location = New Point(198, 3)
+        PhysicsCheckbox.Location = New Point(154, 3)
         PhysicsCheckbox.Name = "PhysicsCheckbox"
-        PhysicsCheckbox.Size = New Size(189, 28)
+        PhysicsCheckbox.Size = New Size(146, 28)
         PhysicsCheckbox.TabIndex = 1
         PhysicsCheckbox.Text = "Keep physics"
         ToolTip1.SetToolTip(PhysicsCheckbox, "Keep physics during copy and merge operations (BSClothExtraData for FO4, HDT-SMP XML for SSE).")
@@ -556,9 +581,9 @@ Partial Class Wardrobe_Manager_Form
         CloneMaterialsCheck.Checked = True
         CloneMaterialsCheck.CheckState = CheckState.Checked
         CloneMaterialsCheck.Dock = DockStyle.Fill
-        CloneMaterialsCheck.Location = New Point(393, 3)
+        CloneMaterialsCheck.Location = New Point(306, 3)
         CloneMaterialsCheck.Name = "CloneMaterialsCheck"
-        CloneMaterialsCheck.Size = New Size(190, 28)
+        CloneMaterialsCheck.Size = New Size(147, 28)
         CloneMaterialsCheck.TabIndex = 2
         CloneMaterialsCheck.Text = "Clone materials"
         ToolTip1.SetToolTip(CloneMaterialsCheck, "Clone referenced material and texture files to independent loose files (for ba2 originals must be allowed in settings).")
@@ -570,9 +595,9 @@ Partial Class Wardrobe_Manager_Form
         OutputDirChangeCheck.Checked = True
         OutputDirChangeCheck.CheckState = CheckState.Checked
         OutputDirChangeCheck.Dock = DockStyle.Fill
-        OutputDirChangeCheck.Location = New Point(393, 37)
+        OutputDirChangeCheck.Location = New Point(306, 37)
         OutputDirChangeCheck.Name = "OutputDirChangeCheck"
-        OutputDirChangeCheck.Size = New Size(190, 28)
+        OutputDirChangeCheck.Size = New Size(147, 28)
         OutputDirChangeCheck.TabIndex = 5
         OutputDirChangeCheck.Text = "Change out dir."
         ToolTip1.SetToolTip(OutputDirChangeCheck, "Rewrite the output directory to a safe cloned path instead of keeping the original mesh output path (disable it for replacers).")
@@ -584,7 +609,7 @@ Partial Class Wardrobe_Manager_Form
         TextBox_TargetName.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         TextBox_TargetName.Location = New Point(154, 3)
         TextBox_TargetName.Name = "TextBox_TargetName"
-        TextBox_TargetName.Size = New Size(486, 29)
+        TextBox_TargetName.Size = New Size(345, 29)
         TextBox_TargetName.TabIndex = 0
         ToolTip1.SetToolTip(TextBox_TargetName, "Optional name override used when creating or copying target projects.")
         ' 
@@ -604,7 +629,7 @@ Partial Class Wardrobe_Manager_Form
         GroupBox2.Dock = DockStyle.Fill
         GroupBox2.Location = New Point(3, 3)
         GroupBox2.Name = "GroupBox2"
-        GroupBox2.Size = New Size(646, 125)
+        GroupBox2.Size = New Size(506, 125)
         GroupBox2.TabIndex = 33
         GroupBox2.TabStop = False
         GroupBox2.Text = "Project options"
@@ -631,7 +656,7 @@ Partial Class Wardrobe_Manager_Form
         TableLayoutPanel2.RowStyles.Add(New RowStyle(SizeType.Percent, 33.3333321F))
         TableLayoutPanel2.RowStyles.Add(New RowStyle(SizeType.Percent, 33.3333321F))
         TableLayoutPanel2.RowStyles.Add(New RowStyle(SizeType.Percent, 33.3333321F))
-        TableLayoutPanel2.Size = New Size(640, 103)
+        TableLayoutPanel2.Size = New Size(500, 103)
         TableLayoutPanel2.TabIndex = 6
         ' 
         ' ButtonBuildFullPack
@@ -641,9 +666,9 @@ Partial Class Wardrobe_Manager_Form
         ButtonBuildFullPack.ImageAlign = ContentAlignment.MiddleLeft
         ButtonBuildFullPack.ImageIndex = 11
         ButtonBuildFullPack.ImageList = ImageList1
-        ButtonBuildFullPack.Location = New Point(429, 71)
+        ButtonBuildFullPack.Location = New Point(335, 71)
         ButtonBuildFullPack.Name = "ButtonBuildFullPack"
-        ButtonBuildFullPack.Size = New Size(208, 29)
+        ButtonBuildFullPack.Size = New Size(162, 29)
         ButtonBuildFullPack.TabIndex = 8
         ButtonBuildFullPack.Text = "Build full pack"
         ButtonBuildFullPack.TextImageRelation = TextImageRelation.ImageBeforeText
@@ -658,9 +683,9 @@ Partial Class Wardrobe_Manager_Form
         ButtonEditInternally.ImageAlign = ContentAlignment.MiddleLeft
         ButtonEditInternally.ImageIndex = 10
         ButtonEditInternally.ImageList = ImageList1
-        ButtonEditInternally.Location = New Point(216, 71)
+        ButtonEditInternally.Location = New Point(169, 71)
         ButtonEditInternally.Name = "ButtonEditInternally"
-        ButtonEditInternally.Size = New Size(207, 29)
+        ButtonEditInternally.Size = New Size(160, 29)
         ButtonEditInternally.TabIndex = 7
         ButtonEditInternally.Text = "Edit internally"
         ButtonEditInternally.TextImageRelation = TextImageRelation.ImageBeforeText
@@ -674,9 +699,9 @@ Partial Class Wardrobe_Manager_Form
         ButtonBuildSingles.ImageAlign = ContentAlignment.MiddleLeft
         ButtonBuildSingles.ImageIndex = 11
         ButtonBuildSingles.ImageList = ImageList1
-        ButtonBuildSingles.Location = New Point(429, 3)
+        ButtonBuildSingles.Location = New Point(335, 3)
         ButtonBuildSingles.Name = "ButtonBuildSingles"
-        ButtonBuildSingles.Size = New Size(208, 28)
+        ButtonBuildSingles.Size = New Size(162, 28)
         ButtonBuildSingles.TabIndex = 6
         ButtonBuildSingles.Text = "Build"
         ButtonBuildSingles.TextImageRelation = TextImageRelation.ImageBeforeText
@@ -693,7 +718,7 @@ Partial Class Wardrobe_Manager_Form
         ButtonDelete.ImageList = ImageList1
         ButtonDelete.Location = New Point(3, 3)
         ButtonDelete.Name = "ButtonDelete"
-        ButtonDelete.Size = New Size(207, 28)
+        ButtonDelete.Size = New Size(160, 28)
         ButtonDelete.TabIndex = 0
         ButtonDelete.Text = "Delete"
         ButtonDelete.TextImageRelation = TextImageRelation.ImageBeforeText
@@ -708,9 +733,9 @@ Partial Class Wardrobe_Manager_Form
         CloneButton.ImageAlign = ContentAlignment.MiddleLeft
         CloneButton.ImageIndex = 8
         CloneButton.ImageList = ImageList1
-        CloneButton.Location = New Point(429, 37)
+        CloneButton.Location = New Point(335, 37)
         CloneButton.Name = "CloneButton"
-        CloneButton.Size = New Size(208, 28)
+        CloneButton.Size = New Size(162, 28)
         CloneButton.TabIndex = 4
         CloneButton.Text = "Clone target"
         CloneButton.TextImageRelation = TextImageRelation.ImageBeforeText
@@ -725,9 +750,9 @@ Partial Class Wardrobe_Manager_Form
         RenameButton.ImageAlign = ContentAlignment.MiddleLeft
         RenameButton.ImageIndex = 3
         RenameButton.ImageList = ImageList1
-        RenameButton.Location = New Point(216, 3)
+        RenameButton.Location = New Point(169, 3)
         RenameButton.Name = "RenameButton"
-        RenameButton.Size = New Size(207, 28)
+        RenameButton.Size = New Size(160, 28)
         RenameButton.TabIndex = 1
         RenameButton.Text = "Rename"
         RenameButton.TextImageRelation = TextImageRelation.ImageBeforeText
@@ -742,9 +767,9 @@ Partial Class Wardrobe_Manager_Form
         MergeIntoTargetButton.ImageAlign = ContentAlignment.MiddleLeft
         MergeIntoTargetButton.ImageIndex = 7
         MergeIntoTargetButton.ImageList = ImageList1
-        MergeIntoTargetButton.Location = New Point(216, 37)
+        MergeIntoTargetButton.Location = New Point(169, 37)
         MergeIntoTargetButton.Name = "MergeIntoTargetButton"
-        MergeIntoTargetButton.Size = New Size(207, 28)
+        MergeIntoTargetButton.Size = New Size(160, 28)
         MergeIntoTargetButton.TabIndex = 3
         MergeIntoTargetButton.Text = "Merge sources"
         MergeIntoTargetButton.TextImageRelation = TextImageRelation.ImageBeforeText
@@ -761,7 +786,7 @@ Partial Class Wardrobe_Manager_Form
         ExtractSingleButton.ImageList = ImageList1
         ExtractSingleButton.Location = New Point(3, 37)
         ExtractSingleButton.Name = "ExtractSingleButton"
-        ExtractSingleButton.Size = New Size(207, 28)
+        ExtractSingleButton.Size = New Size(160, 28)
         ExtractSingleButton.TabIndex = 2
         ExtractSingleButton.Text = "Extract to single"
         ExtractSingleButton.TextImageRelation = TextImageRelation.ImageBeforeText
@@ -786,7 +811,7 @@ Partial Class Wardrobe_Manager_Form
         ComboBoxPresets.FormattingEnabled = True
         ComboBoxPresets.Location = New Point(138, 34)
         ComboBoxPresets.Name = "ComboBoxPresets"
-        ComboBoxPresets.Size = New Size(347, 29)
+        ComboBoxPresets.Size = New Size(216, 29)
         ComboBoxPresets.TabIndex = 1
         ToolTip1.SetToolTip(ComboBoxPresets, "Select the preset sliders applied to preview and building.")
         ' 
@@ -804,8 +829,8 @@ Partial Class Wardrobe_Manager_Form
         ' SplitPrincipal_1.Panel2
         ' 
         SplitPrincipal_1.Panel2.Controls.Add(Split_Principal2)
-        SplitPrincipal_1.Size = New Size(1904, 1041)
-        SplitPrincipal_1.SplitterDistance = 650
+        SplitPrincipal_1.Size = New Size(1491, 701)
+        SplitPrincipal_1.SplitterDistance = 507
         SplitPrincipal_1.SplitterWidth = 2
         SplitPrincipal_1.TabIndex = 39
         ' 
@@ -829,8 +854,8 @@ Partial Class Wardrobe_Manager_Form
         Split_Split_y_Menu_Sources.Panel2.Controls.Add(GroupBox3)
         Split_Split_y_Menu_Sources.Panel2.Padding = New Padding(3)
         Split_Split_y_Menu_Sources.Panel2MinSize = 131
-        Split_Split_y_Menu_Sources.Size = New Size(650, 1041)
-        Split_Split_y_Menu_Sources.SplitterDistance = 908
+        Split_Split_y_Menu_Sources.Size = New Size(507, 701)
+        Split_Split_y_Menu_Sources.SplitterDistance = 568
         Split_Split_y_Menu_Sources.SplitterWidth = 2
         Split_Split_y_Menu_Sources.TabIndex = 41
         ' 
@@ -849,7 +874,7 @@ Partial Class Wardrobe_Manager_Form
         Panel2.Dock = DockStyle.Top
         Panel2.Location = New Point(3, 3)
         Panel2.Name = "Panel2"
-        Panel2.Size = New Size(644, 80)
+        Panel2.Size = New Size(501, 80)
         Panel2.TabIndex = 1
         ' 
         ' CheckBoxFixUncloned
@@ -857,7 +882,7 @@ Partial Class Wardrobe_Manager_Form
         CheckBoxFixUncloned.Anchor = AnchorStyles.Top Or AnchorStyles.Right
         CheckBoxFixUncloned.AutoSize = True
         CheckBoxFixUncloned.Enabled = False
-        CheckBoxFixUncloned.Location = New Point(520, 59)
+        CheckBoxFixUncloned.Location = New Point(377, 59)
         CheckBoxFixUncloned.Name = "CheckBoxFixUncloned"
         CheckBoxFixUncloned.Size = New Size(98, 19)
         CheckBoxFixUncloned.TabIndex = 25
@@ -869,7 +894,7 @@ Partial Class Wardrobe_Manager_Form
         ' 
         CheckBoxReloadDict.Anchor = AnchorStyles.Top Or AnchorStyles.Right
         CheckBoxReloadDict.AutoSize = True
-        CheckBoxReloadDict.Location = New Point(520, 40)
+        CheckBoxReloadDict.Location = New Point(377, 40)
         CheckBoxReloadDict.Name = "CheckBoxReloadDict"
         CheckBoxReloadDict.Size = New Size(118, 19)
         CheckBoxReloadDict.TabIndex = 24
@@ -881,9 +906,9 @@ Partial Class Wardrobe_Manager_Form
         ' 
         TextBox2.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
         TextBox2.Font = New Font("Segoe UI", 12F, FontStyle.Bold)
-        TextBox2.Location = New Point(170, 9)
+        TextBox2.Location = New Point(158, 9)
         TextBox2.Name = "TextBox2"
-        TextBox2.Size = New Size(468, 29)
+        TextBox2.Size = New Size(337, 29)
         TextBox2.TabIndex = 0
         ' 
         ' ShowCollectionsCheck
@@ -902,7 +927,7 @@ Partial Class Wardrobe_Manager_Form
         ' ShowCBBECheck
         ' 
         ShowCBBECheck.AutoSize = True
-        ShowCBBECheck.Location = New Point(170, 40)
+        ShowCBBECheck.Location = New Point(158, 40)
         ShowCBBECheck.Name = "ShowCBBECheck"
         ShowCBBECheck.Size = New Size(86, 19)
         ShowCBBECheck.TabIndex = 1
@@ -914,9 +939,9 @@ Partial Class Wardrobe_Manager_Form
         ' 
         RefreshButton.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
         RefreshButton.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        RefreshButton.Location = New Point(286, 44)
+        RefreshButton.Location = New Point(271, 44)
         RefreshButton.Name = "RefreshButton"
-        RefreshButton.Size = New Size(228, 29)
+        RefreshButton.Size = New Size(85, 29)
         RefreshButton.TabIndex = 2
         RefreshButton.Text = "Refresh"
         ToolTip1.SetToolTip(RefreshButton, "Reload projects, presets, poses, skeleton, and dictionaries from disk.")
@@ -935,7 +960,7 @@ Partial Class Wardrobe_Manager_Form
         ' DeepAnalize_check
         ' 
         DeepAnalize_check.AutoSize = True
-        DeepAnalize_check.Location = New Point(170, 59)
+        DeepAnalize_check.Location = New Point(158, 59)
         DeepAnalize_check.Name = "DeepAnalize_check"
         DeepAnalize_check.Size = New Size(95, 19)
         DeepAnalize_check.TabIndex = 5
@@ -966,7 +991,7 @@ Partial Class Wardrobe_Manager_Form
         ' Split_Panel_y_Lista_Source.Panel2
         ' 
         Split_Panel_y_Lista_Source.Panel2.Controls.Add(ListViewSources)
-        Split_Panel_y_Lista_Source.Size = New Size(644, 902)
+        Split_Panel_y_Lista_Source.Size = New Size(501, 562)
         Split_Panel_y_Lista_Source.SplitterDistance = 80
         Split_Panel_y_Lista_Source.SplitterWidth = 2
         Split_Panel_y_Lista_Source.TabIndex = 40
@@ -979,7 +1004,7 @@ Partial Class Wardrobe_Manager_Form
         ListViewSources.FullRowSelect = True
         ListViewSources.Location = New Point(0, 0)
         ListViewSources.Name = "ListViewSources"
-        ListViewSources.Size = New Size(644, 820)
+        ListViewSources.Size = New Size(501, 480)
         ListViewSources.TabIndex = 0
         ToolTip1.SetToolTip(ListViewSources, "Source projects loaded from SliderSets. Select one or more projects to copy, merge, edit, or remove.")
         ListViewSources.UseCompatibleStateImageBehavior = False
@@ -1006,7 +1031,7 @@ Partial Class Wardrobe_Manager_Form
         GroupBox3.Dock = DockStyle.Fill
         GroupBox3.Location = New Point(3, 3)
         GroupBox3.Name = "GroupBox3"
-        GroupBox3.Size = New Size(644, 125)
+        GroupBox3.Size = New Size(501, 125)
         GroupBox3.TabIndex = 34
         GroupBox3.TabStop = False
         GroupBox3.Text = "Source options"
@@ -1033,7 +1058,7 @@ Partial Class Wardrobe_Manager_Form
         TableLayoutPanel3.RowStyles.Add(New RowStyle(SizeType.Percent, 33.3333321F))
         TableLayoutPanel3.RowStyles.Add(New RowStyle(SizeType.Percent, 33.3333321F))
         TableLayoutPanel3.RowStyles.Add(New RowStyle(SizeType.Percent, 33.3333321F))
-        TableLayoutPanel3.Size = New Size(638, 103)
+        TableLayoutPanel3.Size = New Size(495, 103)
         TableLayoutPanel3.TabIndex = 5
         ' 
         ' ButtonCreateFromNif
@@ -1043,9 +1068,9 @@ Partial Class Wardrobe_Manager_Form
         ButtonCreateFromNif.ImageAlign = ContentAlignment.MiddleLeft
         ButtonCreateFromNif.ImageIndex = 8
         ButtonCreateFromNif.ImageList = ImageList1
-        ButtonCreateFromNif.Location = New Point(427, 71)
+        ButtonCreateFromNif.Location = New Point(333, 71)
         ButtonCreateFromNif.Name = "ButtonCreateFromNif"
-        ButtonCreateFromNif.Size = New Size(208, 29)
+        ButtonCreateFromNif.Size = New Size(159, 29)
         ButtonCreateFromNif.TabIndex = 10
         ButtonCreateFromNif.Text = "Create from NIF"
         ButtonCreateFromNif.TextImageRelation = TextImageRelation.ImageBeforeText
@@ -1060,9 +1085,9 @@ Partial Class Wardrobe_Manager_Form
         ButtonDeleteSource.ImageAlign = ContentAlignment.MiddleLeft
         ButtonDeleteSource.ImageKey = "agt_action_fail.ico"
         ButtonDeleteSource.ImageList = ImageList1
-        ButtonDeleteSource.Location = New Point(427, 37)
+        ButtonDeleteSource.Location = New Point(333, 37)
         ButtonDeleteSource.Name = "ButtonDeleteSource"
-        ButtonDeleteSource.Size = New Size(208, 28)
+        ButtonDeleteSource.Size = New Size(159, 28)
         ButtonDeleteSource.TabIndex = 9
         ButtonDeleteSource.Text = "Delete"
         ButtonDeleteSource.TextImageRelation = TextImageRelation.ImageBeforeText
@@ -1077,9 +1102,9 @@ Partial Class Wardrobe_Manager_Form
         MergeInSelectedButton.ImageAlign = ContentAlignment.MiddleLeft
         MergeInSelectedButton.ImageIndex = 7
         MergeInSelectedButton.ImageList = ImageList1
-        MergeInSelectedButton.Location = New Point(427, 3)
+        MergeInSelectedButton.Location = New Point(333, 3)
         MergeInSelectedButton.Name = "MergeInSelectedButton"
-        MergeInSelectedButton.Size = New Size(208, 28)
+        MergeInSelectedButton.Size = New Size(159, 28)
         MergeInSelectedButton.TabIndex = 5
         MergeInSelectedButton.Text = "Merge in selected"
         MergeInSelectedButton.TextImageRelation = TextImageRelation.ImageBeforeText
@@ -1096,7 +1121,7 @@ Partial Class Wardrobe_Manager_Form
         CopytoPackButton.ImageList = ImageList1
         CopytoPackButton.Location = New Point(3, 3)
         CopytoPackButton.Name = "CopytoPackButton"
-        CopytoPackButton.Size = New Size(206, 28)
+        CopytoPackButton.Size = New Size(159, 28)
         CopytoPackButton.TabIndex = 0
         CopytoPackButton.Text = "Copy singles"
         CopytoPackButton.TextImageRelation = TextImageRelation.ImageBeforeText
@@ -1113,7 +1138,7 @@ Partial Class Wardrobe_Manager_Form
         EditButton.ImageList = ImageList1
         EditButton.Location = New Point(3, 71)
         EditButton.Name = "EditButton"
-        EditButton.Size = New Size(206, 29)
+        EditButton.Size = New Size(159, 29)
         EditButton.TabIndex = 4
         EditButton.Text = "Edit in OS"
         EditButton.TextImageRelation = TextImageRelation.ImageBeforeText
@@ -1129,9 +1154,9 @@ Partial Class Wardrobe_Manager_Form
         MovetoDiscardedButton.ImageAlign = ContentAlignment.MiddleLeft
         MovetoDiscardedButton.ImageIndex = 0
         MovetoDiscardedButton.ImageList = ImageList1
-        MovetoDiscardedButton.Location = New Point(215, 37)
+        MovetoDiscardedButton.Location = New Point(168, 37)
         MovetoDiscardedButton.Name = "MovetoDiscardedButton"
-        MovetoDiscardedButton.Size = New Size(206, 28)
+        MovetoDiscardedButton.Size = New Size(159, 28)
         MovetoDiscardedButton.TabIndex = 3
         MovetoDiscardedButton.Text = "Move to discarded"
         MovetoDiscardedButton.TextImageRelation = TextImageRelation.ImageBeforeText
@@ -1149,7 +1174,7 @@ Partial Class Wardrobe_Manager_Form
         MoveToProcessedButton.ImageList = ImageList1
         MoveToProcessedButton.Location = New Point(3, 37)
         MoveToProcessedButton.Name = "MoveToProcessedButton"
-        MoveToProcessedButton.Size = New Size(206, 28)
+        MoveToProcessedButton.Size = New Size(159, 28)
         MoveToProcessedButton.TabIndex = 2
         MoveToProcessedButton.Text = "Move to processed"
         MoveToProcessedButton.TextImageRelation = TextImageRelation.ImageBeforeText
@@ -1164,9 +1189,9 @@ Partial Class Wardrobe_Manager_Form
         MergeButton.ImageAlign = ContentAlignment.MiddleLeft
         MergeButton.ImageIndex = 7
         MergeButton.ImageList = ImageList1
-        MergeButton.Location = New Point(215, 3)
+        MergeButton.Location = New Point(168, 3)
         MergeButton.Name = "MergeButton"
-        MergeButton.Size = New Size(206, 28)
+        MergeButton.Size = New Size(159, 28)
         MergeButton.TabIndex = 1
         MergeButton.Text = "Merge in new"
         MergeButton.TextImageRelation = TextImageRelation.ImageBeforeText
@@ -1181,9 +1206,9 @@ Partial Class Wardrobe_Manager_Form
         ButtonSourceInternalEdit.ImageAlign = ContentAlignment.MiddleLeft
         ButtonSourceInternalEdit.ImageIndex = 10
         ButtonSourceInternalEdit.ImageList = ImageList1
-        ButtonSourceInternalEdit.Location = New Point(215, 71)
+        ButtonSourceInternalEdit.Location = New Point(168, 71)
         ButtonSourceInternalEdit.Name = "ButtonSourceInternalEdit"
-        ButtonSourceInternalEdit.Size = New Size(206, 29)
+        ButtonSourceInternalEdit.Size = New Size(159, 29)
         ButtonSourceInternalEdit.TabIndex = 8
         ButtonSourceInternalEdit.Text = "Edit internally"
         ButtonSourceInternalEdit.TextImageRelation = TextImageRelation.ImageBeforeText
@@ -1204,8 +1229,8 @@ Partial Class Wardrobe_Manager_Form
         ' 
         Split_Principal2.Panel2.Controls.Add(Split_Split_y_Menu_Target)
         Split_Principal2.Panel2MinSize = 500
-        Split_Principal2.Size = New Size(1252, 1041)
-        Split_Principal2.SplitterDistance = 598
+        Split_Principal2.Size = New Size(982, 701)
+        Split_Principal2.SplitterDistance = 468
         Split_Principal2.SplitterWidth = 2
         Split_Principal2.TabIndex = 0
         ' 
@@ -1228,8 +1253,8 @@ Partial Class Wardrobe_Manager_Form
         Split_Previiew_y_Menu.Panel2.Controls.Add(GroupBox4)
         Split_Previiew_y_Menu.Panel2.Padding = New Padding(3)
         Split_Previiew_y_Menu.Panel2MinSize = 131
-        Split_Previiew_y_Menu.Size = New Size(598, 1041)
-        Split_Previiew_y_Menu.SplitterDistance = 908
+        Split_Previiew_y_Menu.Size = New Size(468, 701)
+        Split_Previiew_y_Menu.SplitterDistance = 568
         Split_Previiew_y_Menu.SplitterWidth = 2
         Split_Previiew_y_Menu.TabIndex = 41
         ' 
@@ -1249,7 +1274,7 @@ Partial Class Wardrobe_Manager_Form
         ' Split_Preview.Panel2
         ' 
         Split_Preview.Panel2.Controls.Add(GroupBox1)
-        Split_Preview.Size = New Size(592, 902)
+        Split_Preview.Size = New Size(462, 562)
         Split_Preview.SplitterDistance = 148
         Split_Preview.SplitterWidth = 2
         Split_Preview.TabIndex = 40
@@ -1269,7 +1294,7 @@ Partial Class Wardrobe_Manager_Form
         Panel3.Dock = DockStyle.Fill
         Panel3.Location = New Point(0, 0)
         Panel3.Name = "Panel3"
-        Panel3.Size = New Size(592, 148)
+        Panel3.Size = New Size(462, 148)
         Panel3.TabIndex = 41
         ' 
         ' ComboBoxSize
@@ -1279,7 +1304,7 @@ Partial Class Wardrobe_Manager_Form
         ComboBoxSize.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ComboBoxSize.FormattingEnabled = True
         ComboBoxSize.Items.AddRange(New Object() {"Default", "Big", "Small"})
-        ComboBoxSize.Location = New Point(491, 34)
+        ComboBoxSize.Location = New Point(360, 34)
         ComboBoxSize.Name = "ComboBoxSize"
         ComboBoxSize.Size = New Size(98, 29)
         ComboBoxSize.TabIndex = 46
@@ -1301,7 +1326,7 @@ Partial Class Wardrobe_Manager_Form
         TableLayoutPanel4.Name = "TableLayoutPanel4"
         TableLayoutPanel4.RowCount = 1
         TableLayoutPanel4.RowStyles.Add(New RowStyle(SizeType.Percent, 100F))
-        TableLayoutPanel4.Size = New Size(592, 34)
+        TableLayoutPanel4.Size = New Size(462, 34)
         TableLayoutPanel4.TabIndex = 45
         ' 
         ' ButtonLightRigSettings
@@ -1311,9 +1336,9 @@ Partial Class Wardrobe_Manager_Form
         ButtonLightRigSettings.ImageAlign = ContentAlignment.MiddleLeft
         ButtonLightRigSettings.ImageIndex = 16
         ButtonLightRigSettings.ImageList = ImageList1
-        ButtonLightRigSettings.Location = New Point(299, 3)
+        ButtonLightRigSettings.Location = New Point(233, 3)
         ButtonLightRigSettings.Name = "ButtonLightRigSettings"
-        ButtonLightRigSettings.Size = New Size(142, 28)
+        ButtonLightRigSettings.Size = New Size(109, 28)
         ButtonLightRigSettings.TabIndex = 46
         ButtonLightRigSettings.Text = "Lights"
         ButtonLightRigSettings.TextAlign = ContentAlignment.MiddleRight
@@ -1330,7 +1355,7 @@ Partial Class Wardrobe_Manager_Form
         ButtonLeftPanel.ImageList = ImageList1
         ButtonLeftPanel.Location = New Point(3, 3)
         ButtonLeftPanel.Name = "ButtonLeftPanel"
-        ButtonLeftPanel.Size = New Size(142, 28)
+        ButtonLeftPanel.Size = New Size(109, 28)
         ButtonLeftPanel.TabIndex = 43
         ButtonLeftPanel.Text = "Left panel"
         ButtonLeftPanel.TextAlign = ContentAlignment.MiddleLeft
@@ -1345,9 +1370,9 @@ Partial Class Wardrobe_Manager_Form
         ButtonRightPanel.ImageAlign = ContentAlignment.MiddleLeft
         ButtonRightPanel.ImageIndex = 15
         ButtonRightPanel.ImageList = ImageList1
-        ButtonRightPanel.Location = New Point(447, 3)
+        ButtonRightPanel.Location = New Point(348, 3)
         ButtonRightPanel.Name = "ButtonRightPanel"
-        ButtonRightPanel.Size = New Size(142, 28)
+        ButtonRightPanel.Size = New Size(111, 28)
         ButtonRightPanel.TabIndex = 44
         ButtonRightPanel.Text = "Right panel"
         ButtonRightPanel.TextAlign = ContentAlignment.MiddleRight
@@ -1362,10 +1387,10 @@ Partial Class Wardrobe_Manager_Form
         ColorComboBox1.DrawMode = DrawMode.OwnerDrawFixed
         ColorComboBox1.DropDownStyle = ComboBoxStyle.DropDownList
         ColorComboBox1.FormattingEnabled = True
-        ColorComboBox1.Location = New Point(151, 3)
+        ColorComboBox1.Location = New Point(118, 3)
         ColorComboBox1.Name = "ColorComboBox1"
         ColorComboBox1.SelectedColor = Color.Black
-        ColorComboBox1.Size = New Size(142, 24)
+        ColorComboBox1.Size = New Size(109, 24)
         ColorComboBox1.TabIndex = 45
         ToolTip1.SetToolTip(ColorComboBox1, "Select the preview background color.")
         ' 
@@ -1374,7 +1399,7 @@ Partial Class Wardrobe_Manager_Form
         ProgressBar1.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
         ProgressBar1.Location = New Point(4, 97)
         ProgressBar1.Name = "ProgressBar1"
-        ProgressBar1.Size = New Size(584, 11)
+        ProgressBar1.Size = New Size(453, 11)
         ProgressBar1.TabIndex = 42
         ' 
         ' Label4
@@ -1394,7 +1419,7 @@ Partial Class Wardrobe_Manager_Form
         ButtonSkeleton.ImageAlign = ContentAlignment.MiddleLeft
         ButtonSkeleton.ImageIndex = 13
         ButtonSkeleton.ImageList = ImageList1
-        ButtonSkeleton.Location = New Point(491, 67)
+        ButtonSkeleton.Location = New Point(360, 67)
         ButtonSkeleton.Name = "ButtonSkeleton"
         ButtonSkeleton.Size = New Size(99, 29)
         ButtonSkeleton.TabIndex = 40
@@ -1411,7 +1436,7 @@ Partial Class Wardrobe_Manager_Form
         ComboBoxPoses.FormattingEnabled = True
         ComboBoxPoses.Location = New Point(139, 66)
         ComboBoxPoses.Name = "ComboBoxPoses"
-        ComboBoxPoses.Size = New Size(346, 29)
+        ComboBoxPoses.Size = New Size(215, 29)
         ComboBoxPoses.TabIndex = 38
         ToolTip1.SetToolTip(ComboBoxPoses, "Select the preview pose.")
         ' 
@@ -1421,7 +1446,7 @@ Partial Class Wardrobe_Manager_Form
         GroupBox4.Dock = DockStyle.Fill
         GroupBox4.Location = New Point(3, 3)
         GroupBox4.Name = "GroupBox4"
-        GroupBox4.Size = New Size(592, 125)
+        GroupBox4.Size = New Size(462, 125)
         GroupBox4.TabIndex = 42
         GroupBox4.TabStop = False
         GroupBox4.Text = "File processing and rendering options"
@@ -1445,8 +1470,8 @@ Partial Class Wardrobe_Manager_Form
         Split_Split_y_Menu_Target.Panel2.Controls.Add(GroupBox2)
         Split_Split_y_Menu_Target.Panel2.Padding = New Padding(3)
         Split_Split_y_Menu_Target.Panel2MinSize = 131
-        Split_Split_y_Menu_Target.Size = New Size(652, 1041)
-        Split_Split_y_Menu_Target.SplitterDistance = 908
+        Split_Split_y_Menu_Target.Size = New Size(512, 701)
+        Split_Split_y_Menu_Target.SplitterDistance = 568
         Split_Split_y_Menu_Target.SplitterWidth = 2
         Split_Split_y_Menu_Target.TabIndex = 42
         ' 
@@ -1466,7 +1491,7 @@ Partial Class Wardrobe_Manager_Form
         ' Split_Panel_y_Lista_target.Panel2
         ' 
         Split_Panel_y_Lista_target.Panel2.Controls.Add(ListViewTargets)
-        Split_Panel_y_Lista_target.Size = New Size(646, 902)
+        Split_Panel_y_Lista_target.Size = New Size(506, 562)
         Split_Panel_y_Lista_target.SplitterDistance = 80
         Split_Panel_y_Lista_target.SplitterWidth = 2
         Split_Panel_y_Lista_target.TabIndex = 41
@@ -1482,24 +1507,29 @@ Partial Class Wardrobe_Manager_Form
         Panel4.Dock = DockStyle.Top
         Panel4.Location = New Point(0, 0)
         Panel4.Name = "Panel4"
-        Panel4.Size = New Size(646, 77)
+        Panel4.Size = New Size(506, 77)
         Panel4.TabIndex = 40
         ' 
         ' Wardrobe_Manager_Form
         ' 
         AutoScaleDimensions = New SizeF(7F, 15F)
         AutoScaleMode = AutoScaleMode.Font
-        ClientSize = New Size(1904, 1041)
+        AutoScroll = True
+        ClientSize = New Size(1491, 701)
         Controls.Add(SplitPrincipal_1)
         Icon = CType(resources.GetObject("$this.Icon"), Icon)
         KeyPreview = True
-        MinimumSize = New Size(1410, 825)
+        MinimumSize = New Size(1024, 714)
         Name = "Wardrobe_Manager_Form"
         StartPosition = FormStartPosition.CenterScreen
         Text = "FO4 / SSE - Wardrobe manager"
         WindowState = FormWindowState.Maximized
         GroupBox1.ResumeLayout(False)
-        GroupBox1.PerformLayout()
+        Split_Details.Panel1.ResumeLayout(False)
+        Split_Details.Panel1.PerformLayout()
+        Split_Details.Panel2.ResumeLayout(False)
+        CType(Split_Details, ComponentModel.ISupportInitialize).EndInit()
+        Split_Details.ResumeLayout(False)
         Panel_Preview_Container.ResumeLayout(False)
         TableLayoutPanel1.ResumeLayout(False)
         TableLayoutPanel1.PerformLayout()
@@ -1598,6 +1628,7 @@ Partial Class Wardrobe_Manager_Form
     Friend WithEvents Split_Previiew_y_Menu As SplitContainer
     Friend WithEvents GroupBox4 As GroupBox
     Friend WithEvents Panel_Preview_Container As Panel
+    Friend WithEvents Split_Details As SplitContainer
     Friend WithEvents ProgressBar1 As ProgressBar
     Friend WithEvents TableLayoutPanel2 As TableLayoutPanel
     Friend WithEvents Split_Split_y_Menu_Sources As SplitContainer

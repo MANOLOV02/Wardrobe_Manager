@@ -872,6 +872,7 @@ Partial Class LightRigForm
         ' 
         AutoScaleDimensions = New SizeF(7.0F, 15.0F)
         AutoScaleMode = AutoScaleMode.Font
+        AutoScroll = True
         ClientSize = New Size(866, 487)
         Controls.Add(GroupBox1)
         Controls.Add(btnReset)

@@ -2601,6 +2601,7 @@ Partial Class Editor_Form
         ' 
         AutoScaleDimensions = New SizeF(7F, 15F)
         AutoScaleMode = AutoScaleMode.Font
+        AutoScroll = True
         ClientSize = New Size(1618, 954)
         Controls.Add(GroupBox13)
         Controls.Add(GroupBox12)

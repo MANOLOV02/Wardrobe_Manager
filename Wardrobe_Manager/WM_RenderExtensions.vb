@@ -49,6 +49,7 @@ Public Module WM_RenderExtensions
         FilesDictionary_class.SetAppData(New SliderPresetCollection())
         ' Auto-detect BodySlide/OutfitStudio paths
         WM_Config.AutoDetectBSPaths()
+
     End Sub
 
     ''' <summary>Get/set the WM Last_rendered SliderSet for this control.</summary>

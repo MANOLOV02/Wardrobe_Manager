@@ -105,6 +105,7 @@ Partial Class MergeShapes_Form
         CancelButton = btnCancel
         AutoScaleDimensions = New SizeF(7.0F, 15.0F)
         AutoScaleMode = AutoScaleMode.Font
+        AutoScroll = True
         ClientSize = New Size(422, 374)
         Controls.Add(lblCurrentShape)
         Controls.Add(lblSelectShapes)

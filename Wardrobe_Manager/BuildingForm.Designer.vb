@@ -54,6 +54,7 @@ Partial Class BuildingForm
         ' 
         AutoScaleDimensions = New SizeF(7F, 15F)
         AutoScaleMode = AutoScaleMode.Font
+        AutoScroll = True
         ClientSize = New Size(581, 84)
         ControlBox = False
         Controls.Add(ProgressBar2)

@@ -238,6 +238,9 @@ Partial Class Conform_Form
         ' 
         ' Conform_Form
         ' 
+        AutoScaleDimensions = New SizeF(7F, 15F)
+        AutoScaleMode = AutoScaleMode.Font
+        AutoScroll = True
         CancelButton = btnClose
         ClientSize = New Size(398, 502)
         Controls.Add(btnApply)

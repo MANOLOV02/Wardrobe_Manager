@@ -1500,6 +1500,7 @@ Partial Class Config_Form
         ' 
         AutoScaleDimensions = New SizeF(7F, 15F)
         AutoScaleMode = AutoScaleMode.Font
+        AutoScroll = True
         ClientSize = New Size(952, 480)
         Controls.Add(TabControl1)
         FormBorderStyle = FormBorderStyle.FixedToolWindow
