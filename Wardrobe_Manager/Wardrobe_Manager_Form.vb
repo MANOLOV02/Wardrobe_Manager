@@ -2127,7 +2127,10 @@ Public Class Wardrobe_Manager_Form
             ProgressBar1.Value = Math.Min(update.Value, update.Max)
         End Sub)
         FilesDictionary_class.CacheDirectory = Application.StartupPath
-        Await FilesDictionary_class.Fill_DictionaryAsync(Directorios.Fallout4data, progress)
+        ' includeInactiveArchives:=True — WM lets the user inspect/clone material from inactive
+        ' mods, so their .ba2/.bsa content must be visible in the FilesDictionary. Active plugins
+        ' (and loose files) still win on path conflict; inactives only fill gaps.
+        Await FilesDictionary_class.Fill_DictionaryAsync(Directorios.Fallout4data, progress, includeInactiveArchives:=True)
         ProgressBar1.Value = 0
 
         ' Drenar errores acumulados por los workers del scan (BA2/loose/outer).
