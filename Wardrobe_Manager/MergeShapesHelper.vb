@@ -160,7 +160,7 @@ Public Class MergeShapesHelper
         ' here with proper StartIndex offset so dismember regions survive merge.  Only
         ' applies when target is BSTriShape family (BSSubIndex/BSMeshLOD specifically);
         ' for NiTri family targets MergeMetadataAfterApply no-ops internally.
-        MergeMetadataAfterApply(targetNifRaw, donorShapes, donorOffsets)
+        MergeMetadataAfterApply(targetGeom, donorShapes)
 
         ' ── 5. Update BSSkin_Instance bones and bone data ────────────────────
         If targetSkin IsNot Nothing Then
@@ -331,87 +331,134 @@ Public Class MergeShapesHelper
     End Sub
 
     ''' <summary>
-    ''' Merge-specific append/collapse for count-derived metadata that the per-triangle
-    ''' provenance redistribution can't express on its own.  Called after
+    ''' Merge-specific segmentation handling for BSSubIndexTriShape.  Called after
     ''' SkinningHelper.ApplyShapeGeometry has written the merged triangle list (target +
-    ''' donors concat) and the adapter has already preserved target-side metadata via the
-    ''' same-shape provenance entries.
+    ''' donors concat).  At entry: targetGeom.Triangles already contains target tris
+    ''' followed by donor[0] tris followed by donor[1] tris...  Target's pre-merge
+    ''' segmentation is intact in targetGeom (RedistributeSegments preserved it during the
+    ''' SetTriangles call inside ApplyShapeGeometry, since donors arrive as cross-shape
+    ''' provenance which RedistributeSegments ignores by design).
     '''
-    ''' BSSubIndexTriShape: target's Segments are intact post-Apply; append each donor's
-    ''' Segments with StartIndex offset by accumulated triangle count (×3 for vertex-index
-    ''' units).  SubSegmentDatas inherit the same offset.  Preserves dismember granularity
-    ''' across the merged shape.
+    ''' Conservative semantic routing — superset of BS-OS CopyGeo with strict safety.
+    ''' OS rejects merges whose source/target segmentation differs at all (CheckMerge at
+    ''' OutfitProject.cpp:3917-3943 requires identical SSFFile, identical segs.size,
+    ''' identical sub counts, identical userSlotID + material per (si, ssi) position).  When
+    ''' OS accepts, every donor sub matches a target sub by structural equality, so
+    ''' triParts copied verbatim from donor land in the equivalent target slot.  We
+    ''' generalize: per donor sub, look for any target sub with identical
+    ''' (UserSlotID, Material, ExtraData).  If found, route donor triangles in that
+    ''' partID to the target's matching partID.  If not found, route to 0 (target's first
+    ''' parent segment, same fallback as the previous WM behaviour and as OS's default
+    ''' partition).
     '''
-    ''' BSMeshLODTriShape: lossy collapse to LOD2 — target's LOD layout doesn't survive
-    ''' a concat that doesn't reorder triangles per LOD bucket.  Same canonical behaviour
-    ''' as BodySlide-and-Outfit-Studio Geometry.cpp:1522 BSMeshLODTriShape::
-    ''' notifyVerticesDelete (lodSize2 = numTriangles).
+    ''' Invariant: this routine NEVER adds parents/subs to mergedSnapshot.Info nor mutates
+    ''' any existing field.  Only mergedSnapshot.TriParts is updated.  Therefore
+    ''' SetSegmentation receives a (Info, TriParts) pair where Info is exactly the target's
+    ''' pre-merge segmentation — no risk of OOB in oldToNewPartIDs (every triParts[i] is
+    ''' either -1, 0, or a partID that already exists in Info), no risk of
+    ''' PerSegmentData.Count desync, no risk of inheriting donor extraData with mismatched
+    ''' NumCutOffsets.  When OS would have accepted the merge, we produce the same result
+    ''' as OS.  When OS would have rejected, we produce the same result as the prior WM
+    ''' behaviour (donor → partition 0) plus best-effort routing for any sub that happens
+    ''' to match exactly.
     '''
-    ''' DEBUGGER.BREAK / TO TEST: this path activates only on actor/armor merges where the
-    ''' target is BSSubIndex (rare in BodySlide outfits).  First execution should be
-    ''' verified in NifSkope: target Segments preserved + donor Segments appended at correct
-    ''' StartIndex.  See memory: pending_tests_shape_metadata.md
+    ''' BSMeshLODTriShape merge LOD handling is done by the adapter's
+    ''' ReorderTrianglesByLODTier during ApplyShapeGeometry — this function only handles
+    ''' BSSubIndex segmentation.
     ''' </summary>
-    Private Shared Sub MergeMetadataAfterApply(targetNif As INiShape,
-                                                donorShapes As List(Of Shape_class),
-                                                donorOffsets As List(Of Integer))
-        Dim targetSubIndex = TryCast(targetNif, BSSubIndexTriShape)
-        ' BSMeshLOD merge LOD handling is now done by the adapter's ReorderTrianglesByLODTier
-        ' during ApplyShapeGeometry — cross-shape (donor) triangles default to LOD2, target
-        ' triangles preserve their original tier.  This function only handles BSSubIndex
-        ' donor-segment append (the one piece the adapter's same-shape RedistributeSegments
-        ' can't cover since donor entries are cross-shape).
-        If targetSubIndex Is Nothing Then Return
+    Private Shared Sub MergeMetadataAfterApply(targetGeom As IShapeGeometry,
+                                                donorShapes As List(Of Shape_class))
+        Dim merged = BSTriShapeGeometry.GetSegmentation(targetGeom)
+        If merged.IsEmpty Then Return
 
-        ' BSSubIndex: append donor segments with offset.
-        If targetSubIndex IsNot Nothing Then
-            Dim merged As New List(Of BSGeometrySegmentData)()
-            If targetSubIndex.Segments IsNot Nothing Then merged.AddRange(targetSubIndex.Segments)
-            For di = 0 To donorShapes.Count - 1
-                Dim donorSub = TryCast(donorShapes(di).RelatedNifShape, BSSubIndexTriShape)
-                If donorSub Is Nothing OrElse donorSub.Segments Is Nothing Then Continue For
-                Dim triOffset As UInteger = CUInt(donorOffsets(di))   ' donor triangle offset = vertex offset / 3 — actually donor triangles started at the END of target triangles.
-                ' Actually triangle offset = current cumulative triangle count BEFORE this donor.
-                ' donorOffsets(di) is VERTEX offset, not triangle.  Need to recompute triangle offset.
-                Dim triOffsetTris As Integer = targetSubIndex.TriangleCount
-                For prev = 0 To di - 1
-                    triOffsetTris += donorShapes(prev).RelatedNifShape.TriangleCount
-                Next
-                Dim startIdxOffsetUnits As UInteger = CUInt(triOffsetTris) * 3UI
-                For Each dSeg In donorSub.Segments
-                    Dim newSeg As New BSGeometrySegmentData() With {
-                        .Flags = dSeg.Flags,
-                        .StartIndex = dSeg.StartIndex + startIdxOffsetUnits,
-                        .NumPrimitives = dSeg.NumPrimitives,
-                        .ParentArrayIndex = dSeg.ParentArrayIndex,
-                        .NumSubSegments = dSeg.NumSubSegments,
-                        .SubSegment = OffsetSubSegments(dSeg.SubSegment, startIdxOffsetUnits)
-                    }
-                    merged.Add(newSeg)
+        ' Build flat list of target subs with their PartID for O(targetSubs × donorSubs)
+        ' structural lookup.  Counts are tiny (<30 subs typical) so no hashing needed —
+        ' SequenceEqual on ExtraData is required anyway and would dominate any hash bucket.
+        Dim targetSubs As New List(Of BSTriShapeGeometry.NifSubSegmentInfo)()
+        For Each parentSeg In merged.Info.Segs
+            For Each sub_ In parentSeg.Subs
+                targetSubs.Add(sub_)
+            Next
+        Next
+
+        ' Locate where each donor's triangles begin in the merged geometry.  Mirrors the
+        ' concat order in step 3 of Merge: target tris first, then donor[0], then donor[1]...
+        Dim triCursor As Integer = targetGeom.TriangleCount
+        For di = donorShapes.Count - 1 To 0 Step -1
+            triCursor -= donorShapes(di).IR_Geometry.TriangleCount
+        Next
+
+        For di = 0 To donorShapes.Count - 1
+            Dim donorGeom = donorShapes(di).IR_Geometry
+            Dim donorSnap = BSTriShapeGeometry.GetSegmentation(donorGeom)
+            Dim donorTriCount As Integer = donorGeom.TriangleCount
+
+            If donorSnap.IsEmpty Then
+                ' Donor has no segmentation — its triangles already default to 0 in
+                ' merged.TriParts (init loop in GetSegmentation sets -1, SetSegmentation's
+                ' guard at BSTriShapeGeometry.vb:698 then leaves triParts[i] at 0).
+                triCursor += donorTriCount
+                Continue For
+            End If
+
+            ' Per-donor remap: donor partID → target partID (or -1 = no match → fallback to 0).
+            ' Reset for each donor so cross-donor scope can never leak.
+            Dim donorPartIDRemap As New Dictionary(Of Integer, Integer)()
+
+            For Each donorParent In donorSnap.Info.Segs
+                For Each donorSub In donorParent.Subs
+                    Dim matchPartID As Integer = -1
+                    For Each targetSub In targetSubs
+                        If targetSub.UserSlotID = donorSub.UserSlotID AndAlso
+                           targetSub.Material = donorSub.Material AndAlso
+                           ExtraDataEqual(targetSub.ExtraData, donorSub.ExtraData) Then
+                            matchPartID = targetSub.PartID
+                            Exit For
+                        End If
+                    Next
+                    If matchPartID >= 0 Then
+                        donorPartIDRemap(donorSub.PartID) = matchPartID
+                    End If
                 Next
             Next
-            targetSubIndex.Segments = merged
-        End If
+
+            ' Apply remap to donor triangles in mergedSnapshot.TriParts.  Triangles whose
+            ' donor partID has no entry in donorPartIDRemap stay at -1 → SetSegmentation
+            ' routes them to partition 0 of the target (canonical fallback).
+            For j = 0 To donorTriCount - 1
+                Dim donorPart = donorSnap.TriParts(j)
+                If donorPart >= 0 Then
+                    Dim mappedTo As Integer
+                    If donorPartIDRemap.TryGetValue(donorPart, mappedTo) Then
+                        merged.TriParts(triCursor + j) = mappedTo
+                    End If
+                    ' else: leave as -1 → SetSegmentation falls back to partition 0
+                End If
+            Next
+
+            triCursor += donorTriCount
+        Next
+
+        BSTriShapeGeometry.SetSegmentation(targetGeom, merged.Info, merged.TriParts)
     End Sub
 
     ''' <summary>
-    ''' Helper: clones a sub-segment list and bumps every StartIndex by the given offset
-    ''' (in vertex-index units, ×3 from triangle count).  NumPrimitives and ParentArrayIndex
-    ''' are preserved verbatim.
+    ''' Bit-exact comparison of two ExtraData (CutOffsets) lists.  Required for sub-segment
+    ''' match: NaN must not equal NaN under IEEE 754, and routing donor triangles into a
+    ''' target sub whose CutOffsets differ even by one bit could change in-game cut behaviour.
+    ''' Conservative: when in doubt, treat as different and fall back to partition 0.
     ''' </summary>
-    Private Shared Function OffsetSubSegments(subs As List(Of BSGeometrySubSegment),
-                                               startIdxOffsetUnits As UInteger) As List(Of BSGeometrySubSegment)
-        If subs Is Nothing Then Return New List(Of BSGeometrySubSegment)()
-        Dim result As New List(Of BSGeometrySubSegment)(subs.Count)
-        For Each s In subs
-            result.Add(New BSGeometrySubSegment() With {
-                .StartIndex = s.StartIndex + startIdxOffsetUnits,
-                .NumPrimitives = s.NumPrimitives,
-                .ParentArrayIndex = s.ParentArrayIndex,
-                .Unused = s.Unused
-            })
+    Private Shared Function ExtraDataEqual(a As List(Of Single), b As List(Of Single)) As Boolean
+        Dim aCount As Integer = If(a Is Nothing, 0, a.Count)
+        Dim bCount As Integer = If(b Is Nothing, 0, b.Count)
+        If aCount <> bCount Then Return False
+        If aCount = 0 Then Return True
+        For i = 0 To aCount - 1
+            If BitConverter.SingleToInt32Bits(a(i)) <> BitConverter.SingleToInt32Bits(b(i)) Then
+                Return False
+            End If
         Next
-        Return result
+        Return True
     End Function
 
 End Class

@@ -3702,6 +3702,27 @@ Public Class Slider_Data_class
         TargetOsd = osdFilename
         Return clones
     End Function
+    ''' <summary>
+    ''' Returns the OSD block that holds (or will hold) the diffs for <paramref name="targetShape"/>
+    ''' under <paramref name="slider"/>, materializing externals to local first.
+    '''
+    ''' Bug history: previous version looked up the block by the canonical synthetic name
+    ''' <c>targetShape.Target.Replace(":","_") &amp; slider.Nombre</c>.  When the actual block
+    ''' name on disk differed from that synthetic form (e.g. external .osd authored with
+    ''' a different naming convention, or shape renamed after the .osd was authored), the
+    ''' name lookup missed the just-materialized block and a NEW EMPTY block was created.
+    ''' Donor diffs were appended into that empty block while the real block with the
+    ''' target's pre-existing diffs sat orphaned.  Result: morph application reads from
+    ''' one block in some flows, the empty/donor-only block in others — outcome depends on
+    ''' source/target choice and shape names, exactly the symptom seen.
+    '''
+    ''' Fix: trust the data-by-target-attribute filter as the single source of truth.  The
+    ''' block returned is whatever <see cref="MaterializeEditableLocalBlocks"/> produced
+    ''' for the local target Data (or the existing local block if already materialized).
+    ''' Only fall back to creating a brand-new block when no Data entry exists for the
+    ''' target — in that path the synthetic name is correct because no prior block exists
+    ''' to conflict with it.
+    ''' </summary>
     Public Shared Function GetEditableTargetBlock(targetShape As Shape_class,
                                                 slider As Slider_class,
                                                 sliderSet As SliderSet_Class,
@@ -3712,10 +3733,18 @@ Public Class Slider_Data_class
             targetDatas = targetDatas.Where(Function(d) d.Islocal).ToList()
         End If
 
+        ' Materialize externals to local and capture the resulting blocks in order.  The
+        ' first materialized block is the one that holds the target's pre-existing diffs;
+        ' donor diffs append onto it so the merged shape carries both.
+        Dim materializedBlocks As New List(Of OSD_Block_Class)()
         For Each dat In targetDatas
-            dat.MaterializeEditableLocalBlocks()
+            materializedBlocks.AddRange(dat.MaterializeEditableLocalBlocks())
         Next
 
+        If materializedBlocks.Count > 0 Then Return materializedBlocks(0)
+
+        ' No Data entry for this target — create one with the canonical synthetic name.
+        ' Safe to use the synthetic name here because there is no prior block to mismatch.
         Dim blockName = targetShape.Target.Replace(":", "_") & slider.Nombre
         Dim targetBlock = sliderSet.OSDContent_Local.Blocks.FirstOrDefault(
             Function(b) b.BlockName.Equals(blockName, StringComparison.OrdinalIgnoreCase))
@@ -3724,9 +3753,7 @@ Public Class Slider_Data_class
         targetBlock = New OSD_Block_Class(sliderSet.OSDContent_Local) With {.BlockName = blockName}
         sliderSet.OSDContent_Local.Blocks.Add(targetBlock)
 
-        If targetDatas.Count = 0 Then
-            slider.Datas.Add(New Slider_Data_class(blockName, slider, targetShape.Target, osdFilename))
-        End If
+        slider.Datas.Add(New Slider_Data_class(blockName, slider, targetShape.Target, osdFilename))
 
         Return targetBlock
     End Function

@@ -118,33 +118,12 @@ Public Class SplitShapeHelper
 
         ' 6. Clone NIF shape while original still has full vertex data.  CloneShape_Original
         ' takes INiShape so it works for any supported family (BSTriShape, BSSubIndex,
-        ' NiTriShape, BSSegmented, etc.).
+        ' NiTriShape, BSSegmented, etc.).  NiflySharp's BSSubIndexTriShape copy constructor
+        ' (BSSubIndexTriShape.g.cs:84-92) deep-clones both _segment (ConvertAll +
+        ' BSGeometrySegmentData.DeepClone) and _segmentData (BSGeometrySegmentSharedData
+        ' .DeepClone) — split half ends up with structurally independent segmentation, no
+        ' alias breaking required from app side.
         Dim splitNifRaw As INiShape = sliderSet.NIFContent.CloneShape_Original(origNif, splitName, sliderSet.NIFContent)
-
-        ' Deep-copy safety: for BSSubIndexTriShape / BSSegmentedTriShape, NiflySharp's
-        ' clone may or may not deep-copy the Segments list (List<BSGeometrySegmentData>
-        ' of structs — reference shared unless NiflySharp explicitly clones).  If the
-        ' split half shares the original's Segments reference, our post-Apply
-        ' RedistributeSegments on split would mutate the original's Segments too →
-        ' both halves end up with the split-half's segment layout → dismember broken on
-        ' both.  Force a shallow-clone of the Segments list to break the alias.
-        Dim splitSubIdx = TryCast(splitNifRaw, BSSubIndexTriShape)
-        Dim origSubIdx = TryCast(origNif, BSSubIndexTriShape)
-        If splitSubIdx IsNot Nothing AndAlso origSubIdx IsNot Nothing AndAlso
-           splitSubIdx.Segments IsNot Nothing AndAlso
-           Object.ReferenceEquals(splitSubIdx.Segments, origSubIdx.Segments) Then
-            ' Shallow copy of the List (structs are value-copied; SubSegment lists are
-            ' the only nested reference — also needs its own copy per segment).
-            Dim cloned As New List(Of NiflySharp.Structs.BSGeometrySegmentData)(splitSubIdx.Segments.Count)
-            For Each seg In splitSubIdx.Segments
-                Dim segCopy = seg   ' struct copy (Flags/StartIndex/NumPrimitives/etc.)
-                If seg.SubSegment IsNot Nothing Then
-                    segCopy.SubSegment = New List(Of NiflySharp.Structs.BSGeometrySubSegment)(seg.SubSegment)
-                End If
-                cloned.Add(segCopy)
-            Next
-            splitSubIdx.Segments = cloned
-        End If
 
         ' Polymorphic split-shape adapter — BSTriShape-family clones into BSTriShape,
         ' NiTriShape-family clones into NiTriShape (NiflySharp's CloneShape preserves the
