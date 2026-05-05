@@ -10,10 +10,6 @@ Partial Public Class LightRigForm
 
         InitializeComponent()
         'ThemeManager.SetTheme(Config_App.Current.theme, Me)
-        ' Rango de sliders: 0..1.50
-        For Each tb In New TrackBar() {tbKey, tbFillL, tbFillR, tbBack, tambient}
-            tb.Minimum = 0 : tb.Maximum = 150 : tb.TickFrequency = 10
-        Next
 
         CargarValoresIniciales()
         AddHandlers()
@@ -22,11 +18,11 @@ Partial Public Class LightRigForm
     ' ====== Valores recomendados (coinciden con tu rig) ======
     Private Sub CargarValoresIniciales()
         ' Strengths
-        tbKey.Value = CInt(Config_App.Current.Setting_Lightrig.DirectL.Strength * 100)
-        tbFillL.Value = CInt(Config_App.Current.Setting_Lightrig.FillLight_1.Strength * 100)
-        tbFillR.Value = CInt(Config_App.Current.Setting_Lightrig.FillLight_2.Strength * 100)
-        tbBack.Value = CInt(Config_App.Current.Setting_Lightrig.BackLight.Strength * 100)
-        tambient.Value = CInt(Config_App.Current.Setting_Lightrig.Ambient * 100)
+        tbKey.Value = Config_App.Current.Setting_Lightrig.DirectL.Strength
+        tbFillL.Value = Config_App.Current.Setting_Lightrig.FillLight_1.Strength
+        tbFillR.Value = Config_App.Current.Setting_Lightrig.FillLight_2.Strength
+        tbBack.Value = Config_App.Current.Setting_Lightrig.BackLight.Strength
+        tambient.Value = Config_App.Current.Setting_Lightrig.Ambient
 
         ' Frontal (Key): Forward=+1
         nudK_U.Value = Config_App.Current.Setting_Lightrig.DirectL.Up : nudK_D.Value = Config_App.Current.Setting_Lightrig.DirectL.Down
@@ -51,16 +47,15 @@ Partial Public Class LightRigForm
         nudB_F.Value = Config_App.Current.Setting_Lightrig.BackLight.Forward : nudB_B.Value = Config_App.Current.Setting_Lightrig.BackLight.Back
 
 
-        ActualizarEtiquetas()
         VolcarUIenModelo()
     End Sub
 
     Private Sub AddHandlers()
-        AddHandler tbKey.Scroll, AddressOf ActualizarEtiquetas
-        AddHandler tbFillL.Scroll, AddressOf ActualizarEtiquetas
-        AddHandler tbFillR.Scroll, AddressOf ActualizarEtiquetas
-        AddHandler tbBack.Scroll, AddressOf ActualizarEtiquetas
-        AddHandler tambient.Scroll, AddressOf ActualizarEtiquetas
+        AddHandler tbKey.ValueChanged, AddressOf SliderChanged
+        AddHandler tbFillL.ValueChanged, AddressOf SliderChanged
+        AddHandler tbFillR.ValueChanged, AddressOf SliderChanged
+        AddHandler tbBack.ValueChanged, AddressOf SliderChanged
+        AddHandler tambient.ValueChanged, AddressOf SliderChanged
 
         Dim nudChanged As EventHandler = Sub(sender, e) VolcarUIenModelo()
 
@@ -73,12 +68,7 @@ Partial Public Class LightRigForm
         Next
     End Sub
 
-    Private Sub ActualizarEtiquetas()
-        lblKeyStrength.Text = $"Strength {tbKey.Value / 100.0:F2}"
-        lblFillLStrength.Text = $"Strength {tbFillL.Value / 100.0:F2}"
-        lblFillRStrength.Text = $"Strength {tbFillR.Value / 100.0:F2}"
-        lblBackStrength.Text = $"Strength {tbBack.Value / 100.0:F2}"
-        lblambient.Text = $"Strength {tambient.Value / 100.0:F2}"
+    Private Sub SliderChanged(sender As Object, e As EventArgs)
         VolcarUIenModelo()
     End Sub
 
@@ -86,11 +76,11 @@ Partial Public Class LightRigForm
     ' ====== Transferencia UI -> Modelo ======
     Private Sub VolcarUIenModelo()
         If _PreventChanges = False Then
-            Dim Lrig = New LightsRig_struct With {.Ambient = CSng(tambient.Value / 100.0F),
-            .DirectL = New LightData_struct With {.Strength = CSng(tbKey.Value / 100.0F), .Left = CSng(nudK_L.Value), .Right = CSng(nudK_R.Value), .Back = CSng(nudK_B.Value), .Down = CSng(nudK_D.Value), .Forward = CSng(nudK_F.Value), .Up = CSng(nudK_U.Value)},
-            .FillLight_1 = New LightData_struct With {.Strength = CSng(tbFillL.Value / 100.0F), .Left = CSng(nudL_L.Value), .Right = CSng(nudL_R.Value), .Back = CSng(nudL_B.Value), .Down = CSng(nudL_D.Value), .Forward = CSng(nudL_F.Value), .Up = CSng(nudL_U.Value)},
-            .FillLight_2 = New LightData_struct With {.Strength = CSng(tbFillR.Value / 100.0F), .Left = CSng(nudR_L.Value), .Right = CSng(nudR_R.Value), .Back = CSng(nudR_B.Value), .Down = CSng(nudR_D.Value), .Forward = CSng(nudR_F.Value), .Up = CSng(nudR_U.Value)},
-            .BackLight = New LightData_struct With {.Strength = CSng(tbBack.Value / 100.0F), .Left = CSng(nudB_L.Value), .Right = CSng(nudB_R.Value), .Back = CSng(nudB_B.Value), .Down = CSng(nudB_D.Value), .Forward = CSng(nudB_F.Value), .Up = CSng(nudB_U.Value)}}
+            Dim Lrig = New LightsRig_struct With {.Ambient = CSng(tambient.Value),
+            .DirectL = New LightData_struct With {.Strength = CSng(tbKey.Value), .Left = CSng(nudK_L.Value), .Right = CSng(nudK_R.Value), .Back = CSng(nudK_B.Value), .Down = CSng(nudK_D.Value), .Forward = CSng(nudK_F.Value), .Up = CSng(nudK_U.Value)},
+            .FillLight_1 = New LightData_struct With {.Strength = CSng(tbFillL.Value), .Left = CSng(nudL_L.Value), .Right = CSng(nudL_R.Value), .Back = CSng(nudL_B.Value), .Down = CSng(nudL_D.Value), .Forward = CSng(nudL_F.Value), .Up = CSng(nudL_U.Value)},
+            .FillLight_2 = New LightData_struct With {.Strength = CSng(tbFillR.Value), .Left = CSng(nudR_L.Value), .Right = CSng(nudR_R.Value), .Back = CSng(nudR_B.Value), .Down = CSng(nudR_D.Value), .Forward = CSng(nudR_F.Value), .Up = CSng(nudR_U.Value)},
+            .BackLight = New LightData_struct With {.Strength = CSng(tbBack.Value), .Left = CSng(nudB_L.Value), .Right = CSng(nudB_R.Value), .Back = CSng(nudB_B.Value), .Down = CSng(nudB_D.Value), .Forward = CSng(nudB_F.Value), .Up = CSng(nudB_U.Value)}}
             Config_App.Current.Setting_Lightrig = Lrig
             If Not IsNothing(Owner) Then
                 CType(Me.Owner, Wardrobe_Manager_Form).preview_Control.updateRequired = True

@@ -119,6 +119,48 @@ Public Class WM_Config
         Return True
     End Function
 
+    Private Shared _osSliderMin As Integer? = Nothing
+    Private Shared _osSliderMax As Integer? = Nothing
+
+    ''' <summary>Reads SliderMinimum/SliderMaximum from OutfitStudio Config.xml. Cached. Fallback 0/100.</summary>
+    Public Shared Function GetOsSliderRange() As (Min As Integer, Max As Integer)
+        If _osSliderMin.HasValue AndAlso _osSliderMax.HasValue Then
+            Return (_osSliderMin.Value, _osSliderMax.Value)
+        End If
+
+        Dim minVal As Integer = 0
+        Dim maxVal As Integer = 100
+        Try
+            Dim osDir As String = Path.GetDirectoryName(Current.OSExePath)
+            If Not String.IsNullOrEmpty(osDir) Then
+                Dim configPath As String = Path.Combine(osDir, "Config.xml")
+                If File.Exists(configPath) Then
+                    Dim doc = Xml.Linq.XDocument.Load(configPath)
+                    Dim input = doc.Root?.Element("Input")
+                    If input IsNot Nothing Then
+                        Dim minTxt = input.Element("SliderMinimum")?.Value
+                        Dim maxTxt = input.Element("SliderMaximum")?.Value
+                        Integer.TryParse(minTxt, Globalization.NumberStyles.Integer, Globalization.CultureInfo.InvariantCulture, minVal)
+                        Integer.TryParse(maxTxt, Globalization.NumberStyles.Integer, Globalization.CultureInfo.InvariantCulture, maxVal)
+                    End If
+                End If
+            End If
+        Catch
+            ' fallback to defaults
+            minVal = 0
+            maxVal = 100
+        End Try
+
+        If maxVal <= minVal Then
+            minVal = 0
+            maxVal = 100
+        End If
+
+        _osSliderMin = minVal
+        _osSliderMax = maxVal
+        Return (minVal, maxVal)
+    End Function
+
     Public Shared Function Check_All_Folder() As Boolean
         Return Config_App.Check_FOFolder() AndAlso Check_BSFolder() AndAlso Check_OsFolder()
     End Function

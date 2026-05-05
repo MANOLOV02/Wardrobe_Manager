@@ -242,8 +242,8 @@ Public Class SliderPresetCollection
                     If String.IsNullOrEmpty(sliderName) Then
                         Throw New InvalidDataException($"<SetSlider> missing 'name' in preset '{nameAttr}' of '{path}'")
                     End If
-                    Dim valueInt As Integer
-                    If Not Integer.TryParse(valText, valueInt) Then
+                    Dim valueFloat As Single
+                    If Not Single.TryParse(valText, Globalization.NumberStyles.Float, Globalization.CultureInfo.InvariantCulture, valueFloat) Then
                         Throw New InvalidDataException($"<SetSlider name=""{sliderName}""> has invalid or missing 'value' in preset '{nameAttr}' of '{path}'")
                     End If
 
@@ -255,7 +255,7 @@ Public Class SliderPresetCollection
                     p.Sliders.Add(New PresetSlider_Class With {
                         .Name = sliderName,
                         .Size = sz,
-                        .Value = valueInt
+                        .Value = valueFloat
                          })
                 Next
                 Dim Nombre As String = p.Name

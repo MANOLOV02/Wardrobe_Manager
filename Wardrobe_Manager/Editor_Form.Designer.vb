@@ -38,7 +38,7 @@ Partial Class Editor_Form
         RenderCheckWireframe = New CheckBox()
         RenderCheckTexture = New CheckBox()
         Label16 = New Label()
-        TrackBar1 = New TrackBar()
+        TrackBar1 = New TinySliderTextBox()
         ColorComboBox1 = New ColorComboBox()
         ComboBoxShapes = New ComboBox()
         Label11 = New Label()
@@ -156,29 +156,13 @@ Partial Class Editor_Form
         PoseSaveButton = New Button()
         PoseDeleteButton = New Button()
         GroupBox10 = New GroupBox()
-        Label33 = New Label()
-        NumericUpDownScale = New NumericUpDown()
-        Label30 = New Label()
-        Label31 = New Label()
-        Label32 = New Label()
-        NumericUpDownRotZ = New NumericUpDown()
-        NumericUpDownRotY = New NumericUpDown()
-        NumericUpDownRotX = New NumericUpDown()
-        Label29 = New Label()
-        Label27 = New Label()
-        Label26 = New Label()
-        NumericUpDownTrasZ = New NumericUpDown()
-        NumericUpDownTrasY = New NumericUpDown()
-        NumericUpDownTrasX = New NumericUpDown()
-        TrackBar8 = New TrackBar()
-        TrackBar7 = New TrackBar()
-        TrackBar6 = New TrackBar()
-        TrackBar5 = New TrackBar()
-        TrackBar4 = New TrackBar()
-        LabelORotation = New Label()
-        TrackBar3 = New TrackBar()
-        LabelOTranslation = New Label()
-        TrackBar2 = New TrackBar()
+        TrackBar8 = New TinySliderTextBox()
+        TrackBar7 = New TinySliderTextBox()
+        TrackBar6 = New TinySliderTextBox()
+        TrackBar5 = New TinySliderTextBox()
+        TrackBar4 = New TinySliderTextBox()
+        TrackBar3 = New TinySliderTextBox()
+        TrackBar2 = New TinySliderTextBox()
         Label25 = New Label()
         Label24 = New Label()
         Label23 = New Label()
@@ -210,7 +194,6 @@ Partial Class Editor_Form
         ToolTip1 = New ToolTip(components)
         GroupBox6.SuspendLayout()
         TableLayoutPanel1.SuspendLayout()
-        CType(TrackBar1, ComponentModel.ISupportInitialize).BeginInit()
         CType(GrayScaleTrackbar1, ComponentModel.ISupportInitialize).BeginInit()
         GroupBox5.SuspendLayout()
         CType(HHNumericUpDown, ComponentModel.ISupportInitialize).BeginInit()
@@ -242,20 +225,6 @@ Partial Class Editor_Form
         GroupBox9.SuspendLayout()
         TableLayoutPanel6.SuspendLayout()
         GroupBox10.SuspendLayout()
-        CType(NumericUpDownScale, ComponentModel.ISupportInitialize).BeginInit()
-        CType(NumericUpDownRotZ, ComponentModel.ISupportInitialize).BeginInit()
-        CType(NumericUpDownRotY, ComponentModel.ISupportInitialize).BeginInit()
-        CType(NumericUpDownRotX, ComponentModel.ISupportInitialize).BeginInit()
-        CType(NumericUpDownTrasZ, ComponentModel.ISupportInitialize).BeginInit()
-        CType(NumericUpDownTrasY, ComponentModel.ISupportInitialize).BeginInit()
-        CType(NumericUpDownTrasX, ComponentModel.ISupportInitialize).BeginInit()
-        CType(TrackBar8, ComponentModel.ISupportInitialize).BeginInit()
-        CType(TrackBar7, ComponentModel.ISupportInitialize).BeginInit()
-        CType(TrackBar6, ComponentModel.ISupportInitialize).BeginInit()
-        CType(TrackBar5, ComponentModel.ISupportInitialize).BeginInit()
-        CType(TrackBar4, ComponentModel.ISupportInitialize).BeginInit()
-        CType(TrackBar3, ComponentModel.ISupportInitialize).BeginInit()
-        CType(TrackBar2, ComponentModel.ISupportInitialize).BeginInit()
         TabPage5.SuspendLayout()
         CType(NumericMaskRadius, ComponentModel.ISupportInitialize).BeginInit()
         GroupBox11.SuspendLayout()
@@ -272,7 +241,7 @@ Partial Class Editor_Form
         GroupBox6.Controls.Add(Label11)
         GroupBox6.Location = New Point(10, 106)
         GroupBox6.Name = "GroupBox6"
-        GroupBox6.Size = New Size(711, 137)
+        GroupBox6.Size = New Size(719, 137)
         GroupBox6.TabIndex = 3
         GroupBox6.TabStop = False
         GroupBox6.Text = "Shape"
@@ -280,7 +249,7 @@ Partial Class Editor_Form
         ' ButtonRemoveSHape
         ' 
         ButtonRemoveSHape.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        ButtonRemoveSHape.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonRemoveSHape.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonRemoveSHape.ImageIndex = 0
         ButtonRemoveSHape.Location = New Point(622, 19)
         ButtonRemoveSHape.Name = "ButtonRemoveSHape"
@@ -295,10 +264,10 @@ Partial Class Editor_Form
         ' 
         TableLayoutPanel1.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
         TableLayoutPanel1.ColumnCount = 4
-        TableLayoutPanel1.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
-        TableLayoutPanel1.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
-        TableLayoutPanel1.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
-        TableLayoutPanel1.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
+        TableLayoutPanel1.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
+        TableLayoutPanel1.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
+        TableLayoutPanel1.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
+        TableLayoutPanel1.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
         TableLayoutPanel1.Controls.Add(Label18, 2, 2)
         TableLayoutPanel1.Controls.Add(RenderCheckVertexColors, 2, 1)
         TableLayoutPanel1.Controls.Add(RenderCheckHide, 3, 1)
@@ -314,9 +283,9 @@ Partial Class Editor_Form
         TableLayoutPanel1.Location = New Point(7, 48)
         TableLayoutPanel1.Name = "TableLayoutPanel1"
         TableLayoutPanel1.RowCount = 4
-        TableLayoutPanel1.RowStyles.Add(New RowStyle(SizeType.Absolute, 26.0F))
-        TableLayoutPanel1.RowStyles.Add(New RowStyle(SizeType.Absolute, 26.0F))
-        TableLayoutPanel1.RowStyles.Add(New RowStyle(SizeType.Absolute, 26.0F))
+        TableLayoutPanel1.RowStyles.Add(New RowStyle(SizeType.Absolute, 26F))
+        TableLayoutPanel1.RowStyles.Add(New RowStyle(SizeType.Absolute, 26F))
+        TableLayoutPanel1.RowStyles.Add(New RowStyle(SizeType.Absolute, 26F))
         TableLayoutPanel1.RowStyles.Add(New RowStyle())
         TableLayoutPanel1.Size = New Size(698, 83)
         TableLayoutPanel1.TabIndex = 4
@@ -442,16 +411,27 @@ Partial Class Editor_Form
         ' 
         ' TrackBar1
         ' 
+        TrackBar1.AccentColor = SystemColors.HotTrack
+        TrackBar1.BackColor = SystemColors.Control
+        TrackBar1.DisplayFormat = "0.00%"
         TrackBar1.Dock = DockStyle.Fill
         TrackBar1.Enabled = False
+        TrackBar1.InputScale = 0.01R
+        TrackBar1.LargeChange = 0.1R
         TrackBar1.Location = New Point(525, 55)
-        TrackBar1.Maximum = 100
+        TrackBar1.Maximum = 1R
+        TrackBar1.MinimumSize = New Size(100, 24)
         TrackBar1.Name = "TrackBar1"
-        TrackBar1.Size = New Size(170, 20)
+        TrackBar1.Size = New Size(170, 24)
+        TrackBar1.SmallChange = 0.05R
         TrackBar1.TabIndex = 16
-        TrackBar1.TickFrequency = 25
+        TrackBar1.TextBoxTextAlign = HorizontalAlignment.Right
+        TrackBar1.ThumbColor = SystemColors.HotTrack
+        TrackBar1.ThumbRadius = 4F
+        TrackBar1.TickFrequency = 0.25R
         ToolTip1.SetToolTip(TrackBar1, "Adjust wireframe opacity.")
-        TrackBar1.Value = 50
+        TrackBar1.TrackColor = SystemColors.ControlDark
+        TrackBar1.Value = 0.5R
         ' 
         ' ColorComboBox1
         ' 
@@ -530,7 +510,7 @@ Partial Class Editor_Form
         PropertyGrid1.HelpVisible = False
         PropertyGrid1.Location = New Point(6, 134)
         PropertyGrid1.Name = "PropertyGrid1"
-        PropertyGrid1.Size = New Size(688, 441)
+        PropertyGrid1.Size = New Size(688, 394)
         PropertyGrid1.TabIndex = 8
         PropertyGrid1.ToolbarVisible = False
         ToolTip1.SetToolTip(PropertyGrid1, "Edit material properties for the current shape.")
@@ -591,7 +571,7 @@ Partial Class Editor_Form
         GroupBox5.Controls.Add(OutDirTextbox)
         GroupBox5.Location = New Point(10, -2)
         GroupBox5.Name = "GroupBox5"
-        GroupBox5.Size = New Size(711, 103)
+        GroupBox5.Size = New Size(719, 103)
         GroupBox5.TabIndex = 2
         GroupBox5.TabStop = False
         ' 
@@ -643,7 +623,7 @@ Partial Class Editor_Form
         ' 
         ' Button7
         ' 
-        Button7.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Button7.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Button7.ImageIndex = 0
         Button7.Location = New Point(652, 19)
         Button7.Name = "Button7"
@@ -655,7 +635,7 @@ Partial Class Editor_Form
         ' 
         ' ButtonRemovePhysics
         ' 
-        ButtonRemovePhysics.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonRemovePhysics.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonRemovePhysics.ImageIndex = 0
         ButtonRemovePhysics.Location = New Point(251, 75)
         ButtonRemovePhysics.Name = "ButtonRemovePhysics"
@@ -741,14 +721,14 @@ Partial Class Editor_Form
         GroupBox1.Controls.Add(Label13)
         GroupBox1.Location = New Point(3, 6)
         GroupBox1.Name = "GroupBox1"
-        GroupBox1.Size = New Size(700, 618)
+        GroupBox1.Size = New Size(700, 574)
         GroupBox1.TabIndex = 4
         GroupBox1.TabStop = False
         GroupBox1.Text = "Material"
         ' 
         ' Label34
         ' 
-        Label34.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label34.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Label34.ForeColor = Color.Red
         Label34.Location = New Point(260, 106)
         Label34.Name = "Label34"
@@ -759,7 +739,7 @@ Partial Class Editor_Form
         ' 
         ' ButonMatBackToOriginal
         ' 
-        ButonMatBackToOriginal.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButonMatBackToOriginal.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButonMatBackToOriginal.ImageIndex = 0
         ButonMatBackToOriginal.Location = New Point(640, 21)
         ButonMatBackToOriginal.Name = "ButonMatBackToOriginal"
@@ -772,7 +752,7 @@ Partial Class Editor_Form
         ' 
         ' ButtonMakeGradient
         ' 
-        ButtonMakeGradient.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonMakeGradient.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonMakeGradient.ImageIndex = 0
         ButtonMakeGradient.Location = New Point(641, 80)
         ButtonMakeGradient.Name = "ButtonMakeGradient"
@@ -785,7 +765,7 @@ Partial Class Editor_Form
         ' 
         ' Label6
         ' 
-        Label6.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label6.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Label6.ForeColor = Color.Blue
         Label6.Location = New Point(81, 51)
         Label6.Name = "Label6"
@@ -796,7 +776,7 @@ Partial Class Editor_Form
         ' 
         ' ButtonCopyPath
         ' 
-        ButtonCopyPath.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonCopyPath.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonCopyPath.ImageIndex = 0
         ButtonCopyPath.Location = New Point(641, 51)
         ButtonCopyPath.Name = "ButtonCopyPath"
@@ -811,26 +791,26 @@ Partial Class Editor_Form
         ' 
         TableLayoutPanel3.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
         TableLayoutPanel3.ColumnCount = 4
-        TableLayoutPanel3.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
-        TableLayoutPanel3.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
-        TableLayoutPanel3.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
-        TableLayoutPanel3.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
+        TableLayoutPanel3.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
+        TableLayoutPanel3.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
+        TableLayoutPanel3.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
+        TableLayoutPanel3.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
         TableLayoutPanel3.Controls.Add(ButtonMatCancel, 3, 0)
         TableLayoutPanel3.Controls.Add(ButtonMatSaveAs, 2, 0)
         TableLayoutPanel3.Controls.Add(ButtonMatSave, 1, 0)
         TableLayoutPanel3.Controls.Add(ButtonMatLoad, 0, 0)
-        TableLayoutPanel3.Location = New Point(3, 581)
+        TableLayoutPanel3.Location = New Point(7, 534)
         TableLayoutPanel3.Name = "TableLayoutPanel3"
         TableLayoutPanel3.RowCount = 1
-        TableLayoutPanel3.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
-        TableLayoutPanel3.RowStyles.Add(New RowStyle(SizeType.Absolute, 20.0F))
+        TableLayoutPanel3.RowStyles.Add(New RowStyle(SizeType.Percent, 100F))
+        TableLayoutPanel3.RowStyles.Add(New RowStyle(SizeType.Absolute, 20F))
         TableLayoutPanel3.Size = New Size(688, 31)
         TableLayoutPanel3.TabIndex = 13
         ' 
         ' ButtonMatCancel
         ' 
         ButtonMatCancel.Dock = DockStyle.Fill
-        ButtonMatCancel.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonMatCancel.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonMatCancel.ImageIndex = 5
         ButtonMatCancel.ImageList = ImageList1
         ButtonMatCancel.Location = New Point(519, 3)
@@ -874,7 +854,7 @@ Partial Class Editor_Form
         ' ButtonMatSaveAs
         ' 
         ButtonMatSaveAs.Dock = DockStyle.Fill
-        ButtonMatSaveAs.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonMatSaveAs.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonMatSaveAs.ImageIndex = 4
         ButtonMatSaveAs.ImageList = ImageList1
         ButtonMatSaveAs.Location = New Point(347, 3)
@@ -889,7 +869,7 @@ Partial Class Editor_Form
         ' ButtonMatSave
         ' 
         ButtonMatSave.Dock = DockStyle.Fill
-        ButtonMatSave.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonMatSave.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonMatSave.ImageIndex = 3
         ButtonMatSave.ImageList = ImageList1
         ButtonMatSave.Location = New Point(175, 3)
@@ -904,7 +884,7 @@ Partial Class Editor_Form
         ' ButtonMatLoad
         ' 
         ButtonMatLoad.Dock = DockStyle.Fill
-        ButtonMatLoad.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonMatLoad.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonMatLoad.ImageKey = "fileopen.ico"
         ButtonMatLoad.ImageList = ImageList1
         ButtonMatLoad.Location = New Point(3, 3)
@@ -920,9 +900,9 @@ Partial Class Editor_Form
         ' 
         GroupBox2.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
         GroupBox2.Controls.Add(TableLayoutPanel2)
-        GroupBox2.Location = New Point(10, 891)
+        GroupBox2.Location = New Point(10, 859)
         GroupBox2.Name = "GroupBox2"
-        GroupBox2.Size = New Size(711, 60)
+        GroupBox2.Size = New Size(719, 60)
         GroupBox2.TabIndex = 5
         GroupBox2.TabStop = False
         GroupBox2.Text = "Finish"
@@ -930,7 +910,7 @@ Partial Class Editor_Form
         ' TableLayoutPanel2
         ' 
         TableLayoutPanel2.ColumnCount = 2
-        TableLayoutPanel2.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0F))
+        TableLayoutPanel2.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50F))
         TableLayoutPanel2.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 50.0000076F))
         TableLayoutPanel2.Controls.Add(ButtonSave, 0, 0)
         TableLayoutPanel2.Controls.Add(ButtonCancel, 1, 0)
@@ -938,19 +918,19 @@ Partial Class Editor_Form
         TableLayoutPanel2.Location = New Point(3, 19)
         TableLayoutPanel2.Name = "TableLayoutPanel2"
         TableLayoutPanel2.RowCount = 1
-        TableLayoutPanel2.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
-        TableLayoutPanel2.Size = New Size(705, 38)
+        TableLayoutPanel2.RowStyles.Add(New RowStyle(SizeType.Percent, 100F))
+        TableLayoutPanel2.Size = New Size(713, 38)
         TableLayoutPanel2.TabIndex = 0
         ' 
         ' ButtonSave
         ' 
         ButtonSave.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        ButtonSave.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonSave.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonSave.ImageIndex = 3
         ButtonSave.ImageList = ImageList1
         ButtonSave.Location = New Point(3, 3)
         ButtonSave.Name = "ButtonSave"
-        ButtonSave.Size = New Size(346, 32)
+        ButtonSave.Size = New Size(350, 32)
         ButtonSave.TabIndex = 8
         ButtonSave.Text = "Save to target"
         ButtonSave.TextImageRelation = TextImageRelation.ImageBeforeText
@@ -960,12 +940,12 @@ Partial Class Editor_Form
         ' ButtonCancel
         ' 
         ButtonCancel.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        ButtonCancel.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonCancel.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonCancel.ImageIndex = 5
         ButtonCancel.ImageList = ImageList1
-        ButtonCancel.Location = New Point(355, 3)
+        ButtonCancel.Location = New Point(359, 3)
         ButtonCancel.Name = "ButtonCancel"
-        ButtonCancel.Size = New Size(347, 32)
+        ButtonCancel.Size = New Size(351, 32)
         ButtonCancel.TabIndex = 9
         ButtonCancel.Text = "Cancel all editions"
         ButtonCancel.TextImageRelation = TextImageRelation.ImageBeforeText
@@ -975,14 +955,15 @@ Partial Class Editor_Form
         ' Panel1
         ' 
         Panel1.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
+        Panel1.AutoScroll = True
         Panel1.Location = New Point(6, 81)
         Panel1.Name = "Panel1"
-        Panel1.Size = New Size(865, 759)
+        Panel1.Size = New Size(865, 718)
         Panel1.TabIndex = 6
         ' 
         ' Label7
         ' 
-        Label7.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label7.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Label7.Location = New Point(8, 14)
         Label7.Name = "Label7"
         Label7.Size = New Size(135, 29)
@@ -994,7 +975,7 @@ Partial Class Editor_Form
         ' 
         ComboBoxPresets.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
         ComboBoxPresets.DropDownStyle = ComboBoxStyle.DropDownList
-        ComboBoxPresets.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ComboBoxPresets.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ComboBoxPresets.FormattingEnabled = True
         ComboBoxPresets.Location = New Point(145, 14)
         ComboBoxPresets.Name = "ComboBoxPresets"
@@ -1014,7 +995,7 @@ Partial Class Editor_Form
         TabControl1.Location = New Point(10, 249)
         TabControl1.Name = "TabControl1"
         TabControl1.SelectedIndex = 0
-        TabControl1.Size = New Size(715, 658)
+        TabControl1.Size = New Size(723, 604)
         TabControl1.TabIndex = 40
         ' 
         ' TabPage1
@@ -1025,7 +1006,7 @@ Partial Class Editor_Form
         TabPage1.Location = New Point(4, 24)
         TabPage1.Name = "TabPage1"
         TabPage1.Padding = New Padding(3)
-        TabPage1.Size = New Size(707, 630)
+        TabPage1.Size = New Size(715, 576)
         TabPage1.TabIndex = 0
         TabPage1.Text = "Material and shader config"
         ' 
@@ -1037,7 +1018,7 @@ Partial Class Editor_Form
         TabPage2.Location = New Point(4, 24)
         TabPage2.Name = "TabPage2"
         TabPage2.Padding = New Padding(3)
-        TabPage2.Size = New Size(707, 630)
+        TabPage2.Size = New Size(715, 576)
         TabPage2.TabIndex = 1
         TabPage2.Text = "Bones and Masks"
         ' 
@@ -1050,7 +1031,7 @@ Partial Class Editor_Form
         GroupBox3.Controls.Add(ListView1)
         GroupBox3.Location = New Point(3, 6)
         GroupBox3.Name = "GroupBox3"
-        GroupBox3.Size = New Size(696, 618)
+        GroupBox3.Size = New Size(704, 618)
         GroupBox3.TabIndex = 0
         GroupBox3.TabStop = False
         GroupBox3.Text = "Bones"
@@ -1072,7 +1053,7 @@ Partial Class Editor_Form
         GroupBox8.Controls.Add(ListView2)
         GroupBox8.Location = New Point(251, 163)
         GroupBox8.Name = "GroupBox8"
-        GroupBox8.Size = New Size(439, 443)
+        GroupBox8.Size = New Size(439, 408)
         GroupBox8.TabIndex = 13
         GroupBox8.TabStop = False
         GroupBox8.Text = "Zaps and fixes"
@@ -1080,10 +1061,10 @@ Partial Class Editor_Form
         ' ButtonShrinkMask
         ' 
         ButtonShrinkMask.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        ButtonShrinkMask.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonShrinkMask.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonShrinkMask.ImageIndex = 17
         ButtonShrinkMask.ImageList = ImageList1
-        ButtonShrinkMask.Location = New Point(216, 355)
+        ButtonShrinkMask.Location = New Point(216, 379)
         ButtonShrinkMask.Name = "ButtonShrinkMask"
         ButtonShrinkMask.Size = New Size(211, 23)
         ButtonShrinkMask.TabIndex = 18
@@ -1095,10 +1076,10 @@ Partial Class Editor_Form
         ' ButtonClearZap
         ' 
         ButtonClearZap.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        ButtonClearZap.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonClearZap.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonClearZap.ImageKey = "button_cancel.ico"
         ButtonClearZap.ImageList = ImageList1
-        ButtonClearZap.Location = New Point(216, 200)
+        ButtonClearZap.Location = New Point(216, 257)
         ButtonClearZap.Name = "ButtonClearZap"
         ButtonClearZap.Size = New Size(211, 23)
         ButtonClearZap.TabIndex = 17
@@ -1110,10 +1091,10 @@ Partial Class Editor_Form
         ' DeleteZap
         ' 
         DeleteZap.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        DeleteZap.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        DeleteZap.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         DeleteZap.ImageIndex = 5
         DeleteZap.ImageList = ImageList1
-        DeleteZap.Location = New Point(4, 410)
+        DeleteZap.Location = New Point(4, 379)
         DeleteZap.Name = "DeleteZap"
         DeleteZap.Size = New Size(206, 23)
         DeleteZap.TabIndex = 14
@@ -1125,10 +1106,10 @@ Partial Class Editor_Form
         ' ButtonGrowMask
         ' 
         ButtonGrowMask.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        ButtonGrowMask.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonGrowMask.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonGrowMask.ImageIndex = 16
         ButtonGrowMask.ImageList = ImageList1
-        ButtonGrowMask.Location = New Point(216, 326)
+        ButtonGrowMask.Location = New Point(216, 353)
         ButtonGrowMask.Name = "ButtonGrowMask"
         ButtonGrowMask.Size = New Size(211, 23)
         ButtonGrowMask.TabIndex = 17
@@ -1149,16 +1130,15 @@ Partial Class Editor_Form
         GroupBoxZaps.Controls.Add(Fix_X)
         GroupBoxZaps.Location = New Point(216, 44)
         GroupBoxZaps.Name = "GroupBoxZaps"
-        GroupBoxZaps.Size = New Size(211, 112)
+        GroupBoxZaps.Size = New Size(211, 164)
         GroupBoxZaps.TabIndex = 16
         GroupBoxZaps.TabStop = False
         GroupBoxZaps.Text = "Fix values"
         ' 
         ' CheckBoxInflate
         ' 
-        CheckBoxInflate.Location = New Point(110, 87)
+        CheckBoxInflate.Location = New Point(12, 133)
         CheckBoxInflate.Name = "CheckBoxInflate"
-        CheckBoxInflate.RightToLeft = RightToLeft.Yes
         CheckBoxInflate.Size = New Size(95, 19)
         CheckBoxInflate.TabIndex = 18
         CheckBoxInflate.Text = "Inflate (beta)"
@@ -1167,7 +1147,7 @@ Partial Class Editor_Form
         ' 
         ' Label5
         ' 
-        Label5.Location = New Point(12, 51)
+        Label5.Location = New Point(12, 77)
         Label5.Name = "Label5"
         Label5.Size = New Size(22, 23)
         Label5.TabIndex = 2
@@ -1176,7 +1156,7 @@ Partial Class Editor_Form
         ' 
         ' Label4
         ' 
-        Label4.Location = New Point(110, 22)
+        Label4.Location = New Point(11, 48)
         Label4.Name = "Label4"
         Label4.Size = New Size(22, 23)
         Label4.TabIndex = 0
@@ -1196,9 +1176,8 @@ Partial Class Editor_Form
         ' 
         IncrementalCheck.Checked = True
         IncrementalCheck.CheckState = CheckState.Checked
-        IncrementalCheck.Location = New Point(8, 87)
+        IncrementalCheck.Location = New Point(12, 108)
         IncrementalCheck.Name = "IncrementalCheck"
-        IncrementalCheck.RightToLeft = RightToLeft.Yes
         IncrementalCheck.Size = New Size(95, 19)
         IncrementalCheck.TabIndex = 14
         IncrementalCheck.Text = "Incremental"
@@ -1209,7 +1188,7 @@ Partial Class Editor_Form
         ' 
         Fix_Z.DecimalPlaces = 2
         Fix_Z.Increment = New Decimal(New Integer() {5, 0, 0, 131072})
-        Fix_Z.Location = New Point(140, 22)
+        Fix_Z.Location = New Point(39, 50)
         Fix_Z.Minimum = New Decimal(New Integer() {100, 0, 0, Integer.MinValue})
         Fix_Z.Name = "Fix_Z"
         Fix_Z.Size = New Size(65, 23)
@@ -1222,7 +1201,7 @@ Partial Class Editor_Form
         ' 
         Fix_Y.DecimalPlaces = 2
         Fix_Y.Increment = New Decimal(New Integer() {5, 0, 0, 131072})
-        Fix_Y.Location = New Point(39, 53)
+        Fix_Y.Location = New Point(39, 79)
         Fix_Y.Minimum = New Decimal(New Integer() {100, 0, 0, Integer.MinValue})
         Fix_Y.Name = "Fix_Y"
         Fix_Y.Size = New Size(65, 23)
@@ -1282,10 +1261,10 @@ Partial Class Editor_Form
         ' ZapCreate
         ' 
         ZapCreate.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        ZapCreate.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ZapCreate.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ZapCreate.ImageIndex = 3
         ZapCreate.ImageList = ImageList1
-        ZapCreate.Location = New Point(4, 381)
+        ZapCreate.Location = New Point(4, 353)
         ZapCreate.Name = "ZapCreate"
         ZapCreate.Size = New Size(206, 23)
         ZapCreate.TabIndex = 12
@@ -1297,10 +1276,10 @@ Partial Class Editor_Form
         ' ZapExclude
         ' 
         ZapExclude.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        ZapExclude.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ZapExclude.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ZapExclude.ImageKey = "edit_remove.ico"
         ZapExclude.ImageList = ImageList1
-        ZapExclude.Location = New Point(216, 277)
+        ZapExclude.Location = New Point(216, 320)
         ZapExclude.Name = "ZapExclude"
         ZapExclude.Size = New Size(211, 23)
         ZapExclude.TabIndex = 11
@@ -1312,10 +1291,10 @@ Partial Class Editor_Form
         ' ZapInclude
         ' 
         ZapInclude.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        ZapInclude.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ZapInclude.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ZapInclude.ImageIndex = 10
         ZapInclude.ImageList = ImageList1
-        ZapInclude.Location = New Point(216, 248)
+        ZapInclude.Location = New Point(216, 291)
         ZapInclude.Name = "ZapInclude"
         ZapInclude.Size = New Size(211, 23)
         ZapInclude.TabIndex = 10
@@ -1327,10 +1306,10 @@ Partial Class Editor_Form
         ' ZapLoad
         ' 
         ZapLoad.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        ZapLoad.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ZapLoad.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ZapLoad.ImageKey = "compfile.ico"
         ZapLoad.ImageList = ImageList1
-        ZapLoad.Location = New Point(216, 171)
+        ZapLoad.Location = New Point(216, 228)
         ZapLoad.Name = "ZapLoad"
         ZapLoad.Size = New Size(211, 23)
         ZapLoad.TabIndex = 9
@@ -1346,7 +1325,7 @@ Partial Class Editor_Form
         ListView2.Location = New Point(6, 22)
         ListView2.MultiSelect = False
         ListView2.Name = "ListView2"
-        ListView2.Size = New Size(204, 353)
+        ListView2.Size = New Size(204, 325)
         ListView2.TabIndex = 0
         ToolTip1.SetToolTip(ListView2, "List of zaps and fix sliders for the current project.")
         ListView2.UseCompatibleStateImageBehavior = False
@@ -1380,7 +1359,7 @@ Partial Class Editor_Form
         ' ButtonClickAll
         ' 
         ButtonClickAll.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        ButtonClickAll.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonClickAll.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonClickAll.ImageIndex = 13
         ButtonClickAll.ImageList = ImageList1
         ButtonClickAll.Location = New Point(246, 43)
@@ -1432,7 +1411,7 @@ Partial Class Editor_Form
         ' ButtonInvertMask
         ' 
         ButtonInvertMask.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        ButtonInvertMask.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonInvertMask.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonInvertMask.ImageIndex = 6
         ButtonInvertMask.ImageList = ImageList1
         ButtonInvertMask.Location = New Point(304, 15)
@@ -1447,7 +1426,7 @@ Partial Class Editor_Form
         ' ButtonUnmaskAll
         ' 
         ButtonUnmaskAll.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        ButtonUnmaskAll.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonUnmaskAll.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonUnmaskAll.ImageIndex = 12
         ButtonUnmaskAll.ImageList = ImageList1
         ButtonUnmaskAll.Location = New Point(155, 15)
@@ -1462,7 +1441,7 @@ Partial Class Editor_Form
         ' ButtonMaskAll
         ' 
         ButtonMaskAll.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        ButtonMaskAll.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonMaskAll.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonMaskAll.ImageIndex = 13
         ButtonMaskAll.ImageList = ImageList1
         ButtonMaskAll.Location = New Point(4, 15)
@@ -1515,7 +1494,7 @@ Partial Class Editor_Form
         ' ButtonUnmaskByBones
         ' 
         ButtonUnmaskByBones.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        ButtonUnmaskByBones.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonUnmaskByBones.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonUnmaskByBones.ImageIndex = 12
         ButtonUnmaskByBones.ImageList = ImageList1
         ButtonUnmaskByBones.Location = New Point(350, 22)
@@ -1530,7 +1509,7 @@ Partial Class Editor_Form
         ' ButtonMaskByBones
         ' 
         ButtonMaskByBones.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        ButtonMaskByBones.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonMaskByBones.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonMaskByBones.ImageIndex = 13
         ButtonMaskByBones.ImageList = ImageList1
         ButtonMaskByBones.Location = New Point(261, 22)
@@ -1569,7 +1548,7 @@ Partial Class Editor_Form
         ListView1.FullRowSelect = True
         ListView1.Location = New Point(6, 22)
         ListView1.Name = "ListView1"
-        ListView1.Size = New Size(239, 590)
+        ListView1.Size = New Size(239, 549)
         ListView1.TabIndex = 0
         ToolTip1.SetToolTip(ListView1, "Select bones to mask vertices by weight range.")
         ListView1.UseCompatibleStateImageBehavior = False
@@ -1594,7 +1573,7 @@ Partial Class Editor_Form
         TabPage3.Location = New Point(4, 24)
         TabPage3.Name = "TabPage3"
         TabPage3.Padding = New Padding(3)
-        TabPage3.Size = New Size(707, 630)
+        TabPage3.Size = New Size(715, 576)
         TabPage3.TabIndex = 2
         TabPage3.Text = "Sliders presets"
         ' 
@@ -1614,8 +1593,8 @@ Partial Class Editor_Form
         ' SplitContainer1.Panel2
         ' 
         SplitContainer1.Panel2.Controls.Add(TableLayoutPanel5)
-        SplitContainer1.Size = New Size(701, 624)
-        SplitContainer1.SplitterDistance = 566
+        SplitContainer1.Size = New Size(709, 570)
+        SplitContainer1.SplitterDistance = 512
         SplitContainer1.TabIndex = 0
         ' 
         ' Panel2
@@ -1625,7 +1604,7 @@ Partial Class Editor_Form
         Panel2.Dock = DockStyle.Fill
         Panel2.Location = New Point(0, 0)
         Panel2.Name = "Panel2"
-        Panel2.Size = New Size(701, 566)
+        Panel2.Size = New Size(709, 512)
         Panel2.TabIndex = 1
         ' 
         ' TableLayoutPanel4
@@ -1640,18 +1619,18 @@ Partial Class Editor_Form
         TableLayoutPanel4.Location = New Point(0, 0)
         TableLayoutPanel4.Name = "TableLayoutPanel4"
         TableLayoutPanel4.RowCount = 1
-        TableLayoutPanel4.RowStyles.Add(New RowStyle(SizeType.Absolute, 20.0F))
-        TableLayoutPanel4.RowStyles.Add(New RowStyle(SizeType.Absolute, 20.0F))
-        TableLayoutPanel4.Size = New Size(701, 20)
+        TableLayoutPanel4.RowStyles.Add(New RowStyle(SizeType.Absolute, 20F))
+        TableLayoutPanel4.RowStyles.Add(New RowStyle(SizeType.Absolute, 20F))
+        TableLayoutPanel4.Size = New Size(709, 20)
         TableLayoutPanel4.TabIndex = 0
         ' 
         ' TableLayoutPanel5
         ' 
         TableLayoutPanel5.ColumnCount = 4
-        TableLayoutPanel5.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
-        TableLayoutPanel5.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
-        TableLayoutPanel5.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
-        TableLayoutPanel5.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
+        TableLayoutPanel5.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
+        TableLayoutPanel5.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
+        TableLayoutPanel5.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
+        TableLayoutPanel5.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
         TableLayoutPanel5.Controls.Add(CheckBoxIncGroups, 2, 0)
         TableLayoutPanel5.Controls.Add(CheckBoxIncNIF, 1, 0)
         TableLayoutPanel5.Controls.Add(ButtonCancelPreset, 2, 1)
@@ -1663,9 +1642,9 @@ Partial Class Editor_Form
         TableLayoutPanel5.Location = New Point(0, 0)
         TableLayoutPanel5.Name = "TableLayoutPanel5"
         TableLayoutPanel5.RowCount = 2
-        TableLayoutPanel5.RowStyles.Add(New RowStyle(SizeType.Absolute, 24.0F))
-        TableLayoutPanel5.RowStyles.Add(New RowStyle(SizeType.Absolute, 31.0F))
-        TableLayoutPanel5.Size = New Size(701, 53)
+        TableLayoutPanel5.RowStyles.Add(New RowStyle(SizeType.Absolute, 24F))
+        TableLayoutPanel5.RowStyles.Add(New RowStyle(SizeType.Absolute, 31F))
+        TableLayoutPanel5.Size = New Size(709, 53)
         TableLayoutPanel5.TabIndex = 14
         ' 
         ' CheckBoxIncGroups
@@ -1674,9 +1653,9 @@ Partial Class Editor_Form
         CheckBoxIncGroups.Checked = True
         CheckBoxIncGroups.CheckState = CheckState.Checked
         CheckBoxIncGroups.Dock = DockStyle.Fill
-        CheckBoxIncGroups.Location = New Point(353, 3)
+        CheckBoxIncGroups.Location = New Point(357, 3)
         CheckBoxIncGroups.Name = "CheckBoxIncGroups"
-        CheckBoxIncGroups.Size = New Size(169, 18)
+        CheckBoxIncGroups.Size = New Size(171, 18)
         CheckBoxIncGroups.TabIndex = 15
         CheckBoxIncGroups.Text = "Include groups"
         ToolTip1.SetToolTip(CheckBoxIncGroups, "Include slider groups when saving a preset.")
@@ -1686,9 +1665,9 @@ Partial Class Editor_Form
         ' 
         CheckBoxIncNIF.AutoSize = True
         CheckBoxIncNIF.Dock = DockStyle.Fill
-        CheckBoxIncNIF.Location = New Point(178, 3)
+        CheckBoxIncNIF.Location = New Point(180, 3)
         CheckBoxIncNIF.Name = "CheckBoxIncNIF"
-        CheckBoxIncNIF.Size = New Size(169, 18)
+        CheckBoxIncNIF.Size = New Size(171, 18)
         CheckBoxIncNIF.TabIndex = 14
         CheckBoxIncNIF.Text = "Include NIF sliders"
         ToolTip1.SetToolTip(CheckBoxIncNIF, "Include current NIF sliders when saving a preset.")
@@ -1697,12 +1676,12 @@ Partial Class Editor_Form
         ' ButtonCancelPreset
         ' 
         ButtonCancelPreset.Dock = DockStyle.Fill
-        ButtonCancelPreset.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonCancelPreset.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonCancelPreset.ImageIndex = 5
         ButtonCancelPreset.ImageList = ImageList1
-        ButtonCancelPreset.Location = New Point(353, 27)
+        ButtonCancelPreset.Location = New Point(357, 27)
         ButtonCancelPreset.Name = "ButtonCancelPreset"
-        ButtonCancelPreset.Size = New Size(169, 25)
+        ButtonCancelPreset.Size = New Size(171, 25)
         ButtonCancelPreset.TabIndex = 12
         ButtonCancelPreset.Text = "Cancel"
         ButtonCancelPreset.TextImageRelation = TextImageRelation.ImageBeforeText
@@ -1712,12 +1691,12 @@ Partial Class Editor_Form
         ' ButtonSaveAsPreset
         ' 
         ButtonSaveAsPreset.Dock = DockStyle.Fill
-        ButtonSaveAsPreset.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonSaveAsPreset.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonSaveAsPreset.ImageIndex = 4
         ButtonSaveAsPreset.ImageList = ImageList1
-        ButtonSaveAsPreset.Location = New Point(178, 27)
+        ButtonSaveAsPreset.Location = New Point(180, 27)
         ButtonSaveAsPreset.Name = "ButtonSaveAsPreset"
-        ButtonSaveAsPreset.Size = New Size(169, 25)
+        ButtonSaveAsPreset.Size = New Size(171, 25)
         ButtonSaveAsPreset.TabIndex = 11
         ButtonSaveAsPreset.Text = "Save as..."
         ButtonSaveAsPreset.TextImageRelation = TextImageRelation.ImageBeforeText
@@ -1727,12 +1706,12 @@ Partial Class Editor_Form
         ' ButtonSavePreset
         ' 
         ButtonSavePreset.Dock = DockStyle.Fill
-        ButtonSavePreset.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonSavePreset.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonSavePreset.ImageIndex = 3
         ButtonSavePreset.ImageList = ImageList1
         ButtonSavePreset.Location = New Point(3, 27)
         ButtonSavePreset.Name = "ButtonSavePreset"
-        ButtonSavePreset.Size = New Size(169, 25)
+        ButtonSavePreset.Size = New Size(171, 25)
         ButtonSavePreset.TabIndex = 10
         ButtonSavePreset.Text = "Save"
         ButtonSavePreset.TextImageRelation = TextImageRelation.ImageBeforeText
@@ -1747,7 +1726,7 @@ Partial Class Editor_Form
         CheckBoxIncSlid.Dock = DockStyle.Fill
         CheckBoxIncSlid.Location = New Point(3, 3)
         CheckBoxIncSlid.Name = "CheckBoxIncSlid"
-        CheckBoxIncSlid.Size = New Size(169, 18)
+        CheckBoxIncSlid.Size = New Size(171, 18)
         CheckBoxIncSlid.TabIndex = 13
         CheckBoxIncSlid.Text = "Include preset sliders"
         ToolTip1.SetToolTip(CheckBoxIncSlid, "Include current preset sliders when saving a preset.")
@@ -1756,12 +1735,12 @@ Partial Class Editor_Form
         ' ButtondelPreset
         ' 
         ButtondelPreset.Dock = DockStyle.Fill
-        ButtondelPreset.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtondelPreset.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtondelPreset.ImageIndex = 14
         ButtondelPreset.ImageList = ImageList1
-        ButtondelPreset.Location = New Point(528, 27)
+        ButtondelPreset.Location = New Point(534, 27)
         ButtondelPreset.Name = "ButtondelPreset"
-        ButtondelPreset.Size = New Size(170, 25)
+        ButtondelPreset.Size = New Size(172, 25)
         ButtondelPreset.TabIndex = 16
         ButtondelPreset.Text = "Delete"
         ButtondelPreset.TextImageRelation = TextImageRelation.ImageBeforeText
@@ -1775,7 +1754,7 @@ Partial Class Editor_Form
         TabPage4.ImageKey = "agt_virussafe.ico"
         TabPage4.Location = New Point(4, 24)
         TabPage4.Name = "TabPage4"
-        TabPage4.Size = New Size(707, 630)
+        TabPage4.Size = New Size(715, 576)
         TabPage4.TabIndex = 3
         TabPage4.Text = "Posing and baking"
         ' 
@@ -1791,19 +1770,19 @@ Partial Class Editor_Form
         GroupBox9.Controls.Add(TreeViewSkeleton)
         GroupBox9.Location = New Point(6, 6)
         GroupBox9.Name = "GroupBox9"
-        GroupBox9.Size = New Size(696, 618)
+        GroupBox9.Size = New Size(704, 574)
         GroupBox9.TabIndex = 1
         GroupBox9.TabStop = False
         GroupBox9.Text = "Skeleton"
         ' 
         ' ButtonReloadBonePose
         ' 
-        ButtonReloadBonePose.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonReloadBonePose.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonReloadBonePose.ImageIndex = 9
         ButtonReloadBonePose.ImageList = ImageList1
-        ButtonReloadBonePose.Location = New Point(264, 422)
+        ButtonReloadBonePose.Location = New Point(264, 295)
         ButtonReloadBonePose.Name = "ButtonReloadBonePose"
-        ButtonReloadBonePose.Size = New Size(210, 25)
+        ButtonReloadBonePose.Size = New Size(237, 25)
         ButtonReloadBonePose.TabIndex = 23
         ButtonReloadBonePose.Text = "Reload bone transforms"
         ButtonReloadBonePose.TextAlign = ContentAlignment.MiddleLeft
@@ -1813,12 +1792,12 @@ Partial Class Editor_Form
         ' 
         ' ButtonClearPoseTransforms
         ' 
-        ButtonClearPoseTransforms.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonClearPoseTransforms.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonClearPoseTransforms.ImageIndex = 5
         ButtonClearPoseTransforms.ImageList = ImageList1
-        ButtonClearPoseTransforms.Location = New Point(480, 391)
+        ButtonClearPoseTransforms.Location = New Point(265, 326)
         ButtonClearPoseTransforms.Name = "ButtonClearPoseTransforms"
-        ButtonClearPoseTransforms.Size = New Size(210, 25)
+        ButtonClearPoseTransforms.Size = New Size(236, 25)
         ButtonClearPoseTransforms.TabIndex = 22
         ButtonClearPoseTransforms.Text = "Delete pose transforms"
         ButtonClearPoseTransforms.TextAlign = ContentAlignment.MiddleLeft
@@ -1828,12 +1807,12 @@ Partial Class Editor_Form
         ' 
         ' ButtonClearBoneTransform
         ' 
-        ButtonClearBoneTransform.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonClearBoneTransform.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonClearBoneTransform.ImageIndex = 11
         ButtonClearBoneTransform.ImageList = ImageList1
-        ButtonClearBoneTransform.Location = New Point(480, 422)
+        ButtonClearBoneTransform.Location = New Point(265, 357)
         ButtonClearBoneTransform.Name = "ButtonClearBoneTransform"
-        ButtonClearBoneTransform.Size = New Size(210, 25)
+        ButtonClearBoneTransform.Size = New Size(236, 25)
         ButtonClearBoneTransform.TabIndex = 21
         ButtonClearBoneTransform.Text = "Clear bone transforms"
         ButtonClearBoneTransform.TextAlign = ContentAlignment.MiddleLeft
@@ -1843,12 +1822,12 @@ Partial Class Editor_Form
         ' 
         ' ButtonReloadPose
         ' 
-        ButtonReloadPose.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonReloadPose.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ButtonReloadPose.ImageIndex = 7
         ButtonReloadPose.ImageList = ImageList1
-        ButtonReloadPose.Location = New Point(265, 391)
+        ButtonReloadPose.Location = New Point(265, 264)
         ButtonReloadPose.Name = "ButtonReloadPose"
-        ButtonReloadPose.Size = New Size(210, 25)
+        ButtonReloadPose.Size = New Size(237, 25)
         ButtonReloadPose.TabIndex = 19
         ButtonReloadPose.Text = "Reset to selected pose"
         ButtonReloadPose.TextAlign = ContentAlignment.MiddleLeft
@@ -1859,10 +1838,10 @@ Partial Class Editor_Form
         ' TableLayoutPanel6
         ' 
         TableLayoutPanel6.ColumnCount = 4
-        TableLayoutPanel6.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
-        TableLayoutPanel6.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
-        TableLayoutPanel6.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
-        TableLayoutPanel6.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
+        TableLayoutPanel6.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
+        TableLayoutPanel6.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
+        TableLayoutPanel6.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
+        TableLayoutPanel6.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
         TableLayoutPanel6.Controls.Add(PoseUnBakeShapeButton, 3, 1)
         TableLayoutPanel6.Controls.Add(PoseBakeShapeButton, 2, 1)
         TableLayoutPanel6.Controls.Add(CheckBoxSaveSAF, 3, 0)
@@ -1872,24 +1851,24 @@ Partial Class Editor_Form
         TableLayoutPanel6.Controls.Add(PoseSaveButton, 0, 0)
         TableLayoutPanel6.Controls.Add(PoseDeleteButton, 2, 0)
         TableLayoutPanel6.Dock = DockStyle.Bottom
-        TableLayoutPanel6.Location = New Point(3, 550)
+        TableLayoutPanel6.Location = New Point(3, 506)
         TableLayoutPanel6.Name = "TableLayoutPanel6"
         TableLayoutPanel6.RowCount = 2
-        TableLayoutPanel6.RowStyles.Add(New RowStyle(SizeType.Absolute, 31.0F))
-        TableLayoutPanel6.RowStyles.Add(New RowStyle(SizeType.Absolute, 31.0F))
-        TableLayoutPanel6.RowStyles.Add(New RowStyle(SizeType.Absolute, 20.0F))
-        TableLayoutPanel6.Size = New Size(690, 65)
+        TableLayoutPanel6.RowStyles.Add(New RowStyle(SizeType.Absolute, 31F))
+        TableLayoutPanel6.RowStyles.Add(New RowStyle(SizeType.Absolute, 31F))
+        TableLayoutPanel6.RowStyles.Add(New RowStyle(SizeType.Absolute, 20F))
+        TableLayoutPanel6.Size = New Size(698, 65)
         TableLayoutPanel6.TabIndex = 15
         ' 
         ' PoseUnBakeShapeButton
         ' 
         PoseUnBakeShapeButton.Dock = DockStyle.Fill
-        PoseUnBakeShapeButton.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        PoseUnBakeShapeButton.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         PoseUnBakeShapeButton.ImageIndex = 6
         PoseUnBakeShapeButton.ImageList = ImageList1
-        PoseUnBakeShapeButton.Location = New Point(519, 34)
+        PoseUnBakeShapeButton.Location = New Point(525, 34)
         PoseUnBakeShapeButton.Name = "PoseUnBakeShapeButton"
-        PoseUnBakeShapeButton.Size = New Size(168, 28)
+        PoseUnBakeShapeButton.Size = New Size(170, 28)
         PoseUnBakeShapeButton.TabIndex = 26
         PoseUnBakeShapeButton.Text = "Un-Bake in shape"
         PoseUnBakeShapeButton.TextAlign = ContentAlignment.MiddleLeft
@@ -1900,12 +1879,12 @@ Partial Class Editor_Form
         ' PoseBakeShapeButton
         ' 
         PoseBakeShapeButton.Dock = DockStyle.Fill
-        PoseBakeShapeButton.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        PoseBakeShapeButton.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         PoseBakeShapeButton.ImageIndex = 8
         PoseBakeShapeButton.ImageList = ImageList1
-        PoseBakeShapeButton.Location = New Point(347, 34)
+        PoseBakeShapeButton.Location = New Point(351, 34)
         PoseBakeShapeButton.Name = "PoseBakeShapeButton"
-        PoseBakeShapeButton.Size = New Size(166, 28)
+        PoseBakeShapeButton.Size = New Size(168, 28)
         PoseBakeShapeButton.TabIndex = 25
         PoseBakeShapeButton.Text = "Bake in shape"
         PoseBakeShapeButton.TextImageRelation = TextImageRelation.ImageBeforeText
@@ -1918,9 +1897,9 @@ Partial Class Editor_Form
         CheckBoxSaveSAF.Checked = True
         CheckBoxSaveSAF.CheckState = CheckState.Checked
         CheckBoxSaveSAF.Dock = DockStyle.Fill
-        CheckBoxSaveSAF.Location = New Point(519, 3)
+        CheckBoxSaveSAF.Location = New Point(525, 3)
         CheckBoxSaveSAF.Name = "CheckBoxSaveSAF"
-        CheckBoxSaveSAF.Size = New Size(168, 25)
+        CheckBoxSaveSAF.Size = New Size(170, 25)
         CheckBoxSaveSAF.TabIndex = 24
         CheckBoxSaveSAF.Text = "Save for screen archer also"
         ToolTip1.SetToolTip(CheckBoxSaveSAF, "Also export the pose for Screen Archer / SAM-compatible output.")
@@ -1929,12 +1908,12 @@ Partial Class Editor_Form
         ' PoseUnBakeButton
         ' 
         PoseUnBakeButton.Dock = DockStyle.Fill
-        PoseUnBakeButton.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        PoseUnBakeButton.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         PoseUnBakeButton.ImageIndex = 6
         PoseUnBakeButton.ImageList = ImageList1
-        PoseUnBakeButton.Location = New Point(175, 34)
+        PoseUnBakeButton.Location = New Point(177, 34)
         PoseUnBakeButton.Name = "PoseUnBakeButton"
-        PoseUnBakeButton.Size = New Size(166, 28)
+        PoseUnBakeButton.Size = New Size(168, 28)
         PoseUnBakeButton.TabIndex = 23
         PoseUnBakeButton.Text = "Un-Bake in mesh"
         PoseUnBakeButton.TextAlign = ContentAlignment.MiddleLeft
@@ -1945,12 +1924,12 @@ Partial Class Editor_Form
         ' PoseBakeButton
         ' 
         PoseBakeButton.Dock = DockStyle.Fill
-        PoseBakeButton.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        PoseBakeButton.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         PoseBakeButton.ImageIndex = 8
         PoseBakeButton.ImageList = ImageList1
         PoseBakeButton.Location = New Point(3, 34)
         PoseBakeButton.Name = "PoseBakeButton"
-        PoseBakeButton.Size = New Size(166, 28)
+        PoseBakeButton.Size = New Size(168, 28)
         PoseBakeButton.TabIndex = 12
         PoseBakeButton.Text = "Bake in mesh"
         PoseBakeButton.TextImageRelation = TextImageRelation.ImageBeforeText
@@ -1960,12 +1939,12 @@ Partial Class Editor_Form
         ' PoseSaveAsButton
         ' 
         PoseSaveAsButton.Dock = DockStyle.Fill
-        PoseSaveAsButton.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        PoseSaveAsButton.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         PoseSaveAsButton.ImageIndex = 4
         PoseSaveAsButton.ImageList = ImageList1
-        PoseSaveAsButton.Location = New Point(175, 3)
+        PoseSaveAsButton.Location = New Point(177, 3)
         PoseSaveAsButton.Name = "PoseSaveAsButton"
-        PoseSaveAsButton.Size = New Size(166, 25)
+        PoseSaveAsButton.Size = New Size(168, 25)
         PoseSaveAsButton.TabIndex = 11
         PoseSaveAsButton.Text = "Save as..."
         PoseSaveAsButton.TextImageRelation = TextImageRelation.ImageBeforeText
@@ -1975,12 +1954,12 @@ Partial Class Editor_Form
         ' PoseSaveButton
         ' 
         PoseSaveButton.Dock = DockStyle.Fill
-        PoseSaveButton.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        PoseSaveButton.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         PoseSaveButton.ImageIndex = 3
         PoseSaveButton.ImageList = ImageList1
         PoseSaveButton.Location = New Point(3, 3)
         PoseSaveButton.Name = "PoseSaveButton"
-        PoseSaveButton.Size = New Size(166, 25)
+        PoseSaveButton.Size = New Size(168, 25)
         PoseSaveButton.TabIndex = 10
         PoseSaveButton.Text = "Save"
         PoseSaveButton.TextImageRelation = TextImageRelation.ImageBeforeText
@@ -1990,12 +1969,12 @@ Partial Class Editor_Form
         ' PoseDeleteButton
         ' 
         PoseDeleteButton.Dock = DockStyle.Fill
-        PoseDeleteButton.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        PoseDeleteButton.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         PoseDeleteButton.ImageIndex = 14
         PoseDeleteButton.ImageList = ImageList1
-        PoseDeleteButton.Location = New Point(347, 3)
+        PoseDeleteButton.Location = New Point(351, 3)
         PoseDeleteButton.Name = "PoseDeleteButton"
-        PoseDeleteButton.Size = New Size(166, 25)
+        PoseDeleteButton.Size = New Size(168, 25)
         PoseDeleteButton.TabIndex = 16
         PoseDeleteButton.Text = "Delete"
         PoseDeleteButton.TextImageRelation = TextImageRelation.ImageBeforeText
@@ -2004,28 +1983,12 @@ Partial Class Editor_Form
         ' 
         ' GroupBox10
         ' 
-        GroupBox10.Controls.Add(Label33)
-        GroupBox10.Controls.Add(NumericUpDownScale)
-        GroupBox10.Controls.Add(Label30)
-        GroupBox10.Controls.Add(Label31)
-        GroupBox10.Controls.Add(Label32)
-        GroupBox10.Controls.Add(NumericUpDownRotZ)
-        GroupBox10.Controls.Add(NumericUpDownRotY)
-        GroupBox10.Controls.Add(NumericUpDownRotX)
-        GroupBox10.Controls.Add(Label29)
-        GroupBox10.Controls.Add(Label27)
-        GroupBox10.Controls.Add(Label26)
-        GroupBox10.Controls.Add(NumericUpDownTrasZ)
-        GroupBox10.Controls.Add(NumericUpDownTrasY)
-        GroupBox10.Controls.Add(NumericUpDownTrasX)
         GroupBox10.Controls.Add(TrackBar8)
         GroupBox10.Controls.Add(TrackBar7)
         GroupBox10.Controls.Add(TrackBar6)
         GroupBox10.Controls.Add(TrackBar5)
         GroupBox10.Controls.Add(TrackBar4)
-        GroupBox10.Controls.Add(LabelORotation)
         GroupBox10.Controls.Add(TrackBar3)
-        GroupBox10.Controls.Add(LabelOTranslation)
         GroupBox10.Controls.Add(TrackBar2)
         GroupBox10.Controls.Add(Label25)
         GroupBox10.Controls.Add(Label24)
@@ -2036,258 +1999,158 @@ Partial Class Editor_Form
         GroupBox10.Controls.Add(Label19)
         GroupBox10.Location = New Point(265, 22)
         GroupBox10.Name = "GroupBox10"
-        GroupBox10.Size = New Size(425, 363)
+        GroupBox10.Size = New Size(425, 236)
         GroupBox10.TabIndex = 1
         GroupBox10.TabStop = False
         GroupBox10.Text = "Posing"
         ' 
-        ' Label33
-        ' 
-        Label33.Location = New Point(6, 328)
-        Label33.Name = "Label33"
-        Label33.Size = New Size(71, 23)
-        Label33.TabIndex = 55
-        Label33.Text = "Scale"
-        Label33.TextAlign = ContentAlignment.MiddleLeft
-        ' 
-        ' NumericUpDownScale
-        ' 
-        NumericUpDownScale.DecimalPlaces = 4
-        NumericUpDownScale.Increment = New Decimal(New Integer() {1, 0, 0, 131072})
-        NumericUpDownScale.Location = New Point(83, 328)
-        NumericUpDownScale.Name = "NumericUpDownScale"
-        NumericUpDownScale.Size = New Size(100, 23)
-        NumericUpDownScale.TabIndex = 54
-        NumericUpDownScale.TextAlign = HorizontalAlignment.Right
-        ToolTip1.SetToolTip(NumericUpDownScale, "Scale for the selected bone transform.")
-        ' 
-        ' Label30
-        ' 
-        Label30.Location = New Point(229, 299)
-        Label30.Name = "Label30"
-        Label30.Size = New Size(71, 23)
-        Label30.TabIndex = 53
-        Label30.Text = "Z"
-        Label30.TextAlign = ContentAlignment.MiddleLeft
-        ' 
-        ' Label31
-        ' 
-        Label31.Location = New Point(229, 272)
-        Label31.Name = "Label31"
-        Label31.Size = New Size(71, 23)
-        Label31.TabIndex = 52
-        Label31.Text = "Y"
-        Label31.TextAlign = ContentAlignment.MiddleLeft
-        ' 
-        ' Label32
-        ' 
-        Label32.Location = New Point(229, 243)
-        Label32.Name = "Label32"
-        Label32.Size = New Size(71, 23)
-        Label32.TabIndex = 51
-        Label32.Text = "X"
-        Label32.TextAlign = ContentAlignment.MiddleLeft
-        ' 
-        ' NumericUpDownRotZ
-        ' 
-        NumericUpDownRotZ.DecimalPlaces = 4
-        NumericUpDownRotZ.Increment = New Decimal(New Integer() {1, 0, 0, 131072})
-        NumericUpDownRotZ.Location = New Point(306, 301)
-        NumericUpDownRotZ.Name = "NumericUpDownRotZ"
-        NumericUpDownRotZ.Size = New Size(100, 23)
-        NumericUpDownRotZ.TabIndex = 50
-        NumericUpDownRotZ.TextAlign = HorizontalAlignment.Right
-        ToolTip1.SetToolTip(NumericUpDownRotZ, "Rotation Z for the selected bone transform.")
-        ' 
-        ' NumericUpDownRotY
-        ' 
-        NumericUpDownRotY.DecimalPlaces = 4
-        NumericUpDownRotY.Increment = New Decimal(New Integer() {1, 0, 0, 131072})
-        NumericUpDownRotY.Location = New Point(306, 272)
-        NumericUpDownRotY.Name = "NumericUpDownRotY"
-        NumericUpDownRotY.Size = New Size(100, 23)
-        NumericUpDownRotY.TabIndex = 49
-        NumericUpDownRotY.TextAlign = HorizontalAlignment.Right
-        ToolTip1.SetToolTip(NumericUpDownRotY, "Rotation Y for the selected bone transform.")
-        ' 
-        ' NumericUpDownRotX
-        ' 
-        NumericUpDownRotX.DecimalPlaces = 4
-        NumericUpDownRotX.Increment = New Decimal(New Integer() {1, 0, 0, 131072})
-        NumericUpDownRotX.Location = New Point(306, 243)
-        NumericUpDownRotX.Name = "NumericUpDownRotX"
-        NumericUpDownRotX.Size = New Size(100, 23)
-        NumericUpDownRotX.TabIndex = 48
-        NumericUpDownRotX.TextAlign = HorizontalAlignment.Right
-        ToolTip1.SetToolTip(NumericUpDownRotX, "Rotation X for the selected bone transform.")
-        ' 
-        ' Label29
-        ' 
-        Label29.Location = New Point(6, 299)
-        Label29.Name = "Label29"
-        Label29.Size = New Size(71, 23)
-        Label29.TabIndex = 47
-        Label29.Text = "Z"
-        Label29.TextAlign = ContentAlignment.MiddleLeft
-        ' 
-        ' Label27
-        ' 
-        Label27.Location = New Point(6, 272)
-        Label27.Name = "Label27"
-        Label27.Size = New Size(71, 23)
-        Label27.TabIndex = 46
-        Label27.Text = "Y"
-        Label27.TextAlign = ContentAlignment.MiddleLeft
-        ' 
-        ' Label26
-        ' 
-        Label26.Location = New Point(6, 243)
-        Label26.Name = "Label26"
-        Label26.Size = New Size(71, 23)
-        Label26.TabIndex = 45
-        Label26.Text = "X"
-        Label26.TextAlign = ContentAlignment.MiddleLeft
-        ' 
-        ' NumericUpDownTrasZ
-        ' 
-        NumericUpDownTrasZ.DecimalPlaces = 4
-        NumericUpDownTrasZ.Increment = New Decimal(New Integer() {1, 0, 0, 131072})
-        NumericUpDownTrasZ.Location = New Point(83, 301)
-        NumericUpDownTrasZ.Name = "NumericUpDownTrasZ"
-        NumericUpDownTrasZ.Size = New Size(100, 23)
-        NumericUpDownTrasZ.TabIndex = 21
-        NumericUpDownTrasZ.TextAlign = HorizontalAlignment.Right
-        ToolTip1.SetToolTip(NumericUpDownTrasZ, "Translation Z for the selected bone transform.")
-        ' 
-        ' NumericUpDownTrasY
-        ' 
-        NumericUpDownTrasY.DecimalPlaces = 4
-        NumericUpDownTrasY.Increment = New Decimal(New Integer() {1, 0, 0, 131072})
-        NumericUpDownTrasY.Location = New Point(83, 272)
-        NumericUpDownTrasY.Name = "NumericUpDownTrasY"
-        NumericUpDownTrasY.Size = New Size(100, 23)
-        NumericUpDownTrasY.TabIndex = 20
-        NumericUpDownTrasY.TextAlign = HorizontalAlignment.Right
-        ToolTip1.SetToolTip(NumericUpDownTrasY, "Translation Y for the selected bone transform.")
-        ' 
-        ' NumericUpDownTrasX
-        ' 
-        NumericUpDownTrasX.DecimalPlaces = 4
-        NumericUpDownTrasX.Increment = New Decimal(New Integer() {1, 0, 0, 131072})
-        NumericUpDownTrasX.Location = New Point(83, 243)
-        NumericUpDownTrasX.Name = "NumericUpDownTrasX"
-        NumericUpDownTrasX.Size = New Size(100, 23)
-        NumericUpDownTrasX.TabIndex = 19
-        NumericUpDownTrasX.TextAlign = HorizontalAlignment.Right
-        ToolTip1.SetToolTip(NumericUpDownTrasX, "Translation X for the selected bone transform.")
-        ' 
         ' TrackBar8
         ' 
-        TrackBar8.AutoSize = False
-        TrackBar8.Location = New Point(104, 176)
-        TrackBar8.Maximum = 100
+        TrackBar8.AccentColor = SystemColors.HotTrack
+        TrackBar8.BackColor = SystemColors.Control
+        TrackBar8.LargeChange = 0.5R
+        TrackBar8.Location = New Point(104, 201)
+        TrackBar8.Maximum = 10R
+        TrackBar8.Minimum = 0.1R
+        TrackBar8.MinimumSize = New Size(100, 24)
         TrackBar8.Name = "TrackBar8"
-        TrackBar8.Size = New Size(302, 21)
+        TrackBar8.Size = New Size(305, 28)
+        TrackBar8.SmallChange = 0.05R
         TrackBar8.TabIndex = 13
-        TrackBar8.TickFrequency = 10
+        TrackBar8.TextBoxTextAlign = HorizontalAlignment.Right
+        TrackBar8.ThumbColor = SystemColors.HotTrack
+        TrackBar8.ThumbRadius = 4F
+        TrackBar8.TickFrequency = 1R
         ToolTip1.SetToolTip(TrackBar8, "Adjust scale for the selected bone.")
-        TrackBar8.Value = 10
+        TrackBar8.TrackColor = SystemColors.ControlDark
+        TrackBar8.Value = 1R
         ' 
         ' TrackBar7
         ' 
-        TrackBar7.AutoSize = False
-        TrackBar7.Location = New Point(104, 149)
-        TrackBar7.Maximum = 180
-        TrackBar7.Minimum = -180
+        TrackBar7.AccentColor = SystemColors.HotTrack
+        TrackBar7.BackColor = SystemColors.Control
+        TrackBar7.DisplayFormat = "0.00°"
+        TrackBar7.FillMode = TinySliderFillMode.Center
+        TrackBar7.LargeChange = 5R
+        TrackBar7.Location = New Point(104, 171)
+        TrackBar7.Maximum = 180R
+        TrackBar7.Minimum = -180R
+        TrackBar7.MinimumSize = New Size(100, 24)
         TrackBar7.Name = "TrackBar7"
-        TrackBar7.Size = New Size(302, 21)
+        TrackBar7.Size = New Size(305, 28)
+        TrackBar7.SmallChange = 0.5R
         TrackBar7.TabIndex = 12
-        TrackBar7.TickFrequency = 10
+        TrackBar7.TextBoxTextAlign = HorizontalAlignment.Right
+        TrackBar7.ThumbColor = SystemColors.HotTrack
+        TrackBar7.ThumbRadius = 4F
+        TrackBar7.TickFrequency = 30R
         ToolTip1.SetToolTip(TrackBar7, "Adjust rotation Z for the selected bone.")
+        TrackBar7.TrackColor = SystemColors.ControlDark
         ' 
         ' TrackBar6
         ' 
-        TrackBar6.AutoSize = False
-        TrackBar6.Location = New Point(105, 123)
-        TrackBar6.Maximum = 180
-        TrackBar6.Minimum = -180
+        TrackBar6.AccentColor = SystemColors.HotTrack
+        TrackBar6.BackColor = SystemColors.Control
+        TrackBar6.DisplayFormat = "0.00°"
+        TrackBar6.FillMode = TinySliderFillMode.Center
+        TrackBar6.LargeChange = 5R
+        TrackBar6.Location = New Point(104, 141)
+        TrackBar6.Maximum = 180R
+        TrackBar6.Minimum = -180R
+        TrackBar6.MinimumSize = New Size(100, 24)
         TrackBar6.Name = "TrackBar6"
-        TrackBar6.Size = New Size(302, 21)
+        TrackBar6.Size = New Size(305, 28)
+        TrackBar6.SmallChange = 0.5R
         TrackBar6.TabIndex = 11
-        TrackBar6.TickFrequency = 10
+        TrackBar6.TextBoxTextAlign = HorizontalAlignment.Right
+        TrackBar6.ThumbColor = SystemColors.HotTrack
+        TrackBar6.ThumbRadius = 4F
+        TrackBar6.TickFrequency = 30R
         ToolTip1.SetToolTip(TrackBar6, "Adjust rotation Y for the selected bone.")
+        TrackBar6.TrackColor = SystemColors.ControlDark
         ' 
         ' TrackBar5
         ' 
-        TrackBar5.AutoSize = False
-        TrackBar5.Location = New Point(104, 97)
-        TrackBar5.Maximum = 180
-        TrackBar5.Minimum = -180
+        TrackBar5.AccentColor = SystemColors.HotTrack
+        TrackBar5.BackColor = SystemColors.Control
+        TrackBar5.DisplayFormat = "0.00°"
+        TrackBar5.FillMode = TinySliderFillMode.Center
+        TrackBar5.LargeChange = 5R
+        TrackBar5.Location = New Point(104, 111)
+        TrackBar5.Maximum = 180R
+        TrackBar5.Minimum = -180R
+        TrackBar5.MinimumSize = New Size(100, 24)
         TrackBar5.Name = "TrackBar5"
-        TrackBar5.Size = New Size(302, 21)
+        TrackBar5.Size = New Size(305, 28)
+        TrackBar5.SmallChange = 0.5R
         TrackBar5.TabIndex = 10
-        TrackBar5.TickFrequency = 10
+        TrackBar5.TextBoxTextAlign = HorizontalAlignment.Right
+        TrackBar5.ThumbColor = SystemColors.HotTrack
+        TrackBar5.ThumbRadius = 4F
+        TrackBar5.TickFrequency = 30R
         ToolTip1.SetToolTip(TrackBar5, "Adjust rotation X for the selected bone.")
+        TrackBar5.TrackColor = SystemColors.ControlDark
         ' 
         ' TrackBar4
         ' 
-        TrackBar4.AutoSize = False
-        TrackBar4.Location = New Point(104, 71)
-        TrackBar4.Maximum = 180
-        TrackBar4.Minimum = -180
+        TrackBar4.AccentColor = SystemColors.HotTrack
+        TrackBar4.BackColor = SystemColors.Control
+        TrackBar4.FillMode = TinySliderFillMode.Center
+        TrackBar4.LargeChange = 5R
+        TrackBar4.Location = New Point(104, 81)
+        TrackBar4.Minimum = -100R
+        TrackBar4.MinimumSize = New Size(100, 24)
         TrackBar4.Name = "TrackBar4"
-        TrackBar4.Size = New Size(302, 21)
+        TrackBar4.Size = New Size(305, 28)
+        TrackBar4.SmallChange = 0.5R
         TrackBar4.TabIndex = 9
-        TrackBar4.TickFrequency = 10
+        TrackBar4.TextBoxTextAlign = HorizontalAlignment.Right
+        TrackBar4.ThumbColor = SystemColors.HotTrack
+        TrackBar4.ThumbRadius = 4F
         ToolTip1.SetToolTip(TrackBar4, "Adjust translation Z for the selected bone.")
-        ' 
-        ' LabelORotation
-        ' 
-        LabelORotation.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold)
-        LabelORotation.Location = New Point(229, 219)
-        LabelORotation.Name = "LabelORotation"
-        LabelORotation.Size = New Size(177, 21)
-        LabelORotation.TabIndex = 17
-        LabelORotation.Text = "Rotation"
-        LabelORotation.TextAlign = ContentAlignment.MiddleLeft
+        TrackBar4.TrackColor = SystemColors.ControlDark
         ' 
         ' TrackBar3
         ' 
-        TrackBar3.AutoSize = False
-        TrackBar3.Location = New Point(104, 45)
-        TrackBar3.Maximum = 180
-        TrackBar3.Minimum = -180
+        TrackBar3.AccentColor = SystemColors.HotTrack
+        TrackBar3.BackColor = SystemColors.Control
+        TrackBar3.FillMode = TinySliderFillMode.Center
+        TrackBar3.LargeChange = 5R
+        TrackBar3.Location = New Point(104, 51)
+        TrackBar3.Minimum = -100R
+        TrackBar3.MinimumSize = New Size(100, 24)
         TrackBar3.Name = "TrackBar3"
-        TrackBar3.Size = New Size(302, 21)
+        TrackBar3.Size = New Size(305, 28)
+        TrackBar3.SmallChange = 0.5R
         TrackBar3.TabIndex = 8
-        TrackBar3.TickFrequency = 10
+        TrackBar3.TextBoxTextAlign = HorizontalAlignment.Right
+        TrackBar3.ThumbColor = SystemColors.HotTrack
+        TrackBar3.ThumbRadius = 4F
         ToolTip1.SetToolTip(TrackBar3, "Adjust translation Y for the selected bone.")
-        ' 
-        ' LabelOTranslation
-        ' 
-        LabelOTranslation.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold)
-        LabelOTranslation.Location = New Point(6, 219)
-        LabelOTranslation.Name = "LabelOTranslation"
-        LabelOTranslation.Size = New Size(177, 21)
-        LabelOTranslation.TabIndex = 16
-        LabelOTranslation.Text = "Translation"
-        LabelOTranslation.TextAlign = ContentAlignment.MiddleLeft
+        TrackBar3.TrackColor = SystemColors.ControlDark
         ' 
         ' TrackBar2
         ' 
-        TrackBar2.AutoSize = False
-        TrackBar2.Location = New Point(104, 19)
-        TrackBar2.Maximum = 180
-        TrackBar2.Minimum = -180
+        TrackBar2.AccentColor = SystemColors.HotTrack
+        TrackBar2.BackColor = SystemColors.Control
+        TrackBar2.FillMode = TinySliderFillMode.Center
+        TrackBar2.LargeChange = 5R
+        TrackBar2.Location = New Point(104, 21)
+        TrackBar2.Minimum = -100R
+        TrackBar2.MinimumSize = New Size(100, 24)
         TrackBar2.Name = "TrackBar2"
-        TrackBar2.Size = New Size(302, 21)
+        TrackBar2.Size = New Size(305, 28)
+        TrackBar2.SmallChange = 0.5R
         TrackBar2.TabIndex = 7
-        TrackBar2.TickFrequency = 10
+        TrackBar2.TextBoxTextAlign = HorizontalAlignment.Right
+        TrackBar2.ThumbColor = SystemColors.HotTrack
+        TrackBar2.ThumbRadius = 4F
         ToolTip1.SetToolTip(TrackBar2, "Adjust translation X for the selected bone.")
+        TrackBar2.TrackColor = SystemColors.ControlDark
         ' 
         ' Label25
         ' 
-        Label25.Location = New Point(6, 176)
+        Label25.Location = New Point(6, 204)
         Label25.Name = "Label25"
         Label25.Size = New Size(93, 21)
         Label25.TabIndex = 6
@@ -2296,7 +2159,7 @@ Partial Class Editor_Form
         ' 
         ' Label24
         ' 
-        Label24.Location = New Point(6, 149)
+        Label24.Location = New Point(6, 174)
         Label24.Name = "Label24"
         Label24.Size = New Size(93, 21)
         Label24.TabIndex = 5
@@ -2305,7 +2168,7 @@ Partial Class Editor_Form
         ' 
         ' Label23
         ' 
-        Label23.Location = New Point(6, 123)
+        Label23.Location = New Point(6, 144)
         Label23.Name = "Label23"
         Label23.Size = New Size(93, 21)
         Label23.TabIndex = 4
@@ -2314,7 +2177,7 @@ Partial Class Editor_Form
         ' 
         ' Label22
         ' 
-        Label22.Location = New Point(6, 97)
+        Label22.Location = New Point(6, 114)
         Label22.Name = "Label22"
         Label22.Size = New Size(93, 21)
         Label22.TabIndex = 3
@@ -2323,7 +2186,7 @@ Partial Class Editor_Form
         ' 
         ' Label21
         ' 
-        Label21.Location = New Point(6, 71)
+        Label21.Location = New Point(6, 84)
         Label21.Name = "Label21"
         Label21.Size = New Size(93, 21)
         Label21.TabIndex = 2
@@ -2332,7 +2195,7 @@ Partial Class Editor_Form
         ' 
         ' Label20
         ' 
-        Label20.Location = New Point(6, 45)
+        Label20.Location = New Point(6, 54)
         Label20.Name = "Label20"
         Label20.Size = New Size(93, 21)
         Label20.TabIndex = 1
@@ -2341,7 +2204,7 @@ Partial Class Editor_Form
         ' 
         ' Label19
         ' 
-        Label19.Location = New Point(6, 19)
+        Label19.Location = New Point(6, 24)
         Label19.Name = "Label19"
         Label19.Size = New Size(93, 21)
         Label19.TabIndex = 0
@@ -2353,7 +2216,7 @@ Partial Class Editor_Form
         TreeViewSkeleton.HideSelection = False
         TreeViewSkeleton.Location = New Point(4, 22)
         TreeViewSkeleton.Name = "TreeViewSkeleton"
-        TreeViewSkeleton.Size = New Size(255, 522)
+        TreeViewSkeleton.Size = New Size(255, 481)
         TreeViewSkeleton.TabIndex = 0
         ToolTip1.SetToolTip(TreeViewSkeleton, "Browse skeleton bones for pose editing.")
         ' 
@@ -2367,7 +2230,7 @@ Partial Class Editor_Form
         TabPage5.ImageKey = "applications-development.ico"
         TabPage5.Location = New Point(4, 24)
         TabPage5.Name = "TabPage5"
-        TabPage5.Size = New Size(707, 630)
+        TabPage5.Size = New Size(715, 576)
         TabPage5.TabIndex = 4
         TabPage5.Text = "Tools"
         ' 
@@ -2467,7 +2330,7 @@ Partial Class Editor_Form
         ' 
         ' Label15
         ' 
-        Label15.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label15.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Label15.Location = New Point(8, 49)
         Label15.Name = "Label15"
         Label15.Size = New Size(135, 29)
@@ -2479,7 +2342,7 @@ Partial Class Editor_Form
         ' 
         ComboBoxPoses.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
         ComboBoxPoses.DropDownStyle = ComboBoxStyle.DropDownList
-        ComboBoxPoses.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ComboBoxPoses.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ComboBoxPoses.FormattingEnabled = True
         ComboBoxPoses.Location = New Point(145, 49)
         ComboBoxPoses.Name = "ComboBoxPoses"
@@ -2495,7 +2358,7 @@ Partial Class Editor_Form
         GroupBox11.Controls.Add(RecalculateNormalsCheck)
         GroupBox11.Controls.Add(NumericMaskRadius)
         GroupBox11.Controls.Add(Label17)
-        GroupBox11.Location = New Point(733, 903)
+        GroupBox11.Location = New Point(741, 871)
         GroupBox11.Name = "GroupBox11"
         GroupBox11.Size = New Size(877, 45)
         GroupBox11.TabIndex = 48
@@ -2530,7 +2393,7 @@ Partial Class Editor_Form
         GroupBox12.Controls.Add(TextBox2)
         GroupBox12.Location = New Point(733, -2)
         GroupBox12.Name = "GroupBox12"
-        GroupBox12.Size = New Size(877, 50)
+        GroupBox12.Size = New Size(885, 50)
         GroupBox12.TabIndex = 49
         GroupBox12.TabStop = False
         ' 
@@ -2564,7 +2427,7 @@ Partial Class Editor_Form
         GroupBox13.Controls.Add(Label7)
         GroupBox13.Location = New Point(733, 51)
         GroupBox13.Name = "GroupBox13"
-        GroupBox13.Size = New Size(877, 846)
+        GroupBox13.Size = New Size(885, 802)
         GroupBox13.TabIndex = 50
         GroupBox13.TabStop = False
         GroupBox13.Text = "Render"
@@ -2588,7 +2451,7 @@ Partial Class Editor_Form
         ' 
         ComboBoxSize.Anchor = AnchorStyles.Top Or AnchorStyles.Right
         ComboBoxSize.DropDownStyle = ComboBoxStyle.DropDownList
-        ComboBoxSize.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ComboBoxSize.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         ComboBoxSize.FormattingEnabled = True
         ComboBoxSize.Items.AddRange(New Object() {"Default", "Big", "Small"})
         ComboBoxSize.Location = New Point(773, 14)
@@ -2601,8 +2464,7 @@ Partial Class Editor_Form
         ' 
         AutoScaleDimensions = New SizeF(7F, 15F)
         AutoScaleMode = AutoScaleMode.Font
-        AutoScroll = True
-        ClientSize = New Size(1618, 954)
+        ClientSize = New Size(1618, 918)
         Controls.Add(GroupBox13)
         Controls.Add(GroupBox12)
         Controls.Add(GroupBox11)
@@ -2621,7 +2483,6 @@ Partial Class Editor_Form
         GroupBox6.ResumeLayout(False)
         TableLayoutPanel1.ResumeLayout(False)
         TableLayoutPanel1.PerformLayout()
-        CType(TrackBar1, ComponentModel.ISupportInitialize).EndInit()
         CType(GrayScaleTrackbar1, ComponentModel.ISupportInitialize).EndInit()
         GroupBox5.ResumeLayout(False)
         GroupBox5.PerformLayout()
@@ -2660,20 +2521,6 @@ Partial Class Editor_Form
         TableLayoutPanel6.ResumeLayout(False)
         TableLayoutPanel6.PerformLayout()
         GroupBox10.ResumeLayout(False)
-        CType(NumericUpDownScale, ComponentModel.ISupportInitialize).EndInit()
-        CType(NumericUpDownRotZ, ComponentModel.ISupportInitialize).EndInit()
-        CType(NumericUpDownRotY, ComponentModel.ISupportInitialize).EndInit()
-        CType(NumericUpDownRotX, ComponentModel.ISupportInitialize).EndInit()
-        CType(NumericUpDownTrasZ, ComponentModel.ISupportInitialize).EndInit()
-        CType(NumericUpDownTrasY, ComponentModel.ISupportInitialize).EndInit()
-        CType(NumericUpDownTrasX, ComponentModel.ISupportInitialize).EndInit()
-        CType(TrackBar8, ComponentModel.ISupportInitialize).EndInit()
-        CType(TrackBar7, ComponentModel.ISupportInitialize).EndInit()
-        CType(TrackBar6, ComponentModel.ISupportInitialize).EndInit()
-        CType(TrackBar5, ComponentModel.ISupportInitialize).EndInit()
-        CType(TrackBar4, ComponentModel.ISupportInitialize).EndInit()
-        CType(TrackBar3, ComponentModel.ISupportInitialize).EndInit()
-        CType(TrackBar2, ComponentModel.ISupportInitialize).EndInit()
         TabPage5.ResumeLayout(False)
         CType(NumericMaskRadius, ComponentModel.ISupportInitialize).EndInit()
         GroupBox11.ResumeLayout(False)
@@ -2791,7 +2638,7 @@ Partial Class Editor_Form
     Friend WithEvents Label17 As Label
     Friend WithEvents ButtonShrinkMask As Button
     Friend WithEvents Label18 As Label
-    Friend WithEvents TrackBar1 As TrackBar
+    Friend WithEvents TrackBar1 As FO4_Base_Library.TinySliderTextBox
     Friend WithEvents ButonMatBackToOriginal As Button
     Friend WithEvents ColorComboBox1 As ColorComboBox
     Friend WithEvents TabPage4 As TabPage
@@ -2812,7 +2659,7 @@ Partial Class Editor_Form
     Friend WithEvents Label15 As Label
     Friend WithEvents ComboBoxPoses As ComboBox
     Friend WithEvents GroupBox11 As GroupBox
-    Friend WithEvents TrackBar2 As TrackBar
+    Friend WithEvents TrackBar2 As FO4_Base_Library.TinySliderTextBox
     Friend WithEvents Label25 As Label
     Friend WithEvents Label24 As Label
     Friend WithEvents Label23 As Label
@@ -2820,14 +2667,12 @@ Partial Class Editor_Form
     Friend WithEvents Label21 As Label
     Friend WithEvents Label20 As Label
     Friend WithEvents Label19 As Label
-    Friend WithEvents TrackBar8 As TrackBar
-    Friend WithEvents TrackBar7 As TrackBar
-    Friend WithEvents TrackBar6 As TrackBar
-    Friend WithEvents TrackBar5 As TrackBar
-    Friend WithEvents TrackBar4 As TrackBar
-    Friend WithEvents TrackBar3 As TrackBar
-    Friend WithEvents LabelORotation As Label
-    Friend WithEvents LabelOTranslation As Label
+    Friend WithEvents TrackBar8 As FO4_Base_Library.TinySliderTextBox
+    Friend WithEvents TrackBar7 As FO4_Base_Library.TinySliderTextBox
+    Friend WithEvents TrackBar6 As FO4_Base_Library.TinySliderTextBox
+    Friend WithEvents TrackBar5 As FO4_Base_Library.TinySliderTextBox
+    Friend WithEvents TrackBar4 As FO4_Base_Library.TinySliderTextBox
+    Friend WithEvents TrackBar3 As FO4_Base_Library.TinySliderTextBox
     Friend WithEvents ButtonClearPoseTransforms As Button
     Friend WithEvents ButtonClearBoneTransform As Button
     Friend WithEvents ButtonReloadPose As Button
@@ -2844,20 +2689,6 @@ Partial Class Editor_Form
     Friend WithEvents Label28 As Label
     Friend WithEvents TextBox2 As TextBox
     Friend WithEvents GroupBox13 As GroupBox
-    Friend WithEvents NumericUpDownScale As NumericUpDown
-    Friend WithEvents Label30 As Label
-    Friend WithEvents Label31 As Label
-    Friend WithEvents Label32 As Label
-    Friend WithEvents NumericUpDownRotZ As NumericUpDown
-    Friend WithEvents NumericUpDownRotY As NumericUpDown
-    Friend WithEvents NumericUpDownRotX As NumericUpDown
-    Friend WithEvents Label29 As Label
-    Friend WithEvents Label27 As Label
-    Friend WithEvents Label26 As Label
-    Friend WithEvents NumericUpDownTrasZ As NumericUpDown
-    Friend WithEvents NumericUpDownTrasY As NumericUpDown
-    Friend WithEvents NumericUpDownTrasX As NumericUpDown
-    Friend WithEvents Label33 As Label
     Friend WithEvents CheckBoxGenweight As CheckBox
     Friend WithEvents ComboBoxSize As ComboBox
     Friend WithEvents ButtonRenderScreenshot As Button

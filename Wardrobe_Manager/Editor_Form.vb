@@ -93,32 +93,38 @@ Public Class Editor_Form
         Return String.Join("||", layoutItems)
     End Function
 
+    Private _SuppressPresetSliderEvents As Boolean = False
+
     Private Sub UpdateExistingSliderControls()
-        For Each tb As TrackBar In TableLayoutPanel4.Controls.OfType(Of TrackBar)()
-            Dim sliderName As String = TryCast(tb.Tag, String)
-            If String.IsNullOrWhiteSpace(sliderName) Then Continue For
+        Dim osRange = WM_Config.GetOsSliderRange()
+        _SuppressPresetSliderEvents = True
+        Try
+            For Each tb As FO4_Base_Library.TinySliderTextBox In TableLayoutPanel4.Controls.OfType(Of FO4_Base_Library.TinySliderTextBox)()
+                Dim sliderName As String = TryCast(tb.Tag, String)
+                If String.IsNullOrWhiteSpace(sliderName) Then Continue For
 
-            Dim presetItem As PresetSlider_Class =
-            Selected_Preset.Sliders.Find(Function(s) s.Name.Equals(sliderName, StringComparison.OrdinalIgnoreCase) AndAlso s.Size = Selected_size)
+                Dim presetItem As PresetSlider_Class =
+                Selected_Preset.Sliders.Find(Function(s) s.Name.Equals(sliderName, StringComparison.OrdinalIgnoreCase) AndAlso s.Size = Selected_size)
 
-            If IsNothing(presetItem) Then Continue For
+                If IsNothing(presetItem) Then Continue For
 
-            Dim initValue As Integer = CInt(presetItem.Value)
+                Dim newValue As Double = CDbl(presetItem.Value)
+                tb.Value = newValue
 
-            tb.Minimum = Math.Min(0, initValue)
-            tb.Maximum = Math.Max(100, initValue)
-            tb.Value = Math.Max(tb.Minimum, Math.Min(tb.Maximum, initValue))
-
-            If tb.Minimum <> 0 Or tb.Maximum <> 100 Then
-                tb.BackColor = Color.LightYellow
-            Else
-                tb.BackColor = SystemColors.Control
-            End If
-        Next
+                If newValue < osRange.Min OrElse newValue > osRange.Max Then
+                    tb.BackColor = Color.LightYellow
+                Else
+                    tb.BackColor = SystemColors.Control
+                End If
+            Next
+        Finally
+            _SuppressPresetSliderEvents = False
+        End Try
     End Sub
 
     Private Sub DynamicPresetTrackBar_Scroll(sender As Object, e As EventArgs)
-        Dim tb = DirectCast(sender, TrackBar)
+        If _SuppressPresetSliderEvents Then Exit Sub
+        Dim tb = DirectCast(sender, FO4_Base_Library.TinySliderTextBox)
         Dim sliderName As String = TryCast(tb.Tag, String)
         If String.IsNullOrWhiteSpace(sliderName) Then Exit Sub
 
@@ -127,12 +133,12 @@ Public Class Editor_Form
 
         If IsNothing(presetItem) Then Exit Sub
 
-        presetItem.Value = tb.Value
+        presetItem.Value = CSng(tb.Value)
         pendingValuePreset = True
         If Not PresetscrollTimer.Enabled Then PresetscrollTimer.Start()
     End Sub
 
-    Private Sub DynamicPresetTrackBar_MouseUp(sender As Object, e As MouseEventArgs)
+    Private Sub DynamicPresetTrackBar_MouseUp(sender As Object, e As EventArgs)
         If pendingValuePreset Then
             Habilita_Preset_Botones(True)
             Process_render_Changes(False)
@@ -357,48 +363,52 @@ Public Class Editor_Form
             .AutoSize = False,
             .Height = 20,
             .Dock = DockStyle.Fill,
-            .TextAlign = ContentAlignment.MiddleLeft,
+            .TextAlign = ContentAlignment.MiddleCenter,
             .Margin = New Padding(0)
         }
 
             tlp.Controls.Add(lblCat, 0, hdrRow)
             tlp.SetColumnSpan(lblCat, 2)
 
+            Dim osRange = WM_Config.GetOsSliderRange()
+
             For Each slideName In sliderNames
-                Dim initValue As Integer = CInt(slideName.Value)
+                Dim initValue As Double = CDbl(slideName.Value)
 
                 Dim row As Integer = tlp.RowCount
                 tlp.RowCount += 1
-                tlp.RowStyles.Add(New RowStyle(SizeType.Absolute, 20))
+                tlp.RowStyles.Add(New RowStyle(SizeType.Absolute, 28))
 
                 Dim lbl As New Label With {
                 .Text = slideName.DisplayName,
                 .AutoSize = False,
-                .Height = 20,
+                .Height = 28,
                 .Dock = DockStyle.Fill,
                 .TextAlign = ContentAlignment.MiddleLeft,
                 .Margin = New Padding(0)
             }
                 tlp.Controls.Add(lbl, 0, row)
 
-                Dim tb As New TrackBar With {
-                .Minimum = Math.Min(0, initValue),
-                .Maximum = Math.Max(100, initValue),
-                .TickStyle = TickStyle.None,
+                Dim tb As New FO4_Base_Library.TinySliderTextBox With {
+                .Minimum = osRange.Min,
+                .Maximum = osRange.Max,
+                .AllowExtremeValues = True,
+                .DisplayFormat = "0\%",
+                .SmallChange = 1.0R,
+                .LargeChange = 10.0R,
                 .Value = initValue,
-                .AutoSize = False,
-                .Height = 20,
+                .Height = 28,
                 .Dock = DockStyle.Fill,
                 .Margin = New Padding(0),
                 .Tag = slideName.Name
             }
 
-                If tb.Minimum <> 0 Or tb.Maximum <> 100 Then
+                If initValue < osRange.Min OrElse initValue > osRange.Max Then
                     tb.BackColor = Color.LightYellow
                 End If
 
-                AddHandler tb.Scroll, AddressOf DynamicPresetTrackBar_Scroll
-                AddHandler tb.MouseUp, AddressOf DynamicPresetTrackBar_MouseUp
+                AddHandler tb.ValueChanged, AddressOf DynamicPresetTrackBar_Scroll
+                AddHandler tb.DragEnded, AddressOf DynamicPresetTrackBar_MouseUp
 
                 tlp.Controls.Add(tb, 1, row)
             Next
@@ -569,7 +579,7 @@ Public Class Editor_Form
         RenderCheckVertexColors.Enabled = hasVtxColors
         RenderCheckVertexColors.Checked = Selected_Shape.ShowVertexColor
         ColorComboBox1.SelectedColor = Selected_Shape.Wirecolor
-        TrackBar1.Value = Math.Max(0, Math.Min(100, CInt(Selected_Shape.WireAlpha * 100)))
+        TrackBar1.Value = Math.Max(0R, Math.Min(1R, CDbl(Selected_Shape.WireAlpha)))
         ButtonRemoveSHape.Enabled = ComboBoxShapes.Items.Count > 1
         Habilita_Mask_Buttons()
         Lee_Materials()
@@ -1968,9 +1978,9 @@ Public Class Editor_Form
     End Sub
 
 
-    Private Sub TrackBar1_Scroll(sender As Object, e As EventArgs) Handles TrackBar1.Scroll
+    Private Sub TrackBar1_Scroll(sender As Object, e As EventArgs) Handles TrackBar1.ValueChanged
         If IsNothing(Selected_Shape) Then Exit Sub
-        Selected_Shape.WireAlpha = TrackBar1.Value / 100
+        Selected_Shape.WireAlpha = CSng(TrackBar1.Value)
         RequestPreviewRedraw()
     End Sub
 
@@ -1994,7 +2004,6 @@ Public Class Editor_Form
         If SkeletonInstance.Default.HasSkeleton = False Then GroupBox9.Enabled = False
     End Sub
 
-    Private Const trackbarscale As Integer = 100000
     Private Const RotationConversion As Single = (180 / Math.PI)
     Private Sub TreeViewSkeleton_AfterSelect(sender As Object, e As TreeViewEventArgs) Handles TreeViewSkeleton.AfterSelect
         Update_Bone_Sliders()
@@ -2003,12 +2012,10 @@ Public Class Editor_Form
     Private Sub Update_Bone_Sliders()
         _Prevent_Changes = True
         Dim cual = TreeViewSkeleton.SelectedNode
-        If IsNothing(cual) Then GroupBox10.Enabled = False Else GroupBox10.Enabled = True
-        Dim Bone As HierarchiBone_class = Nothing
-        If Not IsNothing(cual) Then
-            Bone = SkeletonInstance.Default.SkeletonDictionary(cual.Text)
-        End If
+        GroupBox10.Enabled = Not IsNothing(cual)
 
+        Dim Bone As HierarchiBone_class = Nothing
+        If Not IsNothing(cual) Then Bone = SkeletonInstance.Default.SkeletonDictionary(cual.Text)
 
         If IsNothing(Bone) Then
             Selected_Pose_Transform = Nothing
@@ -2021,59 +2028,32 @@ Public Class Editor_Form
         End If
 
         If IsNothing(Bone) OrElse IsNothing(Bone.DeltaTransform) Then
-            Dim MaxT As Double = 100
-            Dim MaxRot As Double = 180
-            Dim MaxScale As Double = 100
-            Update_Trackbar_max(MaxT, MaxRot, MaxScale)
-            UPdate_Labels_Poses()
+            Update_Trackbar_max(100, 180, 10)
         Else
             Dim degs = Transform_Class.Matrix33ToBSRotation(Bone.DeltaTransform.Rotation)
-            Dim MaxT As Double = 100
-            Dim MaxRot As Double = 180
-            Dim MaxScale As Double = 100
-
-            If Math.Abs(Bone.DeltaTransform.Translation.X) > MaxT Then MaxT = Math.Abs(Bone.DeltaTransform.Translation.X)
-            If Math.Abs(Bone.DeltaTransform.Translation.Y) > MaxT Then MaxT = Math.Abs(Bone.DeltaTransform.Translation.Y)
-            If Math.Abs(Bone.DeltaTransform.Translation.Z) > MaxT Then MaxT = Math.Abs(Bone.DeltaTransform.Translation.Z)
-            If Math.Abs(degs.X * RotationConversion) > MaxRot Then MaxRot = Math.Abs(degs.X * RotationConversion)
-            If Math.Abs(degs.Y * RotationConversion) > MaxRot Then MaxRot = Math.Abs(degs.Y * RotationConversion)
-            If Math.Abs(degs.Z * RotationConversion) > MaxRot Then MaxRot = Math.Abs(degs.Z * RotationConversion)
-            If Math.Abs(Bone.DeltaTransform.Scale * 10) > MaxScale Then MaxScale = Math.Abs(Bone.DeltaTransform.Scale * 10)
+            Dim MaxT As Double = Math.Max(100, Math.Max(Math.Abs(Bone.DeltaTransform.Translation.X),
+                                                        Math.Max(Math.Abs(Bone.DeltaTransform.Translation.Y),
+                                                                 Math.Abs(Bone.DeltaTransform.Translation.Z))))
+            Dim MaxRot As Double = Math.Max(180, Math.Max(Math.Abs(degs.X * RotationConversion),
+                                                          Math.Max(Math.Abs(degs.Y * RotationConversion),
+                                                                   Math.Abs(degs.Z * RotationConversion))))
+            Dim MaxScale As Double = Math.Max(10, Math.Abs(Bone.DeltaTransform.Scale))
 
             Update_Trackbar_max(MaxT, MaxRot, MaxScale)
-            TrackBar2.Value = Bone.DeltaTransform.Translation.X * trackbarscale
-            TrackBar3.Value = Bone.DeltaTransform.Translation.Y * trackbarscale
-            TrackBar4.Value = Bone.DeltaTransform.Translation.Z * trackbarscale
-            TrackBar5.Value = degs.X * RotationConversion * trackbarscale
-            TrackBar6.Value = degs.Y * RotationConversion * trackbarscale
-            TrackBar7.Value = degs.Z * RotationConversion * trackbarscale
-            TrackBar8.Value = Bone.DeltaTransform.Scale * 10 * trackbarscale
-            UPdate_Labels_Poses()
+            TrackBar2.Value = Bone.DeltaTransform.Translation.X
+            TrackBar3.Value = Bone.DeltaTransform.Translation.Y
+            TrackBar4.Value = Bone.DeltaTransform.Translation.Z
+            TrackBar5.Value = degs.X * RotationConversion
+            TrackBar6.Value = degs.Y * RotationConversion
+            TrackBar7.Value = degs.Z * RotationConversion
+            TrackBar8.Value = Bone.DeltaTransform.Scale
         End If
+        UPdate_Pose_Buttons()
         _Prevent_Changes = False
     End Sub
 
 
-    Private Sub UPdate_Labels_Poses()
-        If IsNothing(Selected_Pose_Transform) Then
-            NumericUpDownRotX.Value = 0
-            NumericUpDownRotY.Value = 0
-            NumericUpDownRotZ.Value = 0
-            NumericUpDownTrasX.Value = 0
-            NumericUpDownTrasY.Value = 0
-            NumericUpDownTrasZ.Value = 0
-            NumericUpDownScale.Value = 1
-        Else
-            Dim converter = New Transform_Class(Selected_Pose_Transform, Poses_class.Pose_Source_Enum.WardrobeManager)
-            Dim degrees = Transform_Class.Matrix33ToBSRotation(converter.Rotation)
-            NumericUpDownRotX.Value = Math.Min(Math.Max(NumericUpDownRotX.Minimum, degrees.X * 180 / Math.PI), NumericUpDownRotX.Maximum)
-            NumericUpDownRotY.Value = Math.Min(Math.Max(NumericUpDownRotY.Minimum, degrees.Y * 180 / Math.PI), NumericUpDownRotY.Maximum)
-            NumericUpDownRotZ.Value = Math.Min(Math.Max(NumericUpDownRotZ.Minimum, degrees.Z * 180 / Math.PI), NumericUpDownRotZ.Maximum)
-            NumericUpDownTrasX.Value = Math.Min(Math.Max(NumericUpDownTrasX.Minimum, converter.Translation.X), NumericUpDownTrasX.Maximum)
-            NumericUpDownTrasY.Value = Math.Min(Math.Max(NumericUpDownTrasY.Minimum, converter.Translation.Y), NumericUpDownTrasY.Maximum)
-            NumericUpDownTrasZ.Value = Math.Min(Math.Max(NumericUpDownTrasZ.Minimum, converter.Translation.Z), NumericUpDownTrasZ.Maximum)
-            NumericUpDownScale.Value = Math.Min(Math.Max(NumericUpDownScale.Minimum, converter.Scale), NumericUpDownScale.Maximum)
-        End If
+    Private Sub UPdate_Pose_Buttons()
         ButtonClearBoneTransform.Enabled = Not IsNothing(Selected_Pose_Transform) AndAlso Selected_Pose_Transform.Isidentity = False
         ButtonReloadBonePose.Enabled = Not IsNothing(ComboSelected_Pose) And pose_is_Edited
         ButtonClearPoseTransforms.Enabled = Not IsNothing(Selected_Pose) AndAlso Selected_Pose.Transforms.Any(Function(pf) Not pf.Value.Isidentity)
@@ -2094,85 +2074,13 @@ Public Class Editor_Form
 
 
     Private Sub Update_Trackbar_max(MaxT As Double, MaxRot As Double, MaxScale As Double)
-        If MaxRot * trackbarscale > Integer.MaxValue Then Debugger.Break()
-        TrackBar2.Value = 0 * trackbarscale
-        TrackBar3.Value = 0 * trackbarscale
-        TrackBar4.Value = 0 * trackbarscale
-        TrackBar5.Value = 0 * trackbarscale
-        TrackBar6.Value = 0 * trackbarscale
-        TrackBar7.Value = 0 * trackbarscale
-        TrackBar8.Value = Math.Max(1, TrackBar8.Minimum)
-
-        NumericUpDownRotX.Value = 0
-        NumericUpDownRotY.Value = 0
-        NumericUpDownRotZ.Value = 0
-        NumericUpDownTrasX.Value = 0
-        NumericUpDownTrasY.Value = 0
-        NumericUpDownTrasZ.Value = 0
-        NumericUpDownScale.Value = Math.Max(1, NumericUpDownScale.Minimum)
-
-
-
-        TrackBar2.Maximum = MaxT * trackbarscale
-        TrackBar3.Maximum = MaxT * trackbarscale
-        TrackBar4.Maximum = MaxT * trackbarscale
-        TrackBar5.Maximum = MaxRot * trackbarscale
-        TrackBar6.Maximum = MaxRot * trackbarscale
-        TrackBar7.Maximum = MaxRot * trackbarscale
-        TrackBar8.Maximum = MaxScale * trackbarscale
-        TrackBar2.Minimum = -MaxT * trackbarscale
-        TrackBar3.Minimum = -MaxT * trackbarscale
-        TrackBar4.Minimum = -MaxT * trackbarscale
-        TrackBar5.Minimum = -MaxRot * trackbarscale
-        TrackBar6.Minimum = -MaxRot * trackbarscale
-        TrackBar7.Minimum = -MaxRot * trackbarscale
-
-        TrackBar8.Minimum = 1 * trackbarscale
-
-        TrackBar8.Value = 10 * trackbarscale
-
-
-        NumericUpDownRotX.Maximum = MaxRot
-        NumericUpDownRotY.Maximum = MaxRot
-        NumericUpDownRotZ.Maximum = MaxRot
-        NumericUpDownTrasX.Maximum = MaxT
-        NumericUpDownTrasY.Maximum = MaxT
-        NumericUpDownTrasZ.Maximum = MaxT
-        NumericUpDownRotX.Minimum = -MaxRot
-        NumericUpDownRotY.Minimum = -MaxRot
-        NumericUpDownRotZ.Minimum = -MaxRot
-        NumericUpDownTrasX.Minimum = -MaxT
-        NumericUpDownTrasY.Minimum = -MaxT
-        NumericUpDownTrasZ.Minimum = -MaxT
-        NumericUpDownScale.Maximum = MaxScale
-        NumericUpDownScale.Minimum = 0.1
-        NumericUpDownScale.Value = 1
-
-
-        TrackBar2.SmallChange = trackbarscale / 100
-        TrackBar3.SmallChange = trackbarscale / 100
-        TrackBar4.SmallChange = trackbarscale / 100
-        TrackBar5.SmallChange = trackbarscale / 100
-        TrackBar6.SmallChange = trackbarscale / 100
-        TrackBar7.SmallChange = trackbarscale / 100
-        TrackBar8.SmallChange = trackbarscale / 1000
-
-        TrackBar2.LargeChange = trackbarscale
-        TrackBar3.LargeChange = trackbarscale
-        TrackBar4.LargeChange = trackbarscale
-        TrackBar5.LargeChange = trackbarscale
-        TrackBar6.LargeChange = trackbarscale
-        TrackBar7.LargeChange = trackbarscale
-        TrackBar8.LargeChange = trackbarscale / 10
-
-        NumericUpDownRotX.Increment = 0.1
-        NumericUpDownRotY.Increment = 0.1
-        NumericUpDownRotZ.Increment = 0.1
-        NumericUpDownTrasX.Increment = 1
-        NumericUpDownTrasY.Increment = 1
-        NumericUpDownTrasZ.Increment = 1
-        NumericUpDownScale.Increment = 0.05
-
+        TrackBar2.Minimum = -MaxT : TrackBar2.Maximum = MaxT : TrackBar2.Value = 0
+        TrackBar3.Minimum = -MaxT : TrackBar3.Maximum = MaxT : TrackBar3.Value = 0
+        TrackBar4.Minimum = -MaxT : TrackBar4.Maximum = MaxT : TrackBar4.Value = 0
+        TrackBar5.Minimum = -MaxRot : TrackBar5.Maximum = MaxRot : TrackBar5.Value = 0
+        TrackBar6.Minimum = -MaxRot : TrackBar6.Maximum = MaxRot : TrackBar6.Value = 0
+        TrackBar7.Minimum = -MaxRot : TrackBar7.Maximum = MaxRot : TrackBar7.Value = 0
+        TrackBar8.Minimum = 0.1 : TrackBar8.Maximum = MaxScale : TrackBar8.Value = 1
     End Sub
 
     Private Sub ComboBoxPoses_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBoxPoses.SelectedIndexChanged
@@ -2211,14 +2119,14 @@ Public Class Editor_Form
             pendingValue = False
         End If
     End Sub
-    Private Sub TrackBar2_Scroll(sender As Object, e As EventArgs) Handles TrackBar2.Scroll, TrackBar3.Scroll, TrackBar4.Scroll, TrackBar5.Scroll, TrackBar6.Scroll, TrackBar7.Scroll, TrackBar8.Scroll
+    Private Sub TrackBar2_Scroll(sender As Object, e As EventArgs) Handles TrackBar2.ValueChanged, TrackBar3.ValueChanged, TrackBar4.ValueChanged, TrackBar5.ValueChanged, TrackBar6.ValueChanged, TrackBar7.ValueChanged, TrackBar8.ValueChanged
+        If _Prevent_Changes Then Exit Sub
         pendingValue = True
-        If Not ScrollTimer.Enabled Then
-            ScrollTimer.Start()
-        End If
+        If Not ScrollTimer.Enabled Then ScrollTimer.Start()
     End Sub
 
-    Private Sub TrackBar2_Ended(sender As Object, e As EventArgs) Handles TrackBar2.MouseUp, TrackBar3.MouseUp, TrackBar4.MouseUp, TrackBar5.MouseUp, TrackBar6.MouseUp, TrackBar7.MouseUp, TrackBar8.MouseUp
+    Private Sub TrackBar2_Ended(sender As Object, e As EventArgs) Handles TrackBar2.DragEnded, TrackBar3.DragEnded, TrackBar4.DragEnded, TrackBar5.DragEnded, TrackBar6.DragEnded, TrackBar7.DragEnded, TrackBar8.DragEnded
+        If _Prevent_Changes Then Exit Sub
         If pendingValue Then
             Update_Pose_Changes_FromTrackbar()
             pendingValue = False
@@ -2227,13 +2135,13 @@ Public Class Editor_Form
     End Sub
     Private Sub Update_Pose_Changes_FromTrackbar()
         If IsNothing(Selected_Pose_Transform) Then Exit Sub
-        Selected_Pose_Transform.X = TrackBar2.Value / trackbarscale
-        Selected_Pose_Transform.Y = TrackBar3.Value / trackbarscale
-        Selected_Pose_Transform.Z = TrackBar4.Value / trackbarscale
-        Selected_Pose_Transform.Yaw = (TrackBar5.Value / trackbarscale) / RotationConversion
-        Selected_Pose_Transform.Pitch = (TrackBar6.Value / trackbarscale) / RotationConversion
-        Selected_Pose_Transform.Roll = (TrackBar7.Value / trackbarscale) / RotationConversion
-        Selected_Pose_Transform.Scale = TrackBar8.Value / (10 * trackbarscale)
+        Selected_Pose_Transform.X = TrackBar2.Value
+        Selected_Pose_Transform.Y = TrackBar3.Value
+        Selected_Pose_Transform.Z = TrackBar4.Value
+        Selected_Pose_Transform.Yaw = TrackBar5.Value / RotationConversion
+        Selected_Pose_Transform.Pitch = TrackBar6.Value / RotationConversion
+        Selected_Pose_Transform.Roll = TrackBar7.Value / RotationConversion
+        Selected_Pose_Transform.Scale = TrackBar8.Value
         Render_Pose_Change(True)
     End Sub
 
@@ -2417,30 +2325,6 @@ Public Class Editor_Form
 
     End Sub
     Private _Prevent_Changes As Boolean = True
-    Private Sub NumericUpDownTrasX_ValueChanged(sender As Object, e As EventArgs) Handles NumericUpDownTrasX.ValueChanged, NumericUpDownTrasY.ValueChanged, NumericUpDownTrasZ.ValueChanged, NumericUpDownRotX.ValueChanged, NumericUpDownRotY.ValueChanged, NumericUpDownRotZ.ValueChanged, NumericUpDownScale.ValueChanged
-        If IsNothing(Selected_Pose_Transform) Or _Prevent_Changes = True Then Exit Sub
-        Dim Tr = New PoseTransformData With {
-        .Scale = NumericUpDownScale.Value,
-        .X = NumericUpDownTrasX.Value,
-        .Y = NumericUpDownTrasY.Value,
-        .Z = NumericUpDownTrasZ.Value,
-        .Yaw = NumericUpDownRotX.Value,
-        .Pitch = NumericUpDownRotY.Value,
-        .Roll = NumericUpDownRotZ.Value
-        }
-        If Selected_Pose_Transform.X <> Tr.X OrElse Selected_Pose_Transform.Y <> Tr.Y OrElse Selected_Pose_Transform.Z <> Tr.Z OrElse Selected_Pose_Transform.Yaw <> Tr.Yaw OrElse Selected_Pose_Transform.Pitch <> Tr.Pitch OrElse Selected_Pose_Transform.Roll <> Tr.Roll OrElse Selected_Pose_Transform.Scale <> Tr.Scale Then
-            TrackBar7.Value = Tr.Roll * trackbarscale
-            TrackBar6.Value = Tr.Pitch * trackbarscale
-            TrackBar5.Value = Tr.Yaw * trackbarscale
-            TrackBar2.Value = Tr.X * trackbarscale
-            TrackBar3.Value = Tr.Y * trackbarscale
-            TrackBar4.Value = Tr.Z * trackbarscale
-            TrackBar8.Value = Tr.Scale * (10 * trackbarscale)
-            Update_Pose_Changes_FromTrackbar()
-        Else
-            Debugger.Break()
-        End If
-    End Sub
 
     Private Sub CheckBoxGenweight_CheckedChanged(sender As Object, e As EventArgs) Handles CheckBoxGenweight.CheckedChanged
         If Not IsNothing(Selected_Slider) Then

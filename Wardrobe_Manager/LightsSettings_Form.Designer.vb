@@ -25,8 +25,7 @@ Partial Class LightRigForm
     Private Sub InitializeComponent()
         components = New ComponentModel.Container()
         grpKey = New GroupBox()
-        lblKeyStrength = New Label()
-        tbKey = New TrackBar()
+        tbKey = New FO4_Base_Library.TinySliderTextBox()
         nudK_F = New NumericUpDown()
         nudK_R = New NumericUpDown()
         nudK_U = New NumericUpDown()
@@ -40,8 +39,7 @@ Partial Class LightRigForm
         lblK_L = New Label()
         lblK_B = New Label()
         grpFillL = New GroupBox()
-        lblFillLStrength = New Label()
-        tbFillL = New TrackBar()
+        tbFillL = New FO4_Base_Library.TinySliderTextBox()
         nudL_F = New NumericUpDown()
         nudL_R = New NumericUpDown()
         nudL_U = New NumericUpDown()
@@ -55,8 +53,7 @@ Partial Class LightRigForm
         Label5 = New Label()
         Label6 = New Label()
         grpFillR = New GroupBox()
-        lblFillRStrength = New Label()
-        tbFillR = New TrackBar()
+        tbFillR = New FO4_Base_Library.TinySliderTextBox()
         nudR_F = New NumericUpDown()
         nudR_R = New NumericUpDown()
         nudR_U = New NumericUpDown()
@@ -70,8 +67,7 @@ Partial Class LightRigForm
         Label11 = New Label()
         Label12 = New Label()
         grpBack = New GroupBox()
-        lblBackStrength = New Label()
-        tbBack = New TrackBar()
+        tbBack = New FO4_Base_Library.TinySliderTextBox()
         nudB_F = New NumericUpDown()
         nudB_R = New NumericUpDown()
         nudB_U = New NumericUpDown()
@@ -86,11 +82,9 @@ Partial Class LightRigForm
         Label18 = New Label()
         btnReset = New Button()
         GroupBox1 = New GroupBox()
-        lblambient = New Label()
-        tambient = New TrackBar()
+        tambient = New FO4_Base_Library.TinySliderTextBox()
         ToolTip1 = New ToolTip(components)
         grpKey.SuspendLayout()
-        CType(tbKey, ComponentModel.ISupportInitialize).BeginInit()
         CType(nudK_F, ComponentModel.ISupportInitialize).BeginInit()
         CType(nudK_R, ComponentModel.ISupportInitialize).BeginInit()
         CType(nudK_U, ComponentModel.ISupportInitialize).BeginInit()
@@ -98,7 +92,6 @@ Partial Class LightRigForm
         CType(nudK_L, ComponentModel.ISupportInitialize).BeginInit()
         CType(nudK_D, ComponentModel.ISupportInitialize).BeginInit()
         grpFillL.SuspendLayout()
-        CType(tbFillL, ComponentModel.ISupportInitialize).BeginInit()
         CType(nudL_F, ComponentModel.ISupportInitialize).BeginInit()
         CType(nudL_R, ComponentModel.ISupportInitialize).BeginInit()
         CType(nudL_U, ComponentModel.ISupportInitialize).BeginInit()
@@ -106,7 +99,6 @@ Partial Class LightRigForm
         CType(nudL_L, ComponentModel.ISupportInitialize).BeginInit()
         CType(nudL_D, ComponentModel.ISupportInitialize).BeginInit()
         grpFillR.SuspendLayout()
-        CType(tbFillR, ComponentModel.ISupportInitialize).BeginInit()
         CType(nudR_F, ComponentModel.ISupportInitialize).BeginInit()
         CType(nudR_R, ComponentModel.ISupportInitialize).BeginInit()
         CType(nudR_U, ComponentModel.ISupportInitialize).BeginInit()
@@ -114,7 +106,6 @@ Partial Class LightRigForm
         CType(nudR_L, ComponentModel.ISupportInitialize).BeginInit()
         CType(nudR_D, ComponentModel.ISupportInitialize).BeginInit()
         grpBack.SuspendLayout()
-        CType(tbBack, ComponentModel.ISupportInitialize).BeginInit()
         CType(nudB_F, ComponentModel.ISupportInitialize).BeginInit()
         CType(nudB_R, ComponentModel.ISupportInitialize).BeginInit()
         CType(nudB_U, ComponentModel.ISupportInitialize).BeginInit()
@@ -122,12 +113,10 @@ Partial Class LightRigForm
         CType(nudB_L, ComponentModel.ISupportInitialize).BeginInit()
         CType(nudB_D, ComponentModel.ISupportInitialize).BeginInit()
         GroupBox1.SuspendLayout()
-        CType(tambient, ComponentModel.ISupportInitialize).BeginInit()
         SuspendLayout()
         ' 
         ' grpKey
         ' 
-        grpKey.Controls.Add(lblKeyStrength)
         grpKey.Controls.Add(tbKey)
         grpKey.Controls.Add(nudK_F)
         grpKey.Controls.Add(nudK_R)
@@ -147,24 +136,21 @@ Partial Class LightRigForm
         grpKey.TabIndex = 0
         grpKey.TabStop = False
         grpKey.Text = "Frontal Light"
-        ' 
-        ' lblKeyStrength
-        ' 
-        lblKeyStrength.AutoSize = True
-        lblKeyStrength.Location = New Point(11, 24)
-        lblKeyStrength.Name = "lblKeyStrength"
-        lblKeyStrength.Size = New Size(70, 15)
-        lblKeyStrength.TabIndex = 1
-        lblKeyStrength.Text = "Strength 0.0"
-        ' 
+        '
         ' tbKey
-        ' 
-        tbKey.Location = New Point(100, 16)
-        tbKey.Maximum = 150
+        '
+        tbKey.Location = New Point(11, 30)
+        tbKey.Minimum = 0R
+        tbKey.Maximum = 1.5R
+        tbKey.DisplayFormat = "0.00%"
+        tbKey.InputScale = 0.01R
+        tbKey.SmallChange = 0.05R
+        tbKey.LargeChange = 0.1R
+        tbKey.TickFrequency = 0.1R
+        tbKey.ShowTicks = True
         tbKey.Name = "tbKey"
-        tbKey.Size = New Size(300, 45)
+        tbKey.Size = New Size(389, 28)
         tbKey.TabIndex = 0
-        tbKey.TickFrequency = 10
         ' 
         ' nudK_F
         ' 
@@ -294,7 +280,6 @@ Partial Class LightRigForm
         ' 
         ' grpFillL
         ' 
-        grpFillL.Controls.Add(lblFillLStrength)
         grpFillL.Controls.Add(tbFillL)
         grpFillL.Controls.Add(nudL_F)
         grpFillL.Controls.Add(nudL_R)
@@ -314,24 +299,21 @@ Partial Class LightRigForm
         grpFillL.TabIndex = 1
         grpFillL.TabStop = False
         grpFillL.Text = "Left Light"
-        ' 
-        ' lblFillLStrength
-        ' 
-        lblFillLStrength.AutoSize = True
-        lblFillLStrength.Location = New Point(11, 24)
-        lblFillLStrength.Name = "lblFillLStrength"
-        lblFillLStrength.Size = New Size(70, 15)
-        lblFillLStrength.TabIndex = 1
-        lblFillLStrength.Text = "Strength 0.0"
-        ' 
+        '
         ' tbFillL
-        ' 
-        tbFillL.Location = New Point(100, 16)
-        tbFillL.Maximum = 150
+        '
+        tbFillL.Location = New Point(11, 30)
+        tbFillL.Minimum = 0R
+        tbFillL.Maximum = 1.5R
+        tbFillL.DisplayFormat = "0.00%"
+        tbFillL.InputScale = 0.01R
+        tbFillL.SmallChange = 0.05R
+        tbFillL.LargeChange = 0.1R
+        tbFillL.TickFrequency = 0.1R
+        tbFillL.ShowTicks = True
         tbFillL.Name = "tbFillL"
-        tbFillL.Size = New Size(300, 45)
+        tbFillL.Size = New Size(389, 28)
         tbFillL.TabIndex = 0
-        tbFillL.TickFrequency = 10
         ' 
         ' nudL_F
         ' 
@@ -461,7 +443,6 @@ Partial Class LightRigForm
         ' 
         ' grpFillR
         ' 
-        grpFillR.Controls.Add(lblFillRStrength)
         grpFillR.Controls.Add(tbFillR)
         grpFillR.Controls.Add(nudR_F)
         grpFillR.Controls.Add(nudR_R)
@@ -481,24 +462,21 @@ Partial Class LightRigForm
         grpFillR.TabIndex = 2
         grpFillR.TabStop = False
         grpFillR.Text = "Right Ligh"
-        ' 
-        ' lblFillRStrength
-        ' 
-        lblFillRStrength.AutoSize = True
-        lblFillRStrength.Location = New Point(11, 24)
-        lblFillRStrength.Name = "lblFillRStrength"
-        lblFillRStrength.Size = New Size(70, 15)
-        lblFillRStrength.TabIndex = 1
-        lblFillRStrength.Text = "Strength 0.0"
-        ' 
+        '
         ' tbFillR
-        ' 
-        tbFillR.Location = New Point(100, 16)
-        tbFillR.Maximum = 150
+        '
+        tbFillR.Location = New Point(11, 30)
+        tbFillR.Minimum = 0R
+        tbFillR.Maximum = 1.5R
+        tbFillR.DisplayFormat = "0.00%"
+        tbFillR.InputScale = 0.01R
+        tbFillR.SmallChange = 0.05R
+        tbFillR.LargeChange = 0.1R
+        tbFillR.TickFrequency = 0.1R
+        tbFillR.ShowTicks = True
         tbFillR.Name = "tbFillR"
-        tbFillR.Size = New Size(300, 45)
+        tbFillR.Size = New Size(389, 28)
         tbFillR.TabIndex = 0
-        tbFillR.TickFrequency = 10
         ' 
         ' nudR_F
         ' 
@@ -628,7 +606,6 @@ Partial Class LightRigForm
         ' 
         ' grpBack
         ' 
-        grpBack.Controls.Add(lblBackStrength)
         grpBack.Controls.Add(tbBack)
         grpBack.Controls.Add(nudB_F)
         grpBack.Controls.Add(nudB_R)
@@ -648,24 +625,21 @@ Partial Class LightRigForm
         grpBack.TabIndex = 3
         grpBack.TabStop = False
         grpBack.Text = "Back Light"
-        ' 
-        ' lblBackStrength
-        ' 
-        lblBackStrength.AutoSize = True
-        lblBackStrength.Location = New Point(11, 24)
-        lblBackStrength.Name = "lblBackStrength"
-        lblBackStrength.Size = New Size(70, 15)
-        lblBackStrength.TabIndex = 1
-        lblBackStrength.Text = "Strength 0.0"
-        ' 
+        '
         ' tbBack
-        ' 
-        tbBack.Location = New Point(100, 16)
-        tbBack.Maximum = 150
+        '
+        tbBack.Location = New Point(11, 30)
+        tbBack.Minimum = 0R
+        tbBack.Maximum = 1.5R
+        tbBack.DisplayFormat = "0.00%"
+        tbBack.InputScale = 0.01R
+        tbBack.SmallChange = 0.05R
+        tbBack.LargeChange = 0.1R
+        tbBack.TickFrequency = 0.1R
+        tbBack.ShowTicks = True
         tbBack.Name = "tbBack"
-        tbBack.Size = New Size(300, 45)
+        tbBack.Size = New Size(389, 28)
         tbBack.TabIndex = 0
-        tbBack.TickFrequency = 10
         ' 
         ' nudB_F
         ' 
@@ -804,7 +778,6 @@ Partial Class LightRigForm
         ' 
         ' GroupBox1
         ' 
-        GroupBox1.Controls.Add(lblambient)
         GroupBox1.Controls.Add(tambient)
         GroupBox1.Location = New Point(436, 168)
         GroupBox1.Name = "GroupBox1"
@@ -812,24 +785,21 @@ Partial Class LightRigForm
         GroupBox1.TabIndex = 5
         GroupBox1.TabStop = False
         GroupBox1.Text = "Ambient"
-        ' 
-        ' lblambient
-        ' 
-        lblambient.AutoSize = True
-        lblambient.Location = New Point(11, 24)
-        lblambient.Name = "lblambient"
-        lblambient.Size = New Size(71, 15)
-        lblambient.TabIndex = 1
-        lblambient.Text = "Srength 0.0"
-        ' 
+        '
         ' tambient
-        ' 
-        tambient.Location = New Point(100, 16)
-        tambient.Maximum = 150
+        '
+        tambient.Location = New Point(11, 30)
+        tambient.Minimum = 0R
+        tambient.Maximum = 1.5R
+        tambient.DisplayFormat = "0.00%"
+        tambient.InputScale = 0.01R
+        tambient.SmallChange = 0.05R
+        tambient.LargeChange = 0.1R
+        tambient.TickFrequency = 0.1R
+        tambient.ShowTicks = True
         tambient.Name = "tambient"
-        tambient.Size = New Size(300, 45)
+        tambient.Size = New Size(389, 28)
         tambient.TabIndex = 0
-        tambient.TickFrequency = 10
         ' 
         ' Tooltip
         ' 
@@ -888,7 +858,6 @@ Partial Class LightRigForm
         Text = "Light Rig"
         grpKey.ResumeLayout(False)
         grpKey.PerformLayout()
-        CType(tbKey, ComponentModel.ISupportInitialize).EndInit()
         CType(nudK_F, ComponentModel.ISupportInitialize).EndInit()
         CType(nudK_R, ComponentModel.ISupportInitialize).EndInit()
         CType(nudK_U, ComponentModel.ISupportInitialize).EndInit()
@@ -897,7 +866,6 @@ Partial Class LightRigForm
         CType(nudK_D, ComponentModel.ISupportInitialize).EndInit()
         grpFillL.ResumeLayout(False)
         grpFillL.PerformLayout()
-        CType(tbFillL, ComponentModel.ISupportInitialize).EndInit()
         CType(nudL_F, ComponentModel.ISupportInitialize).EndInit()
         CType(nudL_R, ComponentModel.ISupportInitialize).EndInit()
         CType(nudL_U, ComponentModel.ISupportInitialize).EndInit()
@@ -906,7 +874,6 @@ Partial Class LightRigForm
         CType(nudL_D, ComponentModel.ISupportInitialize).EndInit()
         grpFillR.ResumeLayout(False)
         grpFillR.PerformLayout()
-        CType(tbFillR, ComponentModel.ISupportInitialize).EndInit()
         CType(nudR_F, ComponentModel.ISupportInitialize).EndInit()
         CType(nudR_R, ComponentModel.ISupportInitialize).EndInit()
         CType(nudR_U, ComponentModel.ISupportInitialize).EndInit()
@@ -915,7 +882,6 @@ Partial Class LightRigForm
         CType(nudR_D, ComponentModel.ISupportInitialize).EndInit()
         grpBack.ResumeLayout(False)
         grpBack.PerformLayout()
-        CType(tbBack, ComponentModel.ISupportInitialize).EndInit()
         CType(nudB_F, ComponentModel.ISupportInitialize).EndInit()
         CType(nudB_R, ComponentModel.ISupportInitialize).EndInit()
         CType(nudB_U, ComponentModel.ISupportInitialize).EndInit()
@@ -924,14 +890,12 @@ Partial Class LightRigForm
         CType(nudB_D, ComponentModel.ISupportInitialize).EndInit()
         GroupBox1.ResumeLayout(False)
         GroupBox1.PerformLayout()
-        CType(tambient, ComponentModel.ISupportInitialize).EndInit()
         ResumeLayout(False)
 
     End Sub
 
     Friend WithEvents grpKey As GroupBox
-    Friend WithEvents lblKeyStrength As Label
-    Friend WithEvents tbKey As TrackBar
+    Friend WithEvents tbKey As FO4_Base_Library.TinySliderTextBox
     Friend WithEvents nudK_F As NumericUpDown
     Friend WithEvents nudK_R As NumericUpDown
     Friend WithEvents nudK_U As NumericUpDown
@@ -945,8 +909,7 @@ Partial Class LightRigForm
     Friend WithEvents lblK_L As Label
     Friend WithEvents lblK_B As Label
     Friend WithEvents grpFillL As GroupBox
-    Friend WithEvents lblFillLStrength As Label
-    Friend WithEvents tbFillL As TrackBar
+    Friend WithEvents tbFillL As FO4_Base_Library.TinySliderTextBox
     Friend WithEvents nudL_F As NumericUpDown
     Friend WithEvents nudL_R As NumericUpDown
     Friend WithEvents nudL_U As NumericUpDown
@@ -960,8 +923,7 @@ Partial Class LightRigForm
     Friend WithEvents Label5 As Label
     Friend WithEvents Label6 As Label
     Friend WithEvents grpFillR As GroupBox
-    Friend WithEvents lblFillRStrength As Label
-    Friend WithEvents tbFillR As TrackBar
+    Friend WithEvents tbFillR As FO4_Base_Library.TinySliderTextBox
     Friend WithEvents nudR_F As NumericUpDown
     Friend WithEvents nudR_R As NumericUpDown
     Friend WithEvents nudR_U As NumericUpDown
@@ -975,8 +937,7 @@ Partial Class LightRigForm
     Friend WithEvents Label11 As Label
     Friend WithEvents Label12 As Label
     Friend WithEvents grpBack As GroupBox
-    Friend WithEvents lblBackStrength As Label
-    Friend WithEvents tbBack As TrackBar
+    Friend WithEvents tbBack As FO4_Base_Library.TinySliderTextBox
     Friend WithEvents nudB_F As NumericUpDown
     Friend WithEvents nudB_R As NumericUpDown
     Friend WithEvents nudB_U As NumericUpDown
@@ -991,8 +952,7 @@ Partial Class LightRigForm
     Friend WithEvents Label18 As Label
     Friend WithEvents btnReset As Button
     Friend WithEvents GroupBox1 As GroupBox
-    Friend WithEvents lblambient As Label
-    Friend WithEvents tambient As TrackBar
+    Friend WithEvents tambient As FO4_Base_Library.TinySliderTextBox
     Friend WithEvents ToolTip1 As ToolTip
 End Class
 
