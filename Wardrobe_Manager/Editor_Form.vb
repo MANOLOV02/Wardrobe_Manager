@@ -1142,11 +1142,14 @@ Public Class Editor_Form
             Exit Sub
         End If
         If MsgBox("Override material file?", vbYesNo + vbExclamation, "Warning") = MsgBoxResult.Yes Then
-            Using Writer As New FileStream(Path.Combine(Wardrobe_Manager_Form.Directorios.Fallout4data, xx.FullPath), FileMode.Create)
-                Selected_Shape.RelatedMaterial.material.Underlying_Material.Save(Writer)
-                Writer.Close()
-                WroteFilesToDisk = True
-            End Using
+            Dim absPath = Path.Combine(Wardrobe_Manager_Form.Directorios.Fallout4data, xx.FullPath)
+            Dim mat = Selected_Shape.RelatedMaterial.material
+            If TypeOf mat.Underlying_Material Is BGSM Then
+                mat.Save_To_Bgsm(absPath)
+            ElseIf TypeOf mat.Underlying_Material Is BGEM Then
+                mat.Save_To_Bgem(absPath)
+            End If
+            WroteFilesToDisk = True
         End If
         Dim relativePath = fil.StripPrefix(prefix)
         MaterialPathTextbox.Text = prefix + Path.GetDirectoryName(relativePath)
@@ -1174,11 +1177,14 @@ Public Class Editor_Form
         If ext <> "" Then filtro = ext.Remove(0, 1).ToUpper + " files (*" + ext + ")|*" + ext
         Dim sd As New SaveFileDialog With {.AddExtension = True, .OverwritePrompt = True, .AddToRecent = False, .DefaultExt = ext, .Filter = filtro, .InitialDirectory = Path.Combine(Wardrobe_Manager_Form.Directorios.Fallout4data, Path.GetDirectoryName(fil)), .Title = "Save material file"}
         If sd.ShowDialog = DialogResult.OK Then
-            Using Writer As New FileStream(Path.Combine(Wardrobe_Manager_Form.Directorios.Fallout4data, sd.FileName), FileMode.Create)
-                Selected_Shape.RelatedMaterial.material.Underlying_Material.Save(Writer)
-                WroteFilesToDisk = True
-                Writer.Close()
-            End Using
+            Dim absPath = Path.Combine(Wardrobe_Manager_Form.Directorios.Fallout4data, sd.FileName)
+            Dim mat = Selected_Shape.RelatedMaterial.material
+            If TypeOf mat.Underlying_Material Is BGSM Then
+                mat.Save_To_Bgsm(absPath)
+            ElseIf TypeOf mat.Underlying_Material Is BGEM Then
+                mat.Save_To_Bgem(absPath)
+            End If
+            WroteFilesToDisk = True
             Dim fullpath = FO4UnifiedMaterial_Class.CorrectMaterialPath(Path.GetRelativePath(Wardrobe_Manager_Form.Directorios.Fallout4data, sd.FileName))
             fullpath = fullpath.StripPrefix(prefix)
             Selected_Shape.RelatedMaterial.path = fullpath
