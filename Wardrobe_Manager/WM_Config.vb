@@ -225,7 +225,7 @@ Public Class WM_Config
             If Not File.Exists(legacyPath) Then Return
 
             Dim jsonString = File.ReadAllText(legacyPath)
-            Dim doc = JsonDocument.Parse(jsonString)
+            Dim doc = JsonDocument.Parse(jsonString, New JsonDocumentOptions With {.CommentHandling = JsonCommentHandling.Skip, .AllowTrailingCommas = True})
             Dim root = doc.RootElement
 
             ' Extract WM properties from legacy JSON (if they exist)
