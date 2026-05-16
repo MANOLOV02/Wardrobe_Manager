@@ -2934,7 +2934,19 @@ Public Class Wardrobe_Manager_Form
 
     Private Sub Button7_Click(sender As Object, e As EventArgs) Handles ButtonLightRigSettings.Click
         Dim lightfirn As New LightRigForm
-        lightfirn.ShowDialog(Me)
+        AddHandler lightfirn.LightsChanged, AddressOf OnLightRigChanged
+        Try
+            lightfirn.ShowDialog(Me)
+        Finally
+            RemoveHandler lightfirn.LightsChanged, AddressOf OnLightRigChanged
+        End Try
+    End Sub
+
+    Private Sub OnLightRigChanged()
+        If preview_Control IsNot Nothing AndAlso Not preview_Control.IsDisposed Then
+            preview_Control.updateRequired = True
+            preview_Control.Update()
+        End If
     End Sub
 
     Private Sub ComboBox1_SelectedIndexChanged_1(sender As Object, e As EventArgs) Handles ComboBoxSize.SelectedIndexChanged

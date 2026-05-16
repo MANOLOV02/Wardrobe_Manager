@@ -32,7 +32,13 @@ Public Class Editor_Form
             _Editando = True
             RaiseEvent Edit_Begun()
         End If
-        Dim equalmaterial As Boolean = _LastMaterial.AreEqualTo(Selected_Shape.RelatedMaterial.material)
+        ' Dirty tracking: the wrapper takes a Clone snapshot at every Load/Save (ClearDirty)
+        ' and IsDirty() diffs current state vs snapshot via GetDifferences (which respects
+        ' AreEquivalentGrayscaleScale tolerance for slot-equivalent palette scales). Net-zero
+        ' round-trips report clean. AreEqualTo stays alive for cross-instance diffing
+        ' (FaceGenComparator); this path just consumes the same machinery against a fresh
+        ' snapshot captured by the load path itself — no _LastMaterial juggling needed.
+        Dim equalmaterial As Boolean = Selected_Shape.RelatedMaterial.material Is Nothing OrElse Not Selected_Shape.RelatedMaterial.material.IsDirty()
         ButtonMatCancel.Enabled = Not equalmaterial
         ButtonMatSaveAs.Enabled = Not equalmaterial
         ButtonMatSave.Enabled = Not equalmaterial
@@ -765,14 +771,8 @@ Public Class Editor_Form
                 End If
                 Dim locBgsm As FilesDictionary_class.File_Location = Nothing
                 If FilesDictionary_class.Dictionary.TryGetValue(fullpath, locBgsm) Then
-                    Selected_Material.Deserialize(fullpath, GetType(BGSM))
-                    _LastMaterial.Deserialize(fullpath, GetType(BGSM))
-                    ' ShaderType is not stored in BGSM files — read it from the NIF shader
-                    Dim bslsp = TryCast(Selected_Shape.RelatedNifShader, BSLightingShaderProperty)
-                    If bslsp IsNot Nothing Then
-                        Selected_Material.NifShaderType = bslsp.ShaderType_SK_FO4
-                        _LastMaterial.NifShaderType = bslsp.ShaderType_SK_FO4
-                    End If
+                    Selected_Material.Deserialize(fullpath, GetType(BGSM), Selected_Shape.RelatedNifShape, Selected_Slider.NIFContent)
+                    _LastMaterial.Deserialize(fullpath, GetType(BGSM), Selected_Shape.RelatedNifShape, Selected_Slider.NIFContent)
                     If locBgsm.IsLosseFile Then
                         Label6.Text = "Loose"
                         If fullpath.Contains("ManoloCloned", StringComparison.OrdinalIgnoreCase) Or fullpath.Contains("ManoloMods", StringComparison.OrdinalIgnoreCase) Then
@@ -800,9 +800,9 @@ Public Class Editor_Form
                 End If
                 Dim locBgem As FilesDictionary_class.File_Location = Nothing
                 If FilesDictionary_class.Dictionary.TryGetValue(fullpath, locBgem) Then
-                    Selected_Material.Deserialize(fullpath, GetType(BGEM))
+                    Selected_Material.Deserialize(fullpath, GetType(BGEM), Selected_Shape.RelatedNifShape, Selected_Slider.NIFContent)
                     Selected_Material.NifShaderType = NiflySharp.Enums.BSLightingShaderType.Default
-                    _LastMaterial.Deserialize(fullpath, GetType(BGEM))
+                    _LastMaterial.Deserialize(fullpath, GetType(BGEM), Selected_Shape.RelatedNifShape, Selected_Slider.NIFContent)
                     _LastMaterial.NifShaderType = NiflySharp.Enums.BSLightingShaderType.Default
                     If locBgem.IsLosseFile Then
                         Label6.Text = "Loose"
@@ -993,13 +993,9 @@ Public Class Editor_Form
             Dim orig = FO4UnifiedMaterial_Class.CorrectMaterialPath(shap.RelatedMaterial.path).StripPrefix(prefix)
             Select Case Path.GetExtension(orig).ToLower
                 Case ".bgem"
-                    TestChanges.Deserialize(prefix + orig, GetType(BGEM))
+                    TestChanges.Deserialize(prefix + orig, GetType(BGEM), shap.RelatedNifShape, Selected_Slider.NIFContent)
                 Case ".bgsm"
-                    TestChanges.Deserialize(prefix + orig, GetType(BGSM))
-                    Dim bslsp = TryCast(shap.RelatedNifShader, BSLightingShaderProperty)
-                    If bslsp IsNot Nothing Then
-                        TestChanges.NifShaderType = bslsp.ShaderType_SK_FO4
-                    End If
+                    TestChanges.Deserialize(prefix + orig, GetType(BGSM), shap.RelatedNifShape, Selected_Slider.NIFContent)
                 Case ""
                     Select Case shap.RelatedNifShader.GetType
                         Case GetType(BSEffectShaderProperty)
