@@ -39,10 +39,17 @@ Namespace My
         Private Sub MyApplication_Startup(sender As Object, e As Microsoft.VisualBasic.ApplicationServices.StartupEventArgs) Handles Me.Startup
             ' Initialize WM-specific hooks for the shared library
             WM_RenderExtensions.InitializeWM()
+            ' Logger habilitado SOLO en Debug builds. En Release: Logger.Enabled stays default (False)
+            ' y todos los Logger.Log/LogLazy retornan early sin allocar — sin overhead. Si necesitás
+            ' diagnóstico en Release, descomentar manualmente y rebuild.
+#If DEBUG Then
+            FO4_Base_Library.Logger.Enabled = True
+            FO4_Base_Library.Logger.Initialize(IO.Path.Combine(System.Windows.Forms.Application.StartupPath, "fo4lib.log"))
+#End If
         End Sub
 
         Private Sub MyApplication_UnhandledException(sender As Object, e As Microsoft.VisualBasic.ApplicationServices.UnhandledExceptionEventArgs) Handles Me.UnhandledException
-            Logger.Log("Unhandled exception: " & e.Exception.ToString)
+            Logger.LogLazy(Function() "Unhandled exception: " & e.Exception.ToString)
             MessageBox.Show("An unexpected error occurred: " & e.Exception.Message & vbCrLf & "Details have been logged.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
             e.ExitApplication = False
         End Sub

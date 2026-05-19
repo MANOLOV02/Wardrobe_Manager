@@ -2127,7 +2127,9 @@ Public Class Wardrobe_Manager_Form
             ProgressBar1.Maximum = update.Max
             ProgressBar1.Value = Math.Min(update.Value, update.Max)
         End Sub)
-        FilesDictionary_class.CacheDirectory = Application.StartupPath
+        Dim cacheDir = IO.Path.Combine(Application.StartupPath, "Caches")
+        IO.Directory.CreateDirectory(cacheDir)
+        FilesDictionary_class.CacheDirectory = cacheDir
         ' includeInactiveArchives:=True — WM lets the user inspect/clone material from inactive
         ' mods, so their .ba2/.bsa content must be visible in the FilesDictionary. Active plugins
         ' (and loose files) still win on path conflict; inactives only fill gaps.
