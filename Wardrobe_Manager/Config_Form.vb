@@ -179,7 +179,27 @@ Public Class Config_Form
     Private Sub InitClonedMaterialTab()
         _packElapsedTimer = New System.Windows.Forms.Timer() With {.Interval = 1000}
         AddHandler _packElapsedTimer.Tick, AddressOf PackElapsedTimer_Tick
+        ' Index 0 = v8 (Next Gen, default); Index 1 = v1 (Old Gen / universal).
+        PackBa2VersionCombo.SelectedIndex = If(WM_Config.Current.Ba2Version_FO4 = 1UI, 1, 0)
+        UpdateBa2VersionVisibility()
         RefreshClonedMaterialStatus()
+    End Sub
+
+    ''' <summary>
+    ''' The BA2 header version selector is FO4-only: when packing for SSE the packer writes
+    ''' BSA v105 (no version choice), so the control is hidden. Defensive against the same
+    ''' during-InitializeComponent reentrancy documented in RefreshClonedMaterialStatus.
+    ''' </summary>
+    Private Sub UpdateBa2VersionVisibility()
+        If PackBa2VersionCombo Is Nothing OrElse PackBa2VersionLabel Is Nothing Then Return
+        Dim isFo4 As Boolean = (Config_App.Current.Game = Config_App.Game_Enum.Fallout4)
+        PackBa2VersionLabel.Visible = isFo4
+        PackBa2VersionCombo.Visible = isFo4
+    End Sub
+
+    Private Sub PackBa2VersionCombo_SelectedIndexChanged(sender As Object, e As EventArgs) Handles PackBa2VersionCombo.SelectedIndexChanged
+        ' Index 0 = v8 (Next Gen, default); Index 1 = v1 (Old Gen / universal).
+        WM_Config.Current.Ba2Version_FO4 = If(PackBa2VersionCombo.SelectedIndex = 1, 1UI, 8UI)
     End Sub
 
     Private Sub PackElapsedTimer_Tick(sender As Object, e As EventArgs)
@@ -643,6 +663,7 @@ Public Class Config_Form
             GroupBoxLooksmenu.Enabled = CheckBoxBuildTri.Checked And RadioButtonWMEngine.Checked AndAlso ComboBoxGame.SelectedIndex = 0
             Check_GameMismatch()
             RefreshClonedMaterialStatus()
+            UpdateBa2VersionVisibility()
         End If
     End Sub
 

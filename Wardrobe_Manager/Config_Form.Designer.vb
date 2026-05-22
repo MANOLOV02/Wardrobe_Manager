@@ -125,6 +125,8 @@ Partial Class Config_Form
         PackButton = New Button()
         UnpackButton = New Button()
         StopButton = New Button()
+        PackBa2VersionLabel = New Label()
+        PackBa2VersionCombo = New ComboBox()
         PackProgressBar = New ProgressBar()
         PackProgressRow = New TableLayoutPanel()
         PackProgressLabel = New Label()
@@ -1382,6 +1384,8 @@ Partial Class Config_Form
         PackButtonRow.Controls.Add(PackButton)
         PackButtonRow.Controls.Add(UnpackButton)
         PackButtonRow.Controls.Add(StopButton)
+        PackButtonRow.Controls.Add(PackBa2VersionLabel)
+        PackButtonRow.Controls.Add(PackBa2VersionCombo)
         PackButtonRow.Dock = DockStyle.Fill
         PackButtonRow.Location = New Point(0, 4)
         PackButtonRow.Margin = New Padding(0, 0, 0, 8)
@@ -1429,9 +1433,26 @@ Partial Class Config_Form
         StopButton.TextImageRelation = TextImageRelation.ImageBeforeText
         StopButton.UseVisualStyleBackColor = True
         StopButton.Visible = False
-        ' 
+        '
+        ' PackBa2VersionLabel
+        '
+        PackBa2VersionLabel.AutoSize = True
+        PackBa2VersionLabel.Margin = New Padding(16, 10, 4, 0)
+        PackBa2VersionLabel.Name = "PackBa2VersionLabel"
+        PackBa2VersionLabel.Text = "BA2 version (FO4):"
+        '
+        ' PackBa2VersionCombo
+        '
+        PackBa2VersionCombo.DropDownStyle = ComboBoxStyle.DropDownList
+        PackBa2VersionCombo.FormattingEnabled = True
+        PackBa2VersionCombo.Items.AddRange(New Object() {"8 - Next Gen (NG)", "1 - Old Gen (OG / universal)"})
+        PackBa2VersionCombo.Margin = New Padding(0, 6, 0, 0)
+        PackBa2VersionCombo.Name = "PackBa2VersionCombo"
+        PackBa2VersionCombo.Size = New Size(190, 23)
+        PackBa2VersionCombo.TabIndex = 3
+        '
         ' PackProgressBar
-        ' 
+        '
         PackProgressBar.Dock = DockStyle.Fill
         PackProgressBar.Location = New Point(0, 48)
         PackProgressBar.Margin = New Padding(0, 0, 0, 4)
@@ -1653,6 +1674,8 @@ Partial Class Config_Form
     Friend WithEvents PackButton As Button
     Friend WithEvents UnpackButton As Button
     Friend WithEvents StopButton As Button
+    Friend WithEvents PackBa2VersionLabel As Label
+    Friend WithEvents PackBa2VersionCombo As ComboBox
     Friend WithEvents PackProgressBar As ProgressBar
     Friend WithEvents PackProgressRow As TableLayoutPanel
     Friend WithEvents PackProgressLabel As Label

@@ -64,6 +64,11 @@ Public Class WM_Config
     Public Property BSAFiles_SSE As New List(Of String)
     Public Property BSAFiles_Clonables_SSE As New List(Of Boolean)
 
+    ' BA2 header version used when packing FO4 archives. FO4-only (SSE packs BSA v105, unaffected).
+    ' 8 = Next Gen (default; loads only on NG Fallout4.exe 1.10.980+). 1 = Old Gen / universal
+    ' (loads on both OG and NG). The packager passes this straight to the BA2 writer.
+    Public Property Ba2Version_FO4 As UInteger = 8UI
+
     <System.Text.Json.Serialization.JsonIgnore>
     Public ReadOnly Property BSAFiles As List(Of String)
         Get

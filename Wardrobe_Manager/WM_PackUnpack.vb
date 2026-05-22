@@ -150,6 +150,8 @@ Public Module WM_PackUnpack
 
         Dim game = MapGame(Config_App.Current.Game)
         Dim chunkMaxComp As Long = If(game = GameKind.FO4_BA2, MAX_BYTES_FO4, MAX_BYTES_SSE)
+        ' BA2 header version is FO4-only; the packager ignores it for SSE (BSA v105).
+        Dim ba2Version As UInteger = WM_Config.Current.Ba2Version_FO4
 
         ' --- Walk loose: paths + sizes only, no bytes loaded yet. Memory ≈ 50 B/entry. ---
         ReportStage(progress, "Scanning loose files…", 0, 0)
@@ -221,7 +223,7 @@ Public Module WM_PackUnpack
                 ' If adding this entry would overflow the cap AND the buffer already has something,
                 ' flush first so the next archive starts fresh and this entry seeds it.
                 If chunkEntries.Count > 0 AndAlso chunkCompBytes + veCompSize > chunkMaxComp Then
-                    FlushChunk(dataDir, game, chunkEntries, chunkSources, chunkCompBytes, chunkMaxComp,
+                    FlushChunk(dataDir, game, ba2Version, chunkEntries, chunkSources, chunkCompBytes, chunkMaxComp,
                                accumResult, progress, totalEntries, entriesDone, ct)
                     entriesDone += chunkEntries.Count
                     chunkEntries = New List(Of VirtualEntry)
@@ -247,7 +249,7 @@ Public Module WM_PackUnpack
 
         ' Final flush: whatever survived the cancellation check or completed the loop.
         If chunkEntries.Count > 0 AndAlso Not cancelled Then
-            FlushChunk(dataDir, game, chunkEntries, chunkSources, chunkCompBytes, chunkMaxComp,
+            FlushChunk(dataDir, game, ba2Version, chunkEntries, chunkSources, chunkCompBytes, chunkMaxComp,
                        accumResult, progress, totalEntries, entriesDone, ct)
             entriesDone += chunkEntries.Count
         End If
@@ -313,6 +315,7 @@ Public Module WM_PackUnpack
     ''' </summary>
     Private Sub FlushChunk(dataDir As String,
                             game As GameKind,
+                            ba2Version As UInteger,
                             chunkEntries As List(Of VirtualEntry),
                             chunkSources As List(Of String),
                             chunkCompBytes As Long,
@@ -345,6 +348,7 @@ Public Module WM_PackUnpack
 
         Dim req As New PackagerRequest With {
             .Game = game,
+            .Ba2Version = ba2Version,
             .ModBaseName = MOD_BASE_NAME,
             .OutputDir = dataDir,
             .Entries = chunkEntries,
