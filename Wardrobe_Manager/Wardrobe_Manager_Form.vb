@@ -1691,7 +1691,7 @@ Public Class Wardrobe_Manager_Form
             End If
         End If
 
-        Dim previewed = If(preview_Control Is Nothing, Nothing, preview_Control.WM_Last_rendered())
+        Dim previewed = preview_Control?.WM_Last_rendered()
         Dim previewTouched = Object.ReferenceEquals(previewed, slider)
 
         Try

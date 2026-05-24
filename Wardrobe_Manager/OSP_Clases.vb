@@ -1468,8 +1468,8 @@ Public Class ProjectLoadContext
     Public Function CloneWith(Optional interactionMode As ProjectLoadInteractionMode? = Nothing,
                               Optional analyzeCloneMaterials As Boolean? = Nothing) As ProjectLoadContext
         Return New ProjectLoadContext With {
-            .InteractionMode = If(interactionMode.HasValue, interactionMode.Value, Me.InteractionMode),
-            .AnalyzeCloneMaterials = If(analyzeCloneMaterials.HasValue, analyzeCloneMaterials.Value, Me.AnalyzeCloneMaterials),
+            .InteractionMode = If(interactionMode, Me.InteractionMode),
+            .AnalyzeCloneMaterials = If(analyzeCloneMaterials, Me.AnalyzeCloneMaterials),
             .Issues = Me.Issues
         }
     End Function

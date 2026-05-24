@@ -1,4 +1,4 @@
-' Version Uploaded of Wardrobe 3.2.0
+﻿' Version Uploaded of Wardrobe 3.2.0
 Imports System.IO
 Imports System.Text.Json
 Imports NiflySharp
@@ -611,8 +611,9 @@ Public Class ShapeTypeValidator
         Dim dummyOsp As New OSP_Project_Class()
         ' Use the no-xml-node constructor that creates a fully-formed empty SliderSet,
         ' including DataFolder/SourceFile/OutputPath/OutputFile children + Nodo + OSP append.
-        Dim sliderSet As New SliderSet_Class(dummyOsp)
-        sliderSet.NIFContent = New Nifcontent_Class_Manolo
+        Dim sliderSet As New SliderSet_Class(dummyOsp) With {
+            .NIFContent = New Nifcontent_Class_Manolo
+        }
         sliderSet.NIFContent.Load_Manolo(nifPath)
 
         ' Enumera shapes igual que CreatefromNif_Form
@@ -630,8 +631,9 @@ Public Class ShapeTypeValidator
         ' Without any IsZap slider in the set, RemoveZaps exits early and the zap pipeline
         ' becomes a no-op — test D would always report 0 removed verts.  The fake slider
         ' has no Data so morph evaluation skips it; only the guard cares it exists.
-        Dim fakeZap As New Slider_class("__ValidatorFakeZap__", sliderSet, TriMorphType.Position)
-        fakeZap.IsZap = True
+        Dim fakeZap As New Slider_class("__ValidatorFakeZap__", sliderSet, TriMorphType.Position) With {
+            .IsZap = True
+        }
         sliderSet.Sliders.Add(fakeZap)
 
         sliderSet.InvalidateAllLookupCaches()

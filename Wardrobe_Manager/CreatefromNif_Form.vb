@@ -116,9 +116,9 @@ Public Class Create_from_Nif_Form
         If Not FilesDictionary_class.Dictionary.ContainsKey(tri) Then
             Dim stripped As String = Nothing
             If fil.EndsWith("_0.nif", StringComparison.OrdinalIgnoreCase) Then
-                stripped = fil.Substring(0, fil.Length - "_0.nif".Length) & ".tri"
+                stripped = String.Concat(fil.AsSpan(0, fil.Length - "_0.nif".Length), ".tri")
             ElseIf fil.EndsWith("_1.nif", StringComparison.OrdinalIgnoreCase) Then
-                stripped = fil.Substring(0, fil.Length - "_1.nif".Length) & ".tri"
+                stripped = String.Concat(fil.AsSpan(0, fil.Length - "_1.nif".Length), ".tri")
             End If
             If stripped IsNot Nothing AndAlso FilesDictionary_class.Dictionary.ContainsKey(stripped) Then
                 tri = stripped

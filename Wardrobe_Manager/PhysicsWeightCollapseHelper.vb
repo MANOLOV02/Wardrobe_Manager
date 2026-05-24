@@ -666,8 +666,11 @@ Public NotInheritable Class PhysicsWeightCollapseHelper
                 If dist.Count = 0 Then Continue For
 
                 Dim vertexIndex = CInt(entry.VertexIndex)
-                If result.ContainsKey(vertexIndex) Then
-                    result(vertexIndex) = MergeBoneDistributions(result(vertexIndex), dist)
+
+                Dim value As Dictionary(Of String, Single) = Nothing
+
+                If result.TryGetValue(vertexIndex, value) Then
+                    result(vertexIndex) = MergeBoneDistributions(value, dist)
                 Else
                     result(vertexIndex) = dist
                 End If

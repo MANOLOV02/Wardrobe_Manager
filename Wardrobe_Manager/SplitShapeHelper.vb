@@ -165,8 +165,10 @@ Public Class SplitShapeHelper
         ' material path/reference on the split does not mutate the original and vice versa.
         Dim bm = sliderSet.NIFContent.BaseMaterials
         Dim origNifName = origNif.Name.String
-        If bm.ContainsKey(origNifName) AndAlso Not bm.ContainsKey(splitName) Then
-            Dim orig = bm(origNifName)
+
+        Dim orig As Nifcontent_Class_Manolo.RelatedMaterial_Class = Nothing
+
+        If bm.TryGetValue(origNifName, orig) AndAlso Not bm.ContainsKey(splitName) Then
             bm.Add(splitName, New Nifcontent_Class_Manolo.RelatedMaterial_Class With {
                 .path = orig.path,
                 .material = orig.material
@@ -179,8 +181,9 @@ Public Class SplitShapeHelper
         splitShapeNode.SetAttribute("target", splitName)
         splitShapeNode.AppendChild(xml.CreateTextNode(splitName))
         sliderSet.Nodo.InsertAfter(splitShapeNode, shape.Nodo)
-        Dim splitShape As New Shape_class(splitShapeNode, sliderSet)
-        splitShape.Datafolder = shape.Datafolder.ToList()
+        Dim splitShape As New Shape_class(splitShapeNode, sliderSet) With {
+            .Datafolder = shape.Datafolder.ToList()
+        }
         sliderSet.Shapes.Insert(sliderSet.Shapes.IndexOf(shape) + 1, splitShape)
 
         ' 11. OSD: external blocks are read-only. Any remap happens on local copies.
