@@ -44,7 +44,7 @@ Public Module WM_RenderExtensions
     ''' <summary>Initialize WM-specific setup. Call once at application startup.</summary>
     Public Sub InitializeWM()
         ' Register WM-specific file extensions for dictionary scanning
-        FilesDictionary_class.RegisterExtensions(".osp", ".xml")
+        FilesDictionary_class.RegisterExtensions(".osp")
         ' Initialize preset collection
         FilesDictionary_class.SetAppData(New SliderPresetCollection())
         ' Auto-detect BodySlide/OutfitStudio paths
@@ -103,21 +103,26 @@ Public Module WM_RenderExtensions
             End If
         End If
 
-        Cursor.Current = Cursors.WaitCursor
+        If Not ctrl.PlayingAnimation Then Cursor.Current = Cursors.WaitCursor
         OSP_Project_Class.PinnedForPreview = seleccionado
 
         ' Snapshot previous state for change detection
         Dim prevPreset = s.Last_Preset
         Dim prevSize = s.Last_size
 
-        ' Apply slider weights from preset
-        seleccionado.SetPreset(Preset, weight)
-        s.Last_size = weight
-        s.Last_Preset = Preset
-
         ' Detect what changed
         Dim sameSet = (s.Last_rendered Is seleccionado) AndAlso ctrl.Model.Cleaned = False AndAlso Force = False
         Dim presetChanged = Not (prevPreset Is Preset) OrElse (prevSize <> weight)
+        Dim skipPresetApply = sameSet AndAlso Not presetChanged
+
+        ' Apply slider weights from preset. During animation playback the pose changes every
+        ' tick, but the slider preset usually does not, so avoid reapplying morph setup.
+        If Not skipPresetApply Then
+            seleccionado.SetPreset(Preset, weight)
+            s.Last_size = weight
+            s.Last_Preset = Preset
+        End If
+
         ' Pose change detected against the SkeletonInstance's last applied pose (only used to
         ' pick the dirty flag below). Apply pose UNCONDITIONALLY here — idempotent and trivial
         ' (~200 bones × ~5µs), guarantees DeltaTransforms reflect the requested pose even if
@@ -131,7 +136,7 @@ Public Module WM_RenderExtensions
         intent.FloorOffset = -seleccionado.HighHeelHeight
         intent.RecalculateNormals = ctrl.Model.RecalculateNormals
         intent.SkeletonResolver = Nothing  ' default skeleton resolver
-        intent.MorphResolver = New SliderMorphResolver()
+        intent.MorphResolver = If(skipPresetApply, Nothing, New SliderMorphResolver())
         intent.GeometryModifiers = Nothing
 
         If Not sameSet Then
@@ -169,12 +174,21 @@ Public Module WM_RenderExtensions
 
         ElseIf poseChanged Then
             ' Pose change: skeleton + bone matrices, optional morphs
-            intent.MarkDirty(RenderDirtyFlags.Pose Or RenderDirtyFlags.Camera)
+            Dim poseFlags = RenderDirtyFlags.Pose
+            If Not ctrl.PlayingAnimation Then poseFlags = poseFlags Or RenderDirtyFlags.Camera
+            intent.MarkDirty(poseFlags)
             If presetChanged Then intent.MarkDirty(RenderDirtyFlags.Morphs)
 
-        Else
-            ' Morph-only: same set, same pose, preset/size may have changed
+        ElseIf presetChanged Then
+            ' Morph-only: same set, same pose, preset/size changed
             intent.MarkDirty(RenderDirtyFlags.Morphs Or RenderDirtyFlags.Textures)
+
+        Else
+            ' Preserve the old refresh behavior outside playback, but keep same-frame timer
+            ' ticks from doing needless morph/texture work while the animation is running.
+            If Not ctrl.PlayingAnimation Then
+                intent.MarkDirty(RenderDirtyFlags.Morphs Or RenderDirtyFlags.Textures)
+            End If
         End If
 
         ' Signal the control — pipeline executes synchronously for now
@@ -182,6 +196,6 @@ Public Module WM_RenderExtensions
 
         _sw.Stop()
         ctrl.LastUpdateMs = _sw.Elapsed.TotalMilliseconds
-        Cursor.Current = Cursors.Default
+        If Not ctrl.PlayingAnimation Then Cursor.Current = Cursors.Default
     End Sub
 End Module

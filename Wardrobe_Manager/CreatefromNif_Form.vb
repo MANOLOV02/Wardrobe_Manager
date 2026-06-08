@@ -1,4 +1,5 @@
 ﻿' Version Uploaded of Wardrobe 3.2.0
+Imports System.ComponentModel
 Imports System.IO
 Imports System.Net
 Imports System.Xml
@@ -273,4 +274,6 @@ Public Class Create_from_Nif_Form
     Private Sub CheckBox1_CheckedChanged(sender As Object, e As EventArgs) Handles CheckBox1.CheckedChanged
         If Last_key <> "" Then Read_selected(Last_key)
     End Sub
+
+
 End Class

@@ -116,6 +116,7 @@ Partial Class Wardrobe_Manager_Form
         ProgressBar1 = New ProgressBar()
         Label4 = New Label()
         ButtonSkeleton = New Button()
+        ButtonLoadHkxPose = New Button()
         ComboBoxPoses = New ComboBox()
         GroupBox4 = New GroupBox()
         Split_Split_y_Menu_Target = New SplitContainer()
@@ -1286,6 +1287,7 @@ Partial Class Wardrobe_Manager_Form
         Panel3.Controls.Add(ProgressBar1)
         Panel3.Controls.Add(Label4)
         Panel3.Controls.Add(ButtonSkeleton)
+        Panel3.Controls.Add(ButtonLoadHkxPose)
         Panel3.Controls.Add(ComboBoxPoses)
         Panel3.Controls.Add(TextBox_SourceName)
         Panel3.Controls.Add(Label2)
@@ -1428,6 +1430,18 @@ Partial Class Wardrobe_Manager_Form
         ToolTip1.SetToolTip(ButtonSkeleton, "Select the skeleton NIF used for preview, posing, and skinning.")
         ButtonSkeleton.UseVisualStyleBackColor = True
         ' 
+        ' ButtonLoadHkxPose
+        ' 
+        ButtonLoadHkxPose.Anchor = AnchorStyles.Top Or AnchorStyles.Right
+        ButtonLoadHkxPose.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold)
+        ButtonLoadHkxPose.Location = New Point(276, 67)
+        ButtonLoadHkxPose.Name = "ButtonLoadHkxPose"
+        ButtonLoadHkxPose.Size = New Size(78, 29)
+        ButtonLoadHkxPose.TabIndex = 39
+        ButtonLoadHkxPose.Text = "Load HKX"
+        ToolTip1.SetToolTip(ButtonLoadHkxPose, "Import one frame from a Havok .hkx animation as a Wardrobe Manager pose.")
+        ButtonLoadHkxPose.UseVisualStyleBackColor = True
+        ' 
         ' ComboBoxPoses
         ' 
         ComboBoxPoses.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
@@ -1436,7 +1450,7 @@ Partial Class Wardrobe_Manager_Form
         ComboBoxPoses.FormattingEnabled = True
         ComboBoxPoses.Location = New Point(139, 66)
         ComboBoxPoses.Name = "ComboBoxPoses"
-        ComboBoxPoses.Size = New Size(215, 29)
+        ComboBoxPoses.Size = New Size(131, 29)
         ComboBoxPoses.TabIndex = 38
         ToolTip1.SetToolTip(ComboBoxPoses, "Select the preview pose.")
         ' 
@@ -1661,6 +1675,7 @@ Partial Class Wardrobe_Manager_Form
     Friend WithEvents SingleBoneCheck As CheckBox
     Friend WithEvents ButtonCreateFromNif As Button
     Friend WithEvents ButtonSkeleton As Button
+    Friend WithEvents ButtonLoadHkxPose As Button
     Friend WithEvents ComboBoxPoses As ComboBox
     Friend WithEvents Label4 As Label
     Friend WithEvents RecalculateNormalsCheck As CheckBox

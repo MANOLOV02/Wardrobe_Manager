@@ -25,10 +25,13 @@
 ' Version Uploaded of Wardrobe 3.2.0
 Imports System.Collections.Concurrent
 Imports System.ComponentModel
+Imports System.Globalization
 Imports System.IO
+Imports System.Linq
 Imports System.Runtime.InteropServices.JavaScript.JSType
 Imports System.Windows.Forms.VisualStyles.VisualStyleElement
 Imports System.Windows.Forms.VisualStyles.VisualStyleElement.ToolTip
+Imports System.Xml.Linq
 Imports NiflySharp.Enums
 
 Public Class Wardrobe_Manager_Form
@@ -135,6 +138,7 @@ Public Class Wardrobe_Manager_Form
     Private _LeeShapesPending As Boolean = False
     Private Default_Pack_Name As String = "WM Default Pack"
     Private _RefreshingTargetsFromDisk As Boolean = False
+
     Private Sub Habilita_deshabilita()
         Me.SuspendLayout()
         Dim fullpack As Boolean = Full_packs_Selected()
@@ -186,6 +190,7 @@ Public Class Wardrobe_Manager_Form
         ' Keep preview controls active during external editing
         ComboBoxPresets.Enabled = normalUi
         ComboBoxPoses.Enabled = normalUi
+        ButtonLoadHkxPose.Enabled = normalUi AndAlso Not SingleBoneCheck.Checked
         SingleBoneCheck.Enabled = normalUi
         RecalculateNormalsCheck.Enabled = normalUi
         ColorComboBox1.Enabled = normalUi
@@ -2374,6 +2379,131 @@ Public Class Wardrobe_Manager_Form
         ComboBoxSize.SelectedIndex = CInt(WM_Config.Current.Bodytipe)
 
     End Sub
+
+    Private Sub ButtonLoadHkxPose_Click(sender As Object, e As EventArgs) Handles ButtonLoadHkxPose.Click
+        Try
+            Logger.LogLazy(Function() "[HKX-POSE-UI] Load HKX picker clicked.")
+            If SkeletonInstance.Default.HasSkeleton = False AndAlso SkeletonInstance.Default.LoadFromConfig(True, False) = False Then
+                Logger.LogLazy(Function() "[HKX-POSE-UI] Import aborted: live preview skeleton is not loaded and LoadFromConfig failed.")
+                MsgBox("Load a preview skeleton before importing an HKX pose.", vbOKOnly + vbCritical, "HKX Pose Import")
+                Return
+            End If
+
+            Dim selectedSliderSet = CurrentPreviewSliderSet()
+            If selectedSliderSet Is Nothing Then
+                Logger.LogLazy(Function() "[HKX-POSE-UI] Import aborted: no selected slider set for preview.")
+                MsgBox("Select a source or target project before importing an HKX pose.", vbOKOnly + vbExclamation, "HKX Pose Import")
+                Return
+            End If
+
+            Dim selectedPreset As SlidersPreset_Class = Nothing
+            If ComboBoxPresets.SelectedIndex <> -1 Then WM_SliderPresets.Presets.TryGetValue(ComboBoxPresets.Items(ComboBoxPresets.SelectedIndex).ToString(), selectedPreset)
+
+            Dim selectedSize = If(ComboBoxSize.SelectedIndex >= 0, CType(ComboBoxSize.SelectedIndex, WM_Config.SliderSize), WM_Config.SliderSize.Default)
+            Using picker As New HkxPoseImport_Form(selectedSliderSet, selectedPreset, selectedSize)
+                If picker.ShowDialog(Me) <> DialogResult.Yes OrElse picker.ImportedResult Is Nothing Then
+                    Logger.LogLazy(Function() "[HKX-POSE-UI] HKX picker cancelled or produced no result.")
+                    Return
+                End If
+
+                Dim result = picker.ImportedResult
+                Dim outPath = IO.Path.Combine(Directorios.PosesBSRoot, "WardrobeManagerPoses.xml")
+                If SaveImportedHkxPoseXml(outPath, result.Pose) = False Then
+                    Logger.LogLazy(Function() $"[HKX-POSE-UI] Save pose cancelled/failed path='{outPath}' pose='{result.Pose.Name}'.")
+                    Return
+                End If
+
+                Dim key = result.Pose.ToString()
+                Relee_Poses()
+                If ComboBoxPoses.Items.Contains(key) = False Then ComboBoxPoses.Items.Add(key)
+                ComboBoxPoses.SelectedIndex = ComboBoxPoses.Items.IndexOf(key)
+
+                Logger.LogLazy(Function() $"[HKX-POSE-UI] Import saved pose='{result.Pose.Name}' key='{key}' output='{outPath}' skeletonStrategy={result.SkeletonSource} imported={result.ImportedBoneCount}")
+                MsgBox($"Imported '{result.Pose.Name}' from frame {result.UsedFrame}/{Math.Max(0, result.AnimationFrameCount - 1)}." & vbCrLf &
+                       $"Skeleton strategy: {result.SkeletonSource}" & vbCrLf &
+                       $"Bones imported: {result.ImportedBoneCount}" & vbCrLf &
+                       $"Missing live bones skipped: {result.SkippedMissingLiveBoneCount}" & vbCrLf &
+                       $"Invalid binding/track entries skipped: {result.SkippedInvalidBindingCount}",
+                       vbOKOnly + vbInformation,
+                       "HKX Pose Import")
+            End Using
+        Catch ex As Exception
+            Logger.LogLazy(Function() "[HKX-POSE-UI] Import exception: " & ex.ToString())
+            MsgBox("Error importing HKX pose: " & ex.Message, vbOKOnly + vbCritical, "HKX Pose Import")
+        End Try
+    End Sub
+
+    Private Function CurrentPreviewSliderSet() As SliderSet_Class
+        Dim selected = Determina_Seleccionado_y_CambiaNombres()
+        If RadioButton2.Checked OrElse (RadioButton3.Checked AndAlso Last_List_focused Is ListViewTargets) Then Return selected(1)
+        Return selected(0)
+    End Function
+
+    Private Function SaveImportedHkxPoseXml(path As String, pose As Poses_class) As Boolean
+        If pose Is Nothing OrElse String.IsNullOrWhiteSpace(pose.Name) Then Return False
+
+        Dim keyName = Poses_class.KeyName(pose.Name, Poses_class.Pose_Source_Enum.WardrobeManager)
+        Dim bodySlideKeyName = Poses_class.KeyName(pose.Name, Poses_class.Pose_Source_Enum.BodySlide)
+        Dim existing As Poses_class = Nothing
+        Dim existingKey As String = Nothing
+
+        If WM_SliderPresets.Poses.TryGetValue(keyName, existing) Then existingKey = keyName
+        If existing Is Nothing AndAlso WM_SliderPresets.Poses.TryGetValue(bodySlideKeyName, existing) Then existingKey = bodySlideKeyName
+
+        If existing IsNot Nothing Then
+            If String.Equals(If(existing.Filename, ""), path, StringComparison.OrdinalIgnoreCase) = False Then
+                MsgBox("Pose " & pose.Name & " already exists in another file.", vbOKOnly + vbCritical, "HKX Pose Import")
+                Return False
+            End If
+            If MsgBox("Pose " & pose.Name & " already exists. Do you want to overwrite it?", vbYesNo, "HKX Pose Import") = MsgBoxResult.No Then Return False
+        End If
+
+        Dim dir = IO.Path.GetDirectoryName(path)
+        If IO.Directory.Exists(dir) = False Then IO.Directory.CreateDirectory(dir)
+
+        If IO.File.Exists(path) = False Then
+            Dim newDoc As New XDocument(New XDeclaration("1.0", "UTF-8", Nothing), New XElement("PoseData"))
+            newDoc.Save(path)
+        End If
+
+        Dim doc = XDocument.Load(path)
+        If doc.Root Is Nothing Then doc.Add(New XElement("PoseData"))
+
+        Dim selected = doc.Root.Elements("Pose").
+            FirstOrDefault(Function(pf) String.Equals(CStr(pf.Attribute("name")?.Value), pose.Name, StringComparison.OrdinalIgnoreCase))
+
+        If selected Is Nothing Then
+            selected = New XElement("Pose", New XAttribute("name", pose.Name), New XAttribute("WMPose", "true"))
+            doc.Root.Add(selected)
+        ElseIf selected.Attribute("WMPose") Is Nothing Then
+            selected.Add(New XAttribute("WMPose", "true"))
+        Else
+            selected.Attribute("WMPose").Value = "true"
+        End If
+
+        For Each boneElement In selected.Elements("Bone").ToList()
+            boneElement.Remove()
+        Next
+
+        For Each tr In pose.Transforms.Where(Function(pf) pf.Value.Isidentity = False)
+            selected.Add(New XElement("Bone",
+                                      New XAttribute("name", tr.Key),
+                                      New XAttribute("rotX", tr.Value.Yaw.ToString(CultureInfo.InvariantCulture)),
+                                      New XAttribute("rotY", tr.Value.Pitch.ToString(CultureInfo.InvariantCulture)),
+                                      New XAttribute("rotZ", tr.Value.Roll.ToString(CultureInfo.InvariantCulture)),
+                                      New XAttribute("transX", tr.Value.X.ToString(CultureInfo.InvariantCulture)),
+                                      New XAttribute("transY", tr.Value.Y.ToString(CultureInfo.InvariantCulture)),
+                                      New XAttribute("transZ", tr.Value.Z.ToString(CultureInfo.InvariantCulture)),
+                                      New XAttribute("scale", tr.Value.Scale.ToString(CultureInfo.InvariantCulture))))
+        Next
+
+        doc.Save(path)
+        pose.Filename = path
+        pose.Source = Poses_class.Pose_Source_Enum.WardrobeManager
+        WM_SliderPresets.Poses(keyName) = pose
+        If existingKey IsNot Nothing AndAlso existingKey <> keyName Then WM_SliderPresets.Poses.Remove(existingKey)
+        Return True
+    End Function
 
     Private Sub Save_Shared()
         If IO.Directory.Exists(Directorios.SharedTexturesPath) = False Then
