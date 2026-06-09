@@ -10,17 +10,18 @@ Public Class HkxPoseImport_Form
     Private WithEvents EditPreviewControl As PreviewControl = Nothing
     Private WithEvents PreviewDebounceTimer As New Timer With {.Interval = 100}
     Private WithEvents PlaybackTimer As New Timer With {.Interval = 33}
-    Private ReadOnly _playbackClock As New Stopwatch()
     Private ReadOnly _selectedSliderSet As SliderSet_Class
     Private ReadOnly _selectedPreset As SlidersPreset_Class
     Private ReadOnly _selectedSize As WM_Config.SliderSize
     Private ReadOnly _skeletonSource As HkxByteSource
     Private _session As HkxPoseImportSession
+    ' Playback compartido (reloj + selección de frame por tiempo + caché de poses). El PlaybackTimer
+    ' de WinForms sigue siendo el driver; el player provee FrameForNow()/PoseForFrame().
+    Private _player As HkxAnimationPlayer
     Private _lastResult As HkxPoseImportHelper.ImportResult
     Private _lastKey As String = ""
     Private _suppressFrameEvents As Boolean
     Private _suppressPlaybackIntervalEvents As Boolean
-    Private _playbackStartFrame As Integer
     Private HasSaved As Boolean = False
 
     Public ReadOnly Property ImportedResult As HkxPoseImportHelper.ImportResult
@@ -132,16 +133,13 @@ Public Class HkxPoseImport_Form
     End Sub
 
     Private Sub PlaybackTimer_Tick(sender As Object, e As EventArgs) Handles PlaybackTimer.Tick
-        If _session Is Nothing OrElse FrameSlider.Maximum <= 0 Then
+        If _player Is Nothing OrElse FrameSlider.Maximum <= 0 Then
             StopPlayback()
             Return
         End If
 
-        Dim intervalMs = Math.Max(1, CInt(NumericFrameMs.Value))
-        Dim frameCount = CInt(FrameSlider.Maximum) + 1
-        Dim elapsedFrames = CInt(Math.Floor(_playbackClock.Elapsed.TotalMilliseconds / intervalMs))
-        Dim nextFrame = (_playbackStartFrame + elapsedFrames) Mod frameCount
-        If nextFrame = CurrentFrame() Then Return
+        Dim nextFrame = _player.FrameForNow()
+        If nextFrame < 0 OrElse nextFrame = CurrentFrame() Then Return
 
         _suppressFrameEvents = True
         FrameSlider.Value = nextFrame
@@ -159,18 +157,27 @@ Public Class HkxPoseImport_Form
 
     Private Sub NumericFrameMs_ValueChanged(sender As Object, e As EventArgs) Handles NumericFrameMs.ValueChanged
         If _suppressPlaybackIntervalEvents Then Return
-        Dim frameMs = Math.Max(1, CInt(NumericFrameMs.Value))
-        PlaybackTimer.Interval = Math.Max(1, Math.Min(16, frameMs \ 2))
-        If PlaybackTimer.Enabled Then
-            _playbackStartFrame = CurrentFrame()
-            _playbackClock.Restart()
+        Dim fps = Math.Max(1.0, CDbl(NumericFrameMs.Value))   ' el numeric ahora es FPS
+        PlaybackTimer.Interval = FpsToCheckInterval(fps)
+        If _player IsNot Nothing Then
+            _player.TargetFps = fps
+            ' Reanclar el reloj al frame actual para que el cambio de FPS no pegue un salto.
+            If PlaybackTimer.Enabled Then _player.Rebase(CurrentFrame())
         End If
     End Sub
 
+    ''' <summary>Intervalo del timer de chequeo (ms) a partir del FPS objetivo: ~la mitad del
+    ''' tiempo por frame, tope 16ms. El player elige el frame real por reloj; esto es solo cada
+    ''' cuánto se chequea.</summary>
+    Private Shared Function FpsToCheckInterval(fps As Double) As Integer
+        Dim frameMs = 1000.0 / Math.Max(1.0, fps)
+        Return Math.Max(1, Math.Min(16, CInt(Math.Floor(frameMs / 2.0))))
+    End Function
+
     Private Sub LoadSelectedHkx(key As String)
         _session = Nothing
+        _player = Nothing
         _lastResult = Nothing
-        RenderPoses.Clear()
         If EditPreviewControl IsNot Nothing Then EditPreviewControl.PlayingAnimation = False
         DictionaryPicker_Control1.btnOk.Enabled = False
         FrameSlider.Enabled = False
@@ -200,6 +207,8 @@ Public Class HkxPoseImport_Form
                                                    animationSource.DisplayPath,
                                                    If(_skeletonSource?.DisplayPath, ""))
 
+            _player = New HkxAnimationPlayer(_session)
+
             Dim maxFrame = Math.Max(0, _session.FrameCount - 1)
             _suppressFrameEvents = True
             FrameSlider.Minimum = 0
@@ -221,25 +230,19 @@ Public Class HkxPoseImport_Form
     End Sub
 
     Private _redcolor As Boolean = False
-    Private RenderPoses As New Dictionary(Of String, Poses_class)
     Private Sub UpdatePreview()
-        If _session Is Nothing OrElse EditPreviewControl Is Nothing Then Return
+        If _player Is Nothing OrElse EditPreviewControl Is Nothing Then Return
 
         Try
             Dim sw = Stopwatch.StartNew()
             Dim poseName = If(String.IsNullOrWhiteSpace(TextBoxPoseName.Text), "HKX Preview Pose", TextBoxPoseName.Text.Trim())
             Dim fram As Integer = CurrentFrame()
-            Dim pos As Poses_class = Nothing
-            Dim cacheKey = _lastKey & ChrW(0) & poseName & ChrW(0) & fram.ToString(Globalization.CultureInfo.InvariantCulture)
-            If RenderPoses.TryGetValue(cacheKey, pos) = False Then
-                EditPreviewControl.Model.FloorOffset = -_selectedSliderSet.HighHeelHeight
-                _lastResult = _session.BuildPose(fram, poseName, collectDiagnostics:=False)
-                pos = _lastResult.Pose
-                RenderPoses.Add(cacheKey, pos)
-            End If
+            _player.PoseName = poseName
+            EditPreviewControl.Model.FloorOffset = -_selectedSliderSet.HighHeelHeight
+            Dim pos As Poses_class = _player.PoseForFrame(fram)
             EditPreviewControl.Update_Render(_selectedSliderSet, False, _selectedPreset, pos, _selectedSize)
             sw.Stop()
-            Dim budgetMs = Math.Max(1, CInt(NumericFrameMs.Value))
+            Dim budgetMs = Math.Max(1, CInt(Math.Round(1000.0 / Math.Max(1.0, CDbl(NumericFrameMs.Value)))))
             If PlaybackTimer.Enabled AndAlso sw.ElapsedMilliseconds > budgetMs Then
                 If Not _redcolor Then NumericFrameMs.ForeColor = Color.Red : _redcolor = True
                 Logger.LogLazy(Function() $"[HKX-POSE-UI] Playback frame over budget renderMs={sw.ElapsedMilliseconds} budgetMs={budgetMs}; real-time playback will skip frames.")
@@ -255,17 +258,17 @@ Public Class HkxPoseImport_Form
     End Sub
 
     Private Sub StartPlayback()
-        If _session Is Nothing OrElse FrameSlider.Maximum <= 0 Then Return
+        If _player Is Nothing OrElse FrameSlider.Maximum <= 0 Then Return
         If EditPreviewControl IsNot Nothing Then
             EditPreviewControl.PlayingAnimation = True
         End If
-        Dim frameMs = Math.Max(1, CInt(NumericFrameMs.Value))
-        PlaybackTimer.Interval = Math.Max(1, Math.Min(16, frameMs \ 2))
-        _playbackStartFrame = CurrentFrame()
-        _playbackClock.Restart()
+        Dim fps = Math.Max(1.0, CDbl(NumericFrameMs.Value))
+        _player.TargetFps = fps
+        PlaybackTimer.Interval = FpsToCheckInterval(fps)
+        _player.Start(CurrentFrame())
         PlaybackTimer.Start()
         ButtonPlay.Text = "Stop"
-        Logger.LogLazy(Function() $"[HKX-POSE-UI] Playback started frameMs={frameMs} timerIntervalMs={PlaybackTimer.Interval} frames={_session.FrameCount}.")
+        Logger.LogLazy(Function() $"[HKX-POSE-UI] Playback started fps={fps} timerIntervalMs={PlaybackTimer.Interval} frames={_player.FrameCount}.")
     End Sub
 
     Private Sub StopPlayback()
@@ -274,22 +277,23 @@ Public Class HkxPoseImport_Form
             EditPreviewControl.PlayingAnimation = False
         End If
         PlaybackTimer.Stop()
-        _playbackClock.Reset()
+        _player?.Stop()
         If ButtonPlay IsNot Nothing Then ButtonPlay.Text = "Play"
     End Sub
 
+    ''' <summary>Setea el FPS del numeric a partir del FPS nativo de la animación (1/frameDuration),
+    ''' clampeado al rango del control. Roundtrip: el player trabaja en FPS.</summary>
     Private Sub ApplyHkxPlaybackInterval()
-        Dim intervalMs = 33
-        If _session IsNot Nothing AndAlso Single.IsFinite(_session.FrameDuration) AndAlso _session.FrameDuration > 0.0F Then
-            intervalMs = Math.Max(1, CInt(Math.Round(_session.FrameDuration * 1000.0F, MidpointRounding.AwayFromZero)))
-        End If
-
-        intervalMs = Math.Min(CInt(NumericFrameMs.Maximum), Math.Max(CInt(NumericFrameMs.Minimum), intervalMs))
+        Dim fps As Double = 30.0
+        If _player IsNot Nothing AndAlso _player.NativeFps > 0.0 Then fps = _player.NativeFps
+        fps = Math.Min(CDbl(NumericFrameMs.Maximum), Math.Max(CDbl(NumericFrameMs.Minimum), fps))
         _suppressPlaybackIntervalEvents = True
-        NumericFrameMs.Value = intervalMs
+        NumericFrameMs.Value = CDec(Math.Round(fps, MidpointRounding.AwayFromZero))
         _suppressPlaybackIntervalEvents = False
-        PlaybackTimer.Interval = Math.Max(1, Math.Min(16, intervalMs \ 2))
-        Logger.LogLazy(Function() $"[HKX-POSE-UI] Playback interval from HKX frameDuration={If(_session Is Nothing, 0.0F, _session.FrameDuration):0.######} intervalMs={intervalMs}.")
+        Dim appliedFps = Math.Max(1.0, CDbl(NumericFrameMs.Value))
+        If _player IsNot Nothing Then _player.TargetFps = appliedFps
+        PlaybackTimer.Interval = FpsToCheckInterval(appliedFps)
+        Logger.LogLazy(Function() $"[HKX-POSE-UI] Playback FPS from HKX frameDuration={If(_session Is Nothing, 0.0F, _session.FrameDuration):0.######} fps={appliedFps}.")
     End Sub
 
     Private Function CurrentFrame() As Integer

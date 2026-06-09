@@ -2162,6 +2162,14 @@ Public Class SliderSet_Class
     Public CachedMaterialPaths As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
     Private _MetadataLookupCacheValid As Boolean = False
     Private _ShapeDataLookupCacheValid As Boolean = False
+    ' Protege el rebuild lazy de los lookup caches. El render paraleliza ResolveMorphPlan
+    ' cross-shape (FO4_Base_Library PipelineStep_Morphs → Parallel.ForEach), y varias shapes
+    ' pueden disparar EnsureMetadataLookupCache/EnsureShapeDataLookupCache a la vez. Sin lock,
+    ' el TryAdd concurrente sobre un Dictionary no-concurrente corrompe su estado interno
+    ' (InvalidOperationException). Mismo patrón que NpcMorphResolver._triCache y
+    ' BodySlideTriResolver._pirtCache. Las invalidaciones corren en el hilo UI, que durante
+    ' el Parallel.ForEach está bloqueado en el join → no compiten con el rebuild.
+    Private ReadOnly _lookupCacheLock As New Object
 
     Private _ShapeByTargetCache As New Dictionary(Of String, Shape_class)(StringComparer.OrdinalIgnoreCase)
     Private _ShapeHasLocalCache As New Dictionary(Of String, Boolean)(StringComparer.OrdinalIgnoreCase)
@@ -2209,35 +2217,44 @@ Public Class SliderSet_Class
 
     Private Sub EnsureMetadataLookupCache()
         If _MetadataLookupCacheValid Then Exit Sub
+        SyncLock _lookupCacheLock
+            If _MetadataLookupCacheValid Then Exit Sub
 
-        _ShapeByTargetCache = New Dictionary(Of String, Shape_class)(StringComparer.OrdinalIgnoreCase)
-        _ShapeHasLocalCache = New Dictionary(Of String, Boolean)(StringComparer.OrdinalIgnoreCase)
-        _ShapeHasExternalCache = New Dictionary(Of String, Boolean)(StringComparer.OrdinalIgnoreCase)
+            _ShapeByTargetCache = New Dictionary(Of String, Shape_class)(StringComparer.OrdinalIgnoreCase)
+            _ShapeHasLocalCache = New Dictionary(Of String, Boolean)(StringComparer.OrdinalIgnoreCase)
+            _ShapeHasExternalCache = New Dictionary(Of String, Boolean)(StringComparer.OrdinalIgnoreCase)
 
-        For Each shap In Shapes
-            _ShapeByTargetCache.TryAdd(shap.Target, shap)
-            _ShapeHasLocalCache.TryAdd(shap.Target, False)
-            _ShapeHasExternalCache.TryAdd(shap.Target, False)
-        Next
-
-        For Each slid In Sliders
-            For Each dat In slid.Datas
-                If String.IsNullOrWhiteSpace(dat.Target) Then Continue For
-
-                If dat.Islocal Then
-                    If _ShapeHasLocalCache.ContainsKey(dat.Target) Then _ShapeHasLocalCache(dat.Target) = True
-                Else
-                    If _ShapeHasExternalCache.ContainsKey(dat.Target) Then _ShapeHasExternalCache(dat.Target) = True
-                End If
+            For Each shap In Shapes
+                _ShapeByTargetCache.TryAdd(shap.Target, shap)
+                _ShapeHasLocalCache.TryAdd(shap.Target, False)
+                _ShapeHasExternalCache.TryAdd(shap.Target, False)
             Next
-        Next
 
-        _MetadataLookupCacheValid = True
+            For Each slid In Sliders
+                For Each dat In slid.Datas
+                    If String.IsNullOrWhiteSpace(dat.Target) Then Continue For
+
+                    If dat.Islocal Then
+                        If _ShapeHasLocalCache.ContainsKey(dat.Target) Then _ShapeHasLocalCache(dat.Target) = True
+                    Else
+                        If _ShapeHasExternalCache.ContainsKey(dat.Target) Then _ShapeHasExternalCache(dat.Target) = True
+                    End If
+                Next
+            Next
+
+            _MetadataLookupCacheValid = True
+        End SyncLock
     End Sub
 
     Private Sub EnsureShapeDataLookupCache()
         If _ShapeDataLookupCacheValid Then Exit Sub
+        SyncLock _lookupCacheLock
+            If _ShapeDataLookupCacheValid Then Exit Sub
+            EnsureShapeDataLookupCacheCore()
+        End SyncLock
+    End Sub
 
+    Private Sub EnsureShapeDataLookupCacheCore()
         _NifShapeByNameCache = New Dictionary(Of String, INiShape)(StringComparer.OrdinalIgnoreCase)
         _LocalOsdBlocksByNameCache = New Dictionary(Of String, List(Of OSD_Block_Class))(StringComparer.OrdinalIgnoreCase)
         _ExternalOsdBlocksByNameCache = New Dictionary(Of String, List(Of OSD_Block_Class))(StringComparer.OrdinalIgnoreCase)

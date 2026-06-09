@@ -634,7 +634,9 @@ Public Class Editor_Form
             End If
         End If
 
-        ' ShaderType change: this modifies the NIF shader, not the material file.
+        ' Sha
+        '
+        ' rType change: this modifies the NIF shader, not the material file.
         ' Confirm with the user, apply to NIF immediately, or revert.
         If e.ChangedItem IsNot Nothing AndAlso e.ChangedItem.Label = "NifShaderType" Then
             If MsgBox("ShaderType is stored in the NIF shader, not in the material file." & vbCrLf &

@@ -128,7 +128,11 @@ Public Module WM_RenderExtensions
         ' (~200 bones × ~5µs), guarantees DeltaTransforms reflect the requested pose even if
         ' another flow (e.g. CreatefromNif with Pose=Nothing) reset them in between frames.
         Dim poseChanged = Not (SkeletonInstance.Default.Pose Is Pose)
+        Dim _swApply = Stopwatch.StartNew()
         SkeletonInstance.Default.ApplyPose(Pose)
+        _swApply.Stop()
+        Dim _applyMs = _swApply.Elapsed.TotalMilliseconds
+        Logger.LogLazy(Function() $"[POSE-APPLY] ApplyPose={_applyMs:F1}ms")
 
         ' Fill the intent — the pipeline decides HOW based on dirty flags.
         Dim intent = ctrl.Intent
@@ -136,7 +140,16 @@ Public Module WM_RenderExtensions
         intent.FloorOffset = -seleccionado.HighHeelHeight
         intent.RecalculateNormals = ctrl.Model.RecalculateNormals
         intent.SkeletonResolver = Nothing  ' default skeleton resolver
-        intent.MorphResolver = If(skipPresetApply, Nothing, New SliderMorphResolver())
+        ' Always provide a real resolver. skipPresetApply only means "the slider weights did
+        ' not change, so skip the expensive SetPreset" — it must NOT null the resolver.
+        ' PipelineStep_Morphs ALWAYS calls ApplyMorphPlan when Morphs is dirty, and a null
+        ' resolver yields a null plan, which by contract RESETS the mesh to NifLocalVertices
+        ' (base, pre-morph). That wiped the active morph on any incidental refresh that flags
+        ' Morphs without changing preset/pose — e.g. changing the selection/pack of the
+        ' non-focused list. The resolver rebuilds the same plan from the persisted slider
+        ' Current_Setting, so dirty stays empty and the morph is preserved. No extra animation
+        ' cost: a pose-only change never flags Morphs, so this step does not run.
+        intent.MorphResolver = New SliderMorphResolver()
         intent.GeometryModifiers = Nothing
 
         If Not sameSet Then

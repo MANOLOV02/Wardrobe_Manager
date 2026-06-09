@@ -117,14 +117,14 @@ Partial Class HkxPoseImport_Form
         ' 
         NumericFrameMs.Anchor = AnchorStyles.Top Or AnchorStyles.Right
         NumericFrameMs.Location = New Point(505, 64)
-        NumericFrameMs.Maximum = New Decimal(New Integer() {5000, 0, 0, 0})
+        NumericFrameMs.Maximum = New Decimal(New Integer() {120, 0, 0, 0})
         NumericFrameMs.Minimum = New Decimal(New Integer() {1, 0, 0, 0})
         NumericFrameMs.Name = "NumericFrameMs"
         NumericFrameMs.Size = New Size(62, 23)
         NumericFrameMs.TabIndex = 6
         NumericFrameMs.TextAlign = HorizontalAlignment.Right
-        ToolTip1.SetToolTip(NumericFrameMs, "Milliseconds per animation frame. Defaults from the HKX frame duration when available.")
-        NumericFrameMs.Value = New Decimal(New Integer() {33, 0, 0, 0})
+        ToolTip1.SetToolTip(NumericFrameMs, "Frames per second. Defaults from the HKX frame rate when available.")
+        NumericFrameMs.Value = New Decimal(New Integer() {30, 0, 0, 0})
         ' 
         ' LabelFrameMs
         ' 
@@ -134,7 +134,7 @@ Partial Class HkxPoseImport_Form
         LabelFrameMs.Name = "LabelFrameMs"
         LabelFrameMs.Size = New Size(83, 24)
         LabelFrameMs.TabIndex = 5
-        LabelFrameMs.Text = "ms/frame"
+        LabelFrameMs.Text = "FPS"
         LabelFrameMs.TextAlign = ContentAlignment.MiddleRight
         ' 
         ' ButtonPlay
