@@ -9,14 +9,14 @@ Imports FO4_Base_Library
 Public Class HkxPoseImport_Form
     Private WithEvents EditPreviewControl As PreviewControl = Nothing
     Private WithEvents PreviewDebounceTimer As New Timer With {.Interval = 100}
-    Private WithEvents PlaybackTimer As New Timer With {.Interval = 33}
     Private ReadOnly _selectedSliderSet As SliderSet_Class
     Private ReadOnly _selectedPreset As SlidersPreset_Class
     Private ReadOnly _selectedSize As WM_Config.SliderSize
     Private ReadOnly _skeletonSource As HkxByteSource
     Private _session As HkxPoseImportSession
-    ' Playback compartido (reloj + selección de frame por tiempo + caché de poses). El PlaybackTimer
-    ' de WinForms sigue siendo el driver; el player provee FrameForNow()/PoseForFrame().
+    ' Playback compartido (reloj + selección de frame por tiempo + caché de poses + loop
+    ' Application.Idle). El player ES el driver: BeginIdlePlayback/EndIdlePlayback reemplazan al
+    ' WinForms Timer y, en cada frame elegido por reloj, llaman OnPlaybackFrame en el hilo UI.
     Private _player As HkxAnimationPlayer
     Private _lastResult As HkxPoseImportHelper.ImportResult
     Private _lastKey As String = ""
@@ -63,13 +63,31 @@ Public Class HkxPoseImport_Form
         If _selectedSliderSet Is Nothing Then
             SetStatus("No selected slider set. Select a project in Wardrobe Manager before importing HKX poses.", True)
             DictionaryPicker_Control1.btnOk.Enabled = False
+        Else
+            ' Mostrar el modelo estático al abrir (antes de elegir un HKX) — si no, aparece vacío.
+            RenderStaticModel()
         End If
+    End Sub
+
+    ''' <summary>Renderiza el modelo estático (sin pose = T-pose, pos=Nothing). Se usa al abrir el form
+    ''' (para no mostrar vacío hasta elegir un HKX) y como fallback cuando un HKX falla al cargar o al
+    ''' construir la pose. No depende de _session/_player.</summary>
+    Private Sub RenderStaticModel()
+        If EditPreviewControl Is Nothing OrElse _selectedSliderSet Is Nothing Then Return
+        Try
+            EditPreviewControl.PlayingAnimation = False
+            EditPreviewControl.Model.FloorOffset = -_selectedSliderSet.HighHeelHeight
+            EditPreviewControl.Update_Render(_selectedSliderSet, False, _selectedPreset, Nothing, _selectedSize)
+        Catch ex As Exception
+            Logger.LogLazy(Function() "[HKX-POSE-UI] Static model render exception: " & ex.ToString())
+        End Try
     End Sub
 
     Private Sub HkxPoseImport_Form_FormClosing(sender As Object, e As FormClosingEventArgs) Handles Me.FormClosing
         ' Restore global skeleton
         PreviewDebounceTimer.Stop()
-        PlaybackTimer.Stop()
+        _player?.EndIdlePlayback()
+        _player?.Stop()
         If EditPreviewControl IsNot Nothing Then EditPreviewControl.PlayingAnimation = False
         SkeletonInstance.Default.LoadFromConfig(True, True)
         If EditPreviewControl IsNot Nothing Then
@@ -132,23 +150,22 @@ Public Class HkxPoseImport_Form
         UpdatePreview()
     End Sub
 
-    Private Sub PlaybackTimer_Tick(sender As Object, e As EventArgs) Handles PlaybackTimer.Tick
+    ''' <summary>Callback del loop Application.Idle del player (corre en el hilo UI, igual que un
+    ''' Tick). Recibe el frame ya elegido por reloj real; actualiza el slider y re-renderiza.
+    ''' Reemplaza al viejo PlaybackTimer_Tick.</summary>
+    Private Sub OnPlaybackFrame(frame As Integer)
         If _player Is Nothing OrElse FrameSlider.Maximum <= 0 Then
             StopPlayback()
             Return
         End If
-
-        Dim nextFrame = _player.FrameForNow()
-        If nextFrame < 0 OrElse nextFrame = CurrentFrame() Then Return
-
         _suppressFrameEvents = True
-        FrameSlider.Value = nextFrame
+        FrameSlider.Value = frame
         _suppressFrameEvents = False
         UpdatePreview()
     End Sub
 
     Private Sub ButtonPlay_Click(sender As Object, e As EventArgs) Handles ButtonPlay.Click
-        If PlaybackTimer.Enabled Then
+        If IsPlayingNow() Then
             StopPlayback()
         Else
             StartPlayback()
@@ -158,20 +175,16 @@ Public Class HkxPoseImport_Form
     Private Sub NumericFrameMs_ValueChanged(sender As Object, e As EventArgs) Handles NumericFrameMs.ValueChanged
         If _suppressPlaybackIntervalEvents Then Return
         Dim fps = Math.Max(1.0, CDbl(NumericFrameMs.Value))   ' el numeric ahora es FPS
-        PlaybackTimer.Interval = FpsToCheckInterval(fps)
         If _player IsNot Nothing Then
             _player.TargetFps = fps
             ' Reanclar el reloj al frame actual para que el cambio de FPS no pegue un salto.
-            If PlaybackTimer.Enabled Then _player.Rebase(CurrentFrame())
+            If _player.IsPlaying Then _player.Rebase(CurrentFrame())
         End If
     End Sub
 
-    ''' <summary>Intervalo del timer de chequeo (ms) a partir del FPS objetivo: ~la mitad del
-    ''' tiempo por frame, tope 16ms. El player elige el frame real por reloj; esto es solo cada
-    ''' cuánto se chequea.</summary>
-    Private Shared Function FpsToCheckInterval(fps As Double) As Integer
-        Dim frameMs = 1000.0 / Math.Max(1.0, fps)
-        Return Math.Max(1, Math.Min(16, CInt(Math.Floor(frameMs / 2.0))))
+    ''' <summary>True si el player está reproduciendo (reemplaza el viejo PlaybackTimer.Enabled).</summary>
+    Private Function IsPlayingNow() As Boolean
+        Return _player IsNot Nothing AndAlso _player.IsPlaying
     End Function
 
     Private Sub LoadSelectedHkx(key As String)
@@ -190,6 +203,7 @@ Public Class HkxPoseImport_Form
 
         If String.IsNullOrWhiteSpace(key) Then
             SetStatus("Select an HKX animation.", False)
+            RenderStaticModel()
             Return
         End If
 
@@ -197,6 +211,7 @@ Public Class HkxPoseImport_Form
             Dim animationSource = LoadHkxDictionaryEntryBytes(key)
             If animationSource Is Nothing OrElse animationSource.Bytes Is Nothing OrElse animationSource.Bytes.Length = 0 Then
                 SetStatus("Selected HKX could not be read.", True)
+                RenderStaticModel()
                 Return
             End If
 
@@ -226,6 +241,7 @@ Public Class HkxPoseImport_Form
         Catch ex As Exception
             Logger.LogLazy(Function() "[HKX-POSE-UI] Picker load exception: " & ex.ToString())
             SetStatus("Error loading HKX: " & ex.Message, True)
+            RenderStaticModel()   ' fallback: mostrar T-pose en vez de quedar roto/vacío
         End Try
     End Sub
 
@@ -243,7 +259,7 @@ Public Class HkxPoseImport_Form
             EditPreviewControl.Update_Render(_selectedSliderSet, False, _selectedPreset, pos, _selectedSize)
             sw.Stop()
             Dim budgetMs = Math.Max(1, CInt(Math.Round(1000.0 / Math.Max(1.0, CDbl(NumericFrameMs.Value)))))
-            If PlaybackTimer.Enabled AndAlso sw.ElapsedMilliseconds > budgetMs Then
+            If IsPlayingNow() AndAlso sw.ElapsedMilliseconds > budgetMs Then
                 If Not _redcolor Then NumericFrameMs.ForeColor = Color.Red : _redcolor = True
                 Logger.LogLazy(Function() $"[HKX-POSE-UI] Playback frame over budget renderMs={sw.ElapsedMilliseconds} budgetMs={budgetMs}; real-time playback will skip frames.")
             Else
@@ -254,6 +270,7 @@ Public Class HkxPoseImport_Form
             StopPlayback()
             Logger.LogLazy(Function() "[HKX-POSE-UI] Preview exception: " & ex.ToString())
             SetStatus("Preview error: " & ex.Message, True)
+            RenderStaticModel()   ' fallback T-pose si la pose del frame falla
         End Try
     End Sub
 
@@ -264,19 +281,18 @@ Public Class HkxPoseImport_Form
         End If
         Dim fps = Math.Max(1.0, CDbl(NumericFrameMs.Value))
         _player.TargetFps = fps
-        PlaybackTimer.Interval = FpsToCheckInterval(fps)
         _player.Start(CurrentFrame())
-        PlaybackTimer.Start()
+        _player.BeginIdlePlayback(AddressOf OnPlaybackFrame)
         ButtonPlay.Text = "Stop"
-        Logger.LogLazy(Function() $"[HKX-POSE-UI] Playback started fps={fps} timerIntervalMs={PlaybackTimer.Interval} frames={_player.FrameCount}.")
+        Logger.LogLazy(Function() $"[HKX-POSE-UI] Playback started (Application.Idle) fps={fps} frames={_player.FrameCount}.")
     End Sub
 
     Private Sub StopPlayback()
-        If PlaybackTimer.Enabled Then Logger.LogLazy(Function() "[HKX-POSE-UI] Playback stopped.")
+        If IsPlayingNow() Then Logger.LogLazy(Function() "[HKX-POSE-UI] Playback stopped.")
         If EditPreviewControl IsNot Nothing Then
             EditPreviewControl.PlayingAnimation = False
         End If
-        PlaybackTimer.Stop()
+        _player?.EndIdlePlayback()
         _player?.Stop()
         If ButtonPlay IsNot Nothing Then ButtonPlay.Text = "Play"
     End Sub
@@ -292,7 +308,6 @@ Public Class HkxPoseImport_Form
         _suppressPlaybackIntervalEvents = False
         Dim appliedFps = Math.Max(1.0, CDbl(NumericFrameMs.Value))
         If _player IsNot Nothing Then _player.TargetFps = appliedFps
-        PlaybackTimer.Interval = FpsToCheckInterval(appliedFps)
         Logger.LogLazy(Function() $"[HKX-POSE-UI] Playback FPS from HKX frameDuration={If(_session Is Nothing, 0.0F, _session.FrameDuration):0.######} fps={appliedFps}.")
     End Sub
 
