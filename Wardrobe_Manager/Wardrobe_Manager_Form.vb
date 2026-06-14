@@ -193,7 +193,6 @@ Public Class Wardrobe_Manager_Form
         ButtonLoadHkxPose.Enabled = normalUi AndAlso Not SingleBoneCheck.Checked
         SingleBoneCheck.Enabled = normalUi
         RecalculateNormalsCheck.Enabled = normalUi
-        ColorComboBox1.Enabled = normalUi
         ButtonLightRigSettings.Enabled = normalUi
         ButtonPreviewSelected.Enabled = normalUi
         ButtonDataSheetSelected.Enabled = normalUi
@@ -2374,8 +2373,6 @@ Public Class Wardrobe_Manager_Form
 
         If WM_Config.Check_All_Folder = False Then End
         Save_Shared()
-        ColorComboBox1.Rellena()
-        ColorComboBox1.SelectedColor = Config_App.Current.Setting_BackColor
         ComboBoxSize.SelectedIndex = CInt(WM_Config.Current.Bodytipe)
 
     End Sub
@@ -2419,13 +2416,7 @@ Public Class Wardrobe_Manager_Form
                 ComboBoxPoses.SelectedIndex = ComboBoxPoses.Items.IndexOf(key)
 
                 Logger.LogLazy(Function() $"[HKX-POSE-UI] Import saved pose='{result.Pose.Name}' key='{key}' output='{outPath}' skeletonStrategy={result.SkeletonSource} imported={result.ImportedBoneCount}")
-                MsgBox($"Imported '{result.Pose.Name}' from frame {result.UsedFrame}/{Math.Max(0, result.AnimationFrameCount - 1)}." & vbCrLf &
-                       $"Skeleton strategy: {result.SkeletonSource}" & vbCrLf &
-                       $"Bones imported: {result.ImportedBoneCount}" & vbCrLf &
-                       $"Missing live bones skipped: {result.SkippedMissingLiveBoneCount}" & vbCrLf &
-                       $"Invalid binding/track entries skipped: {result.SkippedInvalidBindingCount}",
-                       vbOKOnly + vbInformation,
-                       "HKX Pose Import")
+                MsgBox("Import OK", vbOKOnly + vbInformation, "HKX Pose Import")
             End Using
         Catch ex As Exception
             Logger.LogLazy(Function() "[HKX-POSE-UI] Import exception: " & ex.ToString())
@@ -2974,14 +2965,6 @@ Public Class Wardrobe_Manager_Form
             ButtonLeftPanel.ImageIndex = 14
         Else
             ButtonLeftPanel.ImageIndex = 15
-        End If
-    End Sub
-
-    Private Sub ColorComboBox1_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ColorComboBox1.SelectedIndexChanged
-        Config_App.Current.Setting_BackColorName = ColorComboBox1.SelectedColor.Name
-        If Not IsNothing(preview_Control) Then
-            preview_Control.updateRequired = True
-            preview_Control.Update()
         End If
     End Sub
 

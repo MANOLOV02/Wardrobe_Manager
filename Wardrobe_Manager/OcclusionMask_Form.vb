@@ -63,6 +63,9 @@ Public Class OcclusionMask_Form
 
         _cts?.Dispose()
         _cts = New CancellationTokenSource()
+        ' Capture this run's CTS locally so the continuation can dispose exactly the instance the
+        ' background work used — never the field, which a later Start may have already replaced.
+        Dim runCts = _cts
         _state = RunState.Running
         btnAction.Text = "Cancel"
         btnClose.Enabled = False
@@ -84,54 +87,69 @@ Public Class OcclusionMask_Form
                                                                              lblStatus.Text = $"Processing... {pct}%"
                                                                          End Sub)
 
-        Dim token = _cts.Token
+        Dim token = runCts.Token
         Task.Run(
             Function()
                 Return _raytracer.ComputeOccludedVertices(_targetMesh, settings, progress, token)
             End Function).
             ContinueWith(Sub(t)
-                             If Me.IsDisposed Then Return
+                             ' The background work (including its Parallel.For bound to this token)
+                             ' has finished by the time the continuation runs, so it's safe to
+                             ' dispose the CTS now. Do it in Finally so it happens even when the
+                             ' form was disposed and the UI update below is skipped.
                              Try
-                                 Me.Invoke(Sub()
-                                               _state = RunState.Done
-                                               btnClose.Enabled = True
-                                               cboQuality.Enabled = True
-                                               nudThreshold.Enabled = True
-                                               nudBias.Enabled = True
-                                               chkTriangles.Enabled = True
-                                               chkSelfOcclusion.Enabled = True
-                                               nudSelfMinDist.Enabled = chkSelfOcclusion.Checked
+                                 If Me.IsDisposed Then Return
+                                 Try
+                                     Me.Invoke(Sub()
+                                                   _state = RunState.Done
+                                                   btnClose.Enabled = True
+                                                   cboQuality.Enabled = True
+                                                   nudThreshold.Enabled = True
+                                                   nudBias.Enabled = True
+                                                   chkTriangles.Enabled = True
+                                                   chkSelfOcclusion.Enabled = True
+                                                   nudSelfMinDist.Enabled = chkSelfOcclusion.Checked
 
-                                               If token.IsCancellationRequested Then
-                                                   progressBar1.Value = 0
-                                                   lblStatus.Text = "Cancelled."
-                                                   lblStatus.ForeColor = SystemColors.GrayText
-                                                   _state = RunState.Ready
-                                                   btnAction.Text = "Start"
-                                               ElseIf t.IsFaulted Then
-                                                   lblStatus.Text = $"Error: {t.Exception?.InnerException?.Message}"
-                                                   lblStatus.ForeColor = Color.DarkRed
-                                                   btnAction.Text = "Start"
-                                                   _state = RunState.Ready
-                                               Else
-                                                   ResultVertices = t.Result
-                                                   Dim count = If(ResultVertices IsNot Nothing, ResultVertices.Count, 0)
-                                                   progressBar1.Value = 100
-                                                   lblStatus.Text = $"Done: {count} vertices to mask."
-                                                   lblStatus.ForeColor = If(count > 0, Color.DarkGreen, SystemColors.GrayText)
-                                                   btnAction.Text = "Start"
-                                                   btnApply.Enabled = True
-                                               End If
-                                           End Sub)
-                             Catch ex As ObjectDisposedException
-                                 ' Form was disposed between IsDisposed check and Invoke call; safe to ignore.
+                                                   If token.IsCancellationRequested Then
+                                                       progressBar1.Value = 0
+                                                       lblStatus.Text = "Cancelled."
+                                                       lblStatus.ForeColor = SystemColors.GrayText
+                                                       _state = RunState.Ready
+                                                       btnAction.Text = "Start"
+                                                   ElseIf t.IsFaulted Then
+                                                       lblStatus.Text = $"Error: {t.Exception?.InnerException?.Message}"
+                                                       lblStatus.ForeColor = Color.DarkRed
+                                                       btnAction.Text = "Start"
+                                                       _state = RunState.Ready
+                                                   Else
+                                                       ResultVertices = t.Result
+                                                       Dim count = If(ResultVertices IsNot Nothing, ResultVertices.Count, 0)
+                                                       progressBar1.Value = 100
+                                                       lblStatus.Text = $"Done: {count} vertices to mask."
+                                                       lblStatus.ForeColor = If(count > 0, Color.DarkGreen, SystemColors.GrayText)
+                                                       btnAction.Text = "Start"
+                                                       btnApply.Enabled = True
+                                                   End If
+                                               End Sub)
+                                 Catch ex As ObjectDisposedException
+                                     ' Form was disposed between IsDisposed check and Invoke call; safe to ignore.
+                                 End Try
+                             Finally
+                                 runCts.Dispose()
                              End Try
                          End Sub)
     End Sub
 
     Protected Overrides Sub OnFormClosing(e As FormClosingEventArgs)
-        _cts?.Cancel()
-        _cts?.Dispose()
+        ' Request cancellation only. The CTS is disposed by the running task's continuation AFTER the
+        ' background work (with its Parallel.For bound to the token) finishes — disposing it here
+        ' would race the still-running work that's reading the token. If a prior run already
+        ' completed, its continuation may have disposed this CTS already, so Cancel() can throw
+        ' ObjectDisposedException — harmless at close time.
+        Try
+            _cts?.Cancel()
+        Catch ex As ObjectDisposedException
+        End Try
         MyBase.OnFormClosing(e)
     End Sub
 

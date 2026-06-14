@@ -179,8 +179,9 @@ Public Class Config_Form
     Private Sub InitClonedMaterialTab()
         _packElapsedTimer = New System.Windows.Forms.Timer() With {.Interval = 1000}
         AddHandler _packElapsedTimer.Tick, AddressOf PackElapsedTimer_Tick
-        ' Index 0 = v8 (Next Gen, default); Index 1 = v1 (Old Gen / universal).
-        PackBa2VersionCombo.SelectedIndex = If(WM_Config.Current.Ba2Version_FO4 = 1UI, 1, 0)
+        ' Index 0 = v8 (Next Gen, default); Index 1 = v1 (Old Gen / universal). WM no ofrece Loose.
+        Ba2VersionUI.PopulateBa2VersionCombo(PackBa2VersionCombo, includeLoose:=False)
+        PackBa2VersionCombo.SelectedIndex = Ba2VersionUI.Ba2VersionToComboIndex(WM_Config.Current.Ba2Version_FO4)
         UpdateBa2VersionVisibility()
         RefreshClonedMaterialStatus()
     End Sub
@@ -199,7 +200,7 @@ Public Class Config_Form
 
     Private Sub PackBa2VersionCombo_SelectedIndexChanged(sender As Object, e As EventArgs) Handles PackBa2VersionCombo.SelectedIndexChanged
         ' Index 0 = v8 (Next Gen, default); Index 1 = v1 (Old Gen / universal).
-        WM_Config.Current.Ba2Version_FO4 = If(PackBa2VersionCombo.SelectedIndex = 1, 1UI, 8UI)
+        WM_Config.Current.Ba2Version_FO4 = Ba2VersionUI.ComboIndexToBa2Version(PackBa2VersionCombo.SelectedIndex)
     End Sub
 
     Private Sub PackElapsedTimer_Tick(sender As Object, e As EventArgs)

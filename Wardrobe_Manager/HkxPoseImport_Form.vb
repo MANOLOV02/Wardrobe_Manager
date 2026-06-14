@@ -51,6 +51,14 @@ Public Class HkxPoseImport_Form
         DictionaryPicker_Control1.btnOk.Enabled = False
         FrameSlider.Enabled = False
         ButtonPlay.Enabled = False
+
+        ' Shared toggle with Editor_Form (WM_Config.Setting_ExportSam): when checked, importing a
+        ' pose ALSO writes the SAM (ScreenArcher) JSON, in addition to the WM-format save.
+        CheckBoxSaveSam.Checked = WM_Config.Current.Setting_ExportSam
+    End Sub
+
+    Private Sub CheckBoxSaveSam_CheckedChanged(sender As Object, e As EventArgs) Handles CheckBoxSaveSam.CheckedChanged
+        WM_Config.Current.Setting_ExportSam = CheckBoxSaveSam.Checked
     End Sub
 
     Private Sub HkxPoseImport_Form_Shown(sender As Object, e As EventArgs) Handles Me.Shown
@@ -86,6 +94,7 @@ Public Class HkxPoseImport_Form
     Private Sub HkxPoseImport_Form_FormClosing(sender As Object, e As FormClosingEventArgs) Handles Me.FormClosing
         ' Restore global skeleton
         PreviewDebounceTimer.Stop()
+        PreviewDebounceTimer.Dispose()
         _player?.EndIdlePlayback()
         _player?.Stop()
         If EditPreviewControl IsNot Nothing Then EditPreviewControl.PlayingAnimation = False
@@ -124,12 +133,56 @@ Public Class HkxPoseImport_Form
                        "HKX Pose Import")
                 Return
             End If
+
+            ' Append the HKX bones the live NIF skeleton LACKS to the WM pose being saved (same
+            ' "include unbound HKX bones" idea as the SAM export, but in WM delta format). BuildPose
+            ' itself skips these (LiveBone Is Nothing) and must NOT carry them (per-frame playback);
+            ' the append happens only here in the save path. Already non-identity → the XML writer
+            ' (SaveImportedHkxPoseXml, filters Isidentity=False) keeps them.
+            Dim wmExtra = _session.BuildUnboundBoneWmData(CurrentFrame())
+            If wmExtra IsNot Nothing Then
+                For Each kv In wmExtra
+                    If Not _lastResult.Pose.Transforms.ContainsKey(kv.Key) Then _lastResult.Pose.Transforms.Add(kv.Key, kv.Value)
+                Next
+            End If
+
+            If CheckBoxSaveSam.Checked Then ExportSamForCurrentFrame(poseName)
+
             Me.HasSaved = True
             DialogResult = DialogResult.OK
             Close()
         Catch ex As Exception
             Logger.LogLazy(Function() "[HKX-POSE-UI] Import form OK exception: " & ex.ToString())
             MsgBox("Error building HKX pose: " & ex.Message, vbOKOnly Or vbCritical, "HKX Pose Import")
+        End Try
+    End Sub
+
+    ''' <summary>Also save the imported pose as a SAM (ScreenArcher) JSON, mirroring Editor_Form's
+    ''' ExportSaf. The shared helper (<see cref="WM_RenderExtensions.ExportSamPoseFile"/>) reads the
+    ''' POSED local transforms of <c>SkeletonInstance.Default</c>, so we first re-run the preview at
+    ''' the frame being imported: <c>UpdatePreview()</c> → <c>PoseForFrame(CurrentFrame())</c> →
+    ''' <c>Update_Render</c> → <c>SkeletonInstance.Default.ApplyPose(pos)</c>. That guarantees the live
+    ''' skeleton holds exactly the frame's pose before we read it. Then we register the SAM pose in
+    ''' <c>WM_SliderPresets.Poses</c> so the main form's <c>Relee_Poses()</c> (which lists in-memory
+    ''' poses, not disk) surfaces it in ComboBoxPoses. Non-blocking: a SAM write failure does NOT abort
+    ''' the WM-format import.</summary>
+    Private Sub ExportSamForCurrentFrame(poseName As String)
+        Try
+            ' Pose SkeletonInstance.Default at the frame being imported (precondition of the helper).
+            UpdatePreview()
+            Dim samExtra = _session?.BuildUnboundBoneSamData(CurrentFrame())
+            Dim samPose As Poses_class = ExportSamPoseFile(poseName, samExtra)
+            If samPose Is Nothing Then
+                Logger.LogLazy(Function() $"[HKX-POSE-UI] SAM export returned nothing for pose='{poseName}' (no skeleton or write failed).")
+                MsgBox("Could not save the SAM (ScreenArcher) pose. The Wardrobe Manager pose was still imported.",
+                       vbOKOnly Or vbExclamation, "HKX Pose Import")
+                Return
+            End If
+            ' Register in-memory so the main form's Relee_Poses() (lists WM_SliderPresets.Poses) shows it.
+            WM_SliderPresets.Poses(samPose.ToString()) = samPose
+            Logger.LogLazy(Function() $"[HKX-POSE-UI] SAM pose exported pose='{poseName}' file='{samPose.Filename}'.")
+        Catch ex As Exception
+            Logger.LogLazy(Function() "[HKX-POSE-UI] SAM export exception: " & ex.ToString())
         End Try
     End Sub
 
@@ -166,8 +219,10 @@ Public Class HkxPoseImport_Form
 
     Private Sub ButtonPlay_Click(sender As Object, e As EventArgs) Handles ButtonPlay.Click
         If IsPlayingNow() Then
+            FrameSlider.Enabled = True
             StopPlayback()
         Else
+            FrameSlider.Enabled = False
             StartPlayback()
         End If
     End Sub

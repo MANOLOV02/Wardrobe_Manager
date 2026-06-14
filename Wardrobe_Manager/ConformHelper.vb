@@ -61,6 +61,18 @@ Public Class ConformHelper
         Public Bounds As AABB
     End Structure
 
+    ' WM-013: source-BVH cache. ComputeConform rebuilds the source BVH (O(n log n) over the source
+    ' mesh) on every Start — even when the user only changed axis flags / search radius. We cache the
+    ' built BVH keyed by an opaque source identity (the caller passes the source IR_Geometry instance).
+    ' WM replaces that instance on NIF reload, so a changed mesh => different instance => cache miss =>
+    ' rebuild. The tri-count guard is cheap insurance against a stale geometry sharing the same key.
+    ' The cached root/triArr are immutable after build, so concurrent reads in the Parallel.For are safe;
+    ' the lock only guards the check/update.
+    Private Shared _bvhCacheKey As Object = Nothing
+    Private Shared _bvhCacheRoot As BvhNode = Nothing
+    Private Shared _bvhCacheTriArr As TriData() = Nothing
+    Private Shared ReadOnly _bvhCacheLock As New Object()
+
     Private Shared Function BuildTriBvh(positions As Vector3(),
                                          tris As List(Of NiflySharp.Structs.Triangle)) As (root As BvhNode, triArr As TriData())
         Dim arr(tris.Count - 1) As TriData
@@ -162,11 +174,30 @@ Public Class ConformHelper
             targetPositions As Vector3(),
             settings As ConformSettings,
             progress As IProgress(Of Integer),
-            ct As CancellationToken) As List(Of ConformResult)
+            ct As CancellationToken,
+            Optional sourceCacheKey As Object = Nothing) As List(Of ConformResult)
 
-        Dim bvh = BuildTriBvh(sourcePositions, sourceTris)
-        Dim root = bvh.root
-        Dim triArr = bvh.triArr
+        ' WM-013: reuse the cached source BVH when the caller passes the same source identity AND the
+        ' tri count matches; otherwise build and (if a key was given) cache it.
+        Dim root As BvhNode
+        Dim triArr As TriData()
+        SyncLock _bvhCacheLock
+            If sourceCacheKey IsNot Nothing AndAlso ReferenceEquals(sourceCacheKey, _bvhCacheKey) _
+               AndAlso _bvhCacheRoot IsNot Nothing AndAlso _bvhCacheTriArr IsNot Nothing _
+               AndAlso _bvhCacheTriArr.Length = sourceTris.Count Then
+                root = _bvhCacheRoot
+                triArr = _bvhCacheTriArr
+            Else
+                Dim bvh = BuildTriBvh(sourcePositions, sourceTris)
+                root = bvh.root
+                triArr = bvh.triArr
+                If sourceCacheKey IsNot Nothing Then
+                    _bvhCacheKey = sourceCacheKey
+                    _bvhCacheRoot = root
+                    _bvhCacheTriArr = triArr
+                End If
+            End If
+        End SyncLock
         Dim maxSq = If(settings.SearchRadius > 0, settings.SearchRadius * settings.SearchRadius, Single.MaxValue)
 
         Dim results As New List(Of ConformResult)
@@ -204,8 +235,8 @@ Public Class ConformHelper
                         End If
                     End If
 
-                    Interlocked.Increment(done)
-                    progress?.Report(CInt(done * 100L \ totalWork))
+                    Dim d = Interlocked.Increment(done)
+                    If d Mod 100 = 0 Then progress?.Report(CInt(d * 100L \ totalWork))
                 End Sub)
 
             For i = 0 To perVertex.Length - 1
@@ -218,6 +249,7 @@ Public Class ConformHelper
             results.Add(result)
         Next
 
+        progress?.Report(100)
         Return results
     End Function
 

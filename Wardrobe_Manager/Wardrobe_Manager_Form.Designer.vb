@@ -112,7 +112,6 @@ Partial Class Wardrobe_Manager_Form
         ButtonLightRigSettings = New Button()
         ButtonLeftPanel = New Button()
         ButtonRightPanel = New Button()
-        ColorComboBox1 = New ColorComboBox()
         ProgressBar1 = New ProgressBar()
         Label4 = New Label()
         ButtonSkeleton = New Button()
@@ -236,6 +235,7 @@ Partial Class Wardrobe_Manager_Form
         ImageList1.Images.SetKeyName(14, "layer-visible-off.ico")
         ImageList1.Images.SetKeyName(15, "layer-visible-on.ico")
         ImageList1.Images.SetKeyName(16, "help-hint.ico")
+        ImageList1.Images.SetKeyName(17, "Gnome-Video-X-Generic.ico")
         ' 
         ' ListView2
         ' 
@@ -1314,15 +1314,13 @@ Partial Class Wardrobe_Manager_Form
         ' 
         ' TableLayoutPanel4
         ' 
-        TableLayoutPanel4.ColumnCount = 4
-        TableLayoutPanel4.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
-        TableLayoutPanel4.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
-        TableLayoutPanel4.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
-        TableLayoutPanel4.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
-        TableLayoutPanel4.Controls.Add(ButtonLightRigSettings, 2, 0)
+        TableLayoutPanel4.ColumnCount = 3
+        TableLayoutPanel4.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 33.33F))
+        TableLayoutPanel4.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 33.33F))
+        TableLayoutPanel4.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 33.33F))
+        TableLayoutPanel4.Controls.Add(ButtonLightRigSettings, 1, 0)
         TableLayoutPanel4.Controls.Add(ButtonLeftPanel, 0, 0)
-        TableLayoutPanel4.Controls.Add(ButtonRightPanel, 3, 0)
-        TableLayoutPanel4.Controls.Add(ColorComboBox1, 1, 0)
+        TableLayoutPanel4.Controls.Add(ButtonRightPanel, 2, 0)
         TableLayoutPanel4.Dock = DockStyle.Bottom
         TableLayoutPanel4.Location = New Point(0, 114)
         TableLayoutPanel4.Name = "TableLayoutPanel4"
@@ -1338,9 +1336,9 @@ Partial Class Wardrobe_Manager_Form
         ButtonLightRigSettings.ImageAlign = ContentAlignment.MiddleLeft
         ButtonLightRigSettings.ImageIndex = 16
         ButtonLightRigSettings.ImageList = ImageList1
-        ButtonLightRigSettings.Location = New Point(233, 3)
+        ButtonLightRigSettings.Location = New Point(157, 3)
         ButtonLightRigSettings.Name = "ButtonLightRigSettings"
-        ButtonLightRigSettings.Size = New Size(109, 28)
+        ButtonLightRigSettings.Size = New Size(148, 28)
         ButtonLightRigSettings.TabIndex = 46
         ButtonLightRigSettings.Text = "Lights"
         ButtonLightRigSettings.TextAlign = ContentAlignment.MiddleRight
@@ -1357,7 +1355,7 @@ Partial Class Wardrobe_Manager_Form
         ButtonLeftPanel.ImageList = ImageList1
         ButtonLeftPanel.Location = New Point(3, 3)
         ButtonLeftPanel.Name = "ButtonLeftPanel"
-        ButtonLeftPanel.Size = New Size(109, 28)
+        ButtonLeftPanel.Size = New Size(148, 28)
         ButtonLeftPanel.TabIndex = 43
         ButtonLeftPanel.Text = "Left panel"
         ButtonLeftPanel.TextAlign = ContentAlignment.MiddleLeft
@@ -1372,29 +1370,15 @@ Partial Class Wardrobe_Manager_Form
         ButtonRightPanel.ImageAlign = ContentAlignment.MiddleLeft
         ButtonRightPanel.ImageIndex = 15
         ButtonRightPanel.ImageList = ImageList1
-        ButtonRightPanel.Location = New Point(348, 3)
+        ButtonRightPanel.Location = New Point(311, 3)
         ButtonRightPanel.Name = "ButtonRightPanel"
-        ButtonRightPanel.Size = New Size(111, 28)
+        ButtonRightPanel.Size = New Size(148, 28)
         ButtonRightPanel.TabIndex = 44
         ButtonRightPanel.Text = "Right panel"
         ButtonRightPanel.TextAlign = ContentAlignment.MiddleRight
         ButtonRightPanel.TextImageRelation = TextImageRelation.ImageBeforeText
         ToolTip1.SetToolTip(ButtonRightPanel, "Collapse or expand the right-side panel.")
         ButtonRightPanel.UseVisualStyleBackColor = True
-        ' 
-        ' ColorComboBox1
-        ' 
-        ColorComboBox1.Dibuja = False
-        ColorComboBox1.Dock = DockStyle.Fill
-        ColorComboBox1.DrawMode = DrawMode.OwnerDrawFixed
-        ColorComboBox1.DropDownStyle = ComboBoxStyle.DropDownList
-        ColorComboBox1.FormattingEnabled = True
-        ColorComboBox1.Location = New Point(118, 3)
-        ColorComboBox1.Name = "ColorComboBox1"
-        ColorComboBox1.SelectedColor = Color.Black
-        ColorComboBox1.Size = New Size(109, 24)
-        ColorComboBox1.TabIndex = 45
-        ToolTip1.SetToolTip(ColorComboBox1, "Select the preview background color.")
         ' 
         ' ProgressBar1
         ' 
@@ -1433,12 +1417,15 @@ Partial Class Wardrobe_Manager_Form
         ' ButtonLoadHkxPose
         ' 
         ButtonLoadHkxPose.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        ButtonLoadHkxPose.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold)
+        ButtonLoadHkxPose.Font = New Font("Segoe UI", 9F, FontStyle.Bold)
+        ButtonLoadHkxPose.ImageIndex = 17
+        ButtonLoadHkxPose.ImageList = ImageList1
         ButtonLoadHkxPose.Location = New Point(276, 67)
         ButtonLoadHkxPose.Name = "ButtonLoadHkxPose"
         ButtonLoadHkxPose.Size = New Size(78, 29)
         ButtonLoadHkxPose.TabIndex = 39
-        ButtonLoadHkxPose.Text = "Load HKX"
+        ButtonLoadHkxPose.Text = "HKX"
+        ButtonLoadHkxPose.TextImageRelation = TextImageRelation.ImageBeforeText
         ToolTip1.SetToolTip(ButtonLoadHkxPose, "Import one frame from a Havok .hkx animation as a Wardrobe Manager pose.")
         ButtonLoadHkxPose.UseVisualStyleBackColor = True
         ' 
@@ -1682,7 +1669,6 @@ Partial Class Wardrobe_Manager_Form
     Friend WithEvents ButtonRightPanel As Button
     Friend WithEvents ButtonLeftPanel As Button
     Friend WithEvents TableLayoutPanel4 As TableLayoutPanel
-    Friend WithEvents ColorComboBox1 As ColorComboBox
     Friend WithEvents ColumnHeader7 As ColumnHeader
     Friend WithEvents ColumnHeader6 As ColumnHeader
     Friend WithEvents ButtonLightRigSettings As Button

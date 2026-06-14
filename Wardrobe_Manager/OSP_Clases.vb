@@ -133,9 +133,13 @@ Public Class SliderPresetCollection
                         pos.Transforms.Add(bon, Tr)
                     Next
                     pos.Filename = xmlpath
-                    Poses.Add(pos.ToString, pos)
+                    ' Last-wins on duplicate keys: two poses (across files) can resolve to the same
+                    ' key; .Add would throw a duplicate-key exception that the catch below would
+                    ' mis-report as a file read error. Indexer assignment keeps the latest.
+                    Poses(pos.ToString) = pos
                 Next
             Catch ex As Exception
+                Logger.LogLazy(Function() $"[POSES] Error reading pose file '{xmlpath}': {ex}")
                 MsgBox("Error reading pose file " + xmlpath, vbCritical, "Error")
             End Try
         Next
@@ -159,9 +163,19 @@ Public Class SliderPresetCollection
             Try
                 Dim json As String = IO.File.ReadAllText(xmlpath)
                 Dim model As Poses_class = JsonSerializer.Deserialize(Of Poses_class)(json, opts)
+                ' Deserialize can return Nothing for an empty/whitespace JSON file (the literal
+                ' "null", or a document that produces no object) — guard before dereferencing so
+                ' an empty file is diagnosed as such, not as a read failure.
+                If model Is Nothing Then
+                    Logger.LogLazy(Function() $"[POSES] SAM pose file produced no pose (empty/null JSON): '{xmlpath}'.")
+                    Continue For
+                End If
                 model.Filename = xmlpath
-                Poses.Add(model.ToString, model)
+                ' Last-wins on duplicate keys (see LoadPoses): indexer assignment avoids a
+                ' duplicate-key exception that would be mis-reported as a read error.
+                Poses(model.ToString) = model
             Catch ex As Exception
+                Logger.LogLazy(Function() $"[POSES] Error reading pose file '{xmlpath}': {ex}")
                 MsgBox("Error reading pose file " + xmlpath, vbCritical, "Error")
             End Try
         Next
@@ -387,6 +401,12 @@ Public Class OSD_Class
                     Writer.Write(CType(blk.BlockName.Length, Byte))
                     Writer.Write(System.Text.Encoding.UTF8.GetBytes(blk.BlockName))
                     Dim DifDatas = blk.DataDiff.Count
+                    ' The OSD format stores the diff count in a 16-bit field. A larger count would
+                    ' wrap silently here while the loop below still writes every entry, producing a
+                    ' corrupt file. Detect and fail loudly instead.
+                    If DifDatas > UInt16.MaxValue Then
+                        Throw New InvalidOperationException($"OSD block '{blk.BlockName}' has {DifDatas} diffs, exceeds UInt16 max")
+                    End If
                     Writer.Write(CType(DifDatas, UInt16))
                     ' O5.1: Use compact arrays when available for faster sequential write
                     If blk.IndicesCompact IsNot Nothing AndAlso blk.IndicesCompact.Length = DifDatas Then
@@ -3701,16 +3721,25 @@ Public Class Slider_Data_class
         Dim osdFilename = IO.Path.GetFileName(sliderSet.SourceFileFullPath).Replace(".nif", ".osd", StringComparison.OrdinalIgnoreCase)
         Dim clones As New List(Of OSD_Block_Class)()
 
+        ' A single Data can own MORE THAN ONE external block sharing the same BlockName
+        ' (GetExternalOsdBlocksByNameCached returns a List per name — see EnsureShapeDataLookupCacheCore).
+        ' Matching local blocks only by name would map several distinct source blocks onto ONE local
+        ' block, silently dropping the others' diffs. Claim each existing local block at most once so
+        ' every source block gets its own local block; create a fresh clone when none is left to claim.
+        Dim claimedLocals As New HashSet(Of OSD_Block_Class)(System.Collections.Generic.ReferenceEqualityComparer.Instance)
+
         For Each sourceBlock In sourceBlocks
             Dim existing = sliderSet.OSDContent_Local.Blocks.FirstOrDefault(
-                Function(b) b.BlockName.Equals(sourceBlock.BlockName, StringComparison.OrdinalIgnoreCase))
+                Function(b) b.BlockName.Equals(sourceBlock.BlockName, StringComparison.OrdinalIgnoreCase) AndAlso Not claimedLocals.Contains(b))
             If existing IsNot Nothing Then
+                claimedLocals.Add(existing)
                 clones.Add(existing)
             Else
                 Dim clone = New OSD_Block_Class(sliderSet.OSDContent_Local) With {.BlockName = sourceBlock.BlockName}
                 clone.DataDiff.AddRange(sourceBlock.SnapshotDiffs())
                 clone.RebuildCompactArrays()
                 sliderSet.OSDContent_Local.Blocks.Add(clone)
+                claimedLocals.Add(clone)
                 clones.Add(clone)
             End If
         Next

@@ -1,4 +1,5 @@
 ﻿Option Strict On
+Imports System.Collections.Concurrent
 Imports System.IO
 Imports System.Threading
 Imports BSA_BA2_Library_DLL.BethesdaArchive.Core
@@ -180,6 +181,11 @@ Public Module WM_PackUnpack
         Dim looseIndex As Integer = 0
         Dim cancelled As Boolean = False
 
+        ' Thread-safe record of files that failed to load+compress. The parallel pass can't throw
+        ' (it would abort the whole pack), so each failure is logged and tracked here; the count is
+        ' surfaced in the final report so dropped files are never silent.
+        Dim failedSources As New ConcurrentBag(Of String)
+
         While looseIndex < allLoose.Count
             If ct.IsCancellationRequested Then
                 cancelled = True
@@ -198,8 +204,11 @@ Public Module WM_PackUnpack
                             micro(i) = If(lf.IsTexture,
                                           MakeTextureEntry(dataDir, lf.FullPath),
                                           MakeMaterialEntry(dataDir, lf.FullPath))
-                        Catch
+                        Catch ex As Exception
                             micro(i) = Nothing
+                            failedSources.Add(lf.FullPath)
+                            Dim failedPath = lf.FullPath
+                            Logger.LogLazy(Function() $"[WM-PACK] Failed to load+compress loose file '{failedPath}': {ex}")
                         End Try
                     End Sub)
             Catch ex As OperationCanceledException
@@ -254,13 +263,16 @@ Public Module WM_PackUnpack
             entriesDone += chunkEntries.Count
         End If
 
+        Dim failedCount = failedSources.Count
+        Dim failedSuffix = If(failedCount > 0, $"; failed {failedCount} file(s)", "")
+
         If cancelled Then
             ReportStage(progress,
-                        $"Stopped. Wrote {accumResult.Archives.Count} archive(s), {accumResult.Plugins.Count} plugin(s) before stop. Remaining loose files left untouched.",
+                        $"Stopped. Wrote {accumResult.Archives.Count} archive(s), {accumResult.Plugins.Count} plugin(s) before stop. Remaining loose files left untouched.{failedSuffix}",
                         entriesDone, totalEntries)
         Else
             ReportStage(progress,
-                        $"Done. Wrote {accumResult.Archives.Count} archive(s), {accumResult.Plugins.Count} plugin(s); skipped {accumResult.Skipped.Count} unchanged.",
+                        $"Done. Wrote {accumResult.Archives.Count} archive(s), {accumResult.Plugins.Count} plugin(s); skipped {accumResult.Skipped.Count} unchanged.{failedSuffix}",
                         totalEntries, totalEntries)
         End If
         Return accumResult

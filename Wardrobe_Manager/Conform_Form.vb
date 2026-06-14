@@ -101,6 +101,10 @@ Public Class Conform_Form
 
         _cts?.Dispose()
         _cts = New CancellationTokenSource()
+        ' Capture this run's CTS locally so the Finally disposes exactly the instance the background
+        ' work (with its Parallel.For bound to the token) used — not the field, which a later Start
+        ' may have replaced.
+        Dim runCts = _cts
         _state = RunState.Running
         _results = Nothing
         btnAction.Text = "Cancel"
@@ -191,7 +195,9 @@ Public Class Conform_Form
                         Throw New InvalidOperationException("No slider data found on source shape for the selected sliders.")
                     End If
 
-                    Return ConformHelper.ComputeConform(srcPos, sourceTris, sliderDeltaList, tgtPos, settings, progress, token)
+                    ' WM-013: pass the source geometry instance as the BVH cache key so a re-run that
+                    ' only changed axis/radius reuses the BVH instead of rebuilding it.
+                    Return ConformHelper.ComputeConform(srcPos, sourceTris, sliderDeltaList, tgtPos, settings, progress, token, sourceCacheKey:=srcGeom)
                 End Function)
 
             Dim totalDeltas = _results.Sum(Function(r) r.Deltas.Count)
@@ -217,6 +223,10 @@ Public Class Conform_Form
             btnApply.Enabled = False
         Finally
             SetControlsEnabled(True)
+            ' The awaited task (including its Parallel.For bound to the token) has completed by the
+            ' time we reach Finally, so disposing the CTS here is safe — and it can no longer race
+            ' the background work the way OnFormClosing's old Cancel+Dispose did.
+            runCts.Dispose()
         End Try
     End Sub
 
@@ -240,8 +250,14 @@ Public Class Conform_Form
     End Sub
 
     Protected Overrides Sub OnFormClosing(e As FormClosingEventArgs)
-        _cts?.Cancel()
-        _cts?.Dispose()
+        ' Request cancellation only. The CTS is disposed in StartComputation's Finally AFTER the
+        ' awaited work (with its Parallel.For bound to the token) finishes — disposing it here would
+        ' race the still-running work. If a prior run already completed and disposed this CTS,
+        ' Cancel() can throw ObjectDisposedException — harmless at close time.
+        Try
+            _cts?.Cancel()
+        Catch ex As ObjectDisposedException
+        End Try
         MyBase.OnFormClosing(e)
     End Sub
 

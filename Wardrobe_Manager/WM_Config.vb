@@ -64,10 +64,8 @@ Public Class WM_Config
     Public Property BSAFiles_SSE As New List(Of String)
     Public Property BSAFiles_Clonables_SSE As New List(Of Boolean)
 
-    ' BA2 header version used when packing FO4 archives. FO4-only (SSE packs BSA v105, unaffected).
-    ' 8 = Next Gen (default; loads only on NG Fallout4.exe 1.10.980+). 1 = Old Gen / universal
-    ' (loads on both OG and NG). The packager passes this straight to the BA2 writer.
-    Public Property Ba2Version_FO4 As UInteger = 8UI
+    ' BA2 header version used when packing FO4 archives (per-app setting). See Ba2VersionUI for the values.
+    Public Property Ba2Version_FO4 As UInteger = Ba2VersionUI.NextGen
 
     <System.Text.Json.Serialization.JsonIgnore>
     Public ReadOnly Property BSAFiles As List(Of String)
@@ -86,7 +84,11 @@ Public Class WM_Config
     Public Shared Function Allowed_To_Clone(Ba2File As String) As Boolean
         Dim idx = Current.BSAFiles.FindIndex(Function(s) String.Equals(s, IO.Path.GetFileName(Ba2File), StringComparison.OrdinalIgnoreCase))
         If idx = -1 Then Return False
-        Return Current.BSAFiles_Clonables(idx)
+        ' Defense in depth: BSAFiles and BSAFiles_Clonables are normalized to equal length on load,
+        ' but guard the paired index anyway so a desync can never throw an out-of-range exception.
+        Dim clonables = Current.BSAFiles_Clonables
+        If idx < 0 OrElse idx >= clonables.Count Then Return False
+        Return clonables(idx)
     End Function
 
     ' ── Defaults ──
@@ -191,32 +193,46 @@ Public Class WM_Config
     ' ── Persistence ──
 
     Private Shared ReadOnly ConfigFilePath As String = Path.Combine(Application.StartupPath, "wm_config.json")
-    Private Shared ReadOnly SaveOptions As New JsonSerializerOptions With {.WriteIndented = True}
 
     Public Shared Sub SaveConfig()
-        Try
-            Dim jsonString As String = JsonSerializer.Serialize(Current, SaveOptions)
-            File.WriteAllText(ConfigFilePath, jsonString)
-        Catch ex As Exception
-            MessageBox.Show("Error saving WM configuration: " & ex.Message,
-                            "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
-        End Try
+        JsonConfigIO.Save(Current, ConfigFilePath, "WM configuration")
     End Sub
 
     Public Shared Sub LoadConfig()
-        Try
-            If File.Exists(ConfigFilePath) Then
-                Dim jsonString As String = File.ReadAllText(ConfigFilePath)
-                Dim cfg = JsonSerializer.Deserialize(Of WM_Config)(jsonString)
-                If cfg IsNot Nothing Then Current = cfg
-            Else
-                ' First run after migration: try to pull WM properties from legacy config.json
-                MigrateFromLegacyConfig()
-            End If
-        Catch ex As Exception
-            MessageBox.Show("Error loading WM configuration: " & ex.Message,
-                            "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
-        End Try
+        Dim cfg = JsonConfigIO.Load(Of WM_Config)(ConfigFilePath, "WM configuration")
+        If cfg IsNot Nothing Then
+            Current = cfg
+        ElseIf Not File.Exists(ConfigFilePath) Then
+            ' First run after migration: try to pull WM properties from legacy config.json
+            MigrateFromLegacyConfig()
+        End If
+
+        ' The file-name list and its parallel clonable-flag list are (de)serialized independently,
+        ' so a hand-edited or partially-written config can leave them at different lengths. Every
+        ' consumer assumes index-parallel access (BSAFiles(i) ⇄ BSAFiles_Clonables(i)), so restore
+        ' that invariant here: pad missing flags with False, drop any extras.
+        NormalizeClonableLists()
+    End Sub
+
+    ''' <summary>
+    ''' Forces BSAFiles_Clonables_* to be index-parallel with their BSAFiles_* counterpart:
+    ''' pads short flag lists with False and truncates long ones. Keeps the documented invariant
+    ''' (BSAFiles(i) corresponds to BSAFiles_Clonables(i)) true for every consumer.
+    ''' </summary>
+    Private Shared Sub NormalizeClonableLists()
+        If Current Is Nothing Then Return
+        NormalizeClonablePair(Current.BSAFiles_FO4, Current.BSAFiles_Clonables_FO4)
+        NormalizeClonablePair(Current.BSAFiles_SSE, Current.BSAFiles_Clonables_SSE)
+    End Sub
+
+    Private Shared Sub NormalizeClonablePair(files As List(Of String), clonables As List(Of Boolean))
+        If files Is Nothing OrElse clonables Is Nothing Then Return
+        While clonables.Count < files.Count
+            clonables.Add(False)
+        End While
+        If clonables.Count > files.Count Then
+            clonables.RemoveRange(files.Count, clonables.Count - files.Count)
+        End If
     End Sub
 
     ''' <summary>
@@ -235,24 +251,24 @@ Public Class WM_Config
 
             ' Extract WM properties from legacy JSON (if they exist)
             Dim strVal As String = ""
-            If TryGetString(root, "BSExePath", strVal) Then Current.BSExePath = strVal
-            If TryGetString(root, "OSExePath", strVal) Then Current.OSExePath = strVal
-            If TryGetString(root, "Default_Preset", strVal) Then Current.Default_Preset = strVal
+            If JsonConfigIO.TryGetString(root, "BSExePath", strVal) Then Current.BSExePath = strVal
+            If JsonConfigIO.TryGetString(root, "OSExePath", strVal) Then Current.OSExePath = strVal
+            If JsonConfigIO.TryGetString(root, "Default_Preset", strVal) Then Current.Default_Preset = strVal
 
             Dim boolVal As Boolean
-            If TryGetBool(root, "Setting_OverWrite", boolVal) Then Current.Setting_OverWrite = boolVal
-            If TryGetBool(root, "Setting_ChangeOutDir", boolVal) Then Current.Setting_ChangeOutDir = boolVal
-            If TryGetBool(root, "Setting_Automove", boolVal) Then Current.Setting_Automove = boolVal
-            If TryGetBool(root, "Setting_ExcludeReference", boolVal) Then Current.Setting_ExcludeReference = boolVal
-            If TryGetBool(root, "Setting_Clone_Materials", boolVal) Then Current.Setting_Clone_Materials = boolVal
-            If TryGetBool(root, "Setting_Showpacks", boolVal) Then Current.Setting_Showpacks = boolVal
-            If TryGetBool(root, "Setting_ShowCBBE", boolVal) Then Current.Setting_ShowCBBE = boolVal
-            If TryGetBool(root, "Setting_ShowCollections", boolVal) Then Current.Setting_ShowCollections = boolVal
-            If TryGetBool(root, "Setting_ExportSam", boolVal) Then Current.Setting_ExportSam = boolVal
-            If TryGetBool(root, "Setting_Fix_Uncloned", boolVal) Then Current.Setting_Fix_Uncloned = boolVal
+            If JsonConfigIO.TryGetBool(root, "Setting_OverWrite", boolVal) Then Current.Setting_OverWrite = boolVal
+            If JsonConfigIO.TryGetBool(root, "Setting_ChangeOutDir", boolVal) Then Current.Setting_ChangeOutDir = boolVal
+            If JsonConfigIO.TryGetBool(root, "Setting_Automove", boolVal) Then Current.Setting_Automove = boolVal
+            If JsonConfigIO.TryGetBool(root, "Setting_ExcludeReference", boolVal) Then Current.Setting_ExcludeReference = boolVal
+            If JsonConfigIO.TryGetBool(root, "Setting_Clone_Materials", boolVal) Then Current.Setting_Clone_Materials = boolVal
+            If JsonConfigIO.TryGetBool(root, "Setting_Showpacks", boolVal) Then Current.Setting_Showpacks = boolVal
+            If JsonConfigIO.TryGetBool(root, "Setting_ShowCBBE", boolVal) Then Current.Setting_ShowCBBE = boolVal
+            If JsonConfigIO.TryGetBool(root, "Setting_ShowCollections", boolVal) Then Current.Setting_ShowCollections = boolVal
+            If JsonConfigIO.TryGetBool(root, "Setting_ExportSam", boolVal) Then Current.Setting_ExportSam = boolVal
+            If JsonConfigIO.TryGetBool(root, "Setting_Fix_Uncloned", boolVal) Then Current.Setting_Fix_Uncloned = boolVal
 
             Dim intVal As Integer
-            If TryGetInt(root, "Bodytipe", intVal) Then Current.Bodytipe = CType(intVal, SliderSize)
+            If JsonConfigIO.TryGetInt(root, "Bodytipe", intVal) Then Current.Bodytipe = CType(intVal, SliderSize)
 
             ' Migrate BuildSettings
             Dim buildEl As JsonElement
@@ -279,6 +295,11 @@ Public Class WM_Config
                 Try : Current.BSAFiles_Clonables_SSE = JsonSerializer.Deserialize(Of List(Of Boolean))(arrEl.GetRawText()) : Catch : End Try
             End If
 
+            ' The four BSA lists above are deserialized under independent Try/Catch blocks, so a
+            ' partial legacy file can leave files/flags at mismatched lengths. Restore the parallel
+            ' invariant before persisting the migrated config.
+            NormalizeClonableLists()
+
             ' Save the migrated config
             SaveConfig()
             doc.Dispose()
@@ -288,30 +309,4 @@ Public Class WM_Config
         End Try
     End Sub
 
-    Private Shared Function TryGetString(root As JsonElement, name As String, ByRef value As String) As Boolean
-        Dim el As JsonElement
-        If root.TryGetProperty(name, el) AndAlso el.ValueKind = JsonValueKind.String Then
-            value = el.GetString()
-            Return True
-        End If
-        Return False
-    End Function
-
-    Private Shared Function TryGetBool(root As JsonElement, name As String, ByRef value As Boolean) As Boolean
-        Dim el As JsonElement
-        If root.TryGetProperty(name, el) Then
-            If el.ValueKind = JsonValueKind.True Then value = True : Return True
-            If el.ValueKind = JsonValueKind.False Then value = False : Return True
-        End If
-        Return False
-    End Function
-
-    Private Shared Function TryGetInt(root As JsonElement, name As String, ByRef value As Integer) As Boolean
-        Dim el As JsonElement
-        If root.TryGetProperty(name, el) AndAlso el.ValueKind = JsonValueKind.Number Then
-            value = el.GetInt32()
-            Return True
-        End If
-        Return False
-    End Function
 End Class

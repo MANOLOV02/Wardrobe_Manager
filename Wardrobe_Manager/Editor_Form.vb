@@ -1844,51 +1844,19 @@ Public Class Editor_Form
 
     End Function
 
-    Private opts As New JsonSerializerOptions With {.PropertyNameCaseInsensitive = True, .NumberHandling = JsonNumberHandling.AllowReadingFromString, .WriteIndented = True}
-
     Private Function ExportSaf(Nombre As String) As Boolean
-        If SkeletonInstance.Default.HasSkeleton = False Then Return False
-        Try
-            Dim Export As New Poses_class With {
-                .Filename = IO.Path.Combine(IO.Path.Combine(Wardrobe_Manager_Form.Directorios.PosesSAMRoot), Nombre + ".json"),
-                .Source = Poses_class.Pose_Source_Enum.ScreenArcher,
-                .Version = 2,
-                .Skeleton = "Vanilla",
-                .Transforms = New Dictionary(Of String, PoseTransformData),
-                .Name = Nombre
-            }
-            For Each sk In SkeletonInstance.Default.SkeletonDictionary
-                Dim tr = sk.Value.LocaLTransform
-                Dim nuevo As New PoseTransformData With {
-                    .X = tr.Translation.X,
-                    .Y = tr.Translation.Y,
-                    .Z = tr.Translation.Z,
-                    .Scale = tr.Scale
-                }
-                Dim degs = Transform_Class.Matrix33ToEulerXYZ(tr.Rotation)
-                nuevo.Yaw = degs.X
-                nuevo.Pitch = degs.Y
-                nuevo.Roll = degs.Z
-                Export.Transforms.Add(sk.Key, nuevo)
-            Next
+        ' Build+write the SAM (ScreenArcher) JSON via the shared helper (WM_RenderExtensions).
+        ' Reads the currently-posed SkeletonInstance.Default — same as before.
+        Dim Export As Poses_class = ExportSamPoseFile(Nombre)
+        If Export Is Nothing Then Return False
 
-            If IO.Directory.Exists(Wardrobe_Manager_Form.Directorios.PosesSAMRoot) = False Then
-                IO.Directory.CreateDirectory(Wardrobe_Manager_Form.Directorios.PosesSAMRoot)
-            End If
-            Dim jsonOut As String = JsonSerializer.Serialize(Of Poses_class)(Export, opts)
-
-            ' 2) Escribir el JSON en disco (sobrescribe o crea el archivo en xmlpath)
-            IO.File.WriteAllText(Export.Filename, jsonOut)
-            Dim Keyname = Poses_class.KeyName(Nombre, Poses_class.Pose_Source_Enum.ScreenArcher)
-            If WM_SliderPresets.Poses.TryAdd(Keyname, Export) = False Then
-                WM_SliderPresets.Poses(Keyname) = Export
-            Else
-                ComboBoxPoses.Items.Add(Keyname)
-            End If
-            Return True
-        Catch ex As Exception
-            Return False
-        End Try
+        Dim Keyname = Poses_class.KeyName(Nombre, Poses_class.Pose_Source_Enum.ScreenArcher)
+        If WM_SliderPresets.Poses.TryAdd(Keyname, Export) = False Then
+            WM_SliderPresets.Poses(Keyname) = Export
+        Else
+            ComboBoxPoses.Items.Add(Keyname)
+        End If
+        Return True
     End Function
 
     Private Sub Button8_Click(sender As Object, e As EventArgs) Handles ButtonSaveAsPreset.Click
@@ -2214,6 +2182,15 @@ Public Class Editor_Form
     End Sub
     Private Sub Process_render_Changes(Force As Boolean)
         EditPreviewControl.Model.Floor.Enabled = CheckBoxRenderFloor.Checked
+        ' The editor mutates Selected_Preset IN PLACE (the per-slider trackbars set presetItem.Value, and
+        ' the preset combo rebuilds the SAME SlidersPreset_Class object in Actualiza_Preset), so it keeps
+        ' the same object reference across edits. Update_Render's skipPresetApply check is reference-based
+        ' (prevPreset Is Preset) so it can't see the in-place mutation and skips SetPreset — leaving each
+        ' slider's Current_Setting (what SliderMorphResolver reads) stale, so slider/preset edits never
+        ' rendered. Re-apply the working preset here so the editor's render always reflects current values.
+        ' (Idempotent; SetPreset just re-copies preset values into Current_Setting. Harmless on pose-only
+        ' renders, and the main form is unaffected — it uses its own render path with distinct presets.)
+        If Selected_Slider IsNot Nothing Then Selected_Slider.SetPreset(Selected_Preset, Selected_size)
         EditPreviewControl.Update_Render(Selected_Slider, Force, Selected_Preset, Selected_Pose, Selected_size)
     End Sub
 

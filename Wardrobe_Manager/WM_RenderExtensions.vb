@@ -1,6 +1,8 @@
 ﻿' Version Uploaded of Wardrobe 3.2.0
 Imports System.ComponentModel
 Imports System.Runtime.CompilerServices
+Imports System.Text.Json
+Imports System.Text.Json.Serialization
 Imports FO4_Base_Library
 Imports FO4_Base_Library.PreviewModel
 
@@ -17,6 +19,10 @@ Public Module WM_RenderExtensions
         Public Last_rendered As SliderSet_Class
         Public Last_Preset As SlidersPreset_Class
         Public Last_size As WM_Config.SliderSize = WM_Config.SliderSize.Default
+        ' SliderMorphResolver has no per-frame state — it rebuilds the same plan from each
+        ' slider's persisted Current_Setting. Cache one instance per control and reuse it
+        ' every frame instead of allocating on every Update_Render (incl. each animation tick).
+        Public MorphResolver As SliderMorphResolver = New SliderMorphResolver()
     End Class
 
     Private Function GetState(ctrl As PreviewControl) As WM_RenderState
@@ -149,7 +155,7 @@ Public Module WM_RenderExtensions
         ' non-focused list. The resolver rebuilds the same plan from the persisted slider
         ' Current_Setting, so dirty stays empty and the morph is preserved. No extra animation
         ' cost: a pose-only change never flags Morphs, so this step does not run.
-        intent.MorphResolver = New SliderMorphResolver()
+        intent.MorphResolver = s.MorphResolver
         intent.GeometryModifiers = Nothing
 
         If Not sameSet Then
@@ -193,14 +199,16 @@ Public Module WM_RenderExtensions
             If presetChanged Then intent.MarkDirty(RenderDirtyFlags.Morphs)
 
         ElseIf presetChanged Then
-            ' Morph-only: same set, same pose, preset/size changed
-            intent.MarkDirty(RenderDirtyFlags.Morphs Or RenderDirtyFlags.Textures)
+            ' Morph-only: same set, same pose, preset/size changed. A slider/preset change does
+            ' not alter materials, so Textures stays clean (it would trigger Process_Textures_GL).
+            intent.MarkDirty(RenderDirtyFlags.Morphs)
 
         Else
             ' Preserve the old refresh behavior outside playback, but keep same-frame timer
-            ' ticks from doing needless morph/texture work while the animation is running.
+            ' ticks from doing needless morph work while the animation is running. Morph-only:
+            ' no material change, so Textures stays clean (avoids redundant Process_Textures_GL).
             If Not ctrl.PlayingAnimation Then
-                intent.MarkDirty(RenderDirtyFlags.Morphs Or RenderDirtyFlags.Textures)
+                intent.MarkDirty(RenderDirtyFlags.Morphs)
             End If
         End If
 
@@ -211,4 +219,66 @@ Public Module WM_RenderExtensions
         ctrl.LastUpdateMs = _sw.Elapsed.TotalMilliseconds
         If Not ctrl.PlayingAnimation Then Cursor.Current = Cursors.Default
     End Sub
+
+    ''' <summary>JSON options for SAM (ScreenArcher) pose export — mirrors Editor_Form.opts.</summary>
+    Private ReadOnly _samExportOpts As New JsonSerializerOptions With {
+        .PropertyNameCaseInsensitive = True,
+        .NumberHandling = JsonNumberHandling.AllowReadingFromString,
+        .WriteIndented = True}
+
+    ''' <summary>Build+write the imported pose as a SAM (ScreenArcher) JSON file under
+    ''' <see cref="Wardrobe_Manager_Form.Directorios.PosesSAMRoot"/>, reading the currently-posed
+    ''' local transforms from <c>SkeletonInstance.Default</c>. Shared core extracted from
+    ''' <c>Editor_Form.ExportSaf</c> so both the editor and the HKX import form write SAM identically.
+    ''' Returns the built <see cref="Poses_class"/> (the caller registers it in its combos), or
+    ''' <c>Nothing</c> if <paramref name="name"/> is blank, no skeleton is loaded, or writing fails
+    ''' (swallow-and-return, matching ExportSaf).
+    ''' <para>PRECONDITION: <c>SkeletonInstance.Default</c> must already be posed at the desired frame
+    ''' (its <c>LocaLTransform</c> per bone is read verbatim).</para>
+    ''' <param name="extraBones">Optional bones to append AFTER the live skeleton (e.g. HKX-defined bones
+    ''' the live NIF skeleton lacks, for pose portability). Live skeleton wins on name collision.</param></summary>
+    Public Function ExportSamPoseFile(name As String, Optional extraBones As Dictionary(Of String, PoseTransformData) = Nothing) As Poses_class
+        If String.IsNullOrWhiteSpace(name) Then Return Nothing
+        If SkeletonInstance.Default.HasSkeleton = False Then Return Nothing
+        Try
+            Dim Export As New Poses_class With {
+                .Filename = IO.Path.Combine(Wardrobe_Manager_Form.Directorios.PosesSAMRoot, name + ".json"),
+                .Source = Poses_class.Pose_Source_Enum.ScreenArcher,
+                .Version = 2,
+                .Skeleton = "Vanilla",
+                .Transforms = New Dictionary(Of String, PoseTransformData),
+                .Name = name
+            }
+            For Each sk In SkeletonInstance.Default.SkeletonDictionary
+                Dim tr = sk.Value.LocaLTransform
+                Dim nuevo As New PoseTransformData With {
+                    .X = tr.Translation.X,
+                    .Y = tr.Translation.Y,
+                    .Z = tr.Translation.Z,
+                    .Scale = tr.Scale
+                }
+                Dim degs = Transform_Class.Matrix33ToEulerXYZ(tr.Rotation)
+                nuevo.Yaw = degs.X
+                nuevo.Pitch = degs.Y
+                nuevo.Roll = degs.Z
+                Export.Transforms.Add(sk.Key, nuevo)
+            Next
+
+            ' Append portability bones the live skeleton lacks (HKX-defined). Live skeleton wins on collision.
+            If extraBones IsNot Nothing Then
+                For Each kv In extraBones
+                    If Not Export.Transforms.ContainsKey(kv.Key) Then Export.Transforms.Add(kv.Key, kv.Value)
+                Next
+            End If
+
+            If IO.Directory.Exists(Wardrobe_Manager_Form.Directorios.PosesSAMRoot) = False Then
+                IO.Directory.CreateDirectory(Wardrobe_Manager_Form.Directorios.PosesSAMRoot)
+            End If
+            Dim jsonOut As String = JsonSerializer.Serialize(Of Poses_class)(Export, _samExportOpts)
+            IO.File.WriteAllText(Export.Filename, jsonOut)
+            Return Export
+        Catch ex As Exception
+            Return Nothing
+        End Try
+    End Function
 End Module

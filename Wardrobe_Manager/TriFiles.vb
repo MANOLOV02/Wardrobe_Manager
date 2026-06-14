@@ -96,19 +96,20 @@ Public Module LooksMenuSliders
         Dim addAdditional = WM_Config.Current.Settings_Build.AddAddintionalSliders
         Dim skipManoloFix = WM_Config.Current.Settings_Build.SkipFixMorphs
 
+        ' Candidate sliders (not Clamp/Zap/ManoloFix) don't depend on the shape — build once.
+        Dim candidateIndices As New List(Of Integer)
+        For s = 0 To sliderSet.Sliders.Count - 1
+            If Not sliderSet.Sliders(s).IsClamp AndAlso Not sliderSet.Sliders(s).IsZap AndAlso
+               (Not sliderSet.Sliders(s).IsManoloFix OrElse skipManoloFix = False) Then
+                candidateIndices.Add(s)
+            End If
+        Next
+
         For Each shape In sliderSet.NIFContent.GetShapes
             Dim targetShape = sliderSet.Shapes.Where(Function(pf) pf.RelatedNifShape Is shape).FirstOrDefault
             If targetShape Is Nothing Then Continue For
             Dim shapeVertCount As Integer = shape.VertexCount
             If shapeVertCount <= 0 Then Continue For
-
-            Dim candidateIndices As New List(Of Integer)
-            For s = 0 To sliderSet.Sliders.Count - 1
-                If Not sliderSet.Sliders(s).IsClamp AndAlso Not sliderSet.Sliders(s).IsZap AndAlso
-                   (Not sliderSet.Sliders(s).IsManoloFix OrElse skipManoloFix = False) Then
-                    candidateIndices.Add(s)
-                End If
-            Next
 
             ' Pre-allocate for parallel morph quantization
             Dim morphResults(candidateIndices.Count - 1) As TriMorphEntry
@@ -132,7 +133,11 @@ Public Module LooksMenuSliders
                         If dat IsNot Nothing Then
                             For Each dif In dat.RelatedOSDBlocks
                                 For Each dif2 In dif.DataDiff
-                                    uvs(dif2.Index) = New Vector2(dif2.X, dif2.Y)
+                                    ' Guard against a stale OSD diff whose index exceeds this shape's
+                                    ' vertex count — would throw inside Parallel.For and abort the TRI build.
+                                    If dif2.Index >= 0 AndAlso dif2.Index < localVertCount Then
+                                        uvs(dif2.Index) = New Vector2(dif2.X, dif2.Y)
+                                    End If
                                 Next
                             Next
                         End If
@@ -149,7 +154,11 @@ Public Module LooksMenuSliders
                         If dat IsNot Nothing Then
                             For Each dif In dat.RelatedOSDBlocks
                                 For Each dif2 In dif.DataDiff
-                                    verts(dif2.Index) = New Vector3(dif2.X, dif2.Y, dif2.Z)
+                                    ' Guard against a stale OSD diff whose index exceeds this shape's
+                                    ' vertex count — would throw inside Parallel.For and abort the TRI build.
+                                    If dif2.Index >= 0 AndAlso dif2.Index < localVertCount Then
+                                        verts(dif2.Index) = New Vector3(dif2.X, dif2.Y, dif2.Z)
+                                    End If
                                 Next
                             Next
                         End If

@@ -100,7 +100,8 @@ Public NotInheritable Class PhysicsWeightCollapseHelper
                         End If
                     Next
                 Next
-            Catch
+            Catch ex As Exception
+                Logger.LogLazy(Function() "[PHYS-COLLAPSE] cloth parse failed: " & ex.ToString())
             End Try
         Next
 

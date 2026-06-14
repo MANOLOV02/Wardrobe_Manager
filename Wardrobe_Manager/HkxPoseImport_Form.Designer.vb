@@ -25,6 +25,7 @@ Partial Class HkxPoseImport_Form
         PanelControls = New Panel()
         NumericFrameMs = New NumericUpDown()
         LabelFrameMs = New Label()
+        CheckBoxSaveSam = New CheckBox()
         ButtonPlay = New Button()
         FrameSlider = New TinySliderTextBox()
         LabelFrame = New Label()
@@ -102,6 +103,7 @@ Partial Class HkxPoseImport_Form
         ' 
         PanelControls.Controls.Add(NumericFrameMs)
         PanelControls.Controls.Add(LabelFrameMs)
+        PanelControls.Controls.Add(CheckBoxSaveSam)
         PanelControls.Controls.Add(ButtonPlay)
         PanelControls.Controls.Add(FrameSlider)
         PanelControls.Controls.Add(LabelFrame)
@@ -137,10 +139,21 @@ Partial Class HkxPoseImport_Form
         LabelFrameMs.Text = "FPS"
         LabelFrameMs.TextAlign = ContentAlignment.MiddleRight
         ' 
+        ' CheckBoxSaveSam
+        ' 
+        CheckBoxSaveSam.AutoSize = True
+        CheckBoxSaveSam.Location = New Point(10, 65)
+        CheckBoxSaveSam.Name = "CheckBoxSaveSam"
+        CheckBoxSaveSam.Size = New Size(108, 19)
+        CheckBoxSaveSam.TabIndex = 5
+        CheckBoxSaveSam.Text = "Export SAM too"
+        ToolTip1.SetToolTip(CheckBoxSaveSam, "Also save the imported pose in SAM (ScreenArcher) JSON format.")
+        CheckBoxSaveSam.UseVisualStyleBackColor = True
+        ' 
         ' ButtonPlay
         ' 
         ButtonPlay.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
-        ButtonPlay.Location = New Point(98, 63)
+        ButtonPlay.Location = New Point(124, 61)
         ButtonPlay.Name = "ButtonPlay"
         ButtonPlay.Size = New Size(89, 25)
         ButtonPlay.TabIndex = 4
@@ -154,12 +167,12 @@ Partial Class HkxPoseImport_Form
         FrameSlider.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
         FrameSlider.BackColor = SystemColors.Control
         FrameSlider.DisplayFormat = "0"
-        FrameSlider.Location = New Point(98, 35)
+        FrameSlider.Location = New Point(124, 35)
         FrameSlider.Maximum = 0R
         FrameSlider.MinimumSize = New Size(100, 24)
         FrameSlider.Name = "FrameSlider"
         FrameSlider.ShowTicks = True
-        FrameSlider.Size = New Size(469, 24)
+        FrameSlider.Size = New Size(443, 24)
         FrameSlider.TabIndex = 3
         FrameSlider.TextBoxTextAlign = HorizontalAlignment.Right
         FrameSlider.ThumbColor = SystemColors.HotTrack
@@ -180,9 +193,9 @@ Partial Class HkxPoseImport_Form
         ' TextBoxPoseName
         ' 
         TextBoxPoseName.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        TextBoxPoseName.Location = New Point(98, 7)
+        TextBoxPoseName.Location = New Point(124, 7)
         TextBoxPoseName.Name = "TextBoxPoseName"
-        TextBoxPoseName.Size = New Size(469, 23)
+        TextBoxPoseName.Size = New Size(443, 23)
         TextBoxPoseName.TabIndex = 1
         ToolTip1.SetToolTip(TextBoxPoseName, "Name of the Wardrobe Manager pose to save.")
         ' 
@@ -234,5 +247,6 @@ Partial Class HkxPoseImport_Form
     Friend WithEvents ButtonPlay As Button
     Friend WithEvents LabelFrameMs As Label
     Friend WithEvents NumericFrameMs As NumericUpDown
+    Friend WithEvents CheckBoxSaveSam As CheckBox
     Friend WithEvents ToolTip1 As ToolTip
 End Class
