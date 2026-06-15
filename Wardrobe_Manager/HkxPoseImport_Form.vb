@@ -54,10 +54,18 @@ Public Class HkxPoseImport_Form
 
         ' Shared toggle with Editor_Form (WM_Config.Setting_ExportSam): when checked, importing a
         ' pose ALSO writes the SAM (ScreenArcher) JSON, in addition to the WM-format save.
-        CheckBoxSaveSam.Checked = WM_Config.Current.Setting_ExportSam
+        ' SAM (ScreenArcher Menu) is a Fallout 4 mod, so exporting its JSON only makes sense for FO4;
+        ' on Skyrim SSE force the toggle off and disable it (Enabled set before Checked so the
+        ' CheckedChanged guard sees the right state and does not clobber the persisted FO4 preference).
+        Dim isFo4 As Boolean = Config_App.Current.Game = Config_App.Game_Enum.Fallout4
+        CheckBoxSaveSam.Enabled = isFo4
+        CheckBoxSaveSam.Checked = isFo4 AndAlso WM_Config.Current.Setting_ExportSam
     End Sub
 
     Private Sub CheckBoxSaveSam_CheckedChanged(sender As Object, e As EventArgs) Handles CheckBoxSaveSam.CheckedChanged
+        ' Only persist user-driven changes. When disabled (non-FO4 game) the unchecked state is the
+        ' programmatic force-off above and must NOT overwrite the saved FO4 preference.
+        If Not CheckBoxSaveSam.Enabled Then Return
         WM_Config.Current.Setting_ExportSam = CheckBoxSaveSam.Checked
     End Sub
 
