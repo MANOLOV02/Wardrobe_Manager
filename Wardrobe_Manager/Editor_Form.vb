@@ -2078,7 +2078,12 @@ Public Class Editor_Form
 
         ' Esta llamada es exigida por el dise?ador.
         InitializeComponent()
-        CheckBoxSaveSAF.Checked = WM_Config.Current.Setting_ExportSam
+        ' SAM (ScreenArcher Menu) is a Fallout 4 mod, so "Save for screen archer" only makes sense for
+        ' FO4; on Skyrim SSE force the toggle off and disable it (Enabled set before Checked so the
+        ' CheckedChanged guard sees the right state and does not clobber the persisted FO4 preference).
+        Dim isFo4 As Boolean = Config_App.Current.Game = Config_App.Game_Enum.Fallout4
+        CheckBoxSaveSAF.Enabled = isFo4
+        CheckBoxSaveSAF.Checked = isFo4 AndAlso WM_Config.Current.Setting_ExportSam
         CheckBoxRenderFloor.Checked = Config_App.Current.Settings_RenderGrid.Enabled
         'ThemeManager.SetTheme(Config_App.Current.theme, Me)
         ' Agregue cualquier inicializaci?n despu?s de la llamada a InitializeComponent().
@@ -2276,6 +2281,9 @@ Public Class Editor_Form
 
     Private Sub CheckBoxSaveSAF_CheckedChanged(sender As Object, e As EventArgs) Handles CheckBoxSaveSAF.CheckedChanged
         If IsNothing(Selected_Slider) Then Exit Sub
+        ' Only persist user-driven changes. When disabled (non-FO4 game) the unchecked state is the
+        ' programmatic force-off above and must NOT overwrite the saved FO4 preference.
+        If Not CheckBoxSaveSAF.Enabled Then Return
         WM_Config.Current.Setting_ExportSam = CheckBoxSaveSAF.Checked
 
     End Sub

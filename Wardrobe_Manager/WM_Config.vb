@@ -179,16 +179,27 @@ Public Class WM_Config
         If gamePath = "" OrElse Not File.Exists(gamePath) Then Return
         Dim gameDir = Path.GetDirectoryName(gamePath)
         Try
-            If Environment.Is64BitOperatingSystem Then
-                Current.BSExePath = Path.Combine(gameDir, "Data\Tools\Bodyslide\BodySlide x64.exe")
-                Current.OSExePath = Path.Combine(gameDir, "Data\Tools\Bodyslide\OutfitStudio x64.exe")
-            Else
-                Current.BSExePath = Path.Combine(gameDir, "Data\Tools\Bodyslide\BodySlide.exe")
-                Current.OSExePath = Path.Combine(gameDir, "Data\Tools\Bodyslide\OutfitStudio.exe")
-            End If
+            Dim bsDir = Path.Combine(gameDir, "Data\Tools\Bodyslide")
+            Current.BSExePath = ResolveBsSuiteExePath(bsDir, "BodySlide")
+            Current.OSExePath = ResolveBsSuiteExePath(bsDir, "OutfitStudio")
         Catch
         End Try
     End Sub
+
+    ''' <summary>
+    ''' Resolve a BodySlide-suite executable path. The suite historically shipped a 32-bit
+    ''' "name.exe" plus a 64-bit "name x64.exe"; Ousnius later unified to a single
+    ''' suffix-less "name.exe". On a 64-bit OS prefer the legacy " x64.exe" when it exists,
+    ''' otherwise fall back to the unified suffix-less name. On a 32-bit OS use "name.exe".
+    ''' </summary>
+    Public Shared Function ResolveBsSuiteExePath(bsDir As String, baseName As String) As String
+        Dim plain = Path.Combine(bsDir, baseName & ".exe")
+        If Environment.Is64BitOperatingSystem Then
+            Dim suffixed = Path.Combine(bsDir, baseName & " x64.exe")
+            If File.Exists(suffixed) Then Return suffixed
+        End If
+        Return plain
+    End Function
 
     ' ── Persistence ──
 

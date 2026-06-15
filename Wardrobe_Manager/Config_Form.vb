@@ -463,19 +463,13 @@ Public Class Config_Form
         Dim pathS As String = IIf(Config_App.Current.Game = Config_App.Game_Enum.Fallout4, "Tools", "CalienteTools")
 
         If Config_App.Check_FOFolder And (TextBox2.Text.Contains(Config_App.Current.FO4EDataPath, StringComparison.OrdinalIgnoreCase) = False Or WM_Config.Check_BSFolder = False) Then
-            If Environment.Is64BitOperatingSystem Then
-                TextBox2.Text = IO.Path.Combine(IO.Path.GetDirectoryName(TextBox1.Text), "Data\" + pathS + "\Bodyslide\BodySlide x64.exe")
-            Else
-                TextBox2.Text = IO.Path.Combine(IO.Path.GetDirectoryName(TextBox1.Text), "Data\" + pathS + "\Bodyslide\BodySlide.exe")
-            End If
+            Dim bsDir = IO.Path.Combine(IO.Path.GetDirectoryName(TextBox1.Text), "Data\" + pathS + "\Bodyslide")
+            TextBox2.Text = WM_Config.ResolveBsSuiteExePath(bsDir, "BodySlide")
             WM_Config.Current.BSExePath = TextBox2.Text
         End If
         If Config_App.Check_FOFolder And (TextBox3.Text.Contains(Config_App.Current.FO4EDataPath, StringComparison.OrdinalIgnoreCase) = False Or WM_Config.Check_OsFolder = False) Then
-            If Environment.Is64BitOperatingSystem Then
-                TextBox3.Text = IO.Path.Combine(IO.Path.GetDirectoryName(TextBox1.Text), "Data\" + pathS + "\Bodyslide\OutfitStudio x64.exe")
-            Else
-                TextBox3.Text = IO.Path.Combine(IO.Path.GetDirectoryName(TextBox1.Text), "Data\" + pathS + "\Bodyslide\OutfitStudio.exe")
-            End If
+            Dim osDir = IO.Path.Combine(IO.Path.GetDirectoryName(TextBox1.Text), "Data\" + pathS + "\Bodyslide")
+            TextBox3.Text = WM_Config.ResolveBsSuiteExePath(osDir, "OutfitStudio")
             WM_Config.Current.OSExePath = TextBox3.Text
         End If
         If Config_App.Check_FOFolder And (TextBox4.Text.Contains(Config_App.Current.FO4EDataPath, StringComparison.OrdinalIgnoreCase) = False Or Config_App.Check_Skeleton = False) Then
