@@ -80,6 +80,75 @@ Public Class MergeShapesHelper
             Next
         Next
 
+        ' ── 1b. Build merged bone list and per-donor bone remaps (NiSkinInstance path) ──
+        ' SSE/Oblivion shapes carry their per-vertex skin inline (same flat BoneIndices array
+        ' as FO4) AND a separate NiSkinData.BoneList.  Both representations index the SAME bone
+        ' palette, so the merged palette + per-donor remap must be computed ONCE here, BEFORE
+        ' the step-2 donor append, and then reused by step 5b for NiSkinData/NiSkinInstance.
+        ' For FO4 shapes targetNifRaw.SkinInstanceRef resolves to a BSSkin_Instance (not a
+        ' NiSkinInstance) so niSkinInst is Nothing and this block is skipped — FO4 keeps using
+        ' donorBoneRemaps (step 1) exclusively, unchanged.
+        Dim niSkinInst = sliderSet.NIFContent.GetBlock(Of NiSkinInstance)(targetNifRaw.SkinInstanceRef)
+        Dim niMergedBoneNifIndices As List(Of Integer) = Nothing
+        Dim niDonorBoneRemaps As List(Of Dictionary(Of Integer, Integer)) = Nothing
+        ' Parallel to niMergedBoneNifIndices: the merged per-bone BIND data (skin-to-bone
+        ' SkinTransform + BoundingSphere) for the NiSkinData.BoneList.  Seeded from the TARGET's
+        ' BoneList for its existing bones and EXTENDED with the donor's own BoneData for each
+        ' donor-unique bone (mirrors the FO4 mergedBoneTrans path, step 1).  VertexWeights are
+        ' deliberately NOT captured here — RebuildNiSkinData (re)authors them from the merged
+        ' per-vertex skinning; only the bind (SkinTransform/BoundingSphere) is carried.
+        Dim niMergedBind As List(Of BoneData) = Nothing
+        If niSkinInst IsNot Nothing Then
+            niMergedBoneNifIndices = niSkinInst.Bones.Indices.ToList()
+            niDonorBoneRemaps = New List(Of Dictionary(Of Integer, Integer))()
+            niMergedBind = New List(Of BoneData)()
+
+            ' Seed merged bind from the target's NiSkinData.BoneList, index-aligned with the
+            ' target's palette entries already in niMergedBoneNifIndices.  Pad with a default
+            ' (identity) BoneData if the target BoneList is shorter than its palette (defensive).
+            Dim tNiSkinData = sliderSet.NIFContent.GetBlock(niSkinInst.Data)
+            For paletteIdx = 0 To niMergedBoneNifIndices.Count - 1
+                If tNiSkinData IsNot Nothing AndAlso paletteIdx < tNiSkinData.BoneList.Count Then
+                    niMergedBind.Add(tNiSkinData.BoneList(paletteIdx))
+                Else
+                    niMergedBind.Add(New BoneData())
+                End If
+            Next
+
+            For Each donor In donorShapes
+                Dim niRemap As New Dictionary(Of Integer, Integer)()
+                niDonorBoneRemaps.Add(niRemap)
+                ' SkinInstanceRef is defined on INiShape — no need to downcast.  The old
+                ' `DirectCast(..., BSTriShape)` was a residue from the pre-refactor path
+                ' and fails for NiTriShape family.
+                Dim dNiSkinInst = sliderSet.NIFContent.GetBlock(Of NiSkinInstance)(
+                    donor.RelatedNifShape.SkinInstanceRef)
+                If dNiSkinInst Is Nothing Then Continue For
+                Dim dNiSkinData = sliderSet.NIFContent.GetBlock(dNiSkinInst.Data)
+                Dim dBoneIdxList = dNiSkinInst.Bones.Indices.ToList()
+                For localIdx = 0 To dBoneIdxList.Count - 1
+                    Dim nifBlockIdx = dBoneIdxList(localIdx)
+                    Dim mergedIdx = niMergedBoneNifIndices.IndexOf(nifBlockIdx)
+                    If mergedIdx = -1 Then
+                        mergedIdx = niMergedBoneNifIndices.Count
+                        niMergedBoneNifIndices.Add(nifBlockIdx)
+                        ' Donor-unique bone: capture the donor's own bind (SkinTransform +
+                        ' BoundingSphere) so niMergedBind stays index-aligned.  Under the merge's
+                        ' same-skin-space assumption this equals OS's recomputed skin-to-bone.
+                        ' Fall back to a default (identity) when the donor carries no BoneData.
+                        Dim donorBind As New BoneData()
+                        If dNiSkinData IsNot Nothing AndAlso localIdx < dNiSkinData.BoneList.Count Then
+                            Dim src = dNiSkinData.BoneList(localIdx)
+                            donorBind.SkinTransform = src.SkinTransform
+                            donorBind.BoundingSphere = src.BoundingSphere
+                        End If
+                        niMergedBind.Add(donorBind)
+                    End If
+                    niRemap(localIdx) = mergedIdx
+                Next
+            Next
+        End If
+
         ' ── 2. Snapshot target + donors polymorphically, compute donor vertex offsets ──
         Dim donorOffsets As New List(Of Integer)()
         Dim cumulative As Integer = targetGeom.VertexCount
@@ -95,11 +164,17 @@ Public Class MergeShapesHelper
         ' Apply bone remap to each donor's Skinning.BoneIndices, then append per-vertex
         ' arrays to mergedArrays.  Works for any shape family — BoneIndices is a flat
         ' byte array regardless of whether skin came from BSVertexData (BS) or
-        ' NiSkinData/NiSkinPartition (NiTri).
+        ' NiSkinData/NiSkinPartition (NiTri).  The donor's inline indices reference the
+        ' DONOR palette; ShapeArrays.Append keeps the TARGET palette (SkinningHelper.vb:1302),
+        ' so the indices MUST be remapped to the merged palette here, BEFORE Append, for both
+        ' skin families.  FO4 uses donorBoneRemaps (step 1); SSE uses niDonorBoneRemaps (1b).
+        ' The two are mutually exclusive per shape (BSSkin_Instance XOR NiSkinInstance), so the
+        ' FO4 remap takes precedence and the SSE remap fills in only when FO4 produced none.
         For di = 0 To donorShapes.Count - 1
             Dim donorArrays = SkinningHelper.SnapshotSeparateArrays(donorShapes(di).IR_Geometry)
-            Dim boneRemap = donorBoneRemaps(di)
-            If donorArrays.Skinning.HasValue AndAlso boneRemap.Count > 0 Then
+            Dim effectiveRemap = donorBoneRemaps(di)
+            If effectiveRemap.Count = 0 AndAlso niDonorBoneRemaps IsNot Nothing Then effectiveRemap = niDonorBoneRemaps(di)
+            If donorArrays.Skinning.HasValue AndAlso effectiveRemap.Count > 0 Then
                 Dim sk = donorArrays.Skinning.Value
                 If sk.BoneIndices IsNot Nothing Then
                     ' Clone the BoneIndices array before mutating — Skinning is a struct
@@ -109,7 +184,7 @@ Public Class MergeShapesHelper
                     Dim value As Integer = Nothing
                     For b = 0 To cloned.Length - 1
                         Dim orig As Integer = CInt(cloned(b))
-                        If boneRemap.TryGetValue(orig, value) Then cloned(b) = CByte(value And &HFF)
+                        If effectiveRemap.TryGetValue(orig, value) Then cloned(b) = CByte(value And &HFF)
                     Next
                     Dim remappedSk = sk
                     remappedSk.BoneIndices = cloned
@@ -174,51 +249,49 @@ Public Class MergeShapesHelper
 
         targetGeom.UpdateBounds()
 
-        ' ── 5b. Update NiSkinInstance + NiSkinData for SSE shapes ────────────────
+        ' ── 5b. Reconcile NiSkinInstance + NiSkinData STRUCTURE for SSE shapes ───
         ' BSSkin_Instance (FO4) was handled above.  For NiSkinInstance (SSE/Oblivion):
-        ' NiSkinData.BoneList is what UpdateSkinPartitions reads to build vertBoneWeights.
-        ' After merge, donor vertices are absent → crash.  Rebuild the bone list here.
-        Dim niSkinInst = sliderSet.NIFContent.GetBlock(Of NiSkinInstance)(targetNifRaw.SkinInstanceRef)
+        ' the per-vertex NiSkinData.BoneList[].VertexWeights are NO LONGER authored here.
+        ' They were already written ONCE, completely and correctly for ALL merged vertices
+        ' (target + donors), by BSTriShapeGeometry.SetSkinning → RebuildNiSkinData during the
+        ' ApplyShapeGeometry call above (step "Apply all geometry via centralized helper"):
+        ' that call passes the FULL merged per-vertex skinning whose donor bone indices were
+        ' already remapped to the merged palette in step 2, and RebuildNiSkinData re-inits and
+        ' repopulates every bone's VertexWeights from it.  Re-appending donor weights here would
+        ' DOUBLE-WRITE them (each donor vertex listed twice, weights summing to 2.0).
+        '
+        ' What RebuildNiSkinData does NOT touch — and what step 5b therefore still reconciles —
+        ' is the bone PALETTE / BoneList structure: the NiSkinInstance.Bones block-ref array and
+        ' growing BoneList so its Count matches that palette (bones with zero weights included).
+        ' The merged palette (niMergedBoneNifIndices) was computed ONCE in step 1b — the same
+        ' palette the inline per-vertex remap in step 2 (and hence RebuildNiSkinData) used — so
+        ' both representations stay in sync.
         If niSkinInst IsNot Nothing Then
-            ' Build merged NiSkinInstance bone list from the target + all donors.
-            Dim niMergedBoneNifIndices = niSkinInst.Bones.Indices.ToList()
-            Dim niDonorBoneRemaps As New List(Of Dictionary(Of Integer, Integer))()
-
-            For Each donor In donorShapes
-                Dim niRemap As New Dictionary(Of Integer, Integer)()
-                niDonorBoneRemaps.Add(niRemap)
-                ' SkinInstanceRef is defined on INiShape — no need to downcast.  The old
-                ' `DirectCast(..., BSTriShape)` was a residue from the pre-refactor path
-                ' and fails for NiTriShape family.
-                Dim dNiSkinInst = sliderSet.NIFContent.GetBlock(Of NiSkinInstance)(
-                    donor.RelatedNifShape.SkinInstanceRef)
-                If dNiSkinInst Is Nothing Then Continue For
-                Dim dBoneIdxList = dNiSkinInst.Bones.Indices.ToList()
-                For localIdx = 0 To dBoneIdxList.Count - 1
-                    Dim nifBlockIdx = dBoneIdxList(localIdx)
-                    Dim mergedIdx = niMergedBoneNifIndices.IndexOf(nifBlockIdx)
-                    If mergedIdx = -1 Then
-                        mergedIdx = niMergedBoneNifIndices.Count
-                        niMergedBoneNifIndices.Add(nifBlockIdx)
-                    End If
-                    niRemap(localIdx) = mergedIdx
-                Next
-            Next
-
-            ' Write merged bone list back to NiSkinInstance.
+            ' Write merged bone list back to NiSkinInstance (palette block-refs; RebuildNiSkinData
+            ' does NOT write this).
             niSkinInst.Bones.SetIndices(niMergedBoneNifIndices)
             niSkinInst.NumBones = CUInt(niMergedBoneNifIndices.Count)
 
-            ' Update NiSkinData.BoneList with donor vertex weights.
             Dim niSkinData = sliderSet.NIFContent.GetBlock(niSkinInst.Data)
             If niSkinData IsNot Nothing Then
-                ' Grow BoneList to fit all merged bones.
+                ' Grow BoneList to the merged palette count so BoneList.Count matches the Bones
+                ' palette even for bones with no weights.  Donor-unique bone BINDS are copied
+                ' from the donor below (mergedBind, built in step 1b) — mirroring the FO4
+                ' mergedBoneTrans path: the per-bone SkinTransform is the skin-to-bone bind that
+                ' both WM's renderer (NifRenderableShape.vb → New Transform_Class(bon)) and the
+                ' in-game engine read, so a default identity here deformed donor-unique-weighted
+                ' vertices wrongly.  Under the merge's same-skin-space assumption (donor vertex
+                ' positions concatenated into the target buffer, shared bones reuse the target
+                ' bind) the donor's stored skin-to-bone equals OS's recomputed value, so COPYING
+                ' it is correct.
                 Do While niSkinData.BoneList.Count < niMergedBoneNifIndices.Count
                     niSkinData.BoneList.Add(New BoneData())
                 Loop
                 niSkinData.NumBones = CUInt(niSkinData.BoneList.Count)
 
-                ' Ensure all VertexWeights lists are initialized (BoneData is a struct).
+                ' Init only still-Nothing VertexWeights lists (BoneData is a struct).  Lists
+                ' RebuildNiSkinData already populated are left intact; this only covers
+                ' palette-padding bones added above that carry no weights.
                 For b = 0 To niSkinData.BoneList.Count - 1
                     Dim bd = niSkinData.BoneList(b)
                     If bd.VertexWeights Is Nothing Then
@@ -227,32 +300,22 @@ Public Class MergeShapesHelper
                     End If
                 Next
 
-                ' Append donor vertex weights, remapping bone index and offsetting vertex index.
-                For di = 0 To donorShapes.Count - 1
-                    Dim vertOffset = donorOffsets(di)
-                    Dim niRemap = niDonorBoneRemaps(di)
-                    Dim dNiSkinInst = sliderSet.NIFContent.GetBlock(Of NiSkinInstance)(
-                        donorShapes(di).RelatedNifShape?.SkinInstanceRef)
-                    If dNiSkinInst Is Nothing Then Continue For
-                    Dim dNiSkinData = sliderSet.NIFContent.GetBlock(dNiSkinInst.Data)
-                    If dNiSkinData Is Nothing Then Continue For
-
-                    For localBoneIdx = 0 To dNiSkinData.BoneList.Count - 1
-                        Dim mergedBoneIdx As Integer
-                        If Not niRemap.TryGetValue(localBoneIdx, mergedBoneIdx) Then Continue For
-                        Dim dBoneData = dNiSkinData.BoneList(localBoneIdx)
-                        If dBoneData.VertexWeights Is Nothing Then Continue For
-                        For Each vw In dBoneData.VertexWeights
-                            niSkinData.BoneList(mergedBoneIdx).VertexWeights.Add(
-                                New BoneVertData() With {
-                                    .Index = CUShort(CInt(vw.Index) + vertOffset),
-                                    .Weight = vw.Weight
-                                })
-                        Next
-                    Next
+                ' Write the merged per-bone bind into BoneList: SkinTransform + BoundingSphere
+                ' only.  Idempotent for shared bones (mergedBind was seeded from the target's
+                ' own BoneList); replaces the identity bind with the donor's real bind for
+                ' donor-unique bones.  VertexWeights/NumVertices are left untouched — those are
+                ' authored by RebuildNiSkinData and recomputed just below.
+                Dim bindCount As Integer = Math.Min(niSkinData.BoneList.Count,
+                                                    If(niMergedBind IsNot Nothing, niMergedBind.Count, 0))
+                For b = 0 To bindCount - 1
+                    Dim bd = niSkinData.BoneList(b)
+                    bd.SkinTransform = niMergedBind(b).SkinTransform
+                    bd.BoundingSphere = niMergedBind(b).BoundingSphere
+                    niSkinData.BoneList(b) = bd
                 Next
 
-                ' Update NumVertices per bone.
+                ' Recompute per-bone NumVertices from the now-single-write VertexWeights counts
+                ' (idempotent with RebuildNiSkinData's own NumVertices write).
                 For b = 0 To niSkinData.BoneList.Count - 1
                     Dim bd = niSkinData.BoneList(b)
                     bd.NumVertices = CUShort(If(bd.VertexWeights IsNot Nothing, bd.VertexWeights.Count, 0))
