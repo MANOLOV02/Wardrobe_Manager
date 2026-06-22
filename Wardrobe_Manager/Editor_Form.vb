@@ -38,7 +38,22 @@ Public Class Editor_Form
         ' round-trips report clean. AreEqualTo stays alive for cross-instance diffing
         ' (FaceGenComparator); this path just consumes the same machinery against a fresh
         ' snapshot captured by the load path itself — no _LastMaterial juggling needed.
-        Dim equalmaterial As Boolean = Selected_Shape.RelatedMaterial.material Is Nothing OrElse Not Selected_Shape.RelatedMaterial.material.IsDirty()
+        ' Dirty del ARCHIVO de material: ignora el shader type (vive en el NIF, no en el .bgsm) para
+        ' no encender los botones Save/SaveAs material por cambiar el tipo de shader a mano.
+        Dim equalmaterial As Boolean = Selected_Shape.RelatedMaterial.material Is Nothing OrElse Not Selected_Shape.RelatedMaterial.material.IsMaterialFileDirty()
+        ' Diagnóstico (no-op salvo Logger.Enabled): cuando el material aparece modificado, nombrar QUÉ
+        ' propiedad difiere del snapshot de carga. Una carga pasiva NO puede ensuciarlo (probado:
+        ' GetDifferences(mat, mat.Clone()) siempre vacío) → un dirty implica una mutación post-carga.
+        ' Este log captura el culpable real en vez de inferirlo.
+        Dim _dirtyMat = Selected_Shape.RelatedMaterial?.material
+        If _dirtyMat IsNot Nothing Then
+            Logger.LogLazy(Function()
+                               Dim diffs = _dirtyMat.GetDirtyDifferences()
+                               If diffs.Count = 0 Then Return Nothing
+                               Dim parts = diffs.Select(Function(d) $"{d.PropertyName}({If(d.ValueA, "null")}->{If(d.ValueB, "null")})")
+                               Return $"[MAT-DIRTY] shape={Selected_Shape.Nombre} fileDirty={Not equalmaterial} diffs: " & String.Join(", ", parts)
+                           End Function)
+        End If
         ButtonMatCancel.Enabled = Not equalmaterial
         ButtonMatSaveAs.Enabled = Not equalmaterial
         ButtonMatSave.Enabled = Not equalmaterial
@@ -1009,9 +1024,30 @@ Public Class Editor_Form
                             Throw New Exception
                     End Select
             End Select
-            If shap.RelatedMaterial.material.AreEqualTo(TestChanges) Then
-                'Simplemente cambie el material
+            If shap.RelatedMaterial.material.AreEqualToMaterialFile(TestChanges) Then
+                'Simplemente cambie el material (el shader type no cuenta: vive en el NIF, no en el archivo)
             Else
+                ' Diagnóstico (no-op salvo Logger.Enabled): el material vivo difiere del reconstruido
+                ' (disco=Deserialize / embedded=Create_From_Shader). Loguea QUÉ propiedad difiere —
+                ' fileDiffs = excluyendo shader type (lo que dispara el error); allDiffs = todo.
+                Dim _liveMat = shap.RelatedMaterial.material
+                Dim _fresh = TestChanges
+                Dim _shapeName = shap.Nombre
+                Dim _matPath = shap.RelatedMaterial.path
+                Logger.LogLazy(Function()
+                                   Dim fileOnly = FO4UnifiedMaterial_Class.GetDifferences(_liveMat, _fresh, FO4UnifiedMaterial_Class.NifShaderOnlyPropertyNames)
+                                   Dim full = FO4UnifiedMaterial_Class.GetDifferences(_liveMat, _fresh)
+                                   Dim fileParts = fileOnly.Select(Function(d) $"{d.PropertyName}(live={If(d.ValueA, "null")}|fresh={If(d.ValueB, "null")})")
+                                   Dim allParts = full.Select(Function(d) $"{d.PropertyName}(live={If(d.ValueA, "null")}|fresh={If(d.ValueB, "null")})")
+                                   ' Entradas de la resolución de wetness (por qué Resolved* difiere): wetness CRUDA +
+                                   ' RootMaterialPath + Facegen + SkinTint. Si estas son iguales pero Resolved* difiere,
+                                   ' el problema es el cache/estado externo, no el material.
+                                   Dim wetIn = Function(m As FO4UnifiedMaterial_Class) _
+                                       $"raw=[{m.WetnessControlSpecScale},{m.WetnessControlSpecPowerScale},{m.WetnessControlSpecMinvar},{m.WetnessControlEnvMapScale},{m.WetnessControlFresnelPower},{m.WetnessControlMetalness}] root='{m.RootMaterialPath}' Facegen={m.Facegen} SkinTint={m.SkinTint} type={m.NifShaderType}"
+                                   Return $"[REVISA-MAT] shape={_shapeName} path='{_matPath}' fileDiffs=[{String.Join(", ", fileParts)}] allDiffs=[{String.Join(", ", allParts)}]" & vbCrLf &
+                                          $"    LIVE  {wetIn(_liveMat)}" & vbCrLf &
+                                          $"    FRESH {wetIn(_fresh)}"
+                               End Function)
                 MsgBox("Must save materials modification in " + shap.Nombre + " first", vbOKOnly + vbCritical, "Error")
                 Return False
             End If
