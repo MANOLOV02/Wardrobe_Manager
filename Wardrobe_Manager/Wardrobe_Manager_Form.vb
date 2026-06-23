@@ -2362,6 +2362,9 @@ Public Class Wardrobe_Manager_Form
                                                              End Try
                                                          End Sub
 
+        ' "Draw hidden segments" defaults ON in WM via the lib's Setting_DrawHiddenSegments default (True):
+        ' a WM config without the key deserializes to True, and a saved True/False is respected. No WM
+        ' startup override needed. (NPC_Manager forces it False — it needs the per-segment occlusion.)
         Config_App.LoadConfig()
         WM_Config.LoadConfig()
         If WM_Config.Check_All_Folder = False Then

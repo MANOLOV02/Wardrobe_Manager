@@ -37,6 +37,7 @@ Public Class Config_Form
             RecalculateNormalsCheck.Checked = Config_App.Current.Setting_RecalculateNormals
             SingleBoneCheck.Checked = Config_App.Current.Setting_SingleBoneSkinning
             CheckBoxGPUSkinning.Checked = Config_App.Current.Setting_GPUSkinning
+            CheckBoxDrawHiddenSegments.Checked = Config_App.Current.Setting_DrawHiddenSegments
 
             NormalsForceOrthogonal.Checked = Config_App.Current.Setting_TBN.ForceOrthogonalBitangent
             NormalsRepairNan.Checked = Config_App.Current.Setting_TBN.RepairNaNs
@@ -126,6 +127,7 @@ Public Class Config_Form
         Config_App.Current.Setting_RecalculateNormals = RecalculateNormalsCheck.Checked
         Config_App.Current.Setting_SingleBoneSkinning = SingleBoneCheck.Checked
         Config_App.Current.Setting_GPUSkinning = CheckBoxGPUSkinning.Checked
+        Config_App.Current.Setting_DrawHiddenSegments = CheckBoxDrawHiddenSegments.Checked
     End Sub
 
     ''' <summary>
@@ -571,6 +573,7 @@ Public Class Config_Form
     Private Sub Button5_Click_1(sender As Object, e As EventArgs) Handles Button5.Click
         Config_App.Current.Setting_SingleBoneSkinning = False
         Config_App.Current.Setting_GPUSkinning = True
+        Config_App.Current.Setting_DrawHiddenSegments = True ' WM default ON (lib default is False)
         Config_App.Current.Setting_RecalculateNormals = True
         Config_App.Current.Setting_TBN = RecalcTBN.DefaultTBNOptions
         Config_App.Current.Settings_Camara = Config_App.Default_CameraSettings

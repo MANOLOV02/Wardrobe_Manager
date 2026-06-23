@@ -3373,6 +3373,17 @@ Public Class Shape_class
             Nodo.FirstChild.Value = value
         End Set
     End Property
+
+    Private _CoberedSlotsMask As UInteger = 0F
+    Public Property CoveredSlotsMask As UInteger Implements IRenderableShape.CoveredSlotsMask
+        Get
+            Return _CoberedSlotsMask
+        End Get
+        Set(value As UInteger)
+            _CoberedSlotsMask = value
+        End Set
+    End Property
+
     Private Shared ReadOnly stringArray As String() = {""}
 End Class
 Public Class Slider_class

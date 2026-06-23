@@ -55,6 +55,7 @@ Partial Class Config_Form
         NumericUpDownPositionEps = New NumericUpDown()
         SingleBoneCheck = New CheckBox()
         CheckBoxGPUSkinning = New CheckBox()
+        CheckBoxDrawHiddenSegments = New CheckBox()
         RecalculateNormalsCheck = New CheckBox()
         TabControl1 = New TabControl()
         TabPage1 = New TabPage()
@@ -507,7 +508,20 @@ Partial Class Config_Form
         CheckBoxGPUSkinning.Text = "GPU Skinning"
         ToolTip1.SetToolTip(CheckBoxGPUSkinning, "Toggles GPU Skinning (otherwise CPU Skinning) best performance will depend on your computer specs")
         CheckBoxGPUSkinning.UseVisualStyleBackColor = True
-        ' 
+        '
+        ' CheckBoxDrawHiddenSegments
+        '
+        CheckBoxDrawHiddenSegments.AutoSize = True
+        CheckBoxDrawHiddenSegments.Checked = True
+        CheckBoxDrawHiddenSegments.CheckState = CheckState.Checked
+        CheckBoxDrawHiddenSegments.Location = New Point(277, 31)
+        CheckBoxDrawHiddenSegments.Name = "CheckBoxDrawHiddenSegments"
+        CheckBoxDrawHiddenSegments.Size = New Size(160, 19)
+        CheckBoxDrawHiddenSegments.TabIndex = 35
+        CheckBoxDrawHiddenSegments.Text = "Draw hidden segments"
+        ToolTip1.SetToolTip(CheckBoxDrawHiddenSegments, "Draw normally-hidden geometry segments (e.g. Pip-Boy forearm variant, occluded segments) in the viewport. WM inspection aid; does not affect exports.")
+        CheckBoxDrawHiddenSegments.UseVisualStyleBackColor = True
+        '
         ' RecalculateNormalsCheck
         ' 
         RecalculateNormalsCheck.AutoSize = True
@@ -609,6 +623,7 @@ Partial Class Config_Form
         TabPage2.Controls.Add(GroupBox1)
         TabPage2.Controls.Add(RecalculateNormalsCheck)
         TabPage2.Controls.Add(CheckBoxGPUSkinning)
+        TabPage2.Controls.Add(CheckBoxDrawHiddenSegments)
         TabPage2.Controls.Add(SingleBoneCheck)
         TabPage2.ImageKey = "thumbnail.ico"
         TabPage2.Location = New Point(4, 27)
@@ -1682,4 +1697,5 @@ Partial Class Config_Form
     Friend WithEvents PackElapsedLabel As Label
     Friend WithEvents PackLastActionLabel As Label
     Friend WithEvents CheckBoxGPUSkinning As CheckBox
+    Friend WithEvents CheckBoxDrawHiddenSegments As CheckBox
 End Class
