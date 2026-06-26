@@ -2852,55 +2852,61 @@ Public Class SliderSet_Class
         End Set
     End Property
 
+    ' Set (creating if absent) a boolean XML attribute to "true"/"false" on the given node.
+    Private Shared Sub SetBoolAttr(owner As XmlNode, doc As XmlDocument, name As String, value As Boolean)
+        Dim attr As XmlAttribute = owner.Attributes(name)
+        If attr Is Nothing Then
+            attr = doc.CreateAttribute(name)
+            owner.Attributes.Append(attr)
+        End If
+        attr.Value = If(value, "true", "false")
+    End Sub
+
+    ' KeepZappedShapes / PreventMorphFile are BodySlide-format flags that belong on the <OutputFile>
+    ' element — that is where the constructor seeds them (2555-2558) and where BodySlide reads/writes
+    ' them, exactly like GenWeights. Some older WM builds wrote these two onto the <SliderSet> root
+    ' (Nodo) by mistake, so an existing project may carry the user's value there. Read the legacy
+    ' root placement FIRST (it must win: the constructor always seeds OutputFile with the "false"
+    ' default, which would otherwise mask a legacy "true"); on the next write, drop the stale root
+    ' copy and write the canonical OutputFile attribute. This preserves existing WM projects AND makes
+    ' the saved .osp correct for BodySlide. Note OutputFile may be Nothing on a malformed set
+    ' (SelectNodes("OutputFile")(0) returns Nothing for a missing child) — handled by the guards below.
+    Private Shared Function ReadMigratedBoolAttr(canonical As XmlNode, legacy As XmlNode, name As String) As Boolean
+        Dim a As XmlAttribute = If(legacy IsNot Nothing, legacy.Attributes(name), Nothing)
+        If a Is Nothing AndAlso canonical IsNot Nothing Then a = canonical.Attributes(name)
+        If a Is Nothing Then Return False
+        Return CBool(a.Value)
+    End Function
+
+    Private Shared Sub WriteMigratedBoolAttr(canonical As XmlNode, legacy As XmlNode, doc As XmlDocument, name As String, value As Boolean)
+        ' Canonical (OutputFile) is the correct home. If it is missing (malformed set), fall back to the
+        ' legacy root node so the value is never silently dropped (the legacy-first reader still returns
+        ' it). Normal case: write canonical and drop any stale legacy copy so the file converges.
+        If canonical Is Nothing Then
+            If legacy IsNot Nothing Then SetBoolAttr(legacy, doc, name, value)
+            Return
+        End If
+        If legacy IsNot Nothing Then
+            Dim stale As XmlAttribute = legacy.Attributes(name)
+            If stale IsNot Nothing Then legacy.Attributes.Remove(stale)
+        End If
+        SetBoolAttr(canonical, doc, name, value)
+    End Sub
+
     Public Property KeepZappedShapes As Boolean
         Get
-            If IsNothing(Nodo.Attributes("KeepZappedShapes")) Then Return False
-            Return Nodo.Attributes("KeepZappedShapes").Value
+            Return ReadMigratedBoolAttr(OutputFile, Nodo, "KeepZappedShapes")
         End Get
         Set(value As Boolean)
-            If value = False Then
-                If IsNothing(Nodo.Attributes("KeepZappedShapes")) Then
-                    Dim attr As XmlAttribute = Me.ParentOSP.xml.CreateAttribute("KeepZappedShapes")
-                    attr.Value = "false"
-                    Nodo.Attributes.Append(attr)
-                Else
-                    Nodo.Attributes("KeepZappedShapes").Value = "false"
-                End If
-            Else
-                If IsNothing(Nodo.Attributes("KeepZappedShapes")) Then
-                    Dim attr As XmlAttribute = Me.ParentOSP.xml.CreateAttribute("KeepZappedShapes")
-                    attr.Value = "true"
-                    Nodo.Attributes.Append(attr)
-                Else
-                    Nodo.Attributes("KeepZappedShapes").Value = "true"
-                End If
-            End If
+            WriteMigratedBoolAttr(OutputFile, Nodo, Me.ParentOSP.xml, "KeepZappedShapes", value)
         End Set
     End Property
     Public Property PreventMorphFile As Boolean
         Get
-            If IsNothing(Nodo.Attributes("PreventMorphFile")) Then Return False
-            Return Nodo.Attributes("PreventMorphFile").Value
+            Return ReadMigratedBoolAttr(OutputFile, Nodo, "PreventMorphFile")
         End Get
         Set(value As Boolean)
-            If value = False Then
-                If IsNothing(Nodo.Attributes("PreventMorphFile")) Then
-                    Dim attr As XmlAttribute = Me.ParentOSP.xml.CreateAttribute("PreventMorphFile")
-                    attr.Value = "false"
-                    Nodo.Attributes.Append(attr)
-                Else
-                    Nodo.Attributes("PreventMorphFile").Value = "false"
-                End If
-            Else
-                If IsNothing(Nodo.Attributes("PreventMorphFile")) Then
-                    Dim attr As XmlAttribute = Me.ParentOSP.xml.CreateAttribute("PreventMorphFile")
-                    attr.Value = "true"
-                    Nodo.Attributes.Append(attr)
-                Else
-                    Nodo.Attributes("PreventMorphFile").Value = "true"
-                End If
-            End If
-
+            WriteMigratedBoolAttr(OutputFile, Nodo, Me.ParentOSP.xml, "PreventMorphFile", value)
         End Set
     End Property
 
@@ -2910,24 +2916,7 @@ Public Class SliderSet_Class
             Return OutputFile.Attributes("GenWeights").Value
         End Get
         Set(value As Boolean)
-            If value = False Then
-                If IsNothing(OutputFile.Attributes("GenWeights")) Then
-                    Dim attr As XmlAttribute = Me.ParentOSP.xml.CreateAttribute("GenWeights")
-                    attr.Value = "false"
-                    OutputFile.Attributes.Append(attr)
-                Else
-                    OutputFile.Attributes("GenWeights").Value = "false"
-                End If
-            Else
-                If IsNothing(OutputFile.Attributes("GenWeights")) Then
-                    Dim attr As XmlAttribute = Me.ParentOSP.xml.CreateAttribute("GenWeights")
-                    attr.Value = "true"
-                    OutputFile.Attributes.Append(attr)
-                Else
-                    OutputFile.Attributes("GenWeights").Value = "true"
-                End If
-            End If
-
+            SetBoolAttr(OutputFile, Me.ParentOSP.xml, "GenWeights", value)
         End Set
     End Property
     Public Property OutputPathValue As String

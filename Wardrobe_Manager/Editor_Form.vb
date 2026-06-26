@@ -25,7 +25,6 @@ Public Class Editor_Form
     Public Event Edit_Ended()
     Public Grabable As Boolean = True
     Private _Editando As Boolean = False
-    Private _LastMaterial As New FO4UnifiedMaterial_Class
     Private _SuppressTrackbarEvent As Boolean = False
     Private Sub Iniciado_Edit()
         If _Editando = False Then
@@ -64,7 +63,6 @@ Public Class Editor_Form
     End Sub
     Private Sub Finalizado_Edit()
         _Editando = False
-        _LastMaterial = Nothing
         RaiseEvent Edit_Ended()
         ButtonCancel.Enabled = False
         ButtonSave.Enabled = False
@@ -780,7 +778,6 @@ Public Class Editor_Form
             Case GetType(BSLightingShaderProperty)
                 If isEmbedded Then
                     Selected_Material.Create_From_Shader(Selected_Slider.NIFContent, Selected_Shape.RelatedNifShape, CType(Selected_Shape.RelatedNifShader, BSLightingShaderProperty))
-                    _LastMaterial.Create_From_Shader(Selected_Slider.NIFContent, Selected_Shape.RelatedNifShape, CType(Selected_Shape.RelatedNifShader, BSLightingShaderProperty))
                     Selected_Shape.RelatedMaterial.material = Selected_Material
                     Label6.Text = "None"
                     Label6.ForeColor = Color.FromKnownColor(KnownColor.DarkGray)
@@ -789,7 +786,6 @@ Public Class Editor_Form
                 Dim locBgsm As FilesDictionary_class.File_Location = Nothing
                 If FilesDictionary_class.Dictionary.TryGetValue(fullpath, locBgsm) Then
                     Selected_Material.Deserialize(fullpath, GetType(BGSM), Selected_Shape.RelatedNifShape, Selected_Slider.NIFContent)
-                    _LastMaterial.Deserialize(fullpath, GetType(BGSM), Selected_Shape.RelatedNifShape, Selected_Slider.NIFContent)
                     If locBgsm.IsLosseFile Then
                         Label6.Text = "Loose"
                         If fullpath.Contains("ManoloCloned", StringComparison.OrdinalIgnoreCase) Or fullpath.Contains("ManoloMods", StringComparison.OrdinalIgnoreCase) Then
@@ -808,8 +804,6 @@ Public Class Editor_Form
                 If isEmbedded Then
                     Selected_Material.Create_From_Shader(Selected_Slider.NIFContent, Selected_Shape.RelatedNifShape, CType(Selected_Shape.RelatedNifShader, BSEffectShaderProperty))
                     Selected_Material.NifShaderType = NiflySharp.Enums.BSLightingShaderType.Default
-                    _LastMaterial.Create_From_Shader(Selected_Slider.NIFContent, Selected_Shape.RelatedNifShape, CType(Selected_Shape.RelatedNifShader, BSEffectShaderProperty))
-                    _LastMaterial.NifShaderType = NiflySharp.Enums.BSLightingShaderType.Default
                     Selected_Shape.RelatedMaterial.material = Selected_Material
                     Label6.Text = "None"
                     Label6.ForeColor = Color.FromKnownColor(KnownColor.DarkGray)
@@ -819,8 +813,6 @@ Public Class Editor_Form
                 If FilesDictionary_class.Dictionary.TryGetValue(fullpath, locBgem) Then
                     Selected_Material.Deserialize(fullpath, GetType(BGEM), Selected_Shape.RelatedNifShape, Selected_Slider.NIFContent)
                     Selected_Material.NifShaderType = NiflySharp.Enums.BSLightingShaderType.Default
-                    _LastMaterial.Deserialize(fullpath, GetType(BGEM), Selected_Shape.RelatedNifShape, Selected_Slider.NIFContent)
-                    _LastMaterial.NifShaderType = NiflySharp.Enums.BSLightingShaderType.Default
                     If locBgem.IsLosseFile Then
                         Label6.Text = "Loose"
                     Else
@@ -1055,11 +1047,6 @@ Public Class Editor_Form
         Next
         Return True
     End Function
-    Private Shared Function FormatDebugPath(path As String) As String
-        If String.IsNullOrWhiteSpace(path) Then Return "<Embedded>"
-        Return path
-    End Function
-
     Private Sub HHNumericUpDown_ValueChanged(sender As Object, e As EventArgs) Handles HHNumericUpDown.ValueChanged
         If IsNothing(Selected_Slider) Then Exit Sub
         Selected_Slider.HighHeelHeight = HHNumericUpDown.Value

@@ -144,48 +144,49 @@ Public Class Wardrobe_Manager_Form
         Dim fullpack As Boolean = Full_packs_Selected()
         Dim normalUi As Boolean = Me.Enabled
         Dim externalLock As Boolean = _ExternalEditActive
+        Dim editable As Boolean = normalUi AndAlso Not externalLock
 
         ' Navigation / project-changing controls
-        ListViewSources.Enabled = normalUi AndAlso Not externalLock
-        ListViewTargets.Enabled = normalUi AndAlso Not externalLock
-        ComboboxPacks.Enabled = normalUi AndAlso Not externalLock
-        RadioButton1.Enabled = normalUi AndAlso Not externalLock
-        RadioButton2.Enabled = normalUi AndAlso Not externalLock
-        RadioButton3.Enabled = normalUi AndAlso Not externalLock
+        ListViewSources.Enabled = editable
+        ListViewTargets.Enabled = editable
+        ComboboxPacks.Enabled = editable
+        RadioButton1.Enabled = editable
+        RadioButton2.Enabled = editable
+        RadioButton3.Enabled = editable
 
         ' Filters and list rebuild controls
-        TextBox_SourceName.Enabled = normalUi AndAlso Not externalLock
-        TextBox2.Enabled = normalUi AndAlso Not externalLock
-        TextBox_TargetName.Enabled = normalUi AndAlso Not externalLock
-        ShowCollectionsCheck.Enabled = normalUi AndAlso Not externalLock
-        ShowCBBECheck.Enabled = normalUi AndAlso Not externalLock
-        CheckShowpacks.Enabled = normalUi AndAlso Not externalLock
-        DeepAnalize_check.Enabled = normalUi AndAlso Not externalLock
-        CheckBoxReloadDict.Enabled = normalUi AndAlso Not externalLock
-        RefreshButton.Enabled = normalUi AndAlso Not externalLock
-        NewPackButton.Enabled = normalUi AndAlso Not externalLock
-        ButtonCreateFromNif.Enabled = normalUi AndAlso Not externalLock
+        TextBox_SourceName.Enabled = editable
+        TextBox2.Enabled = editable
+        TextBox_TargetName.Enabled = editable
+        ShowCollectionsCheck.Enabled = editable
+        ShowCBBECheck.Enabled = editable
+        CheckShowpacks.Enabled = editable
+        DeepAnalize_check.Enabled = editable
+        CheckBoxReloadDict.Enabled = editable
+        RefreshButton.Enabled = editable
+        NewPackButton.Enabled = editable
+        ButtonCreateFromNif.Enabled = editable
 
         ' Source actions
-        MovetoDiscardedButton.Enabled = normalUi AndAlso Not externalLock AndAlso ListViewSources.SelectedIndices.Count > 0 AndAlso fullpack
-        CopytoPackButton.Enabled = normalUi AndAlso Not externalLock AndAlso ListViewSources.SelectedIndices.Count > 0 AndAlso ComboboxPacks.SelectedIndex <> -1
-        EditButton.Enabled = normalUi AndAlso Not externalLock AndAlso ListViewSources.SelectedIndices.Count = 1
-        MoveToProcessedButton.Enabled = normalUi AndAlso Not externalLock AndAlso ListViewSources.SelectedIndices.Count > 0 AndAlso fullpack
-        MergeButton.Enabled = normalUi AndAlso Not externalLock AndAlso ListViewSources.SelectedIndices.Count > 1 AndAlso ComboboxPacks.SelectedIndex <> -1
-        MergeIntoTargetButton.Enabled = normalUi AndAlso Not externalLock AndAlso ListViewSources.SelectedIndices.Count > 0 AndAlso ComboboxPacks.SelectedIndex <> -1 AndAlso ListViewTargets.SelectedIndices.Count > 0
-        MergeInSelectedButton.Enabled = normalUi AndAlso Not externalLock AndAlso ListViewSources.SelectedIndices.Count > 0 AndAlso ComboboxPacks.SelectedIndex <> -1 AndAlso ListViewTargets.SelectedIndices.Count > 0
-        ButtonSourceInternalEdit.Enabled = normalUi AndAlso Not externalLock AndAlso ListViewSources.SelectedIndices.Count = 1
-        ButtonDeleteSource.Enabled = normalUi AndAlso Not externalLock AndAlso ListViewSources.SelectedIndices.Count > 0
+        MovetoDiscardedButton.Enabled = editable AndAlso ListViewSources.SelectedIndices.Count > 0 AndAlso fullpack
+        CopytoPackButton.Enabled = editable AndAlso ListViewSources.SelectedIndices.Count > 0 AndAlso ComboboxPacks.SelectedIndex <> -1
+        EditButton.Enabled = editable AndAlso ListViewSources.SelectedIndices.Count = 1
+        MoveToProcessedButton.Enabled = editable AndAlso ListViewSources.SelectedIndices.Count > 0 AndAlso fullpack
+        MergeButton.Enabled = editable AndAlso ListViewSources.SelectedIndices.Count > 1 AndAlso ComboboxPacks.SelectedIndex <> -1
+        MergeIntoTargetButton.Enabled = editable AndAlso ListViewSources.SelectedIndices.Count > 0 AndAlso ComboboxPacks.SelectedIndex <> -1 AndAlso ListViewTargets.SelectedIndices.Count > 0
+        MergeInSelectedButton.Enabled = editable AndAlso ListViewSources.SelectedIndices.Count > 0 AndAlso ComboboxPacks.SelectedIndex <> -1 AndAlso ListViewTargets.SelectedIndices.Count > 0
+        ButtonSourceInternalEdit.Enabled = editable AndAlso ListViewSources.SelectedIndices.Count = 1
+        ButtonDeleteSource.Enabled = editable AndAlso ListViewSources.SelectedIndices.Count > 0
 
         ' Target actions
-        ExtractSingleButton.Enabled = normalUi AndAlso Not externalLock AndAlso ListViewTargets.SelectedIndices.Count > 0
-        RenameButton.Enabled = normalUi AndAlso Not externalLock AndAlso ListViewTargets.SelectedIndices.Count = 1
-        EditTargetButton.Enabled = normalUi AndAlso Not externalLock AndAlso ListViewTargets.SelectedIndices.Count = 1
-        ButtonEditInternally.Enabled = normalUi AndAlso Not externalLock AndAlso ListViewTargets.SelectedIndices.Count = 1
-        ButtonDelete.Enabled = normalUi AndAlso Not externalLock AndAlso ListViewTargets.SelectedIndices.Count > 0
-        CloneButton.Enabled = normalUi AndAlso Not externalLock AndAlso ListViewTargets.SelectedIndices.Count > 0
-        ButtonBuildSingles.Enabled = normalUi AndAlso Not externalLock AndAlso ListViewTargets.SelectedIndices.Count > 0
-        ButtonBuildFullPack.Enabled = normalUi AndAlso Not externalLock AndAlso ComboboxPacks.SelectedIndex <> -1
+        ExtractSingleButton.Enabled = editable AndAlso ListViewTargets.SelectedIndices.Count > 0
+        RenameButton.Enabled = editable AndAlso ListViewTargets.SelectedIndices.Count = 1
+        EditTargetButton.Enabled = editable AndAlso ListViewTargets.SelectedIndices.Count = 1
+        ButtonEditInternally.Enabled = editable AndAlso ListViewTargets.SelectedIndices.Count = 1
+        ButtonDelete.Enabled = editable AndAlso ListViewTargets.SelectedIndices.Count > 0
+        CloneButton.Enabled = editable AndAlso ListViewTargets.SelectedIndices.Count > 0
+        ButtonBuildSingles.Enabled = editable AndAlso ListViewTargets.SelectedIndices.Count > 0
+        ButtonBuildFullPack.Enabled = editable AndAlso ComboboxPacks.SelectedIndex <> -1
 
         ' Keep preview controls active during external editing
         ComboBoxPresets.Enabled = normalUi
