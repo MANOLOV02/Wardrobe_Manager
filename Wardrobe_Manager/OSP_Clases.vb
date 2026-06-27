@@ -3373,6 +3373,10 @@ Public Class Shape_class
         End Set
     End Property
 
+    ''' <summary>Render-only LooksMenu overlay/tattoo layers. Wardrobe_Manager never sets this, so it
+    ''' stays Nothing and the lib's overlay pass is a no-op for WM shapes (the no-overlay path).</summary>
+    Public Property OverlayLayers As IReadOnlyList(Of OverlayMaterialLayer) = Nothing Implements IRenderableShape.OverlayLayers
+
     Private Shared ReadOnly stringArray As String() = {""}
 End Class
 Public Class Slider_class
