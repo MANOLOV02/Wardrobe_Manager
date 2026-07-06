@@ -2947,6 +2947,42 @@ Public Class SliderSet_Class
         End Get
     End Property
 
+    ''' <summary>
+    ''' Rewrites OutputPathValue to meshes\ManoloCloned\&lt;packName&gt;\... (same idea as the
+    ''' "Change out dir" option in Agrega_Proyecto, but with the pack name as an extra subfolder so
+    ''' builds of different packs can't overwrite each other). Guarantees the pack subfolder:
+    ''' if the path is already under ManoloCloned\ but not yet under the pack, the pack is inserted
+    ''' right after ManoloCloned\; if the pack is already there, the path is left untouched (no
+    ''' duplication). Meant to run on the temporary build clone, not on the persisted project.
+    ''' </summary>
+    Public Sub ForceClonedOutputDir(packName As String)
+        Const clonedSeg As String = "ManoloCloned\"
+        Dim safePack = String.Join("_"c, If(packName, "").Split(IO.Path.GetInvalidFileNameChars())).Trim()
+        Dim current = OutputPathValue.Correct_Path_Separator
+
+        If current.Contains("ManoloCloned", StringComparison.OrdinalIgnoreCase) Then
+            ' Already cloned. With no pack to add, or a bare "ManoloCloned" leaf without a following
+            ' segment boundary, leave the path as-is.
+            If String.IsNullOrEmpty(safePack) Then Return
+            Dim idx = current.IndexOf(clonedSeg, StringComparison.OrdinalIgnoreCase)
+            If idx < 0 Then Return
+            Dim tailStart = idx + clonedSeg.Length
+            Dim tail = current.Substring(tailStart)
+            ' If the segment right after ManoloCloned\ is already the pack, don't duplicate it.
+            If String.Equals(tail.Split("\"c)(0), safePack, StringComparison.OrdinalIgnoreCase) Then Return
+            OutputPathValue = current.Substring(0, tailStart) & safePack & "\" & tail
+            Return
+        End If
+
+        ' Not cloned yet: prepend meshes\ManoloCloned\<pack>\, preserving an existing leading meshes\.
+        Dim prefix = If(String.IsNullOrEmpty(safePack), "meshes\" & clonedSeg, "meshes\" & clonedSeg & safePack & "\")
+        If current.StartsWith("meshes\", StringComparison.OrdinalIgnoreCase) Then
+            OutputPathValue = String.Concat(prefix, current.AsSpan("meshes\".Length))
+        Else
+            OutputPathValue = prefix & current
+        End If
+    End Sub
+
     Public Property DataFolderValue As String
         Get
             Return DataFolder.FirstChild.Value

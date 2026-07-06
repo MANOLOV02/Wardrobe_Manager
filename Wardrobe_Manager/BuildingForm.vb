@@ -39,6 +39,11 @@ Public Class BuildingForm
             Try
                 Dim NodoClone = DummyOSP.xml.ImportNode(sliderset_target.Nodo.Clone, True)
                 Dim builder As New SliderSet_Class(NodoClone, DummyOSP)
+                ' Force the cloned output dir (per-pack) when the build setting is on. Runs on the
+                ' temporary clone only, so the pack name comes from the original sliderset's ParentOSP.
+                If WM_Config.Current.Settings_Build.ForceClonedOnBuild Then
+                    builder.ForceClonedOutputDir(If(sliderset_target.ParentOSP?.Nombre, ""))
+                End If
                 ' Shapedata loaded on the builder clone below, not on sliderset_target
                 Dim size As WM_Config.SliderSize = WM_Config.SliderSize.Default
                 For Sizecount = 0 To CInt(IIf(sliderset_target.Multisize, 1, 0))
@@ -107,6 +112,14 @@ Public Class BuildingForm
                     Next
 
                     If IO.Directory.Exists(dir) = False Then IO.Directory.CreateDirectory(dir)
+
+                    ' El engine resuelve el material leyendo el Name del shader como path relativo a
+                    ' Data\, así que debe contener el ancla "Materials\". WM lo guarda pelado
+                    ' (Clone_Materials setea "ManoloCloned\..." y SetRelatedMaterial strippea el prefijo),
+                    ' lo que se ve bien in-app pero deja al engine sin encontrar el bgsm/bgem in-game.
+                    ' Se lo devolvemos aquí, antes de grabar cualquier NIF de salida (incluido el variant
+                    ' de high-heels, que opera sobre este mismo NIFContent). Independiente del flag ForceClone.
+                    builder.NIFContent.EnsureMaterialPrefixForGame()
 
                     ' Grabo bloque tri si hace falta
                     If WM_Config.Current.Settings_Build.SaveTri AndAlso (builder.PreventMorphFile = False OrElse WM_Config.Current.Settings_Build.IgnorePreventri) Then

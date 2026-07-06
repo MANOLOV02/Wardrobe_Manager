@@ -65,6 +65,7 @@ Public Class Config_Form
             CheckBoxLMAddAditionals.Checked = WM_Config.Current.Settings_Build.AddAddintionalSliders
             CheckBoxIgnorePrevent.Checked = WM_Config.Current.Settings_Build.IgnorePreventri
             CheckBoxBuildInPose.Checked = WM_Config.Current.Settings_Build.BuildInPose
+            CheckBoxForceCloned.Checked = WM_Config.Current.Settings_Build.ForceClonedOnBuild
             CheckBoxFreeze.Checked = Config_App.Current.Settings_Camara.FreezeCamera
             CheckBoxweightignore.Checked = WM_Config.Current.Settings_Build.IgnoreWeightsFlags
             RadioButtonAllwaysWeight.Checked = WM_Config.Current.Settings_Build.ForceWeights
@@ -110,7 +111,8 @@ Public Class Config_Form
             .IgnorePreventri = CheckBoxIgnorePrevent.Checked,
             .BuildInPose = CheckBoxBuildInPose.Checked,
             .IgnoreWeightsFlags = CheckBoxweightignore.Checked,
-         .ForceWeights = RadioButtonAllwaysWeight.Checked
+         .ForceWeights = RadioButtonAllwaysWeight.Checked,
+            .ForceClonedOnBuild = CheckBoxForceCloned.Checked
                     }
 
         Config_App.Current.Settings_RenderGrid = New Config_App.RenderGridSettings With {
@@ -626,6 +628,7 @@ Public Class Config_Form
     Private Sub RadioButtonWMEngine_CheckedChanged(sender As Object, e As EventArgs) Handles RadioButtonWMEngine.CheckedChanged
         GroupBoxLooksmenu.Enabled = CheckBoxBuildTri.Checked And RadioButtonWMEngine.Checked AndAlso ComboBoxGame.SelectedIndex = 0
         CheckBoxBuildInPose.Enabled = RadioButtonWMEngine.Checked
+        CheckBoxForceCloned.Enabled = RadioButtonWMEngine.Checked
         CheckBoxIgnorePrevent.Enabled = CheckBoxBuildTri.Checked AndAlso RadioButtonWMEngine.Checked
         CheckBoxweightignore.Enabled = RadioButtonWMEngine.Checked
         RadioButtonNeverWeights.Enabled = CheckBoxweightignore.Checked AndAlso RadioButtonWMEngine.Checked

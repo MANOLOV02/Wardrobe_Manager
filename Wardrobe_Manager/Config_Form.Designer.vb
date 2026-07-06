@@ -91,6 +91,7 @@ Partial Class Config_Form
         RadioButtonNeverWeights = New RadioButton()
         CheckBoxweightignore = New CheckBox()
         CheckBoxBuildInPose = New CheckBox()
+        CheckBoxForceCloned = New CheckBox()
         CheckBoxIgnorePrevent = New CheckBox()
         Button8 = New Button()
         Button7 = New Button()
@@ -508,20 +509,20 @@ Partial Class Config_Form
         CheckBoxGPUSkinning.Text = "GPU Skinning"
         ToolTip1.SetToolTip(CheckBoxGPUSkinning, "Toggles GPU Skinning (otherwise CPU Skinning) best performance will depend on your computer specs")
         CheckBoxGPUSkinning.UseVisualStyleBackColor = True
-        '
+        ' 
         ' CheckBoxDrawHiddenSegments
-        '
+        ' 
         CheckBoxDrawHiddenSegments.AutoSize = True
         CheckBoxDrawHiddenSegments.Checked = True
         CheckBoxDrawHiddenSegments.CheckState = CheckState.Checked
         CheckBoxDrawHiddenSegments.Location = New Point(277, 31)
         CheckBoxDrawHiddenSegments.Name = "CheckBoxDrawHiddenSegments"
-        CheckBoxDrawHiddenSegments.Size = New Size(160, 19)
+        CheckBoxDrawHiddenSegments.Size = New Size(147, 19)
         CheckBoxDrawHiddenSegments.TabIndex = 35
         CheckBoxDrawHiddenSegments.Text = "Draw hidden segments"
         ToolTip1.SetToolTip(CheckBoxDrawHiddenSegments, "Draw normally-hidden geometry segments (e.g. Pip-Boy forearm variant, occluded segments) in the viewport. WM inspection aid; does not affect exports.")
         CheckBoxDrawHiddenSegments.UseVisualStyleBackColor = True
-        '
+        ' 
         ' RecalculateNormalsCheck
         ' 
         RecalculateNormalsCheck.AutoSize = True
@@ -908,6 +909,7 @@ Partial Class Config_Form
         ' 
         TabPage3.Controls.Add(GroupBoxweights)
         TabPage3.Controls.Add(CheckBoxBuildInPose)
+        TabPage3.Controls.Add(CheckBoxForceCloned)
         TabPage3.Controls.Add(CheckBoxIgnorePrevent)
         TabPage3.Controls.Add(Button8)
         TabPage3.Controls.Add(Button7)
@@ -983,6 +985,17 @@ Partial Class Config_Form
         CheckBoxBuildInPose.Text = "Build in pose (not recommended for player/npcs)"
         ToolTip1.SetToolTip(CheckBoxBuildInPose, "Build meshes in the currently selected pose (be carefull, it will have unexpected results on animated game assets).")
         CheckBoxBuildInPose.UseVisualStyleBackColor = True
+        ' 
+        ' CheckBoxForceCloned
+        ' 
+        CheckBoxForceCloned.AutoSize = True
+        CheckBoxForceCloned.Location = New Point(479, 14)
+        CheckBoxForceCloned.Name = "CheckBoxForceCloned"
+        CheckBoxForceCloned.Size = New Size(360, 19)
+        CheckBoxForceCloned.TabIndex = 33
+        CheckBoxForceCloned.Text = "Force output to Meshes\ManoloCloned\<PackName> on build"
+        ToolTip1.SetToolTip(CheckBoxForceCloned, resources.GetString("CheckBoxForceCloned.ToolTip"))
+        CheckBoxForceCloned.UseVisualStyleBackColor = True
         ' 
         ' CheckBoxIgnorePrevent
         ' 
@@ -1150,7 +1163,7 @@ Partial Class Config_Form
         ' 
         ' Label12
         ' 
-        Label12.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label12.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Label12.ImageAlign = ContentAlignment.MiddleRight
         Label12.Location = New Point(8, 11)
         Label12.Name = "Label12"
@@ -1173,7 +1186,7 @@ Partial Class Config_Form
         ' PackRootLayout
         ' 
         PackRootLayout.ColumnCount = 1
-        PackRootLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100F))
+        PackRootLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
         PackRootLayout.Controls.Add(PackHeaderPanel, 0, 0)
         PackRootLayout.Controls.Add(PackStatusGroup, 0, 1)
         PackRootLayout.Controls.Add(PackActionGroup, 0, 2)
@@ -1186,7 +1199,7 @@ Partial Class Config_Form
         PackRootLayout.RowStyles.Add(New RowStyle())
         PackRootLayout.RowStyles.Add(New RowStyle())
         PackRootLayout.RowStyles.Add(New RowStyle())
-        PackRootLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100F))
+        PackRootLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
         PackRootLayout.Size = New Size(944, 449)
         PackRootLayout.TabIndex = 0
         ' 
@@ -1205,7 +1218,7 @@ Partial Class Config_Form
         ' PackHeaderTitleLabel
         ' 
         PackHeaderTitleLabel.AutoSize = True
-        PackHeaderTitleLabel.Font = New Font("Segoe UI", 11F, FontStyle.Bold)
+        PackHeaderTitleLabel.Font = New Font("Segoe UI", 11.0F, FontStyle.Bold)
         PackHeaderTitleLabel.Location = New Point(0, 0)
         PackHeaderTitleLabel.Name = "PackHeaderTitleLabel"
         PackHeaderTitleLabel.Size = New Size(230, 20)
@@ -1241,10 +1254,10 @@ Partial Class Config_Form
         PackStatusGrid.AutoSize = True
         PackStatusGrid.AutoSizeMode = AutoSizeMode.GrowAndShrink
         PackStatusGrid.ColumnCount = 4
-        PackStatusGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 15F))
-        PackStatusGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 45F))
-        PackStatusGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 15F))
-        PackStatusGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
+        PackStatusGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 15.0F))
+        PackStatusGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 45.0F))
+        PackStatusGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 15.0F))
+        PackStatusGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
         PackStatusGrid.Controls.Add(PackStatusLooseCaption, 0, 0)
         PackStatusGrid.Controls.Add(PackStatusLooseValue, 1, 0)
         PackStatusGrid.Controls.Add(PackStatusLooseSizeCaption, 2, 0)
@@ -1279,7 +1292,7 @@ Partial Class Config_Form
         ' 
         PackStatusLooseValue.Anchor = AnchorStyles.Left
         PackStatusLooseValue.AutoSize = True
-        PackStatusLooseValue.Font = New Font("Segoe UI", 9F, FontStyle.Bold)
+        PackStatusLooseValue.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold)
         PackStatusLooseValue.Location = New Point(134, 8)
         PackStatusLooseValue.Margin = New Padding(0, 4, 24, 4)
         PackStatusLooseValue.Name = "PackStatusLooseValue"
@@ -1303,7 +1316,7 @@ Partial Class Config_Form
         ' 
         PackStatusLooseSizeValue.Anchor = AnchorStyles.Left
         PackStatusLooseSizeValue.AutoSize = True
-        PackStatusLooseSizeValue.Font = New Font("Segoe UI", 9F, FontStyle.Bold)
+        PackStatusLooseSizeValue.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold)
         PackStatusLooseSizeValue.Location = New Point(671, 8)
         PackStatusLooseSizeValue.Margin = New Padding(0, 4, 24, 4)
         PackStatusLooseSizeValue.Name = "PackStatusLooseSizeValue"
@@ -1327,7 +1340,7 @@ Partial Class Config_Form
         ' 
         PackStatusArchivesValue.Anchor = AnchorStyles.Left
         PackStatusArchivesValue.AutoSize = True
-        PackStatusArchivesValue.Font = New Font("Segoe UI", 9F, FontStyle.Bold)
+        PackStatusArchivesValue.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold)
         PackStatusArchivesValue.Location = New Point(134, 38)
         PackStatusArchivesValue.Margin = New Padding(0, 4, 24, 4)
         PackStatusArchivesValue.Name = "PackStatusArchivesValue"
@@ -1351,7 +1364,7 @@ Partial Class Config_Form
         ' 
         PackStatusArchiveSizeValue.Anchor = AnchorStyles.Left
         PackStatusArchiveSizeValue.AutoSize = True
-        PackStatusArchiveSizeValue.Font = New Font("Segoe UI", 9F, FontStyle.Bold)
+        PackStatusArchiveSizeValue.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold)
         PackStatusArchiveSizeValue.Location = New Point(671, 38)
         PackStatusArchiveSizeValue.Margin = New Padding(0, 4, 24, 4)
         PackStatusArchiveSizeValue.Name = "PackStatusArchiveSizeValue"
@@ -1377,7 +1390,7 @@ Partial Class Config_Form
         PackActionLayout.AutoSize = True
         PackActionLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink
         PackActionLayout.ColumnCount = 1
-        PackActionLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100F))
+        PackActionLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
         PackActionLayout.Controls.Add(PackButtonRow, 0, 0)
         PackActionLayout.Controls.Add(PackProgressBar, 0, 1)
         PackActionLayout.Controls.Add(PackProgressRow, 0, 2)
@@ -1448,26 +1461,30 @@ Partial Class Config_Form
         StopButton.TextImageRelation = TextImageRelation.ImageBeforeText
         StopButton.UseVisualStyleBackColor = True
         StopButton.Visible = False
-        '
+        ' 
         ' PackBa2VersionLabel
-        '
+        ' 
         PackBa2VersionLabel.AutoSize = True
+        PackBa2VersionLabel.Location = New Point(572, 10)
         PackBa2VersionLabel.Margin = New Padding(16, 10, 4, 0)
         PackBa2VersionLabel.Name = "PackBa2VersionLabel"
+        PackBa2VersionLabel.Size = New Size(104, 15)
+        PackBa2VersionLabel.TabIndex = 3
         PackBa2VersionLabel.Text = "BA2 version (FO4):"
-        '
+        ' 
         ' PackBa2VersionCombo
-        '
+        ' 
         PackBa2VersionCombo.DropDownStyle = ComboBoxStyle.DropDownList
         PackBa2VersionCombo.FormattingEnabled = True
         PackBa2VersionCombo.Items.AddRange(New Object() {"8 - Next Gen (NG)", "1 - Old Gen (OG / universal)"})
+        PackBa2VersionCombo.Location = New Point(680, 6)
         PackBa2VersionCombo.Margin = New Padding(0, 6, 0, 0)
         PackBa2VersionCombo.Name = "PackBa2VersionCombo"
         PackBa2VersionCombo.Size = New Size(190, 23)
         PackBa2VersionCombo.TabIndex = 3
-        '
+        ' 
         ' PackProgressBar
-        '
+        ' 
         PackProgressBar.Dock = DockStyle.Fill
         PackProgressBar.Location = New Point(0, 48)
         PackProgressBar.Margin = New Padding(0, 0, 0, 4)
@@ -1482,7 +1499,7 @@ Partial Class Config_Form
         PackProgressRow.AutoSize = True
         PackProgressRow.AutoSizeMode = AutoSizeMode.GrowAndShrink
         PackProgressRow.ColumnCount = 2
-        PackProgressRow.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100F))
+        PackProgressRow.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
         PackProgressRow.ColumnStyles.Add(New ColumnStyle())
         PackProgressRow.Controls.Add(PackProgressLabel, 0, 0)
         PackProgressRow.Controls.Add(PackElapsedLabel, 1, 0)
@@ -1534,7 +1551,7 @@ Partial Class Config_Form
         ' 
         ' Config_Form
         ' 
-        AutoScaleDimensions = New SizeF(7F, 15F)
+        AutoScaleDimensions = New SizeF(7.0F, 15.0F)
         AutoScaleMode = AutoScaleMode.Font
         AutoScroll = True
         ClientSize = New Size(952, 480)
@@ -1584,6 +1601,7 @@ Partial Class Config_Form
         PackActionLayout.ResumeLayout(False)
         PackActionLayout.PerformLayout()
         PackButtonRow.ResumeLayout(False)
+        PackButtonRow.PerformLayout()
         PackProgressRow.ResumeLayout(False)
         PackProgressRow.PerformLayout()
         ResumeLayout(False)
@@ -1651,6 +1669,7 @@ Partial Class Config_Form
     Friend WithEvents CheckBoxLMAddAditionals As CheckBox
     Friend WithEvents CheckBoxIgnorePrevent As CheckBox
     Friend WithEvents CheckBoxBuildInPose As CheckBox
+    Friend WithEvents CheckBoxForceCloned As CheckBox
     Friend WithEvents CheckBoxFreeze As CheckBox
     Friend WithEvents ComboBoxGame As ComboBox
     Friend WithEvents LabelGameMismatch As Label

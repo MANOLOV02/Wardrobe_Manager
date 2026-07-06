@@ -36,6 +36,10 @@ Public Class WM_Config
         Public Property BuildInPose As Boolean
         Public Property IgnoreWeightsFlags As Boolean
         Public Property ForceWeights As Boolean
+        ' When on, every build forces the output under meshes\ManoloCloned\<PackName>\ (as if the
+        ' project had been added with "Change out dir"), scoped per pack so builds of different packs
+        ' can't overwrite each other. Applied to the temporary build clone only; the .osp is untouched.
+        Public Property ForceClonedOnBuild As Boolean
     End Structure
 
     ' ── Properties (moved from Config_App) ──
