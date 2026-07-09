@@ -3120,7 +3120,7 @@ Public Class SliderSet_Class
 End Class
 Public Class Shape_class
     Implements IRenderableShape
-
+    Public Property OwnSlotsMask As UInteger Implements IRenderableShape.OwnSlotsMask
     Public Property Nodo As XmlNode
     Public Property ParentSliderSet As SliderSet_Class
     Public Property MorphDiffs() As Dictionary(Of String, List(Of MorphData))
