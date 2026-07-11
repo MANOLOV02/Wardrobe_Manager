@@ -146,6 +146,7 @@ Public Class Create_from_Nif_Form
                 Try
                     TriFileParese = FO4_Base_Library.TriFileParser.ParseTriFromBytes(value.GetBytes)
                 Catch ex As Exception
+
                 End Try
 
             End If

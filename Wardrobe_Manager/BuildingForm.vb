@@ -121,11 +121,40 @@ Public Class BuildingForm
                     ' de high-heels, que opera sobre este mismo NIFContent). Independiente del flag ForceClone.
                     builder.NIFContent.EnsureMaterialPrefixForGame()
 
-                    ' Grabo bloque tri si hace falta
+                    ' Grabo bloque tri si hace falta. GAME-AWARE, replicando OutfitStudio (BodySlideApp.cpp
+                    ' AddTriData / BuildBodies :4589-4608):
+                    '   • FO4/FO4VR/FO76 → BODYTRI en el NODO RAÍZ (AddTriData toRoot=true).
+                    '   • Skyrim/SSE     → BODYTRI en un NiShape: el PRIMER shape (en orden del sliderset) que
+                    '     existe en el NIF y tiene >0 vértices; solo UNO (triEnd se apaga tras el primero).
+                    ' skee64 (RaceMenu) lo lee con VisitObjects → lo encuentra en el shape; escribirlo a la raíz
+                    ' en SSE no es fiel a OutfitStudio (y rompe lectores shape-only). El .tri en sí es idéntico
+                    ' (PIRT/TRIP) en ambos juegos — solo cambia DÓNDE se marca en el NIF.
                     If WM_Config.Current.Settings_Build.SaveTri AndAlso (builder.PreventMorphFile = False OrElse WM_Config.Current.Settings_Build.IgnorePreventri) Then
-                        builder.NIFContent.AddTriData("", Tridata, True)
+                        If Config_App.Current.Game = Config_App.Game_Enum.Skyrim Then
+                            Dim triShapeName As String = Nothing
+                            For Each shap In builder.Shapes
+                                Dim ns = shap.RelatedNifShape
+                                If ns IsNot Nothing AndAlso ns.VertexCount > 0 Then
+                                    triShapeName = ns.Name.String
+                                    Exit For
+                                End If
+                            Next
+                            If triShapeName IsNot Nothing Then
+                                builder.NIFContent.AddTriData(triShapeName, Tridata, False)
+                            End If
+                        Else
+                            builder.NIFContent.AddTriData("", Tridata, True)
+                        End If
                     Else
+                        ' Limpieza game-aware: en SSE un BODYTRI heredado del NIF fuente puede colgar de un shape,
+                        ' así que lo quitamos de la raíz y de cada shape; en FO4 solo puede estar en la raíz.
                         builder.NIFContent.RemoveTriData("", True)
+                        If Config_App.Current.Game = Config_App.Game_Enum.Skyrim Then
+                            For Each shap In builder.Shapes
+                                Dim ns = shap.RelatedNifShape
+                                If ns IsNot Nothing Then builder.NIFContent.RemoveTriData(ns.Name.String, False)
+                            Next
+                        End If
                     End If
 
                     ' High Heels
