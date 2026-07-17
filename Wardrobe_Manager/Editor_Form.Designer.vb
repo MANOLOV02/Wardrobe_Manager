@@ -1338,7 +1338,7 @@ Partial Class Editor_Form
         ' 
         ' ColumnHeader2
         ' 
-        ColumnHeader2.Text = "Tipo"
+        ColumnHeader2.Text = "Type"
         ' 
         ' GroupBox7
         ' 

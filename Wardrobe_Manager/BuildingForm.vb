@@ -49,6 +49,14 @@ Public Class BuildingForm
                 For Sizecount = 0 To CInt(IIf(sliderset_target.Multisize, 1, 0))
                     ProgressBar1.Value = 0
                     ProgressBar1.Maximum = (builder.Shapes.Count * 4 + 6)
+                    ' Cada peso debe partir de la geometría PRISTINE. Sin esto, la pasada _1 (Big)
+                    ' hereda el NIFContent ya bakeado con Small: Load_and_Check_Shapedata skipea la
+                    ' recarga (ShapeDataLoaded + misma signature) y BakeFromMemoryUsingOriginal de la
+                    ' pasada anterior ya inyectó los vértices morphados al trishape. Resultado: sin
+                    ' preset _1 sale byte-idéntico a _0 (deltas Big=0 sobre base ya morphada); con
+                    ' preset, _1 = small+big APILADOS. OS (BodySlideApp::BuildBodies) aplica cada
+                    ' peso desde cero sobre la base — replicamos eso recargando.
+                    If Sizecount > 0 Then builder.UnloadShapeData(False)
                     If OSP_Project_Class.Load_and_CHeck_Project(builder, buildLoadContext) = False OrElse OSP_Project_Class.Load_and_Check_Shapedata(builder, buildLoadContext) = False Then Throw New InvalidOperationException("Could not load shape data for build.")
                     ProgressBar1.Value += 1
                     builder.HighHeelHeight = sliderset_target.HighHeelHeight

@@ -160,7 +160,7 @@ Public Class ShapeTypeValidator
             End If
         Catch ex As Exception
             AppendLog(logPath, $"FATAL: could not serialize in-memory NIF to temp: {ex.Message}")
-            MsgBox("Shape Validator: no se pudo crear la copia temporal del NIF." & vbCrLf & ex.Message,
+            MsgBox("Shape Validator: could not create the temporary copy of the NIF." & vbCrLf & ex.Message,
                    vbExclamation, "Shape Type Validator")
             Return
         End Try
@@ -170,11 +170,11 @@ Public Class ShapeTypeValidator
         ' pueda abortar si acaba de cargar un NIF enorme y no quiere esperar.
         Dim pendingNames = String.Join(", ", pendingKeys.Select(Function(k) k.DisplayName))
         Dim preResp = MsgBox(
-            $"Shape Validator va a correr tests A/B/C/D/E + integrity (F/I) + palette (G) para combos no-validados:" & vbCrLf &
+            $"Shape Validator will run tests A/B/C/D/E + integrity (F/I) + palette (G) for non-validated combos:" & vbCrLf &
             vbCrLf & pendingNames & vbCrLf & vbCrLf &
-            "La operación corre sobre una copia aislada del NIF (el que cargaste queda intacto)." & vbCrLf &
-            $"Log destino: {logPath}" & vbCrLf & vbCrLf &
-            "¿Continuar?",
+            "The operation runs on an isolated copy of the NIF (the one you loaded stays intact)." & vbCrLf &
+            $"Log destination: {logPath}" & vbCrLf & vbCrLf &
+            "Continue?",
             vbOKCancel Or vbInformation, "Shape Type Validator")
         If preResp <> vbOK Then
             AppendLog(logPath, "User cancelled before run.")
@@ -254,7 +254,7 @@ Public Class ShapeTypeValidator
         SaveCache(cache)
 
         MsgBox(
-            $"Shape Validator: {pendingKeys.Count} combo(s) (tipo, era) testeado(s)." & vbCrLf & vbCrLf &
+            $"Shape Validator: {pendingKeys.Count} combo(s) (type, era) tested." & vbCrLf & vbCrLf &
             String.Join(vbCrLf, summary) & vbCrLf & vbCrLf &
             $"Log: {logPath}",
             vbInformation, "Shape Type Validator")

@@ -1332,7 +1332,7 @@ Public Class Editor_Form
     End Sub
 
     Private Sub ZapCreate_Click(sender As Object, e As EventArgs) Handles ZapCreate.Click
-        Dim nombre = InputBox("Nombre del Zap", "Nuevo Zap", "")
+        Dim nombre = InputBox("Zap name", "New Zap", "")
         If nombre = "" Then Exit Sub
         If ListView2.Items.Find(nombre, False).Length > 0 Then
             MsgBox("Zap already exists", vbCritical, "Error")

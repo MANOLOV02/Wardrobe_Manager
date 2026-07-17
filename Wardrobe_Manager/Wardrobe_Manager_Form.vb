@@ -1803,7 +1803,7 @@ Public Class Wardrobe_Manager_Form
             ElseIf outcome.InitialCount > 0 AndAlso outcome.RemainingCount < outcome.InitialCount AndAlso String.IsNullOrEmpty(outcome.ErrorMessage) Then
                 ' Parcial: algunos shapes quedaron fuera pero se limpió la mayoría.
                 Dim details = $"{label} (partial: {outcome.InitialCount - outcome.RemainingCount}/{outcome.InitialCount} fixed)" & vbCrLf &
-                              "Shapes aún pendientes:" & vbCrLf &
+                              "Shapes still pending:" & vbCrLf &
                               String.Join(vbCrLf, outcome.RemainingDescriptions)
                 failed.Add(details)
             Else
