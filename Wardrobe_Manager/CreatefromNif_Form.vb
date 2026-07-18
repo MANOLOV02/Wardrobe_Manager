@@ -61,7 +61,17 @@ Public Class Create_from_Nif_Form
                     da.TargetOsd = IO.Path.GetFileName(New_osd)
                 Next
             Next
+            ' SSE: sincronizar el link in-NIF de física HDT-SMP con el sidecar del proyecto nuevo y escribir
+            ' el sidecar (mismo modelo que Save_Shapedatas / HH_OFFSET-.hht). El path se ajusta ANTES de guardar.
+            Dim smpXmlPath As String = Nothing
+            If Config_App.Current.Game = Config_App.Game_Enum.Skyrim AndAlso Not String.IsNullOrEmpty(selected_slider.PhysicsXmlContent) Then
+                smpXmlPath = Path.ChangeExtension(New_Nif, ".xml")
+                selected_slider.NIFContent.SetSmpPhysicsXmlPath(SliderSet_Class.BuildSmpInNifPath(smpXmlPath))
+            End If
             selected_slider.NIFContent.Save_As_Manolo(New_Nif, False)
+            If smpXmlPath IsNot Nothing Then
+                File.WriteAllText(smpXmlPath, selected_slider.PhysicsXmlContent, System.Text.Encoding.UTF8)
+            End If
             selected_slider.OSDContent_Local.Save_As(New_osd, False)
             selected_slider.Nombre = TextBox1.Text
             selected_slider.DataFolderValue = TextBox1.Text
@@ -177,6 +187,12 @@ Public Class Create_from_Nif_Form
                     MsgBox("Current nif does not match Fallout 4, and automatic optimization to Fallout 4 is not supported.", MsgBoxStyle.Critical, "Warning")
                 End If
 
+            End If
+
+            ' SSE: detectar física HDT-SMP desde el link in-NIF autoritativo (mismo resolver que la carga
+            ' normal). Antes este form no lo detectaba → HasPhysics=False aunque el NIF trajera SMP.
+            If Config_App.Current.Game = Config_App.Game_Enum.Skyrim Then
+                selected_slider.PhysicsXmlContent = SliderSet_Class.ResolveSmpPhysicsXml(selected_slider.NIFContent, Nothing)
             End If
 
             For Each shap In selected_slider.NIFContent.GetShapes

@@ -179,6 +179,18 @@ Public Class BuildingForm
                     ProgressBar1.Value += 1
 
 
+                    ' SSE: ajustar el link in-NIF de física HDT-SMP ("HDT Skinned Mesh Physics Object") al
+                    ' path del sidecar de SALIDA (paths de build), o removerlo si el proyecto no tiene física.
+                    ' El motor lee ESE path; el sidecar se copia más abajo (una vez, en Sizecount=0). Corre
+                    ' por cada size porque cada NIF de salida necesita el link ajustado. Mismo modelo que HH_OFFSET.
+                    If Config_App.Current.Game = Config_App.Game_Enum.Skyrim Then
+                        If Not String.IsNullOrEmpty(builder.PhysicsXmlContent) Then
+                            builder.NIFContent.SetSmpPhysicsXmlPath(SliderSet_Class.BuildSmpInNifPath(builder.OutputFullPathBase + ".xml"))
+                        Else
+                            builder.NIFContent.RemoveSmpPhysicsExtraData()
+                        End If
+                    End If
+
                     ' Grabo nif
                     builder.NIFContent.Save_As_Manolo(fil, True)
                     Dim nifRelative As String = IO.Path.GetRelativePath(Directorios.Fallout4data, fil).Correct_Path_Separator

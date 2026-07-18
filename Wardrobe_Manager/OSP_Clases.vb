@@ -1824,15 +1824,13 @@ Public Class OSP_Project_Class
 
             Sliderset_Target.NIFContent.Load_Manolo(Sliderset_Target.SourceFileFullPath)
 
-            ' SSE: load HDT-SMP XML physics - 1) shapedata folder
+            ' SSE: detección de física HDT-SMP. Fuente AUTORITATIVA = el NiStringExtraData in-NIF (su
+            ' StringData es el path real del XML, que puede estar en cualquier carpeta de Data, p.ej.
+            ' HDT\XML\); el sidecar same-basename queda como fallback. Antes solo miraba el sidecar → no
+            ' detectaba mods como KS Hairdos (XML en subcarpeta) y HasPhysics daba False de más.
             If Config_App.Current.Game = Config_App.Game_Enum.Skyrim Then
-                Dim xmlPath = IO.Path.ChangeExtension(Sliderset_Target.SourceFileFullPath, ".xml")
-                If IO.File.Exists(xmlPath) AndAlso xmlPath IsNot Nothing Then
-                    Dim raw = IO.File.ReadAllText(xmlPath, System.Text.Encoding.UTF8)
-                    Sliderset_Target.PhysicsXmlContent = If(SliderSet_Class.IsValidSmpXml(raw), raw, Nothing)
-                Else
-                    Sliderset_Target.PhysicsXmlContent = Nothing
-                End If
+                Dim sidecar = IO.Path.ChangeExtension(Sliderset_Target.SourceFileFullPath, ".xml")
+                Sliderset_Target.PhysicsXmlContent = SliderSet_Class.ResolveSmpPhysicsXml(Sliderset_Target.NIFContent, sidecar)
             End If
 
             Sliderset_Target.ReadhighHeel()
@@ -3092,23 +3090,101 @@ Public Class SliderSet_Class
         End Try
     End Function
 
+    ''' <summary>Resuelve el contenido del XML de física HDT-SMP (SSE) de forma AUTORITATIVA: primero el
+    ''' path declarado por el NiStringExtraData "HDT Skinned Mesh Physics Object" del NIF (resuelto vía
+    ''' FilesDictionary y luego disco → cubre loose+BA2 en cualquier carpeta de Data), y como fallback la
+    ''' convención sidecar same-basename en disco. El link in-NIF es la fuente de verdad del motor (igual que
+    ''' HH_OFFSET para tacones); el sidecar same-basename es solo una convención que no todos los mods siguen
+    ''' (KS Hairdos apunta a HDT\XML\). Nothing si no hay física SMP o el juego no es Skyrim.</summary>
+    Public Shared Function ResolveSmpPhysicsXml(nif As Nifcontent_Class_Manolo, sidecarDiskPath As String) As String
+        If Config_App.Current Is Nothing OrElse Config_App.Current.Game <> Config_App.Game_Enum.Skyrim Then Return Nothing
+
+        ' 1) Fuente AUTORITATIVA: el path declarado por el NiStringExtraData in-NIF.
+        If nif IsNot Nothing Then
+            Dim inNifPath = nif.TryGetSmpPhysicsXmlPath()
+            If Not String.IsNullOrWhiteSpace(inNifPath) Then
+                Dim raw = ReadSmpXmlByRelPath(StripDataPrefix(inNifPath))
+                If raw IsNot Nothing AndAlso IsValidSmpXml(raw) Then Return raw
+            End If
+        End If
+
+        ' 2) Fallback: sidecar same-basename en disco (convención OutfitStudio).
+        If Not String.IsNullOrEmpty(sidecarDiskPath) AndAlso IO.File.Exists(sidecarDiskPath) Then
+            Dim raw = IO.File.ReadAllText(sidecarDiskPath, System.Text.Encoding.UTF8)
+            If IsValidSmpXml(raw) Then Return raw
+        End If
+
+        Return Nothing
+    End Function
+
+    ''' <summary>Path Data-relative con prefijo "Data\" para el NiStringExtraData SMP, desde un path de disco
+    ''' del XML (convención KS Hairdos = "Data\meshes\...\x.xml"). Usado al grabar/buildear para ajustar el
+    ''' link in-NIF a dónde queda el sidecar.</summary>
+    Public Shared Function BuildSmpInNifPath(xmlDiskPath As String) As String
+        If String.IsNullOrWhiteSpace(xmlDiskPath) Then Return Nothing
+        Dim rel = IO.Path.GetRelativePath(Directorios.Fallout4data, xmlDiskPath).Correct_Path_Separator
+        Return "Data\" & rel
+    End Function
+
+    ' Quita un prefijo "Data\" (case-insensitive) y normaliza separadores → key Data-relative.
+    Private Shared Function StripDataPrefix(p As String) As String
+        Dim s = p.Trim().Correct_Path_Separator
+        If s.StartsWith("Data\", StringComparison.OrdinalIgnoreCase) Then s = s.Substring("Data\".Length)
+        Return s
+    End Function
+
+    ' Lee el XML por path Data-relative: primero FilesDictionary (loose+BA2), luego disco absoluto.
+    Private Shared Function ReadSmpXmlByRelPath(rel As String) As String
+        If String.IsNullOrWhiteSpace(rel) Then Return Nothing
+        Try
+            Dim bytes = FilesDictionary_class.GetBytes(rel)
+            If bytes IsNot Nothing AndAlso bytes.Length > 0 Then
+                Using ms As New IO.MemoryStream(bytes)
+                    Using sr As New IO.StreamReader(ms, System.Text.Encoding.UTF8, detectEncodingFromByteOrderMarks:=True)
+                        Return sr.ReadToEnd()
+                    End Using
+                End Using
+            End If
+        Catch
+        End Try
+        Try
+            Dim abs = IO.Path.Combine(Directorios.Fallout4data, rel)
+            If IO.File.Exists(abs) Then Return IO.File.ReadAllText(abs, System.Text.Encoding.UTF8)
+        Catch
+        End Try
+        Return Nothing
+    End Function
+
     Public Sub Save_Shapedatas(OverwriteShapeFiles As Boolean)
         Dim New_Nif = SourceFileFullPath
         Dim New_Osd = New_Nif.Replace(".nif", ".osd", StringComparison.OrdinalIgnoreCase)
 
         OSDContent_Local.Save_As(New_Osd, OverwriteShapeFiles)
+
+        ' SSE: mantener el link in-NIF de física HDT-SMP ("HDT Skinned Mesh Physics Object") sincronizado
+        ' con el sidecar del proyecto — mismo modelo que HH_OFFSET/.hht para tacones. Se ajusta el path
+        ' ANTES de guardar el NIF; el motor lee ESE path, no el basename del sidecar.
+        Dim smpXmlPath As String = Nothing
+        If Config_App.Current.Game = Config_App.Game_Enum.Skyrim Then
+            smpXmlPath = IO.Path.ChangeExtension(New_Nif, ".xml")
+            If Not String.IsNullOrEmpty(PhysicsXmlContent) Then
+                NIFContent.SetSmpPhysicsXmlPath(BuildSmpInNifPath(smpXmlPath))
+            Else
+                NIFContent.RemoveSmpPhysicsExtraData()
+            End If
+        End If
+
         NIFContent.Save_As_Manolo(New_Nif, OverwriteShapeFiles)
         SaveHighHeel(New_Nif.Replace(".nif", ".hht", StringComparison.OrdinalIgnoreCase), OverwriteShapeFiles)
 
-        ' SSE: save or delete HDT-SMP XML physics alongside NIF
+        ' SSE: save or delete HDT-SMP XML physics sidecar alongside NIF (path ya ajustado in-NIF arriba)
         If Config_App.Current.Game = Config_App.Game_Enum.Skyrim Then
-            Dim xmlPath = IO.Path.ChangeExtension(New_Nif, ".xml")
             If Not String.IsNullOrEmpty(PhysicsXmlContent) Then
-                If OverwriteShapeFiles OrElse Not IO.File.Exists(xmlPath) Then
-                    IO.File.WriteAllText(xmlPath, PhysicsXmlContent, System.Text.Encoding.UTF8)
+                If OverwriteShapeFiles OrElse Not IO.File.Exists(smpXmlPath) Then
+                    IO.File.WriteAllText(smpXmlPath, PhysicsXmlContent, System.Text.Encoding.UTF8)
                 End If
-            ElseIf IO.File.Exists(xmlPath) Then
-                IO.File.Delete(xmlPath)
+            ElseIf IO.File.Exists(smpXmlPath) Then
+                IO.File.Delete(smpXmlPath)
             End If
         End If
 
