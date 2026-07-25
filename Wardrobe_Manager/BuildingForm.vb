@@ -59,7 +59,14 @@ Public Class BuildingForm
                     If Sizecount > 0 Then builder.UnloadShapeData(False)
                     If OSP_Project_Class.Load_and_CHeck_Project(builder, buildLoadContext) = False OrElse OSP_Project_Class.Load_and_Check_Shapedata(builder, buildLoadContext) = False Then Throw New InvalidOperationException("Could not load shape data for build.")
                     ProgressBar1.Value += 1
-                    builder.HighHeelHeight = sliderset_target.HighHeelHeight
+                    ' El clon NO puede resolver su propio HH: ForceClonedOutputDir ya le reescribió el
+                    ' OutputPath (la detección FO4 va contra ese path) y su ParentOSP es un dummy sin
+                    ' archivo. Y leer el campo crudo del original tampoco servía: la lista descarga cada
+                    ' sliderset tras cargarlo y UnloadShapeData lo pone en 0, así que el build interno
+                    ' horneaba 0 y BORRABA los tacones. Se resuelve sobre el ORIGINAL y se estampa como
+                    ' autorizado en el clon.
+                    builder.HighHeelHeight = sliderset_target.ResolveEffectiveHighHeel(buildLoadContext)
+                    builder.HighHeelAuthored = True
                     SkeletonInstance.Default.PrepareForShapes(builder.Shapes)
                     SkeletonInstance.Default.ApplyPose(If(has_pose, _Pose, Nothing))
                     ProgressBar1.Value += 1
@@ -165,17 +172,9 @@ Public Class BuildingForm
                         End If
                     End If
 
-                    ' High Heels
-                    Dim hhResult = builder.SaveHighHeelBuild(builder.NIFContent)
-                    If hhResult.HasValue Then
-                        Dim hhRelative = IO.Path.GetRelativePath(Directorios.Fallout4data, builder.OutputFullPathBase & ".txt").Correct_Path_Separator
-                        If hhResult.Value Then
-                            FilesDictionary_class.AddOrUpdateDictionaryEntry(hhRelative, New FilesDictionary_class.File_Location With {
-                                .BA2File = "", .Index = -1, .FullPath = hhRelative, .FileDate = Date.Now})
-                        Else
-                            FilesDictionary_class.RemoveDictionaryEntry(hhRelative)
-                        End If
-                    End If
+                    ' High Heels. El alta/baja en el diccionario ya la hace la emisión (antes vivía
+                    ' acá, y por eso el build con el motor de BodySlide nunca lo actualizaba).
+                    builder.SaveHighHeelBuild(builder.NIFContent)
                     ProgressBar1.Value += 1
 
 

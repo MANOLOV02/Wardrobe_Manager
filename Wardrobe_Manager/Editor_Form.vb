@@ -568,7 +568,7 @@ Public Class Editor_Form
             ComboBoxMaterials.Items.Clear()
             ComboBoxShapes.Items.AddRange(Selected_Slider.Shapes.Select(Function(pf) pf.Nombre).ToArray)
             If ComboBoxShapes.Items.Count > 0 Then Selected_Shape = Selected_Slider.Shapes(0)
-            HHNumericUpDown.Value = Selected_Slider.HighHeelHeight
+            SetHHSpinner(Selected_Slider.HighHeelHeight)
             ButtonRemovePhysics.Enabled = Selected_Slider.HasPhysics
             ButtonRemoveSHape.Enabled = ComboBoxShapes.Items.Count > 1
             ButtonCancel.Enabled = False
@@ -985,10 +985,11 @@ Public Class Editor_Form
                 Next
             End If
 
+            ' Save_Shapedatas ya persiste el sidecar de tacones en el path canónico; la escritura
+            ' extra que había acá apuntaba al mismo archivo con otra expresión (dos dueños del
+            ' mismo path, que divergían en cuanto el nombre del fuente contenía ".nif").
             Selected_Slider.Save_Shapedatas(True)
             Selected_Slider.ParentOSP.Save_Pack(True)
-            Dim hhfile = IO.Path.ChangeExtension(Selected_Slider.SourceFileFullPath, ".hht")
-            Selected_Slider.SaveHighHeel(hhfile, True)
             Finalizado_Edit()
             SavedTargetProject = True
             Close()
@@ -1047,9 +1048,45 @@ Public Class Editor_Form
         Next
         Return True
     End Function
+    Private _SuppressHHEvent As Boolean = False
+
+    ''' <summary>Clampea al rango del spinner. El valor del proyecto puede venir de un .hht o del
+    ''' registro de HHS, que no están acotados, y WinForms tira ArgumentOutOfRangeException al
+    ''' asignar Value fuera de [Minimum, Maximum] — reventaba con sólo ABRIR el editor.</summary>
+    Private Function ClampHH(v As Decimal) As Decimal
+        If v < HHNumericUpDown.Minimum Then Return HHNumericUpDown.Minimum
+        If v > HHNumericUpDown.Maximum Then Return HHNumericUpDown.Maximum
+        Return v
+    End Function
+
+    ''' <summary>Pinta el valor del proyecto en el spinner SIN tratarlo como edición del usuario: no
+    ''' marca intención, no ensucia el proyecto y — clave — no escribe de vuelta el valor clampeado
+    ''' ni redondeado a los decimales del control sobre el dato real.</summary>
+    Private Sub SetHHSpinner(value As Double)
+        Dim v As Decimal
+        Try
+            v = ClampHH(CDec(value))
+        Catch
+            v = 0D
+        End Try
+        _SuppressHHEvent = True
+        Try
+            HHNumericUpDown.Value = v
+        Finally
+            _SuppressHHEvent = False
+        End Try
+    End Sub
+
     Private Sub HHNumericUpDown_ValueChanged(sender As Object, e As EventArgs) Handles HHNumericUpDown.ValueChanged
         If IsNothing(Selected_Slider) Then Exit Sub
+        If _SuppressHHEvent Then
+            EditPreviewControl.Model.FloorOffset = -Selected_Slider.HighHeelHeight
+            Exit Sub
+        End If
         Selected_Slider.HighHeelHeight = HHNumericUpDown.Value
+        ' Edición REAL: de acá en adelante el valor es INTENCIÓN — un 0 explícito incluido — y deja
+        ' de poder ser movido por la autodetección en la próxima carga.
+        Selected_Slider.HighHeelAuthored = True
         Iniciado_Edit()
         EditPreviewControl.Model.FloorOffset = -Selected_Slider.HighHeelHeight
         EditPreviewControl.RefreshRender()
@@ -2485,7 +2522,7 @@ Public Class Editor_Form
             min = Math.Max(0, Math.Round(min, 2))
             If min <> HHNumericUpDown.Value Then
                 If MsgBox("Auto High Heel figure is " + min.ToString + " change the value?", vbYesNo, "Auto High Heel determination") = MsgBoxResult.Yes Then
-                    HHNumericUpDown.Value = CDec(min)
+                    HHNumericUpDown.Value = ClampHH(CDec(min))
                 End If
             Else
                 MsgBox("Auto High Heel matches current value.", vbOKOnly, "Auto High Heel determination")

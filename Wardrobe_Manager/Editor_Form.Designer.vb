@@ -657,9 +657,11 @@ Partial Class Editor_Form
         ' 
         ' HHNumericUpDown
         ' 
-        HHNumericUpDown.DecimalPlaces = 2
+        HHNumericUpDown.DecimalPlaces = 3
         HHNumericUpDown.Increment = New Decimal(New Integer() {5, 0, 0, 65536})
         HHNumericUpDown.Location = New Point(184, 74)
+        HHNumericUpDown.Maximum = New Decimal(New Integer() {1000, 0, 0, 0})
+        HHNumericUpDown.Minimum = New Decimal(New Integer() {1000, 0, 0, -2147483648})
         HHNumericUpDown.Name = "HHNumericUpDown"
         HHNumericUpDown.Size = New Size(61, 23)
         HHNumericUpDown.TabIndex = 4

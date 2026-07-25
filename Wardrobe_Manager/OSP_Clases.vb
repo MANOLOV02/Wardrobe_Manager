@@ -64,6 +64,9 @@ Public Class HighHeels_Plugins_values
     End Sub
     Public Sub LoadFromDirectory()
         HighHeelsKeys.Clear()
+        ' El registro del plugin HHS es SÓLO de Fallout 4: en SSE el offset vive dentro del NIF
+        ' (HH_OFFSET, lo consume skee/RaceMenu) y esta carpeta no se consulta nunca.
+        If Config_App.Current IsNot Nothing AndAlso Config_App.Current.Game <> Config_App.Game_Enum.Fallout4 Then Exit Sub
         Lee_HH_Json_y_txt()
     End Sub
 
@@ -1950,8 +1953,11 @@ Public Class OSP_Project_Class
         ' Procesa los cambios de nombre
         Sliderset_Target.Update_Names(Nombre_Proyecto, Me.Nombre, context)
 
-        ' Define High Heels
+        ' Define High Heels. Se propaga el valor EFECTIVO y su condición de autorizado: el clon nace
+        ' con su propio sidecar (Save_Shapedatas más abajo), así que si el origen tenía intención el
+        ' destino la hereda como intención y no vuelve a depender de la autodetección.
         Sliderset_Target.HighHeelHeight = Sliderset_Source.HighHeelHeight
+        Sliderset_Target.HighHeelAuthored = Sliderset_Source.HighHeelAuthored
 
         ' Exclude reference
         If ExcludeReference = True Then
@@ -1981,9 +1987,17 @@ Public Class OSP_Project_Class
         Dim loadContext = If(context, ProjectLoadContext.CreateInteractive())
         If OSP_Project_Class.Load_and_CHeck_Project(Sliderset_Target, loadContext) = False OrElse OSP_Project_Class.Load_and_Check_Shapedata(Sliderset_Target, loadContext) = False Then Return Nothing
 
-        ' Define HighHeels
+        ' Define HighHeels. El source ya trae su valor resuelto por el sidecar canónico (antes el clon
+        ' se construía reparentado al pack DESTINO y su sidecar se buscaba en la carpeta equivocada,
+        ' así que el merge no transfería los tacones). Decidir aquí es INTENCIÓN: se marca autorizado.
         If Sliderset_Target.HighHeelHeight <> 0 Then
-            If Sliderset_Madre.IsHighHeel = 0 Or Sliderset_Madre.HighHeelHeight = Sliderset_Target.HighHeelHeight Then Sliderset_Madre.HighHeelHeight = Sliderset_Target.HighHeelHeight Else Sliderset_Madre.HighHeelHeight = Math.Max(Sliderset_Madre.HighHeelHeight, Sliderset_Target.HighHeelHeight) : MsgBox("Different High Heels setup. Higher assumed", vbInformation, "Warning")
+            If Sliderset_Madre.IsHighHeel = False OrElse Sliderset_Madre.HighHeelHeight = Sliderset_Target.HighHeelHeight Then
+                Sliderset_Madre.HighHeelHeight = Sliderset_Target.HighHeelHeight
+            Else
+                Sliderset_Madre.HighHeelHeight = Math.Max(Sliderset_Madre.HighHeelHeight, Sliderset_Target.HighHeelHeight)
+                MsgBox("Different High Heels setup. Higher assumed", vbInformation, "Warning")
+            End If
+            Sliderset_Madre.HighHeelAuthored = True
         End If
 
         Dim Old_Nif = IO.Path.Combine(IO.Path.Combine(Directorios.ShapedataRoot, Sliderset_Target.DataFolderValue), Sliderset_Target.SourceFileValue)
@@ -2168,6 +2182,10 @@ Public Class SliderSet_Class
     Public Property Shapes As New List(Of Shape_class)
     Public Property Sliders As New List(Of Slider_class)
     Public Property HighHeelHeight As Double = 0
+    ''' <summary>True = HighHeelHeight es INTENCIÓN (sidecar del proyecto o edición del usuario), no
+    ''' una detección. Es lo que hace representable un 0 explícito: sin este bit, "valor 0" y "no hay
+    ''' valor" se codificaban igual (sidecar ausente) y la autodetección resucitaba el 0.</summary>
+    Public Property HighHeelAuthored As Boolean = False
     Public Property ShapeDataLoaded As Boolean = False
     Public Property LastShapeDataSignature As String = ""
     Public Property LastShapeDataAccessUtc As Date = Date.MinValue
@@ -2388,12 +2406,16 @@ Public Class SliderSet_Class
         files.AddRange(OsdLocalFullPath)
         files.AddRange(OsdExternalFullPath)
 
+        ' Los DOS paths del sidecar (el canónico y el histórico, que sigue siendo fallback de
+        ' lectura). El .txt de SALIDA queda FUERA a propósito: sólo se lee como último recurso de
+        ' import y ya no puede pisar un valor autorizado, así que tenerlo acá sólo lograba que cada
+        ' build invalidara el cache de su propio proyecto y forzara una recarga completa de NIF+OSD.
+        ' Contrapartida asumida: editarlo a mano desde fuera exige un Refresh para que se vea.
+        files.Add(HighHeelSidecarPath)
+        files.Add(HighHeelSidecarLegacyPath)
+
         Select Case Config_App.Current.Game
-            Case Config_App.Game_Enum.Fallout4
-                files.Add(IO.Path.Combine(IO.Path.Combine(Directorios.ShapedataRoot, Me.ParentOSP.Nombre), Me.Nombre + ".hht"))
-                files.Add(Me.OutputFullPathBase & ".txt")
             Case Config_App.Game_Enum.Skyrim
-                files.Add(IO.Path.Combine(IO.Path.Combine(Directorios.ShapedataRoot, Me.ParentOSP.Nombre), Me.Nombre + ".hht"))
                 files.Add(IO.Path.ChangeExtension(SourceFileFullPath, ".xml"))
                 files.Add(OutputFullPathBase & ".xml")
         End Select
@@ -2466,6 +2488,7 @@ Public Class SliderSet_Class
         NIFContent = New Nifcontent_Class_Manolo()
         PhysicsXmlContent = Nothing
         HighHeelHeight = 0
+        HighHeelAuthored = False
         ShapeDataLoaded = False
         InvalidateAllLookupCaches()
 
@@ -2480,6 +2503,43 @@ Public Class SliderSet_Class
             Return HighHeelHeight <> 0
         End Get
     End Property
+
+    ''' <summary>Path CANÓNICO del sidecar de tacones del proyecto: EL MISMO que escribe
+    ''' Save_Shapedatas. El lector construía otro (ShapeData\&lt;osp&gt;\&lt;nombre&gt;.hht) que sólo
+    ''' coincide en proyectos pasados por Update_Names; en el resto WM escribía un archivo que nadie
+    ''' leía y leía uno que nadie escribía — de ahí que el merge y los proyectos adoptados perdieran
+    ''' el valor.</summary>
+    Public ReadOnly Property HighHeelSidecarPath As String
+        Get
+            Return IO.Path.ChangeExtension(SourceFileFullPath, ".hht")
+        End Get
+    End Property
+
+    ''' <summary>Path HISTÓRICO del sidecar. SÓLO lectura, para no perder los .hht que escribieron
+    ''' versiones anteriores; al persistir se consolida en el canónico y este se borra.</summary>
+    Public ReadOnly Property HighHeelSidecarLegacyPath As String
+        Get
+            If IsNothing(ParentOSP) Then Return ""
+            Return IO.Path.Combine(IO.Path.Combine(Directorios.ShapedataRoot, ParentOSP.Nombre), Me.Nombre + ".hht")
+        End Get
+    End Property
+
+    ''' <summary>Efectivo GARANTIZADO, sin depender de que la shapedata esté cargada. Hace falta
+    ''' porque la lista descarga cada sliderset justo después de cargarlo y UnloadShapeData pone el
+    ''' campo en 0: quien leía el campo crudo (el build interno) horneaba 0 y BORRABA los tacones.
+    ''' Resuelve por sidecar primero — no necesita el NIF — y sólo carga shapedata si el juego lo
+    ''' exige (SSE, donde el valor vive dentro del NIF fuente).</summary>
+    Public Function ResolveEffectiveHighHeel(Optional context As ProjectLoadContext = Nothing) As Double
+        If ShapeDataLoaded Then Return HighHeelHeight
+        Dim v As Double
+        If TryReadHeightFile(HighHeelSidecarPath, v) Then Return v
+        Dim legacy As String = HighHeelSidecarLegacyPath
+        If legacy.Length > 0 AndAlso TryReadHeightFile(legacy, v) Then Return v
+        If Config_App.Current.Game = Config_App.Game_Enum.Fallout4 Then Return DetectHighHeelFromHHSRegistry()
+        Dim self As SliderSet_Class = Me
+        If OSP_Project_Class.Load_and_Check_Shapedata(self, context) Then Return HighHeelHeight
+        Return 0
+    End Function
 
     Public Sub SetPreset(Preset As SlidersPreset_Class, Weight As WM_Config.SliderSize)
         For Each slid In Sliders
@@ -2587,150 +2647,285 @@ Public Class SliderSet_Class
         LastProjectFileSignature = GetProjectFileSignature()
         InvalidateMetadataLookupCache()
     End Sub
-    Public Shared Function ReadHighHeelTXT(archivoName As String) As Double
-        Dim lin As String
-        Using archivo = New StreamReader(archivoName)
-            lin = archivo.ReadLine
-        End Using
-        If lin.Contains("="c) = False Then Return 0
-        Dim sep = lin.Split("=")
-        If sep.Length <> 2 Then Return 0
-        Return Double.Parse(sep(1).Trim(), System.Globalization.CultureInfo.InvariantCulture)
+    ''' <summary>Lee "Height=&lt;n&gt;" de un sidecar de tacones (el .hht del proyecto o un .txt de
+    ''' HHS). Tolera archivo vacío, líneas en blanco y líneas sin "=": antes un .hht de 0 bytes
+    ''' tiraba NullReference DENTRO de Load_and_Check_Shapedata y el proyecto quedaba marcado como
+    ''' NIF ilegible. Devuelve False si no hay valor legible, que NO es lo mismo que "el valor es 0".</summary>
+    Public Shared Function TryReadHeightFile(archivoName As String, ByRef value As Double) As Boolean
+        value = 0
+        If String.IsNullOrWhiteSpace(archivoName) Then Return False
+        Try
+            If IO.File.Exists(archivoName) = False Then Return False
+            For Each raw In IO.File.ReadLines(archivoName)
+                If raw Is Nothing Then Continue For
+                Dim lin As String = raw.Trim()
+                If lin.Length = 0 Then Continue For
+                Dim idx As Integer = lin.IndexOf("="c)
+                If idx < 0 Then Continue For
+                ' No se exige la clave "Height": el formato real de HHS no está verificado en este
+                ' workspace, así que se acepta la primera línea clave=valor cuyo valor parsee.
+                Dim parsed As Double
+                If Double.TryParse(lin.Substring(idx + 1).Trim(),
+                                   System.Globalization.NumberStyles.Float,
+                                   System.Globalization.CultureInfo.InvariantCulture, parsed) Then
+                    value = parsed
+                    Return True
+                End If
+            Next
+        Catch
+        End Try
+        Return False
     End Function
+    Public Shared Function ReadHighHeelTXT(archivoName As String) As Double
+        Dim v As Double
+        TryReadHeightFile(archivoName, v)
+        Return v
+    End Function
+    ''' <summary>Resuelve el HH del proyecto en DOS niveles:
+    '''  1) AUTORIZADO — el sidecar .hht del proyecto (canónico, y el path histórico como fallback).
+    '''     Si existe, es la verdad, INCLUIDO "Height=0": así un proyecto puede afirmar "no tiene
+    '''     tacones" en vez de volver a caer en la autodetección en cada carga.
+    '''  2) DETECCIÓN (import de lo que trajo el mod) — game-gated, y NUNCA lee artefactos de
+    '''     SALIDA de WM: ese bucle salida→entrada era el que resucitaba un 0 recién grabado.</summary>
     Public Sub ReadhighHeel()
+        Dim authored As Double
+        If TryReadHeightFile(HighHeelSidecarPath, authored) Then
+            HighHeelHeight = authored
+            HighHeelAuthored = True
+            Exit Sub
+        End If
+        Dim legacy As String = HighHeelSidecarLegacyPath
+        If legacy.Length > 0 AndAlso TryReadHeightFile(legacy, authored) Then
+            HighHeelHeight = authored
+            HighHeelAuthored = True
+            Exit Sub
+        End If
+
+        HighHeelAuthored = False
+        HighHeelHeight = DetectHighHeel()
+    End Sub
+    ''' <summary>Import automático desde lo que trajo el mod. FO4: el registro del plugin HHS
+    ''' (config del juego). SSE: el HH_OFFSET del NIF FUENTE. En ningún caso el NIF ni el .txt de
+    ''' SALIDA, que son artefactos que escribe WM.</summary>
+    Private Function DetectHighHeel() As Double
         Select Case Config_App.Current.Game
             Case Config_App.Game_Enum.Fallout4
-                Dim hh0 As String = IO.Path.Combine(IO.Path.Combine(Directorios.ShapedataRoot, Me.ParentOSP.Nombre), Me.Nombre + ".hht")
-                Dim hh1 As String = Me.OutputFullPathBase.Correct_Path_Separator & ".nif"
-                'aDim hh1b As String = IO.Path.Combine(Directorios.HighHeels_Plugin, Me.OutputFileValue + ".json")
-                Dim hh2 As String = Me.OutputFullPathBase & ".txt"
-
-                If IO.File.Exists(hh0) Then HighHeelHeight = ReadHighHeelTXT(hh0) : Exit Sub
-                If WM_HighHeels.HighHeelsKeys.Any(Function(pf) hh1.EndsWith(pf.Key, StringComparison.CurrentCultureIgnoreCase)) Then
-                    HighHeelHeight = WM_HighHeels.HighHeelsKeys.OrderByDescending(Function(pf) pf.Key.Length).First(Function(pf) hh1.EndsWith(pf.Key, StringComparison.CurrentCultureIgnoreCase)).Value
-                    Exit Sub
-                End If
-                If IO.File.Exists(hh2) Then HighHeelHeight = ReadHighHeelTXT(hh2) : Exit Sub
-
-                HighHeelHeight = 0
-
+                Dim v As Double = DetectHighHeelFromHHSRegistry()
+                If v <> 0 Then Return v
+                ' Último recurso: el .txt que hay en el path de salida. Sigue siendo un IMPORT y sólo
+                ' se consulta cuando el proyecto NO tiene sidecar: con el bit de autorizado, un 0
+                ' explícito se escribe como "Height=0" y GANA acá arriba, así que esto ya no puede
+                ' resucitarlo — que era el bucle salida→entrada real. Se mantiene porque para un
+                ' proyecto adoptado de un mod ese .txt es el dato que shipeó el mod, y quitarlo
+                ' dejaba en 0 silencioso a todo proyecto cuya única evidencia era ese archivo.
+                TryReadHeightFile(Me.OutputFullPathBase & ".txt", v)
+                Return v
             Case Config_App.Game_Enum.Skyrim
-                Dim maxhh = 0
-                If Not IsNothing(Me.NIFContent) Then
-                    For Each shap In Me.NIFContent.GetShapes
-                        For Each edr In shap.ExtraDataList.References
-                            Dim ed = TryCast(Me.NIFContent.Blocks(edr.Index), NiFloatExtraData)
-                            If Not IsNothing(ed) Then
-                                If ed.Name.String = "HH_OFFSET" Then
-                                    If ed.FloatData > maxhh Then maxhh = ed.FloatData
-                                End If
-                            End If
-                        Next
-
-                    Next
-                End If
-
-                Dim hh0 As String = IO.Path.Combine(IO.Path.Combine(Directorios.ShapedataRoot, Me.ParentOSP.Nombre), Me.Nombre + ".hht")
-
-                If IO.File.Exists(hh0) = False Then
-                    HighHeelHeight = maxhh
-                    Exit Sub
-                End If
-
-                Dim lin As String = ""
-                Using archivo As New StreamReader(hh0)
-                    lin = archivo.ReadLine()
-                End Using
-
-                If String.IsNullOrWhiteSpace(lin) OrElse lin.Contains("="c) = False Then
-                    HighHeelHeight = maxhh
-                    Exit Sub
-                End If
-
-                Dim sep = lin.Split("="c)
-                If sep.Length <> 2 Then
-                    HighHeelHeight = maxhh
-                    Exit Sub
-                End If
-
-                HighHeelHeight = Double.Parse(sep(1).Trim(), System.Globalization.CultureInfo.InvariantCulture)
+                Return DetectHighHeelFromNif()
         End Select
-
-    End Sub
+        Return 0
+    End Function
+    ''' <summary>Match del registro HHS ANCLADO a frontera de separador. El match viejo era un
+    ''' EndsWith crudo y las keys que salen de los .txt de la carpeta del plugin son sólo el
+    ''' basename, así que una key "body.nif" le asignaba tacones a "...\femalebody.nif". Gana la
+    ''' key más larga (la más específica). El formato real de HHS sigue SIN VERIFICAR.</summary>
+    Private Function DetectHighHeelFromHHSRegistry() As Double
+        Dim target As String = (Me.OutputFullPathBase & ".nif").Correct_Path_Separator
+        Dim best As Double = 0
+        Dim bestLen As Integer = -1
+        For Each kvp In WM_HighHeels.HighHeelsKeys
+            Dim k As String = kvp.Key.Correct_Path_Separator
+            If k.Length = 0 OrElse k.Length <= bestLen Then Continue For
+            If target.EndsWith(k, StringComparison.OrdinalIgnoreCase) = False Then Continue For
+            If target.Length > k.Length AndAlso target(target.Length - k.Length - 1) <> "\"c Then Continue For
+            bestLen = k.Length
+            best = kvp.Value
+        Next
+        Return best
+    End Function
+    ''' <summary>HH_OFFSET tal como lo resuelve el motor: el PRIMERO del recorrido (la raíz antes
+    ''' que los hijos), NO el máximo. Verificado en skee/RaceMenu: SkeletonExtender.cpp:162 usa
+    ''' FindExtraData, que es VisitObjects cortando en el primer hit, y mete el float en la pos Z
+    ''' del nodo "NPC". El máximo viejo mentía cuando un NIF traía dos HH_OFFSET distintos e
+    ''' ignoraba el de la RAÍZ (sólo miraba shapes). Y `Dim maxhh = 0` inferÍa INTEGER — el proyecto
+    ''' no fija OptionStrict/OptionInfer — así que un 3,7 del mod se leía 3 y se re-horneaba como 4.</summary>
+    Private Function DetectHighHeelFromNif() As Double
+        If IsNothing(Me.NIFContent) Then Return 0
+        Try
+            Dim root = Me.NIFContent.GetRootNode()
+            If Not IsNothing(root) AndAlso Not IsNothing(root.ExtraDataList) Then
+                For Each edr In root.ExtraDataList.References
+                    Dim ed = TryCast(Me.NIFContent.Blocks(edr.Index), NiFloatExtraData)
+                    If Not IsNothing(ed) AndAlso Not IsNothing(ed.Name) AndAlso ed.Name.String = "HH_OFFSET" Then Return CDbl(ed.FloatData)
+                Next
+            End If
+            For Each shap In Me.NIFContent.GetShapes
+                If IsNothing(shap) OrElse IsNothing(shap.ExtraDataList) Then Continue For
+                For Each edr In shap.ExtraDataList.References
+                    Dim ed = TryCast(Me.NIFContent.Blocks(edr.Index), NiFloatExtraData)
+                    If Not IsNothing(ed) AndAlso Not IsNothing(ed.Name) AndAlso ed.Name.String = "HH_OFFSET" Then Return CDbl(ed.FloatData)
+                Next
+            Next
+        Catch
+        End Try
+        Return 0
+    End Function
     Public Function Multisize() As Boolean
         If Config_App.Current.Game = Config_App.Game_Enum.Fallout4 Then Return False
         If WM_Config.Current.Settings_Build.IgnoreWeightsFlags = False Then Return Me.GenWeights
         Return WM_Config.Current.Settings_Build.ForceWeights
     End Function
 
-    ''' <summary>Returns True if the HH file was written, False if deleted, Nothing if no action taken.</summary>
+    ''' <summary>Emite el HH en los artefactos de SALIDA del build. Ley game-gated:
+    '''  • FO4 → sidecar "&lt;salida&gt;.txt" de HHS, junto al mesh.
+    '''  • SSE → NiFloatExtraData "HH_OFFSET" DENTRO del NIF de salida, UNO solo (el motor toma el
+    '''    primero del recorrido; con dos, la otra ruta de skee aplica el último → ambiguo) y en
+    '''    TODOS los tamaños, porque el juego sólo ve el archivo que eligió para ese peso.
+    ''' DESTRUIR (borrar el .txt, arrancar un HH_OFFSET heredado del NIF fuente) exige SaveHHS o
+    ''' DeleteUnbuilt: con las dos apagadas WM no gestiona tacones y no toca datos que no escribió
+    ''' — para un proyecto adoptado, ese artefacto es del mod.
+    ''' NifSource = NIF en memoria del build interno (lo graba el caller); Nothing = ir a disco.
+    ''' Devuelve True si quedó emitido, False si quedó limpio, Nothing si no se tocó nada.</summary>
     Public Function SaveHighHeelBuild(Optional NifSource As Nifcontent_Class_Manolo = Nothing) As Boolean?
-        Dim result As Boolean? = Nothing
+        Dim manage As Boolean = WM_Config.Current.Settings_Build.SaveHHS
+        Dim mayDestroy As Boolean = manage OrElse WM_Config.Current.Settings_Build.DeleteUnbuilt
+
         Select Case Config_App.Current.Game
             Case Config_App.Game_Enum.Fallout4
-                Dim hhfile = OutputFullPathBase & ".txt"
+                Dim hhfile As String = OutputFullPathBase & ".txt"
                 If HighHeelHeight = 0 Then
+                    If mayDestroy = False Then Return Nothing
                     If IO.File.Exists(hhfile) Then IO.File.Delete(hhfile)
-                    result = False
-                Else
-                    If WM_Config.Current.Settings_Build.SaveHHS Then
-                        Dim writer = IO.File.CreateText(hhfile)
-                        writer.WriteLine("Height=" + HighHeelHeight.ToString(System.Globalization.CultureInfo.InvariantCulture))
-                        writer.Flush()
-                        writer.Close()
-                        result = True
-                    End If
+                    RegisterBuiltHHFile(hhfile, False)
+                    Return False
                 End If
+                If manage = False Then Return Nothing
+                Using writer = IO.File.CreateText(hhfile)
+                    writer.WriteLine("Height=" + HighHeelHeight.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                    writer.Flush()
+                End Using
+                RegisterBuiltHHFile(hhfile, True)
+                Return True
+
             Case Config_App.Game_Enum.Skyrim
-                For sizecount = 0 To IIf(Multisize, 1, 0)
-                    Dim fil = OutputFullPathBase + If(Multisize(), "_" + sizecount.ToString, "") + ".nif"
+                ' Build interno: hay UN NIF en memoria y lo graba el caller.
+                If Not IsNothing(NifSource) Then Return SyncHHOffsetInNif(NifSource, manage, mayDestroy)
+
+                ' Build con el motor de BodySlide: recorrer los NIF de salida REALES. Antes el strip
+                ' se hacía en memoria y el Save_As vivía DENTRO de la rama de inyección, así que
+                ' poner el proyecto en 0 no sacaba nunca el HH_OFFSET del mesh construido.
+                Dim result As Boolean? = Nothing
+                For sizecount As Integer = 0 To CInt(IIf(Multisize(), 1, 0))
+                    Dim fil As String = OutputFullPathBase & If(Multisize(), "_" & sizecount.ToString, "") & ".nif"
+                    If IO.File.Exists(fil) = False Then Continue For
                     Dim NIF As New Nifcontent_Class_Manolo
-                    If WM_Config.Current.Settings_Build.SaveHHS OrElse WM_Config.Current.Settings_Build.DeleteUnbuilt Then
-                        If IsNothing(NifSource) Then
-                            NIF.Load(fil)
-                        Else
-                            NIF = NifSource
-                        End If
-                        For Each shap In NIF.GetShapes.ToList
-                            For Each edr In shap.ExtraDataList.References.ToList
-                                Dim ed = TryCast(NIF.Blocks(edr.Index), NiFloatExtraData)
-                                If Not IsNothing(ed) Then
-                                    If ed.Name.String = "HH_OFFSET" Then
-                                        shap.ExtraDataList.RemoveBlockRef(edr.Index)
-                                        NIF.RemoveBlock(ed)
-                                    End If
-                                End If
-                            Next
-                        Next
-                        NIF.RemoveUnreferencedBlocks()
-                    End If
-                    If HighHeelHeight > 0 AndAlso WM_Config.Current.Settings_Build.SaveHHS Then
-                        For Each firs In NIF.GetShapes
-                            If Not IsNothing(firs) Then
-                                Try
-                                    Dim triExtraData As New NiFloatExtraData()
-                                    Dim nam = New NiStringRef("HH_OFFSET")
-                                    triExtraData.Name = nam
-                                    triExtraData.FloatData = CSng(HighHeelHeight)
-                                    Dim extraDataId As UInteger = NIF.AddBlock(triExtraData)
-                                    firs.ExtraDataList.AddBlockRef(extraDataId)
-                                    If IsNothing(NifSource) Then
-                                        NIF.Save_As_Manolo(fil, True)
-                                    End If
-                                    Exit For
-                                Catch ex As Exception
-                                    Debugger.Break()
-                                End Try
-                            End If
-                        Next
+                    NIF.Load(fil)
+                    Dim applied = SyncHHOffsetInNif(NIF, manage, mayDestroy)
+                    If applied.HasValue Then
+                        NIF.Save_As_Manolo(fil, True)
+                        result = applied
                     End If
                 Next
+                Return result
         End Select
-        Return result
+        Return Nothing
     End Function
+
+    ''' <summary>Deja el NIF con EXACTAMENTE el HH del proyecto: strip primero (raíz y shapes) y una
+    ''' sola inyección. Nothing = no hubo nada que cambiar, así que el caller no re-graba.</summary>
+    Private Function SyncHHOffsetInNif(NIF As Nifcontent_Class_Manolo, manage As Boolean, mayDestroy As Boolean) As Boolean?
+        If IsNothing(NIF) Then Return Nothing
+        ' <> 0 y no > 0: un offset negativo también se emite. FO4 ya lo hacía y SSE lo descartaba en
+        ' silencio, así que el mismo proyecto salía distinto según el juego.
+        Dim wants As Boolean = manage AndAlso HighHeelHeight <> 0
+        If wants = False AndAlso mayDestroy = False Then Return Nothing
+
+        Dim removed As Boolean = RemoveHHOffsetFromNif(NIF)
+        If wants = False Then
+            If removed = False Then Return Nothing
+            NIF.RemoveUnreferencedBlocks()
+            Return False
+        End If
+
+        For Each firs In NIF.GetShapes
+            If IsNothing(firs) Then Continue For
+            Try
+                Dim triExtraData As New NiFloatExtraData()
+                triExtraData.Name = New NiStringRef("HH_OFFSET")
+                triExtraData.FloatData = CSng(HighHeelHeight)
+                Dim extraDataId As UInteger = NIF.AddBlock(triExtraData)
+                firs.ExtraDataList.AddBlockRef(extraDataId)
+                If removed Then NIF.RemoveUnreferencedBlocks()
+                Return True
+            Catch ex As Exception
+                Debugger.Break()
+            End Try
+        Next
+        If removed Then
+            NIF.RemoveUnreferencedBlocks()
+            Return False
+        End If
+        Return Nothing
+    End Function
+
+    ''' <summary>Quita TODOS los HH_OFFSET del NIF, incluido el de la RAÍZ: el strip viejo sólo
+    ''' miraba shapes, así que un HH_OFFSET en la raíz sobrevivía y — siendo el primero del
+    ''' recorrido — era justamente el que ganaba en el motor. Dos pasadas: primero se sueltan las
+    ''' referencias (los índices siguen válidos porque todavía no se borró ningún bloque) y después
+    ''' se borran los bloques por objeto; borrar un bloque renumera el resto, así que mezclar las dos
+    ''' cosas en un solo loop podía soltar la referencia equivocada.</summary>
+    Private Function RemoveHHOffsetFromNif(NIF As Nifcontent_Class_Manolo) As Boolean
+        Dim victims As New List(Of NiFloatExtraData)
+        Dim root = NIF.GetRootNode()
+        If Not IsNothing(root) AndAlso Not IsNothing(root.ExtraDataList) Then
+            For Each edr In root.ExtraDataList.References.ToList
+                Dim ed = TryCast(NIF.Blocks(edr.Index), NiFloatExtraData)
+                If Not IsNothing(ed) AndAlso Not IsNothing(ed.Name) AndAlso ed.Name.String = "HH_OFFSET" Then
+                    root.ExtraDataList.RemoveBlockRef(edr.Index)
+                    victims.Add(ed)
+                End If
+            Next
+        End If
+        For Each shap In NIF.GetShapes.ToList
+            If IsNothing(shap) OrElse IsNothing(shap.ExtraDataList) Then Continue For
+            For Each edr In shap.ExtraDataList.References.ToList
+                Dim ed = TryCast(NIF.Blocks(edr.Index), NiFloatExtraData)
+                If Not IsNothing(ed) AndAlso Not IsNothing(ed.Name) AndAlso ed.Name.String = "HH_OFFSET" Then
+                    shap.ExtraDataList.RemoveBlockRef(edr.Index)
+                    victims.Add(ed)
+                End If
+            Next
+        Next
+        For Each ed In victims
+            NIF.RemoveBlock(ed)
+        Next
+        Return victims.Count > 0
+    End Function
+
+    ''' <summary>Alta/baja del .txt de HHS en el diccionario de archivos. Vivía en el caller, así que
+    ''' el build con el motor de BodySlide — que ignora el resultado de la función — nunca lo
+    ''' actualizaba y el diccionario quedaba mintiendo sobre un archivo que sí existía.</summary>
+    Private Sub RegisterBuiltHHFile(hhfile As String, exists As Boolean)
+        Try
+            Dim rel As String = IO.Path.GetRelativePath(Directorios.Fallout4data, hhfile).Correct_Path_Separator
+            If exists Then
+                FilesDictionary_class.AddOrUpdateDictionaryEntry(rel, New FilesDictionary_class.File_Location With {
+                    .BA2File = "", .Index = -1, .FullPath = rel, .FileDate = Date.Now})
+            Else
+                FilesDictionary_class.RemoveDictionaryEntry(rel)
+            End If
+        Catch
+        End Try
+    End Sub
+    ''' <summary>Persiste la INTENCIÓN en el sidecar del proyecto. Un 0 AUTORIZADO se ESCRIBE
+    ''' ("Height=0"): antes el 0 se codificaba borrando el archivo y, como la ausencia de sidecar
+    ''' significa "autodetectá", el 0 se auto-destruía en la recarga siguiente (los tacones volvían
+    ''' del .txt del build en FO4 y del HH_OFFSET del NIF fuente en SSE). Sin autorizar se borra el
+    ''' sidecar y vuelve a mandar la detección. Consolida en el path canónico: si quedaba uno en el
+    ''' path histórico se elimina, para no tener dos verdades.</summary>
     Public Sub SaveHighHeel(filename As String, Overwrite As Boolean)
-        If IO.File.Exists(filename) And Overwrite = False Then Throw New Exception
-        If HighHeelHeight = 0 Then
+        If IO.File.Exists(filename) AndAlso Overwrite = False Then Throw New Exception("High heels sidecar already exists: " & filename)
+        If HighHeelAuthored = False Then
             If IO.File.Exists(filename) Then IO.File.Delete(filename)
         Else
             Using writer = IO.File.CreateText(filename)
@@ -2739,6 +2934,8 @@ Public Class SliderSet_Class
             End Using
         End If
 
+        Dim legacy As String = HighHeelSidecarLegacyPath
+        If legacy.Length > 0 AndAlso legacy.Equals(filename, StringComparison.OrdinalIgnoreCase) = False AndAlso IO.File.Exists(legacy) Then IO.File.Delete(legacy)
     End Sub
 
     Public Sub Update_Names(Nombre As String, Pack As String, Optional context As ProjectLoadContext = Nothing)
@@ -3010,20 +3207,29 @@ Public Class SliderSet_Class
     End Property
 
     Public Sub Remove_DataShapeFiles()
-        Dim Legacy_Nif = IO.Path.Combine(IO.Path.Combine(Directorios.ShapedataRoot, Me.DataFolderValue), Me.SourceFileValue)
-        Dim Legacy_Osd = Legacy_Nif.Replace(".nif", ".osd", StringComparison.OrdinalIgnoreCase)
-        Dim Legacy_htt = Legacy_Nif.Replace(".nif", ".hht", StringComparison.OrdinalIgnoreCase)
+        Dim Legacy_Nif = IO.Path.Combine(IO.Path.Combine(Directorios.ShapedataRoot, Me.DataFolderValue), IO.Path.GetFileName(Me.SourceFileValue))
+        Dim Legacy_Osd = IO.Path.ChangeExtension(Legacy_Nif, ".osd")
+        Dim Legacy_htt = IO.Path.ChangeExtension(Legacy_Nif, ".hht")
 
         Dim Built_Nif = Me.OutputFullPathBase & ".nif"
-        Dim Built_htt = Legacy_Nif.Replace(".nif", ".txt", StringComparison.OrdinalIgnoreCase)
-        Dim Built_Tri = Legacy_Nif.Replace(".nif", ".tri", StringComparison.OrdinalIgnoreCase)
+        ' Los artefactos del BUILD se derivan de OutputFullPathBase, NO del path de ShapeData. Antes
+        ' salían de Legacy_Nif, así que se intentaba borrar un .txt/.tri inexistente bajo ShapeData y
+        ' el .txt de HHS realmente construido quedaba huérfano en Data — y lo terminaba heredando el
+        ' siguiente proyecto que buildeara al mismo nombre de salida.
+        Dim Built_htt = Me.OutputFullPathBase & ".txt"
+        Dim Built_Tri = Me.OutputFullPathBase & ".tri"
 
         If IO.File.Exists(Legacy_Nif) Then IO.File.Delete(Legacy_Nif)
         If IO.File.Exists(Legacy_Osd) Then IO.File.Delete(Legacy_Osd)
         If IO.File.Exists(Legacy_htt) Then IO.File.Delete(Legacy_htt)
+        ' El sidecar del path histórico también: si no, sobrevive al borrado y lo re-importa el
+        ' próximo proyecto que se llame igual dentro del mismo pack.
+        Dim Legacy_htt_old As String = HighHeelSidecarLegacyPath
+        If Legacy_htt_old.Length > 0 AndAlso IO.File.Exists(Legacy_htt_old) Then IO.File.Delete(Legacy_htt_old)
 
         If WM_Config.Current.Settings_Build.DeleteWithProject Then
-            If IO.File.Exists(Built_htt) Then IO.File.Delete(Built_htt)
+            ' El .txt de tacones es FO4: en SSE el HH viaja dentro del NIF, que se borra abajo.
+            If Config_App.Current.Game = Config_App.Game_Enum.Fallout4 AndAlso IO.File.Exists(Built_htt) Then IO.File.Delete(Built_htt)
             If IO.File.Exists(Built_Tri) Then IO.File.Delete(Built_Tri)
             FilesDictionary_class.RemoveDictionaryEntry(IO.Path.GetRelativePath(Directorios.Fallout4data, Built_htt).Correct_Path_Separator)
             FilesDictionary_class.RemoveDictionaryEntry(IO.Path.GetRelativePath(Directorios.Fallout4data, Built_Tri).Correct_Path_Separator)
@@ -3175,7 +3381,9 @@ Public Class SliderSet_Class
         End If
 
         NIFContent.Save_As_Manolo(New_Nif, OverwriteShapeFiles)
-        SaveHighHeel(New_Nif.Replace(".nif", ".hht", StringComparison.OrdinalIgnoreCase), OverwriteShapeFiles)
+        ' Path canónico via ChangeExtension: el Replace(".nif", ...) reemplazaba TODAS las
+        ' ocurrencias, así que una carpeta o un nombre que contuviera ".nif" corrompía el destino.
+        SaveHighHeel(HighHeelSidecarPath, OverwriteShapeFiles)
 
         ' SSE: save or delete HDT-SMP XML physics sidecar alongside NIF (path ya ajustado in-NIF arriba)
         If Config_App.Current.Game = Config_App.Game_Enum.Skyrim Then

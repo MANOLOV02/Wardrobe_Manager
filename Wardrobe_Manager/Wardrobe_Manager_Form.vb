@@ -836,7 +836,6 @@ Public Class Wardrobe_Manager_Form
         If ComboBoxPoses.SelectedIndex <> -1 Then WM_SliderPresets.Poses.TryGetValue(ComboBoxPoses.Items(ComboBoxPoses.SelectedIndex), Selected_Combo_Pose)
 
         If IsNothing(Seleccionado) Then Exit Sub
-        preview_Control.Model.FloorOffset = -Seleccionado.HighHeelHeight
         If Seleccionado.Unreadable_Project Then
             preview_Control.Update_Render(Seleccionado, False, Selected_Combo_Preset, Selected_Combo_Pose, ComboBoxSize.SelectedIndex)
             Exit Sub
@@ -849,6 +848,10 @@ Public Class Wardrobe_Manager_Form
             preview_Control.Update_Render(Seleccionado, False, Selected_Combo_Preset, Selected_Combo_Pose, ComboBoxSize.SelectedIndex)
             Exit Sub
         End If
+        ' Después del load: antes se leía el HH ANTES de cargar la shapedata, así que el piso del
+        ' preview usaba el valor de la selección anterior (o 0 tras un unload) en el primer click.
+        preview_Control.Model.FloorOffset = -Seleccionado.HighHeelHeight
+
         If Seleccionado.HasPhysics Then
             Physics_Label.Visible = True
         End If
@@ -2536,11 +2539,19 @@ Public Class Wardrobe_Manager_Form
         ' Borra primero 
         If WM_Config.Current.Settings_Build.DeleteUnbuilt = True Then
             For Each projecto In que
-                Dim fil = projecto.OutputFullPathBase
-                If fil.EndsWith(".nif", StringComparison.OrdinalIgnoreCase) = False Then fil += ".nif"
-                Dim hhfile = fil.Replace(".nif", ".txt", StringComparison.OrdinalIgnoreCase)
-                Dim Trifile = fil.Replace(".nif", ".tri", StringComparison.OrdinalIgnoreCase)
-                If IO.File.Exists(fil) Then IO.File.Delete(fil)
+                Dim baseName = projecto.OutputFullPathBase
+                If baseName.EndsWith(".nif", StringComparison.OrdinalIgnoreCase) Then baseName = baseName.Substring(0, baseName.Length - 4)
+                Dim hhfile = baseName & ".txt"
+                Dim Trifile = baseName & ".tri"
+                ' Los NIF multisize salen como _0/_1 (ver BuildingForm): la limpieza vieja borraba
+                ' sólo "<base>.nif" y en SSE dejaba los dos pesos anteriores intactos.
+                If IO.File.Exists(baseName & ".nif") Then IO.File.Delete(baseName & ".nif")
+                If projecto.Multisize() Then
+                    For sizecount = 0 To 1
+                        Dim sized = baseName & "_" & sizecount.ToString & ".nif"
+                        If IO.File.Exists(sized) Then IO.File.Delete(sized)
+                    Next
+                End If
                 If IO.File.Exists(hhfile) Then IO.File.Delete(hhfile)
                 If IO.File.Exists(Trifile) Then IO.File.Delete(Trifile)
             Next
