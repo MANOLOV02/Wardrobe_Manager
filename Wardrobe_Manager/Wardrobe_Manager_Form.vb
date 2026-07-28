@@ -2797,7 +2797,12 @@ Public Class Wardrobe_Manager_Form
             preview_Control.Model.Floor.Rebuild()
         End If
         Dim reproces_dic As Boolean = False
-        If old_game <> Config_App.Current.Game Then reproces_dic = True
+        If old_game <> Config_App.Current.Game Then
+            reproces_dic = True
+            ' El rig de luces es POR JUEGO (Config_App.ActiveLights): cambiar de juego cambia la
+            ' iluminación del preview. El render lo lee en vivo, así que alcanza con forzar un repaint.
+            OnLightRigChanged()
+        End If
         If old_Data <> Config_App.Current.FO4EDataPath Then reproces_dic = True
         If old_OS <> WM_Config.Current.OSExePath Then reproces_dic = True
         If old_BS <> WM_Config.Current.BSExePath Then reproces_dic = True
