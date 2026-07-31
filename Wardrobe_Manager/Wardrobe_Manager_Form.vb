@@ -1077,7 +1077,9 @@ Public Class Wardrobe_Manager_Form
             ProgressBar1.Value = 0
             Habilita_deshabilita()
         Catch ex As Exception
+#If DEBUG Then
             Debugger.Break()
+#End If
         End Try
 
     End Sub
@@ -2629,7 +2631,9 @@ Public Class Wardrobe_Manager_Form
                     DummyOSP.xml.DocumentElement.AppendChild(builder.Nodo)
 
                 Catch ex As Exception
+#If DEBUG Then
                     Debugger.Break()
+#End If
                 End Try
             Next
             DummyOSP.Save_Pack_As(TempOSDFile, False)
@@ -2648,7 +2652,9 @@ Public Class Wardrobe_Manager_Form
             End Using
 
         Catch ex As Exception
+#If DEBUG Then
             Debugger.Break()
+#End If
         End Try
 
 

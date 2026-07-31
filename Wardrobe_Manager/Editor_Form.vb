@@ -751,7 +751,9 @@ Public Class Editor_Form
         End If
         If IsNothing(Selected_Shape.RelatedNifShader) Then
             If Selected_Shape.RelatedNifShape.ShaderPropertyRef.Index <> -1 Then
+#If DEBUG Then
                 Debugger.Break()
+#End If
                 Throw New Exception
             End If
             Dim nif = Selected_Shape.ParentSliderSet.NIFContent
@@ -772,7 +774,9 @@ Public Class Editor_Form
             While texset1.Textures.Count < 8
                 texset1.Textures.Add(New NiString4 With {.Content = ""})
             End While
+#If DEBUG Then
             Debugger.Break()
+#End If
         End If
         Select Case Selected_Shape.RelatedNifShader.GetType
             Case GetType(BSLightingShaderProperty)
@@ -822,7 +826,9 @@ Public Class Editor_Form
                     Selected_Shape.RelatedMaterial.material = Selected_Material
                 End If
             Case Else
+#If DEBUG Then
                 Debugger.Break()
+#End If
                 Throw New Exception
         End Select
 
@@ -1013,7 +1019,9 @@ Public Class Editor_Form
                         Case GetType(BSLightingShaderProperty)
                             TestChanges.Create_From_Shader(Selected_Slider.NIFContent, shap.RelatedNifShape, CType(shap.RelatedNifShader, BSLightingShaderProperty))
                         Case Else
+#If DEBUG Then
                             Debugger.Break()
+#End If
                             Throw New Exception
                     End Select
             End Select

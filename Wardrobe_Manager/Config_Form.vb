@@ -537,7 +537,9 @@ Public Class Config_Form
 
     Private Sub ListView1_ItemCheck(sender As Object, e As ItemCheckEventArgs) Handles ListView1.ItemCheck
         If CInt(ListView1.Items(e.Index).Tag) < -1 Or CInt(ListView1.Items(e.Index).Tag) > WM_Config.Current.BSAFiles_Clonables.Count - 1 Then
+#If DEBUG Then
             Debugger.Break()
+#End If
         End If
         WM_Config.Current.BSAFiles_Clonables(ListView1.Items(e.Index).Tag) = IIf(e.NewValue = CheckState.Checked, True, False)
     End Sub
@@ -615,7 +617,9 @@ Public Class Config_Form
             If IO.File.Exists(Wardrobe_Manager_Form.Directorios.LooksMenuWMSliders) Then IO.File.Delete(Wardrobe_Manager_Form.Directorios.LooksMenuWMSliders)
             Button8.Enabled = False
         Catch ex As Exception
+#If DEBUG Then
             Debugger.Break()
+#End If
         End Try
 
     End Sub

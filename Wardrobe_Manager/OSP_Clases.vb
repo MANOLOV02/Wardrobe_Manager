@@ -618,7 +618,9 @@ Public Class Clone_Materials_class
             Case GetType(BSEffectShaderProperty)
                 Return CType(shad, BSEffectShaderProperty).Name.String.Correct_Path_Separator
             Case Else
+#If DEBUG Then
                 Debugger.Break()
+#End If
                 Throw New Exception
         End Select
     End Function
@@ -630,7 +632,9 @@ Public Class Clone_Materials_class
             Case GetType(BSEffectShaderProperty)
                 CType(shad, BSEffectShaderProperty).Name.String = value
             Case Else
+#If DEBUG Then
                 Debugger.Break()
+#End If
                 Throw New Exception
         End Select
     End Sub
@@ -1158,7 +1162,9 @@ Public Class Clone_Materials_class
         If FilesDictionary_class.TryAddDictionaryEntry(normalized, location) = False Then
             If location.FullPath.Contains("ManoloCloned\", StringComparison.OrdinalIgnoreCase) = False AndAlso
            location.FullPath.Contains("ManoloMods\", StringComparison.OrdinalIgnoreCase) = False Then
+#If DEBUG Then
                 Debugger.Break()
+#End If
                 Throw New Exception
             End If
         End If
@@ -1875,7 +1881,7 @@ Public Class OSP_Project_Class
     End Function
 
     Public Shared Function Load_and_CHeck_Project(ByRef Sliderset_Target As SliderSet_Class, Optional context As ProjectLoadContext = Nothing) As Boolean
-        Dim nombre As String = "(Sin Nombre)"
+        Dim nombre As String = "(No Name)"
         If Sliderset_Target.Unreadable_Project Then Return False
 
         Dim effectiveContext = EnsureLoadContext(context)
@@ -2858,7 +2864,9 @@ Public Class SliderSet_Class
                 If removed Then NIF.RemoveUnreferencedBlocks()
                 Return True
             Catch ex As Exception
+#If DEBUG Then
                 Debugger.Break()
+#End If
             End Try
         Next
         If removed Then

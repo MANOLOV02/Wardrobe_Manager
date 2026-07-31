@@ -118,7 +118,9 @@ Public Class BuildingForm
                                 End If
                             Else
                                 ' Shape was filtered or failed silently in the parallel phase
+#If DEBUG Then
                                 Debugger.Break()
+#End If
                                 ProgressBar1.Value += 4
                             End If
                         Else

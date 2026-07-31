@@ -261,12 +261,6 @@ Public Class ShapeTypeValidator
     End Sub
 
     ''' <summary>
-    ''' Test A: round-trip determinístico.  Save original → load fresh → save de nuevo →
-    ''' byte-diff.  Si NiflySharp serializa/deserializa consistentemente (que es su
-    ''' contrato), los dos saves deben producir bytes idénticos.  Cualquier diferencia
-    ''' indica que el estado post-load difiere del estado post-save inicial.
-    ''' </summary>
-    ''' <summary>
     ''' Test A (round-trip determinismo) + Test E (triple idempotency).  Guarda el NIF
     ''' original 3 veces, recargando entre guardados.  Los 3 archivos deben ser byte-equal.
     ''' Diff entre el 1er y 2do save = estado no-serializado (el clásico "round-trip no
@@ -978,11 +972,6 @@ Public Class ShapeTypeValidator
         Return String.Join(" | ", filtered.Select(Function(l) l.Trim()))
     End Function
 
-    ''' <summary>
-    ''' Returns a short era tag ("SSE", "FO4", "SK", "LE", "Other") for the NIF version.
-    ''' Used as part of the cache key so BSTriShape-FO4 and BSTriShape-SSE are validated
-    ''' independently (different on-disk layout + different adapter code paths).
-    ''' </summary>
     ''' <summary>
     ''' Returns the NIF-block indices of bones referenced by a shape's skin instance.
     ''' Used by Test G (palette lossless after merge).  Works for BSSkin_Instance (FO4) and

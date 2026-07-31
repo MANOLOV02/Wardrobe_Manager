@@ -229,7 +229,9 @@ Public Class Create_from_Nif_Form
                         Next
                     Next
                 Catch ex As Exception
+#If DEBUG Then
                     Debugger.Break()
+#End If
                 End Try
             End If
 
@@ -253,7 +255,9 @@ Public Class Create_from_Nif_Form
             'End Try
 
         Catch ex As Exception
+#If DEBUG Then
             Debugger.Break()
+#End If
             selected_slider.Unreadable_NIF = True
         End Try
 

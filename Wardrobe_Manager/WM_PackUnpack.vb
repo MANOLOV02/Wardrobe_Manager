@@ -116,13 +116,6 @@ Public Module WM_PackUnpack
     End Function
 
     ''' <summary>
-    ''' Pack the current loose set into BA2/BSA + dummy plugin(s). After a successful pack:
-    '''   - newly written archives are mounted via FilesDictionary.RegisterArchive
-    '''   - the loose source files are deleted and removed from FilesDictionary
-    ''' Failures abort before deletion: rollback inside ArchivePackager keeps existing archives
-    ''' intact, and loose files are left alone if anything went wrong.
-    ''' </summary>
-    ''' <summary>
     ''' Background-thread wrapper. Use from UI handlers via Await.
     ''' Cancellation: callers can pass a CancellationToken to request a clean stop. Cancellation
     ''' is only checked at safe checkpoints (between chunks, and just before each archive write
