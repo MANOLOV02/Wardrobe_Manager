@@ -39,9 +39,11 @@ Namespace My
         Private Sub MyApplication_Startup(sender As Object, e As Microsoft.VisualBasic.ApplicationServices.StartupEventArgs) Handles Me.Startup
             ' Initialize WM-specific hooks for the shared library
             WM_RenderExtensions.InitializeWM()
-            ' Logger habilitado SOLO en Debug builds. En Release: Logger.Enabled stays default (False)
-            ' y todos los Logger.Log/LogLazy retornan early sin allocar — sin overhead. Si necesitás
-            ' diagnóstico en Release, descomentar manualmente y rebuild.
+            ' Logger habilitado SOLO en Debug builds. En Release: Logger.Enabled queda en False y todos los
+            ' Logger.Log/LogLazy retornan early sin allocar — y, mas importante, TODOS los bloques
+            ' `If Logger.Enabled Then ...` de diagnostico no corren. ⭐ DOBLE CANDADO: ademas de este
+            ' `#If DEBUG`, el propio setter de Logger.Enabled DESCARTA cualquier True en Release (ver
+            ' Logger.vb), asi que un `Logger.Enabled = True` suelto en release no prende nada.
 #If DEBUG Then
             FO4_Base_Library.Logger.Enabled = True
             FO4_Base_Library.Logger.Initialize(IO.Path.Combine(System.Windows.Forms.Application.StartupPath, "fo4lib.log"))
