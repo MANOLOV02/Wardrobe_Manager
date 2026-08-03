@@ -126,6 +126,10 @@ Public Module WM_RenderExtensions
         If Not skipPresetApply Then
             seleccionado.SetPreset(Preset, weight)
             s.Last_size = weight
+            ' El resolver necesita el peso para gatear el 2do pase de clamp por el DEFAULT de
+            ' ese peso, igual que el bake (ApplyMorph_CPU recibe buildSize). Sin esto el preview
+            ' gateaba siempre por Big y divergia del _0.nif.
+            s.MorphResolver.BuildSize = weight
             s.Last_Preset = Preset
         End If
 

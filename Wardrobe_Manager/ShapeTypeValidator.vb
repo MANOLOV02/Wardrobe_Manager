@@ -578,15 +578,23 @@ Public Class ShapeTypeValidator
         For i = 0 To zapCount - 1
             geom.VertexMask(i) = -1.0F
         Next
+        Dim zapMod As New ZapGeometryModifier(sliderSet.KeepZappedShapes)
         SkinningHelper.BakeFromMemoryUsingOriginal(shape, geom,
                                                     inverse:=False,
                                                     ApplyMorph:=True, RemoveZaps:=True,
                                                     singleBoneSkinning:=False,
-                                                    geometryModifier:=New ZapGeometryModifier())
+                                                    geometryModifier:=zapMod)
+        ' El reindex de morphs ya no vive dentro del modifier (no es thread-safe). El harness corre
+        ' single-thread pero tiene que replicar el pipeline de produccion: BuildingForm lo hace en
+        ' su fase 2 serial, aca va inmediatamente despues del bake.
+        MorphingHelper.ReindexMorphsAfterZap(shape, zapMod.VertexRemap,
+                                             New HashSet(Of OSD_Block_Class)(ReferenceEqualityComparer.Instance))
         ' Post-bake: update partition unless shape fully zapped + not keeping empty
         If geom.Vertices.Length = 0 AndAlso sliderSet.KeepZappedShapes = False Then
             sliderSet.RemoveShape(shape)
         Else
+            ' 100 % zapeada y conservada: geometria intacta + flag hidden (BodySlideApp.cpp:3618-3620).
+            If zapMod.FullyZappedKept Then sliderSet.NIFContent.SetShapeHidden(shape.RelatedNifShape)
             sliderSet.NIFContent.UpdateSkinPartitions(shape.RelatedNifShape)
         End If
     End Sub

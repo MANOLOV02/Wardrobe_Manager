@@ -153,8 +153,108 @@ Public Class Editor_Form
         If IsNothing(presetItem) Then Exit Sub
 
         presetItem.Value = CSng(tb.Value)
+        PropagateSliderEdit(sliderName)
         pendingValuePreset = True
         If Not PresetscrollTimer.Enabled Then PresetscrollTimer.Start()
+    End Sub
+
+    ''' <summary>
+    ''' Propaga la edicion de un slider a las entradas de OTROS pesos del preset del editor.
+    '''
+    ''' Hace falta porque el trackbar escribe SOLO la entrada del peso visible, y quien decide que
+    ''' entrada lee el build es otra ley: <c>ResolvePresetValue</c> en FO4 prefiere <c>Default</c> y
+    ''' si no <c>Big</c>; en SSE reparte por peso (<c>Small</c> para el pase Small, cualquier otra para
+    ''' el resto). Sin propagar, una edicion hecha en la vista equivocada no llegaba al .nif.
+    '''
+    ''' ⛔ Y hace falta acotarla, porque el preset se COMPARTE entre sliderSets y juegos, y
+    ''' <c>SavePresetXml</c> serializa las tres entradas. Aplastar <c>Small</c> con el valor de
+    ''' <c>Big</c> "porque en este set los pesos son el mismo numero" le rompe el <c>_0</c> a todos los
+    ''' otros sliderSets que usen ese preset. De ahi las tres reglas:
+    ''' <list type="bullet">
+    ''' <item><b>Un ZAP va a los tres pesos.</b> No es por peso: el handler del checkbox de BodySlide
+    ''' escribe los dos (BodySlideApp.cpp:5713-5714 y :5729-5730) y el build decide los zaps SIEMPRE
+    ''' con el valor BIG (:4382-4386).</item>
+    ''' <item><b>Set sin salida por peso</b> (<c>Multisize()</c> False — SIEMPRE en FO4, que esta
+    ''' hard-gateado, y en SSE sin <c>GenWeights</c>): el peso no existe para este set, el build
+    ''' resuelve por <c>Default</c>/<c>Big</c>. Se escriben esos dos.</item>
+    ''' <item><b>Set multisize:</b> <c>Default</c> y <c>Big</c> son EL MISMO peso para el resolver
+    ''' (<c>size &lt;&gt; Small</c>) ⇒ se mantienen en sincronia entre si; <c>Small</c> es independiente
+    ''' y NUNCA se toca desde una edicion de los otros dos, ni al reves.</item>
+    ''' </list>
+    '''
+    ''' ⛔ ACA NO SE REIMPLEMENTA EL PRE-PASE DE zapToggles. Ese vive en
+    ''' <see cref="SliderSet_Class.ApplyZapToggles"/>, es la replica fiel de la fase 0
+    ''' (BodySlideApp.cpp:4285-4320) y corre en el MISMO <c>SetPreset</c> que alimenta al preview y al
+    ''' build ⇒ el editor y el .nif no pueden divergir. Que el preset del editor tenga una entrada para
+    ''' cada slider hace que el default volteado no aflore: eso es CANONICO —
+    ''' <c>GetBigPresetValue(preset, name, def/100)</c> (:4294, :4349) usa el default solo como
+    ''' fallback, y el comentario del propio canonico lo dice: "Toggled zap default values are read in
+    ''' later code <b>if no preset overwrites it</b>". Con un preset escaso (uno de disco) el toggle si
+    ''' actua, por los dos caminos igual.
+    '''
+    ''' ⛔ Un intento anterior calculaba aca el resultado de la fase 0 y lo escribia en el preset.
+    ''' Rompia tres cosas: pisaba el valor del zap recien movido cuando ese zap era destino de otro
+    ''' (con la cadena real de CBBE "Remove Top" → "TopZap" → "Backpack Support", <c>TopZap</c> quedaba
+    ''' inmovible); comparaba contra el default CRUDO mientras escribia el VOLTEADO, con lo que cada
+    ''' evento de Scroll realimentaba al siguiente durante un arrastre; y creaba entradas de preset
+    ''' sobre la marcha.
+    ''' </summary>
+    Private Sub PropagateSliderEdit(sliderName As String)
+        If Selected_Slider Is Nothing OrElse Selected_Preset Is Nothing Then Exit Sub
+
+        ' OrdinalIgnoreCase: el Tag del trackbar sale del CATALOGO, y el catalogo se casa con los
+        ' sliders del set por un dict OrdinalIgnoreCase. Con Ordinal, un .osp que escriba `belly`
+        ' contra un catalogo que diga `Belly` no encontraba el slider y no se propagaba nada — en FO4
+        ' con la vista en Big o Small eso dejaba la edicion sin llegar ni al preview ni al .nif.
+        ' (El Ordinal de ApplyZapToggles es otra cosa: ahi replica el operator[] del canonico.)
+        Dim movido = Selected_Slider.Sliders.FirstOrDefault(
+            Function(x) String.Equals(x.Nombre, sliderName, StringComparison.OrdinalIgnoreCase))
+        If movido Is Nothing Then Exit Sub
+
+        ' `bZap && !bUV` — la guarda de la FASE 1 (BodySlideApp.cpp:4373), que es la que decide con
+        ' que peso se lee el slider. ⛔ NO lleva `Not IsClamp`: ese `continue` es de la fase 0
+        ' (:4288), que sirve para otra cosa (a quien se le mira el zapToggles). Un slider
+        ' zap+clamp SI lo zapea el build, y WM tambien (ResolveSlider y Zap_Setting_Big usan
+        ' `IsZap AndAlso Not IsUV`), asi que tiene que entrar al propagado.
+        Dim esZap As Boolean = movido.IsZap AndAlso Not movido.IsUV
+
+        Dim destinos As New HashSet(Of WM_Config.SliderSize)()
+        If esZap Then
+            destinos.Add(WM_Config.SliderSize.Default)
+            destinos.Add(WM_Config.SliderSize.Big)
+            destinos.Add(WM_Config.SliderSize.Small)
+        ElseIf Not Selected_Slider.Multisize() Then
+            destinos.Add(WM_Config.SliderSize.Default)
+            destinos.Add(WM_Config.SliderSize.Big)
+        ElseIf Selected_size <> WM_Config.SliderSize.Small Then
+            destinos.Add(WM_Config.SliderSize.Default)
+            destinos.Add(WM_Config.SliderSize.Big)
+        End If
+        destinos.Remove(Selected_size)
+        If destinos.Count = 0 Then Exit Sub
+
+        Dim valor As Single = Single.NaN
+        For Each pf In Selected_Preset.Sliders
+            If pf.Size = Selected_size AndAlso String.Equals(pf.Name, movido.Nombre, StringComparison.OrdinalIgnoreCase) Then
+                valor = pf.Value
+                Exit For
+            End If
+        Next
+        If Single.IsNaN(valor) Then Exit Sub
+
+        Dim toco As Boolean = False
+        For Each pf In Selected_Preset.Sliders
+            If Not destinos.Contains(pf.Size) Then Continue For
+            If Not String.Equals(pf.Name, movido.Nombre, StringComparison.OrdinalIgnoreCase) Then Continue For
+            If pf.Value <> valor Then
+                pf.Value = valor
+                toco = True
+            End If
+        Next
+
+        ' Refleja en los trackbars lo que se movio por debajo (con los eventos suprimidos). Solo si
+        ' hubo cambio: esto corre por evento de Scroll, o sea por WM_MOUSEMOVE del arrastre.
+        If toco Then UpdateExistingSliderControls()
     End Sub
 
     Private Sub DynamicPresetTrackBar_MouseUp(sender As Object, e As EventArgs)
@@ -265,15 +365,35 @@ Public Class Editor_Form
                 Dim matches As List(Of PresetSlider_Class) = Nothing
                 If presetLookup.TryGetValue(slid.Nombre, matches) Then
                     Dim sli0 = matches.FirstOrDefault(Function(s) s.Size = WM_Config.SliderSize.Default)
+                    ' Default_Setting(size) y NO los atributos big/small crudos: el despacho es por
+                    ' GenWeights (SliderData::LoadSliderData — sin genWeights, defBig = defSmall =
+                    ' `default`). Leer los crudos daba 0 en todo .osp sin genWeights, y en SSE la
+                    ' rama por size de ResolvePresetValue hace que ese 0 del Big PISE al Default:
+                    ' un zap con default 100 quedaba apagado y encima disparaba sus zapToggles solo.
                     If Not IsNothing(sli0) Then sli0.Value = slid.Default_Setting(WM_Config.SliderSize.Default)
                     Dim sliB = matches.FirstOrDefault(Function(s) s.Size = WM_Config.SliderSize.Big)
-                    If Not IsNothing(sliB) Then sliB.Value = slid.Default_Big_Value
+                    If Not IsNothing(sliB) Then sliB.Value = slid.Default_Setting(WM_Config.SliderSize.Big)
                     Dim sliS = matches.FirstOrDefault(Function(s) s.Size = WM_Config.SliderSize.Small)
-                    If Not IsNothing(sliS) Then sliS.Value = slid.Default_Small_Value
+                    If Not IsNothing(sliS) Then sliS.Value = slid.Default_Setting(WM_Config.SliderSize.Small)
                 Else
-                    Dim sli As New PresetSlider_Class With {.Name = slid.Nombre, .DisplayName = slid.Nombre, .Value = slid.Default_Setting(Selected_size), .Category = nif_cat, .Size = Selected_size}
-                    Selected_Preset.Sliders.Add(sli)
-                    presetLookup(slid.Nombre) = New List(Of PresetSlider_Class) From {sli}
+                    ' LOS TRES pesos, igual que la rama de arriba (los sliders catalogados). Crear una
+                    ' sola entrada, la del size visible, dejaba inertes a los sliders del proyecto —
+                    ' los "(NIF)": zaps de outfit, TopZap, Backpack Support... En FO4 el build resuelve
+                    ' por Default y si no por Big (OSP_Clases ResolvePresetValue), asi que con la vista
+                    ' en Small no encontraba ninguna y caia al default del sliderset; en SSE pasaba lo
+                    ' mismo al reves para Zap_Setting_Big, que se resuelve SIEMPRE con Big.
+                    ' Ademas deja el preset guardado COMPLETO, que es lo que hace que el remapeo de
+                    ' Define_cual_size sea la identidad al recargarlo en vez de inventar equivalencias.
+                    Dim creadas As New List(Of PresetSlider_Class)
+                    For x = 0 To 2
+                        Dim sz = CType(x, WM_Config.SliderSize)
+                        Dim sli As New PresetSlider_Class With {.Name = slid.Nombre, .DisplayName = slid.Nombre,
+                                                                .Value = slid.Default_Setting(sz),
+                                                                .Category = nif_cat, .Size = sz}
+                        Selected_Preset.Sliders.Add(sli)
+                        creadas.Add(sli)
+                    Next
+                    presetLookup(slid.Nombre) = creadas
                 End If
             Next
         End If

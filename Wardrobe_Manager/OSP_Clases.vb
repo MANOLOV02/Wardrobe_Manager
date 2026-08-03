@@ -299,6 +299,9 @@ Public Class SliderPresetCollection
 
 End Class
 Public Class OSD_Class
+    ''' <summary>nifly EPSILON. Ver el clamp por componente en Load().</summary>
+    Public Const OsdDiffEpsilon As Single = 0.0001F
+
     Public Property Header As Byte() = {0, 68, 83, 79}
     Public Property Version As Byte() = {1, 0, 0, 0}
     Public Property Datablocks As Integer = 0
@@ -351,9 +354,14 @@ Public Class OSD_Class
                         block.DataDiff = New List(Of OSD_DataDiff_Class)(DifDatas)
                         For y As Int32 = 0 To DifDatas - 1
                             Dim idx = reader.ReadUInt16()
-                            Dim vx = reader.ReadSingle()
-                            Dim vy = reader.ReadSingle()
-                            Dim vz = reader.ReadSingle()
+                            ' Clamp por componente igual que BodySlide, que lo hace al PARSEAR el .osd
+                            ' (DiffData.cpp:177 -> nifly Vector3::clampEpsilon, EPSILON = 1e-4f), no al
+                            ' emitir. Por eso su geometria de build tambien esta clampeada, no solo el .tri.
+                            ' Este es el UNICO lector de OSD del repo y llena aca DataDiff + los dos
+                            ' arrays compactos, asi que no pueden desincronizarse.
+                            Dim vx = reader.ReadSingle() : If Math.Abs(vx) < OsdDiffEpsilon Then vx = 0.0F
+                            Dim vy = reader.ReadSingle() : If Math.Abs(vy) < OsdDiffEpsilon Then vy = 0.0F
+                            Dim vz = reader.ReadSingle() : If Math.Abs(vz) < OsdDiffEpsilon Then vz = 0.0F
                             block.IndicesCompact(y) = idx
                             block.DeltasCompact(y * 3) = vx
                             block.DeltasCompact(y * 3 + 1) = vy
@@ -385,6 +393,83 @@ Public Class OSD_Class
 
     End Sub
 
+    ''' <summary>
+    ''' Fusiona los bloques homonimos en uno solo sumando los diffs por indice — la misma semantica
+    ''' que aplica el motor de morphs de WM (LoadMorphTargets + ApplyMorph_CPU acumulan todos los
+    ''' RelatedOSDBlocks). Deja el archivo legible por BodySlide, que ante nombres repetidos se queda
+    ''' con el primero y tira el resto.
+    '''
+    ''' Sin duplicados devuelve la MISMA lista: el caso normal no cambia un solo byte.
+    ''' Case-insensitive porque asi los busca WM (GetLocalOsdBlocksByNameCached).
+    ''' </summary>
+    Friend Shared Function MergeBlocksByName(source As List(Of OSD_Block_Class)) As List(Of OSD_Block_Class)
+        If source Is Nothing OrElse source.Count < 2 Then Return source
+
+        Dim seen As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+        Dim hasDupes As Boolean = False
+        For Each b In source
+            If b Is Nothing Then Continue For
+            If Not seen.Add(If(b.BlockName, "")) Then
+                hasDupes = True
+                Exit For
+            End If
+        Next
+        If Not hasDupes Then Return source
+
+        ' Los bloques fusionados son COPIAS: mutar los originales haria que grabar dos veces acumulara
+        ' dos veces. Los que no tienen homonimo se devuelven por referencia (no se tocan).
+        Dim merged As New List(Of OSD_Block_Class)(source.Count)
+        Dim byName As New Dictionary(Of String, OSD_Block_Class)(StringComparer.OrdinalIgnoreCase)
+        Dim slotOf As New Dictionary(Of OSD_Block_Class, Dictionary(Of Integer, Integer))(ReferenceEqualityComparer.Instance)
+
+        For Each b In source
+            If b Is Nothing Then Continue For
+            Dim name = If(b.BlockName, "")
+            Dim target As OSD_Block_Class = Nothing
+
+            If Not byName.TryGetValue(name, target) Then
+                ' Copia defensiva: se materializa recien cuando llega un homonimo (abajo), asi que
+                ' aca se guarda el original y se recuerda su posicion en `merged`.
+                byName(name) = b
+                merged.Add(b)
+                Continue For
+            End If
+
+            ' Segundo (o siguiente) bloque con este nombre: a partir de aca hace falta un acumulador
+            ' propio. Se clona una sola vez y se reemplaza en `merged`.
+            Dim slots As Dictionary(Of Integer, Integer) = Nothing
+            If Not slotOf.TryGetValue(target, slots) Then
+                Dim copy As New OSD_Block_Class(target.ParentOSDContent) With {.BlockName = target.BlockName}
+                For Each d In target.DataDiff
+                    copy.DataDiff.Add(New OSD_DataDiff_Class With {.Index = d.Index, .X = d.X, .Y = d.Y, .Z = d.Z})
+                Next
+                slots = New Dictionary(Of Integer, Integer)(copy.DataDiff.Count)
+                For k = 0 To copy.DataDiff.Count - 1
+                    slots(CInt(copy.DataDiff(k).Index)) = k
+                Next
+                merged(merged.IndexOf(target)) = copy
+                byName(name) = copy
+                slotOf(copy) = slots
+                target = copy
+            End If
+
+            For Each d In b.DataDiff
+                Dim idx As Integer = CInt(d.Index)
+                Dim pos As Integer
+                If slots.TryGetValue(idx, pos) Then
+                    Dim cur = target.DataDiff(pos)
+                    cur.X += d.X : cur.Y += d.Y : cur.Z += d.Z
+                Else
+                    slots(idx) = target.DataDiff.Count
+                    target.DataDiff.Add(New OSD_DataDiff_Class With {.Index = d.Index, .X = d.X, .Y = d.Y, .Z = d.Z})
+                End If
+            Next
+            target.RebuildCompactArrays()
+        Next
+
+        Return merged
+    End Function
+
     Public Sub Save_As(Filename As String, Overwrite As Boolean)
         If IO.File.Exists(Filename) AndAlso Overwrite = False Then
             If MsgBox("ODS File already exists, replace?", vbYesNo, "Warning") = MsgBoxResult.No Then
@@ -396,13 +481,27 @@ Public Class OSD_Class
         Using stream = IO.File.Open(Filename, IO.FileMode.Create)
             Using Writer As New IO.BinaryWriter(stream)
 
+                ' BodySlide indexa los bloques del .osd con `outDataDiffs.emplace(dataName, ...)` sobre
+                ' un unordered_map (DiffData.cpp:181): emplace NO sobreescribe, asi que ante nombres
+                ' repetidos se queda con el PRIMERO y descarta el resto. WM en cambio los SUMA
+                ' (LoadMorphTargets apila todos los RelatedOSDBlocks y ApplyMorph_CPU acumula), y
+                ' MaterializeEditableLocalBlocks los crea homonimos a proposito. Sin fusionar, un .osd
+                ' escrito por WM no es round-trippable por BodySlide/OutfitStudio: pierde diffs.
+                Dim blocksToWrite = MergeBlocksByName(Blocks)
                 Writer.Write(Header)
                 Writer.Write(Version)
-                Writer.Write(CType(Blocks.Count, UInt32))
-                For x = 0 To Blocks.Count - 1
-                    Dim blk = Blocks(x)
-                    Writer.Write(CType(blk.BlockName.Length, Byte))
-                    Writer.Write(System.Text.Encoding.UTF8.GetBytes(blk.BlockName))
+                Writer.Write(CType(blocksToWrite.Count, UInt32))
+                For x = 0 To blocksToWrite.Count - 1
+                    Dim blk = blocksToWrite(x)
+                    ' Largo en BYTES, no en chars: BSOS escribe dataName.length() (bytes UTF-8) y el
+                    ' lector hace resize(nameLength) + read(nameLength). Con un nombre no-ASCII,
+                    ' BlockName.Length (chars) < bytes UTF-8 y el archivo salia corrupto.
+                    Dim nameBytes = System.Text.Encoding.UTF8.GetBytes(If(blk.BlockName, ""))
+                    If nameBytes.Length > Byte.MaxValue Then
+                        Throw New InvalidOperationException($"OSD block name '{blk.BlockName}' encodes to {nameBytes.Length} bytes, exceeds the 255-byte format limit")
+                    End If
+                    Writer.Write(CByte(nameBytes.Length))
+                    Writer.Write(nameBytes)
                     Dim DifDatas = blk.DataDiff.Count
                     ' The OSD format stores the diff count in a 16-bit field. A larger count would
                     ' wrap silently here while the loop below still writes every entry, producing a
@@ -2361,6 +2460,20 @@ Public Class SliderSet_Class
         Return Nothing
     End Function
 
+    ''' <summary>
+    ''' Saca un bloque de los caches por nombre sin invalidarlos. Invalidar entero obligaba a
+    ''' reconstruirlos recorriendo el .osd externo COMPLETO (miles de bloques en CBBE) una vez por cada
+    ''' shape zapeada del build.
+    ''' </summary>
+    Friend Sub ForgetOsdBlockFromCaches(block As OSD_Block_Class)
+        If block Is Nothing OrElse Not _ShapeDataLookupCacheValid Then Exit Sub
+        Dim key = block.BlockName
+        If String.IsNullOrWhiteSpace(key) Then Exit Sub
+        Dim lst As List(Of OSD_Block_Class) = Nothing
+        If _LocalOsdBlocksByNameCache.TryGetValue(key, lst) Then lst.Remove(block)
+        If _ExternalOsdBlocksByNameCache.TryGetValue(key, lst) Then lst.Remove(block)
+    End Sub
+
     Friend Function GetLocalOsdBlocksByNameCached(name As String) As IEnumerable(Of OSD_Block_Class)
         EnsureShapeDataLookupCache()
         Dim result As List(Of OSD_Block_Class) = Nothing
@@ -2547,40 +2660,122 @@ Public Class SliderSet_Class
         Return 0
     End Function
 
+    ''' <summary>
+    ''' Fija el valor vivo de cada slider para el peso pedido, y ADEMAS deja resuelto
+    ''' <see cref="Slider_class.Zap_Setting_Big"/>: los ZAPS se deciden SIEMPRE con el valor BIG y
+    ''' el MISMO conjunto de vertices se borra de los dos pesos — `zapIdxAll` se llena unicamente en
+    ''' la rama `vbig` (BodySlideApp.cpp:4382-4386) y ese mismo `shapeZapIdx` se aplica a `nifBig` y
+    ''' a `nifSmall` (:3616-3624 y :3643-3649). Decidir el zap por size hacia que `_0` y `_1`
+    ''' tuvieran topologias distintas y que el .tri quedara indexado contra una sola de las dos.
+    ''' </summary>
     Public Sub SetPreset(Preset As SlidersPreset_Class, Weight As WM_Config.SliderSize)
+        ApplyZapToggles(Preset)
         For Each slid In Sliders
-            slid.Current_Setting = slid.Default_Setting(Weight)
-            If IsNothing(Preset) Then Continue For
+            slid.Current_Setting = ResolvePresetValue(slid, Preset, Weight)
+            slid.Zap_Setting_Big = If(slid.IsZap AndAlso Weight <> WM_Config.SliderSize.Big,
+                                      ResolvePresetValue(slid, Preset, WM_Config.SliderSize.Big),
+                                      slid.Current_Setting)
+        Next
+    End Sub
 
-            Dim matches = Preset.Sliders.
-            Where(Function(pf) pf.Name.Equals(slid.Nombre, StringComparison.OrdinalIgnoreCase)).
-            OrderBy(Function(pf) pf.Size).
-            ToList()
+    ''' <summary>
+    ''' Pre-pase de zapToggles, replica de BodySlideApp.cpp:4285-4320 (la fase 0 de BuildListBodies,
+    ''' ANTES de aplicar ningun slider):
+    ''' <code>
+    ''' for (s = 0; s &lt; currentSet.size(); s++) {
+    '''     if (currentSet[s].bClamp) { clamps.push_back(s); continue; }
+    '''     if (currentSet[s].bZap &amp;&amp; !currentSet[s].bUV) {
+    '''         float vbig = GetBigPresetValue(preset, name, defBigValue / 100.0f);
+    '''         ... // overrides del usuario
+    '''         if (vbig != currentSet[s].defBigValue / 100.0f)
+    '''             for (auto&amp; t : zapToggles) { slider = currentSet[t];
+    '''                 slider.defBigValue = 100.0f - slider.defBigValue;
+    '''                 slider.defSmallValue = 100.0f - slider.defSmallValue; }
+    '''     }
+    ''' }
+    ''' </code>
+    ''' Cuatro detalles que NO son adorno:
+    ''' <list type="number">
+    ''' <item>El disparador es <c>BIG</c> siempre, en los dos pesos - igual que la decision del zap.</item>
+    ''' <item>Los CLAMP hacen <c>continue</c> antes de mirar el zap, asi que un clamp nunca dispara.</item>
+    ''' <item>El pase es SECUENCIAL y lee el default ya volteado por iteraciones anteriores
+    '''       (<c>currentSet[s].defBigValue</c> es el mutado): un zap que ya fue volteado compara su
+    '''       valor contra su default NUEVO, no contra el del archivo. Por eso aca se compara contra
+    '''       <see cref="Slider_class.EffectiveDefault"/> y no contra el crudo.</item>
+    ''' <item>Dos zaps que apuntan al mismo destino lo voltean DOS veces = queda como estaba; de ahi
+    '''       el <c>Not</c> en vez de un <c>True</c>.</item>
+    ''' </list>
+    ''' El lookup del destino es <c>SliderSet::operator[](const std::string&amp;)</c> (SliderSet.h:362),
+    ''' que compara con <c>==</c> de std::string: ORDINAL y sensible a mayusculas. Un nombre que no
+    ''' existe devuelve un slider estatico <c>Empty</c> - mutarlo no hace nada - asi que aca un
+    ''' destino desconocido simplemente se ignora.
+    ''' </summary>
+    Private Sub ApplyZapToggles(Preset As SlidersPreset_Class)
+        Dim lista = Sliders
+        If lista Is Nothing OrElse lista.Count = 0 Then Return
 
-            If matches.Count = 0 Then Continue For
+        ' Estado limpio: el flip es POR CONSTRUCCION, no se acumula entre pesos ni entre presets.
+        For Each slid In lista
+            slid.ZapToggleFlipped = False
+        Next
 
-            If Config_App.Current.Game = Config_App.Game_Enum.Fallout4 Then
-                Dim presetDefault = matches.FirstOrDefault(Function(pf) pf.Size = WM_Config.SliderSize.Default)
-                Dim presetBig = matches.FirstOrDefault(Function(pf) pf.Size = WM_Config.SliderSize.Big)
+        ' first-wins ordinal, que es lo que hace el operator[] canonico al devolver el primer match.
+        Dim porNombre As New Dictionary(Of String, Slider_class)(StringComparer.Ordinal)
+        For Each slid In lista
+            If Not porNombre.ContainsKey(slid.Nombre) Then porNombre.Add(slid.Nombre, slid)
+        Next
 
-                If presetDefault IsNot Nothing Then
-                    slid.Current_Setting = presetDefault.Value
-                ElseIf presetBig IsNot Nothing Then
-                    slid.Current_Setting = presetBig.Value
-                End If
+        For Each slid In lista
+            If slid.IsClamp Then Continue For
+            If Not slid.IsZap OrElse slid.IsUV Then Continue For
+            Dim toggles = slid.ZapToggles
+            If toggles.Length = 0 Then Continue For
 
-                Continue For
-            End If
+            Dim vbig As Single = ResolvePresetValue(slid, Preset, WM_Config.SliderSize.Big)
+            If vbig = slid.EffectiveDefault(WM_Config.SliderSize.Big) Then Continue For
 
-            For Each sli In matches
-                If sli.Size = WM_Config.SliderSize.Small Then
-                    If Weight = WM_Config.SliderSize.Small Then slid.Current_Setting = sli.Value
-                Else
-                    If Weight <> WM_Config.SliderSize.Small Then slid.Current_Setting = sli.Value
-                End If
+            For Each destino In toggles
+                Dim tgt As Slider_class = Nothing
+                If porNombre.TryGetValue(destino, tgt) Then tgt.ZapToggleFlipped = Not tgt.ZapToggleFlipped
             Next
         Next
     End Sub
+
+    ''' <summary>Valor que le corresponde a un slider para un peso, con el preset aplicado.</summary>
+    Private Shared Function ResolvePresetValue(slid As Slider_class, Preset As SlidersPreset_Class,
+                                               Weight As WM_Config.SliderSize) As Single
+        Dim result As Single = slid.EffectiveDefault(Weight)
+        If IsNothing(Preset) Then Return result
+
+        Dim matches = Preset.Sliders.
+        Where(Function(pf) pf.Name.Equals(slid.Nombre, StringComparison.OrdinalIgnoreCase)).
+        OrderBy(Function(pf) pf.Size).
+        ToList()
+
+        If matches.Count = 0 Then Return result
+
+        If Config_App.Current.Game = Config_App.Game_Enum.Fallout4 Then
+            Dim presetDefault = matches.FirstOrDefault(Function(pf) pf.Size = WM_Config.SliderSize.Default)
+            Dim presetBig = matches.FirstOrDefault(Function(pf) pf.Size = WM_Config.SliderSize.Big)
+
+            If presetDefault IsNot Nothing Then
+                result = presetDefault.Value
+            ElseIf presetBig IsNot Nothing Then
+                result = presetBig.Value
+            End If
+
+            Return result
+        End If
+
+        For Each sli In matches
+            If sli.Size = WM_Config.SliderSize.Small Then
+                If Weight = WM_Config.SliderSize.Small Then result = sli.Value
+            Else
+                If Weight <> WM_Config.SliderSize.Small Then result = sli.Value
+            End If
+        Next
+        Return result
+    End Function
     Public ReadOnly Property HasPhysics As Boolean
         Get
             ' SSE can have BSClothExtraData (vanilla Havok) AND/OR sidecar HDT-SMP XML
@@ -2624,6 +2819,12 @@ Public Class SliderSet_Class
             sliderSetNode.AppendChild(outputFileNode)
             Nodo = sliderSetNode
             OSP.xml.DocumentElement.AppendChild(sliderSetNode)
+            ' Sembrado SERIAL de la cache de GenWeights. Este ctor arma el XML a mano y NO pasa por
+            ' Lee_SlidersAndShapes, que es donde se siembra en el resto de los caminos: dejarla fria
+            ' aca hacia que la primera lectura pudiera caer dentro de un Parallel.ForEach, con N hilos
+            ' entrando juntos al SelectNodes del XmlDocument compartido — la carrera que la cache
+            ' existe para evitar.
+            Dim _seedGenWeights = GenWeights
 
         Catch ex As Exception
             MsgBox("Error Creating Sliderset", "Error")
@@ -2648,10 +2849,20 @@ Public Class SliderSet_Class
     End Sub
 
     Public Sub Lee_SlidersAndShapes()
+        ' Invalidar ANTES de leer: `Reload(el As XmlNode)` reapunta Nodo a un XmlDocument recien
+        ' parseado del disco, y sin esto el objeto se quedaba con el GenWeights del archivo VIEJO.
+        ' Lo dispara el flujo "editar en Outfit Studio y recargar": si el usuario cambia ahi
+        ' `Create weight sliders`, WM emitia _0/_1 de mas o de menos y, peor, Default_Setting leia
+        ' `big`/`small` en un .osp que ya solo tiene `default` ⇒ TODOS los defaults en 0.
+        _genWeightsCache = 0
         Shapes = Nodo.SelectNodes("Shape").Cast(Of XmlNode)().Select(Function(shap) New Shape_class(shap, Me)).ToList
         Sliders = Nodo.SelectNodes("Slider").Cast(Of XmlNode)().Select(Function(slid) New Slider_class(slid, Me)).ToList
         LastProjectFileSignature = GetProjectFileSignature()
         InvalidateMetadataLookupCache()
+        ' Sembrado SERIAL de la cache. Este metodo es el unico punto por el que un sliderset queda
+        ' utilizable, y corre siempre fuera de los Parallel.ForEach: dejar la cache fria dejaba a N
+        ' hilos entrando juntos al SelectNodes del XmlDocument compartido.
+        Dim _seed = GenWeights
     End Sub
     ''' <summary>Lee "Height=&lt;n&gt;" de un sidecar de tacones (el .hht del proyecto o un .txt de
     ''' HHS). Tolera archivo vacío, líneas en blanco y líneas sin "=": antes un .hht de 0 bytes
@@ -3113,13 +3324,67 @@ Public Class SliderSet_Class
         End Set
     End Property
 
+    ''' <summary>
+    ''' Cache de <see cref="GenWeights"/>. Hace falta porque el getter resuelve por <c>OutputFile</c>,
+    ''' que es un <c>SelectNodes</c> sobre el XmlDocument COMPARTIDO del .osp, y lo leen
+    ''' <c>Slider_class.Default_Setting</c>/<c>EffectiveDefault</c> — o sea, desde adentro de los dos
+    ''' <c>Parallel.ForEach</c> por shape (render y build). Es la misma razon por la que
+    ''' <c>KeepZappedShapes</c> se iza al caller serial en BuildingForm.
+    '''
+    ''' ⛔ Es un <c>Integer</c> (0 = sin resolver, 1 = False, 2 = True) y NO un <c>Boolean?</c>:
+    ''' <c>Nullable(Of Boolean)</c> son DOS campos (<c>hasValue</c> + <c>value</c>) y el modelo de
+    ''' memoria de .NET no garantiza que copiarlo sea atomico. Un lector concurrente podia ver
+    ''' <c>hasValue=True</c> con el <c>value</c> viejo y devolver False, mandando
+    ''' <c>Default_Setting</c> a la rama equivocada — geometria mal, en silencio y no determinista.
+    ''' Un Integer alineado si es atomico.
+    '''
+    ''' ⛔ Memoizar NO alcanza por si solo: con la cache fria, N hilos entrarian juntos al
+    ''' <c>SelectNodes</c>. Por eso se SIEMBRA en <see cref="Lee_SlidersAndShapes"/>, que corre serial
+    ''' al cargar y al recargar, y ahi mismo queda invalidada la version vieja.
+    ''' </summary>
+    Private _genWeightsCache As Integer = 0
+
     Public Property GenWeights As Boolean
         Get
-            If IsNothing(OutputFile.Attributes("GenWeights")) Then Return False
-            Return OutputFile.Attributes("GenWeights").Value
+            Dim cached = _genWeightsCache
+            If cached <> 0 Then Return cached = 2
+            ' Ausente ⇒ TRUE, como `BoolAttribute("GenWeights", true)` de SliderSet.cpp. Devolver False
+            ' hacía que un .osp sin el atributo se leyera con la semántica opuesta a BodySlide, tanto
+            ' para Multisize() como para qué atributo de default se lee (ver Default_Setting).
+            ' WM siempre lo escribe explícito al crear un sliderset, y el corpus medido (4.510 sets)
+            ' no tiene ninguno sin él, así que esto sólo gobierna archivos de terceros.
+            ' `<OutputFile>` ausente tambien => True: SliderSet.cpp:212 inicializa genWeights=true ANTES
+            ' de comprobar si el nodo existe. Sin este guard esto tiraba NRE.
+            Dim node = OutputFile
+            If IsNothing(node) OrElse IsNothing(node.Attributes("GenWeights")) Then
+                _genWeightsCache = 2
+                Return True
+            End If
+            Dim parsed As Boolean
+            ' BoolAttribute devuelve el DEFAULT ante un valor no parseable, no una excepcion.
+            If Not Boolean.TryParse(node.Attributes("GenWeights").Value, parsed) Then
+                _genWeightsCache = 2
+                Return True
+            End If
+            _genWeightsCache = If(parsed, 2, 1)
+            Return parsed
         End Get
         Set(value As Boolean)
-            SetBoolAttr(OutputFile, Me.ParentOSP.xml, "GenWeights", value)
+            ' Un .osp de terceros puede no traer <OutputFile>. El getter lo tolera y devuelve True
+            ' (SliderSet.cpp:212 inicializa genWeights=true antes de mirar el nodo), pero el setter
+            ' desreferenciaba el owner y tiraba NRE. Salir en silencio tampoco sirve: quien llama es
+            ' el checkbox del editor, que se quedaria destildado mientras GenWeights sigue en True y
+            ' el build emite _0/_1 contra lo que muestra la UI. Se CREA el nodo, con la misma
+            ' convencion que el constructor de sliderset nuevo.
+            Dim node = OutputFile
+            If IsNothing(node) Then
+                Dim nuevo As XmlElement = Me.ParentOSP.xml.CreateElement("OutputFile")
+                nuevo.InnerText = "Unknown"
+                Nodo.AppendChild(nuevo)
+                node = nuevo
+            End If
+            SetBoolAttr(node, Me.ParentOSP.xml, "GenWeights", value)
+            _genWeightsCache = If(value, 2, 1)
         End Set
     End Property
     Public Property OutputPathValue As String
@@ -3653,9 +3918,19 @@ Public Class Shape_class
             Return Me.ParentSliderSet.Sliders.SelectMany(Function(pf) pf.Datas).Where(Function(pf) pf.RelatedShape Is Me)
         End Get
     End Property
+    ''' <summary>
+    ''' Sliders que afectan a esta shape. Deduplica por NOMBRE (OrdinalIgnoreCase), no por referencia:
+    ''' <see cref="MorphDiffs"/> se indexa por nombre con ese mismo comparador, así que dos
+    ''' Slider_class distintos que difirieran sólo en caja ("Belly"/"belly") leían la MISMA lista de
+    ''' deltas y la aplicaban DOS VECES, cada uno con su peso.
+    ''' </summary>
     Public ReadOnly Property Related_Sliders As IEnumerable(Of Slider_class)
         Get
-            Return Me.ParentSliderSet.Sliders.SelectMany(Function(pf) pf.Datas).Where(Function(pf) pf.RelatedShape Is Me).Select(Function(pf) pf.ParentSlider).Distinct
+            Return Me.ParentSliderSet.Sliders.SelectMany(Function(pf) pf.Datas).
+                Where(Function(pf) pf.RelatedShape Is Me).
+                Select(Function(pf) pf.ParentSlider).
+                GroupBy(Function(sl) sl.Nombre, StringComparer.OrdinalIgnoreCase).
+                Select(Function(g) g.First())
         End Get
     End Property
 
@@ -3747,30 +4022,96 @@ Public Class Slider_class
     End Property
     Public Property Invert As Boolean
         Get
-            Return Nodo.Attributes("invert").Value
+            ' Atributo ausente => False, igual que `if (element->Attribute("invert")) ... else
+            ' bInvert = false;` de SliderData::LoadSliderData. Sin el guard esto tiraba NRE con
+            ' cualquier .osp que no lo trajera (BodySlide siempre lo escribe, pero un archivo
+            ' hecho a mano o de terceros no tiene por que).
+            Dim attr = Nodo.Attributes("invert")
+            If IsNothing(attr) Then Return False
+            Dim parsed As Boolean
+            If Not Boolean.TryParse(attr.Value, parsed) Then Return False
+            Return parsed
         End Get
         Set(value As Boolean)
-            If value = True Then
-                Nodo.Attributes("invert").Value = "true"
-            Else
-                Nodo.Attributes("invert").Value = "false"
+            Dim attr = Nodo.Attributes("invert")
+            If IsNothing(attr) Then
+                attr = Me.ParentSliderSet.ParentOSP.xml.CreateAttribute("invert")
+                Nodo.Attributes.Append(attr)
             End If
+            attr.Value = If(value, "true", "false")
         End Set
     End Property
 
+    ''' <summary>
+    ''' Nombres de los zaps ENCADENADOS a este. Cuando este zap sale de su estado por defecto,
+    ''' el default de cada uno de estos se INVIERTE (100 - x).
+    ''' Canonico <c>SliderData::LoadSliderData</c> (SliderData.cpp:70-74):
+    ''' <code>if (bZap) { wxStringTokenizer tokenizer(element->Attribute("zaptoggles"), ";"); ... }</code>
+    ''' Solo se lee si el slider es ZAP, y wxStringTokenizer en su modo por defecto DESCARTA los
+    ''' tokens vacios - por eso el <c>";"</c> final que escribe SliderSet.cpp:608-615 no produce
+    ''' un nombre vacio. Medido en el disco: 159 sliders con <c>zaptoggles</c> en 59 sliderSets,
+    ''' CBBE incluido ("Remove Top" -> "TopZap;" -> "Backpack Support;").
+    ''' </summary>
+    Public ReadOnly Property ZapToggles As String()
+        Get
+            If Not IsZap Then Return Array.Empty(Of String)()
+            Dim attr = Nodo.Attributes("zaptoggles")
+            If IsNothing(attr) OrElse String.IsNullOrEmpty(attr.Value) Then Return Array.Empty(Of String)()
+            Return attr.Value.Split(";"c).Where(Function(t) t.Length > 0).ToArray()
+        End Get
+    End Property
+
+    ''' <summary>
+    ''' Estado EN MEMORIA del pre-pase de <see cref="ZapToggles"/>: True = el default de este slider
+    ''' esta invertido para esta construccion. El canonico muta <c>defBigValue</c>/<c>defSmallValue</c>
+    ''' del slider (BodySlideApp.cpp:4311-4317), pero ahi <c>currentSet</c> es una COPIA que se tira al
+    ''' terminar el build. Aca el default vive en el XML del .osp, asi que escribirlo persistiria el
+    ''' flip en el archivo del usuario: se guarda aparte y lo lee <see cref="EffectiveDefault"/>.
+    ''' </summary>
+    Public Property ZapToggleFlipped As Boolean = False
+
+    ''' <summary>
+    ''' Default del slider DESPUES del pre-pase de zapToggles - es el que hay que usar en todo lo que
+    ''' decida geometria. El canonico invierte con <c>100.0f - def</c>, sin clamp: un default fuera de
+    ''' [0,100] se refleja igual.
+    ''' </summary>
+    Public ReadOnly Property EffectiveDefault(size As WM_Config.SliderSize) As Single
+        Get
+            Dim d = Default_Setting(size)
+            If ZapToggleFlipped Then Return 100.0F - d
+            Return d
+        End Get
+    End Property
+
+    ''' <summary>
+    ''' Default del slider para un peso. El despacho es por <c>GenWeights</c>, NO por juego —
+    ''' es lo que hace <c>SliderData::LoadSliderData</c> (SliderData.cpp), que es quien define el
+    ''' formato:
+    ''' <code>
+    ''' if (genWeights) { defBigValue = FloatAttribute("big"); defSmallValue = FloatAttribute("small"); }
+    ''' else            { float d = FloatAttribute("default"); defBigValue = d; defSmallValue = d; }
+    ''' </code>
+    ''' Sin genWeights, big y small son EL MISMO valor (<c>default</c>), y el escritor confirma la
+    ''' simetría: <c>SetAttribute("default", (int)slider.defBigValue)</c> (SliderSet.cpp).
+    '''
+    ''' Despachar por juego rompía los sliderSets de SSE SIN genWeights: WM leía <c>big</c>/<c>small</c>,
+    ''' que en esos archivos no existen, y devolvía 0 para todos sus sliders.
+    ''' Medido sobre 4.510 sliderSets del disco: FO4 GenWeights=false → 199.488 sliders, TODOS con
+    ''' <c>default</c> y ninguno con <c>big</c>; SSE GenWeights=false → 60 sets y 6.480 sliders con
+    ''' <c>default</c> que se leían como 0; SSE GenWeights=true → 56.818, todos con <c>big</c>.
+    ''' </summary>
     Public Property Default_Setting(size As WM_Config.SliderSize) As Single
         Get
-            If Config_App.Current.Game = Config_App.Game_Enum.Fallout4 Then
-                Return Default_Setting_FO
-            Else
+            If ParentSliderSet IsNot Nothing AndAlso ParentSliderSet.GenWeights Then
                 Return Default_Setting_SSE(size)
             End If
+            Return Default_Setting_FO
         End Get
         Set(value As Single)
-            If Config_App.Current.Game = Config_App.Game_Enum.Fallout4 Then
-                Default_Setting_FO = value
-            Else
+            If ParentSliderSet IsNot Nothing AndAlso ParentSliderSet.GenWeights Then
                 Default_Setting_SSE(size) = value
+            Else
+                Default_Setting_FO = value
             End If
         End Set
     End Property
@@ -3834,6 +4175,11 @@ Public Class Slider_class
     End Property
 
     Private _Current As Single = 0
+    ''' <summary>Valor del slider resuelto para el peso BIG. Los ZAPS se deciden SIEMPRE con este,
+    ''' nunca con Current_Setting: BodySlide llena `zapIdxAll` solo en la rama `vbig` y aplica ese
+    ''' mismo conjunto a los dos pesos. Lo setea SetPreset.</summary>
+    Public Property Zap_Setting_Big As Single
+
     Public Property Current_Setting As Single
         Get
             Return _Current

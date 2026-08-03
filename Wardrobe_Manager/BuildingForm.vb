@@ -19,6 +19,46 @@ Public Class BuildingForm
         ' Agregue cualquier inicialización después de la llamada a InitializeComponent().
     End Sub
 
+    ''' <summary>
+    ''' True si el path existe y su header ES "PIRT" (body-tri de BodySlide). Equivale a
+    ''' IsBodyTriFile de BSOS (TriFile.cpp:11-27), que compara los 4 bytes del header contra
+    ''' "TRIP"_mci — un uint32 que escrito little-endian da los bytes P,I,R,T.
+    ''' </summary>
+    Private Shared Function ExistingTriIsBodySlide(triPath As String) As Boolean
+        Return ReadTriHeader(triPath) = "PIRT"
+    End Function
+
+    ''' <summary>
+    ''' True si el path existe y su header NO es "PIRT" — o sea hay un .tri que no es de BodySlide
+    ''' (tipicamente un FRTRI003 de FaceGen). Un archivo inexistente NO es ajeno.
+    ''' </summary>
+    Private Shared Function ExistingTriIsForeign(triPath As String) As Boolean
+        Dim hdr = ReadTriHeader(triPath)
+        Return hdr IsNot Nothing AndAlso hdr <> "PIRT"
+    End Function
+
+    ''' <summary>Los 4 bytes de header como ASCII, o Nothing si el archivo no existe / no se puede leer.</summary>
+    Private Shared Function ReadTriHeader(triPath As String) As String
+        Try
+            If String.IsNullOrWhiteSpace(triPath) OrElse Not IO.File.Exists(triPath) Then Return Nothing
+            Using fs As New IO.FileStream(triPath, IO.FileMode.Open, IO.FileAccess.Read, IO.FileShare.ReadWrite)
+                ' Un archivo de menos de 4 bytes es NUESTRO, no ajeno: WriteTriToFile abre con
+                ' FileMode.Create (trunca primero), asi que un throw a mitad de escritura deja
+                ' exactamente eso. Tratarlo como ajeno bloqueaba el proyecto PARA SIEMPRE.
+                ' Se decide por fs.Length, NO por el retorno de Read: Read puede devolver menos bytes
+                ' de los pedidos sin que el archivo este truncado (red, placeholder de OneDrive, AV),
+                ' y con eso un FRTRI003 valido se habria reportado como nuestro y lo pisabamos.
+                If fs.Length < 4 Then Return "PIRT"
+                Dim buf(3) As Byte
+                fs.ReadExactly(buf, 0, 4)
+                Return System.Text.Encoding.ASCII.GetString(buf)
+            End Using
+        Catch
+            ' Ilegible: se trata como ajeno para no pisarlo a ciegas.
+            Return ""
+        End Try
+    End Function
+
     Private Sub BuildingForm_Shown(sender As Object, e As EventArgs) Handles Me.Shown
         ProgressBar1.Value = 0
         ProgressBar2.Value = 0
@@ -46,6 +86,10 @@ Public Class BuildingForm
                 End If
                 ' Shapedata loaded on the builder clone below, not on sliderset_target
                 Dim size As WM_Config.SliderSize = WM_Config.SliderSize.Default
+                ' Decididos en Sizecount=0 y reusados por el resto de los sizes: el .tri es uno solo
+                ' para todo el proyecto, pero cada size necesita saber si estampar el BODYTRI.
+                Dim triBlocked As Boolean = False
+                Dim triWritten As Boolean = False
                 For Sizecount = 0 To CInt(IIf(sliderset_target.Multisize, 1, 0))
                     ProgressBar1.Value = 0
                     ProgressBar1.Maximum = (builder.Shapes.Count * 4 + 6)
@@ -78,14 +122,40 @@ Public Class BuildingForm
                     Nombre = sliderset_target.Nombre
                     Label1.Text = "Building: " + Nombre + IIf(sliderset_target.Multisize(), "_" + Sizecount.ToString, "")
                     Application.DoEvents()
-                    If Sizecount = 0 Then size = WM_Config.SliderSize.Small
-                    If Sizecount = 1 Then size = WM_Config.SliderSize.Big
+                    ' Multisize() == GenWeights(). BodySlide SIN GenWeights emite UN solo mesh y lo hace
+                    ' con `vbig` / `defBigValue` — `vsmall` sólo existe dentro de
+                    ' `if (currentSet.GenWeights())` (BodySlideApp.cpp:4356-4364, :4394, :4409).
+                    ' Mapear el pase único a Small hacía que un proyecto SSE no-multisize leyera
+                    ' Default_Small_Value en vez de Default_Big_Value. FO4 no se ve afectado:
+                    ' FO4 no cambia de artefactos: Multisize() esta hard-gateado a False para FO4, y
+                    ' Default_Setting despacha por GenWeights — los 3.359 sliderSets de FO4 medidos
+                    ' traen GenWeights="false", asi que caen en Default_Setting_FO. Un .osp de FO4 con
+                    ' GenWeights ausente o true leeria big/small (inexistentes) y daria 0, pero
+                    ' BodySlide hace exactamente lo mismo con ese archivo (SliderData.cpp:38-48).
+                    If sliderset_target.Multisize Then
+                        size = If(Sizecount = 0, WM_Config.SliderSize.Small, WM_Config.SliderSize.Big)
+                    Else
+                        size = WM_Config.SliderSize.Big
+                    End If
                     ' 0 - cargo morph
                     builder.SetPreset(_Preset, size)
                     ProgressBar1.Value += 1
                     ' --- O6.1: Parallel shape processing (compute-heavy part) ---
                     Dim shapeList = builder.Shapes.ToList
                     Dim shapeResults As New System.Collections.Concurrent.ConcurrentDictionary(Of Shape_class, SkinnedGeometry)
+                    ' El reindex de morphs post-zap NO puede correr dentro del Parallel.ForEach: escribe
+                    ' en el XmlDocument del OSP y en OSDContent_Local.Blocks, ambos compartidos por todas
+                    ' las shapes. Se recolecta aca el mapa old->new y se aplica en la fase 2 (serial).
+                    Dim zapMods As New System.Collections.Concurrent.ConcurrentDictionary(Of Shape_class, ZapGeometryModifier)
+                    ' Shapes 100 % zapeadas que se conservan ocultas: BodySlide tampoco emite sus morphs
+                    ' en el .tri (con la geometria intacta su erase de rangos deja todos los offsets en
+                    ' cero, BodySlideApp.cpp:1450-1460), asi que se las excluye explicitamente.
+                    Dim hiddenZappedShapes As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+                    ' Compartido por TODAS las shapes del size: un mismo bloque OSD alcanzado desde dos
+                    ' shapes no se puede remapear dos veces (la segunda iria sobre indices ya movidos).
+                    Dim remappedBlocks As New HashSet(Of OSD_Block_Class)(ReferenceEqualityComparer.Instance)
+                    Dim localKeepZapped = builder.KeepZappedShapes
+                    Dim localSize = size
                     Dim localSingleBone = Config_App.Current.Setting_SingleBoneSkinning
                     Dim localRecalcNormals = Config_App.Current.Setting_RecalculateNormals
 
@@ -97,9 +167,11 @@ Public Class BuildingForm
                             ' 1- cargo geometria
                             Dim geom = SkinningHelper.ExtractSkinnedGeometry(shap, singleboneskinning:=localSingleBone, RecalculateNormals:=False)
                             ' 3- aplico morph (y recalculo normales si esta elegido)
-                            MorphingHelper.ApplyMorph_CPU(shap, geom, localRecalcNormals, AllowMask:=False)
+                            MorphingHelper.ApplyMorph_CPU(shap, geom, localRecalcNormals, AllowMask:=False, buildSize:=localSize)
                             ' 4- Borro zaps y revierto bakeo (includes InjectToTrishape per-shape)
-                            SkinningHelper.BakeFromMemoryUsingOriginal(shap, geom, inverse:=False, ApplyMorph:=True, RemoveZaps:=True, singleBoneSkinning:=localSingleBone, geometryModifier:=New ZapGeometryModifier())
+                            Dim zapMod As New ZapGeometryModifier(localKeepZapped)
+                            SkinningHelper.BakeFromMemoryUsingOriginal(shap, geom, inverse:=False, ApplyMorph:=True, RemoveZaps:=True, singleBoneSkinning:=localSingleBone, geometryModifier:=zapMod)
+                            zapMods(shap) = zapMod
                             shapeResults(shap) = geom
                         End Sub)
 
@@ -108,11 +180,22 @@ Public Class BuildingForm
                         If shap.RelatedNifShape IsNot Nothing Then
                             Dim geom As SkinnedGeometry = Nothing
                             If shapeResults.TryGetValue(shap, geom) Then
+                                ' Paso 4 del zap, fuera del paralelo. Antes de RemoveShape: si la shape se
+                                ' va, RemoveShape ya borra sus Datas y bloques locales.
+                                Dim zapMod As ZapGeometryModifier = Nothing
+                                zapMods.TryGetValue(shap, zapMod)
+                                If zapMod IsNot Nothing Then MorphingHelper.ReindexMorphsAfterZap(shap, zapMod.VertexRemap, remappedBlocks)
                                 ProgressBar1.Value += 3 ' account for extract+morph+bake steps
                                 If builder.KeepZappedShapes = False AndAlso geom.Vertices.Length = 0 Then
                                     builder.RemoveShape(shap)
                                     ProgressBar1.Value += 1
                                 Else
+                                    ' Shape 100 % zapeada que se conserva: oculta con geometria intacta,
+                                    ' igual que BodySlideApp.cpp:3618-3620.
+                                    If zapMod IsNot Nothing AndAlso zapMod.FullyZappedKept Then
+                                        builder.NIFContent.SetShapeHidden(shap.RelatedNifShape)
+                                        hiddenZappedShapes.Add(shap.RelatedNifShape.Name.String)
+                                    End If
                                     builder.NIFContent.UpdateSkinPartitions(shap.RelatedNifShape)
                                     ProgressBar1.Value += 1
                                 End If
@@ -146,7 +229,36 @@ Public Class BuildingForm
                     ' skee64 (RaceMenu) lo lee con VisitObjects → lo encuentra en el shape; escribirlo a la raíz
                     ' en SSE no es fiel a OutfitStudio (y rompe lectores shape-only). El .tri en sí es idéntico
                     ' (PIRT/TRIP) en ambos juegos — solo cambia DÓNDE se marca en el NIF.
-                    If WM_Config.Current.Settings_Build.SaveTri AndAlso (builder.PreventMorphFile = False OrElse WM_Config.Current.Settings_Build.IgnorePreventri) Then
+                    ' `triKeep` de BodySlideApp.cpp:3653-3671 = PreventMorphFile (salvo IgnorePreventri,
+                    ' extension de WM) O un .tri ajeno ya presente. El nombre del .tri sale del nombre del
+                    ' NIF, asi que un proyecto que apunte a una malla de cabeza machacaria el FRTRI003 de
+                    ' chargen del juego — un archivo ajeno que no se regenera.
+                    Dim triAllowed As Boolean = (builder.PreventMorphFile = False OrElse WM_Config.Current.Settings_Build.IgnorePreventri)
+                    If Sizecount = 0 Then
+                        triBlocked = False
+                        triWritten = False
+                        ' Solo se avisa cuando de verdad ibamos a escribir, como BSOS, que hace el
+                        ' chequeo dentro de `if (tri && !triKeep)`.
+                        If WM_Config.Current.Settings_Build.SaveTri AndAlso triAllowed Then
+                            triBlocked = ExistingTriIsForeign(tri)
+                            If triBlocked Then
+                                If Errores <> "" Then Errores += vbCrLf
+                                Errores += Nombre & ": kept the existing non-BodySlide .tri at " & tri & " (morphs skipped)"
+                            Else
+                                ' El .tri se escribe ANTES de grabar el NIF: si falla, el BODYTRI de abajo
+                                ' no se estampa y el NIF sale coherente. Al reves (como estaba) el NIF ya
+                                ' habia salido apuntando a un archivo inexistente, y cortar por excepcion
+                                ' ademas se llevaba puesto el resto de los sizes del proyecto.
+                                triWritten = LooksMenuSliders.WriteMorphTRI(tri, builder, hiddenZappedShapes)
+                                If Not triWritten Then
+                                    If Errores <> "" Then Errores += vbCrLf
+                                    Errores += Nombre & ": failed to write the morph .tri at " & tri
+                                End If
+                            End If
+                        End If
+                    End If
+
+                    If WM_Config.Current.Settings_Build.SaveTri AndAlso triWritten AndAlso triAllowed Then
                         If Config_App.Current.Game = Config_App.Game_Enum.Skyrim Then
                             Dim triShapeName As String = Nothing
                             For Each shap In builder.Shapes
@@ -204,11 +316,23 @@ Public Class BuildingForm
 
                     If Sizecount = 0 Then
                         ' Grabo archivo tri
-                        If WM_Config.Current.Settings_Build.SaveTri AndAlso (builder.PreventMorphFile = False OrElse WM_Config.Current.Settings_Build.IgnorePreventri) Then
-                            LooksMenuSliders.WriteMorphTRI(tri, builder)
-                            Dim triRelative = IO.Path.GetRelativePath(Directorios.Fallout4data, tri).Correct_Path_Separator
+                        Dim triRelative = IO.Path.GetRelativePath(Directorios.Fallout4data, tri).Correct_Path_Separator
+                        If triWritten Then
                             FilesDictionary_class.AddOrUpdateDictionaryEntry(triRelative, New FilesDictionary_class.File_Location With {
                                 .BA2File = "", .Index = -1, .FullPath = triRelative, .FileDate = Date.Now})
+                        ElseIf Not WM_Config.Current.Settings_Build.SaveTri AndAlso Not triBlocked AndAlso (builder.PreventMorphFile = False OrElse WM_Config.Current.Settings_Build.IgnorePreventri) Then
+                            ' BodySlideApp.cpp:3716-3720: sin morphs, el .tri viejo queda huerfano — nadie lo
+                            ' referencia ya (el BODYTRI se quito arriba) pero se empaqueta igual en el FOMOD/BA2
+                            ' con morphs de una geometria que ya cambio. Solo se borra si es un body-tri PIRT;
+                            ' un FRTRI003 ajeno nunca se toca (ese caso ya lo ataja triBlocked).
+                            '
+                            ' El guard de PreventMorphFile es obligatorio: en BSOS `triKeep` apaga TANTO la
+                            ' escritura COMO el borrado, asi que un proyecto marcado "prevent morph file"
+                            ' conserva su .tri intacto. Sin esta condicion lo borrabamos.
+                            If ExistingTriIsBodySlide(tri) Then
+                                IO.File.Delete(tri)
+                                FilesDictionary_class.RemoveDictionaryEntry(triRelative)
+                            End If
                         End If
                         ' SSE: copia o borra XML de física HDT-SMP junto al NIF de salida (una sola vez, no depende del size)
                         If Config_App.Current.Game = Config_App.Game_Enum.Skyrim Then
@@ -231,8 +355,10 @@ Public Class BuildingForm
                 Next
                 'ComparadorTrip.CompararArchivos(tri, tri.Replace("_WM.tri", "_WM.tri2"))
             Catch ex As Exception
-                If Errores <> "" Then Errores += ","
-                Errores += Nombre + vbCrLf
+                ' Sin el mensaje de la excepcion el dialog final solo listaba nombres de proyecto,
+                ' que no alcanza para distinguir un .tri no escrito de un load fallido.
+                If Errores <> "" Then Errores += vbCrLf
+                Errores += Nombre & ": " & ex.Message
             End Try
 
         Next
@@ -252,7 +378,7 @@ Public Class BuildingForm
         End If
 
         If Errores <> "" Then
-            MsgBox("Error building the following projects:" + Errores)
+            MsgBox("Error building the following projects:" & vbCrLf & Errores)
         End If
         Me.Close()
     End Sub

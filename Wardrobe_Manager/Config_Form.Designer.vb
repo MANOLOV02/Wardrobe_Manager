@@ -99,6 +99,8 @@ Partial Class Config_Form
         CheckBoxLMASkipManoloFixes = New CheckBox()
         CheckBoxLMReseteachBuild = New CheckBox()
         CheckBoxLMAddAditionals = New CheckBox()
+        LabelLMGender = New Label()
+        ComboBoxLMGender = New ComboBox()
         CheckBoxDeletewithProject = New CheckBox()
         CheckBoxDeleteBefore = New CheckBox()
         CheckBoxBuildTri = New CheckBox()
@@ -1039,6 +1041,8 @@ Partial Class Config_Form
         GroupBoxLooksmenu.Controls.Add(CheckBoxLMASkipManoloFixes)
         GroupBoxLooksmenu.Controls.Add(CheckBoxLMReseteachBuild)
         GroupBoxLooksmenu.Controls.Add(CheckBoxLMAddAditionals)
+        GroupBoxLooksmenu.Controls.Add(LabelLMGender)
+        GroupBoxLooksmenu.Controls.Add(ComboBoxLMGender)
         GroupBoxLooksmenu.Location = New Point(3, 163)
         GroupBoxLooksmenu.Name = "GroupBoxLooksmenu"
         GroupBoxLooksmenu.Size = New Size(933, 55)
@@ -1084,7 +1088,27 @@ Partial Class Config_Form
         CheckBoxLMAddAditionals.Text = "Add additional sliders"
         ToolTip1.SetToolTip(CheckBoxLMAddAditionals, "Export additional sliders for LooksMenu integration.")
         CheckBoxLMAddAditionals.UseVisualStyleBackColor = True
-        ' 
+        '
+        ' LabelLMGender
+        '
+        LabelLMGender.AutoSize = True
+        LabelLMGender.Location = New Point(676, 23)
+        LabelLMGender.Name = "LabelLMGender"
+        LabelLMGender.Size = New Size(45, 15)
+        LabelLMGender.TabIndex = 32
+        LabelLMGender.Text = "Gender"
+        '
+        ' ComboBoxLMGender
+        '
+        ComboBoxLMGender.DropDownStyle = ComboBoxStyle.DropDownList
+        ComboBoxLMGender.FormattingEnabled = True
+        ComboBoxLMGender.Items.AddRange(New Object() {"Female", "Male", "Both"})
+        ComboBoxLMGender.Location = New Point(727, 19)
+        ComboBoxLMGender.Name = "ComboBoxLMGender"
+        ComboBoxLMGender.Size = New Size(120, 23)
+        ComboBoxLMGender.TabIndex = 33
+        ToolTip1.SetToolTip(ComboBoxLMGender, "Sex the additional sliders are registered for in LooksMenu. CBBE ships Female only.")
+        '
         ' CheckBoxDeletewithProject
         ' 
         CheckBoxDeletewithProject.AutoSize = True
@@ -1667,6 +1691,8 @@ Partial Class Config_Form
     Friend WithEvents CheckBoxLMASkipManoloFixes As CheckBox
     Friend WithEvents CheckBoxLMReseteachBuild As CheckBox
     Friend WithEvents CheckBoxLMAddAditionals As CheckBox
+    Friend WithEvents LabelLMGender As Label
+    Friend WithEvents ComboBoxLMGender As ComboBox
     Friend WithEvents CheckBoxIgnorePrevent As CheckBox
     Friend WithEvents CheckBoxBuildInPose As CheckBox
     Friend WithEvents CheckBoxForceCloned As CheckBox

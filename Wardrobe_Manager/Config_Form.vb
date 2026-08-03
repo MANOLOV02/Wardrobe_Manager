@@ -63,6 +63,10 @@ Public Class Config_Form
             CheckBoxLMReseteachBuild.Checked = WM_Config.Current.Settings_Build.ResetSlidersEachBuild
             CheckBoxLMASkipManoloFixes.Checked = WM_Config.Current.Settings_Build.SkipFixMorphs
             CheckBoxLMAddAditionals.Checked = WM_Config.Current.Settings_Build.AddAddintionalSliders
+            ' Clamp obligatorio: SelectedIndex fuera de rango tira ArgumentOutOfRangeException, y el
+            ' Catch de este bloque esta vacio — un valor invalido en wm_config.json dejaba SIN cargar
+            ' todo lo que viene despues (IgnorePreventri, BuildInPose, flags de weights, GRID).
+            ComboBoxLMGender.SelectedIndex = Math.Clamp(CInt(WM_Config.Current.Settings_Build.AdditionalSlidersGender), 0, ComboBoxLMGender.Items.Count - 1)
             CheckBoxIgnorePrevent.Checked = WM_Config.Current.Settings_Build.IgnorePreventri
             CheckBoxBuildInPose.Checked = WM_Config.Current.Settings_Build.BuildInPose
             CheckBoxForceCloned.Checked = WM_Config.Current.Settings_Build.ForceClonedOnBuild
@@ -108,6 +112,7 @@ Public Class Config_Form
             .ResetSlidersEachBuild = CheckBoxLMReseteachBuild.Checked,
             .SkipFixMorphs = CheckBoxLMASkipManoloFixes.Checked,
             .AddAddintionalSliders = CheckBoxLMAddAditionals.Checked,
+            .AdditionalSlidersGender = CType(Math.Max(0, ComboBoxLMGender.SelectedIndex), WM_Config.SliderGender),
             .IgnorePreventri = CheckBoxIgnorePrevent.Checked,
             .BuildInPose = CheckBoxBuildInPose.Checked,
             .IgnoreWeightsFlags = CheckBoxweightignore.Checked,

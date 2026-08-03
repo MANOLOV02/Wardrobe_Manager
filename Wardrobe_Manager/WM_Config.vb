@@ -21,6 +21,18 @@ Public Class WM_Config
         Small = 2
     End Enum
 
+    ''' <summary>
+    ''' Para que sexo se registran los "additional sliders" de LooksMenu. Female=0 a proposito: un
+    ''' wm_config.json viejo sin el campo deserializa 0 y conserva el comportamiento historico
+    ''' (WM siempre emitia gender=1, igual que las 83 entradas de CBBE). Ojo: estos ordinales NO son
+    ''' los valores del motor — la traduccion vive en LooksMenuSliders.EngineGenders.
+    ''' </summary>
+    Public Enum SliderGender
+        Female = 0
+        Male = 1
+        Both = 2
+    End Enum
+
     ' ── Structs ──
 
     Public Structure BuildSettings
@@ -30,6 +42,7 @@ Public Class WM_Config
         Public Property DeleteUnbuilt As Boolean
         Public Property DeleteWithProject As Boolean
         Public Property AddAddintionalSliders As Boolean
+        Public Property AdditionalSlidersGender As SliderGender
         Public Property SkipFixMorphs As Boolean
         Public Property ResetSlidersEachBuild As Boolean
         Public Property IgnorePreventri As Boolean
@@ -101,6 +114,7 @@ Public Class WM_Config
         Return New BuildSettings With {
             .DeleteUnbuilt = True, .DeleteWithProject = True, .SaveHHS = True,
             .SaveTri = False, .OwnEngine = True, .AddAddintionalSliders = True,
+            .AdditionalSlidersGender = SliderGender.Female,
             .ResetSlidersEachBuild = False, .SkipFixMorphs = True,
             .IgnorePreventri = False, .BuildInPose = False,
             .ForceWeights = True, .IgnoreWeightsFlags = False
