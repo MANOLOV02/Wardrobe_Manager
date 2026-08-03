@@ -1885,21 +1885,16 @@ Public Class Editor_Form
     ''' ⛔ <c>SliderSize.Default</c> se emite como <c>"both"</c>, NO como <c>"default"</c>.
     ''' BodySlide sólo reconoce <c>small</c> / <c>big</c> / <c>both</c> (SliderPresets.cpp:216-232);
     ''' cualquier otro token le deja los dos campos en el centinela -10000 y la entrada le queda
-    ''' INERTE. O sea que un preset guardado por WM con <c>"default"</c> no era del todo legible por
-    ''' BodySlide: medido sobre el preset `Manolo` del usuario, 53 sliders con <c>default</c> ≠
-    ''' <c>big</c>, y construir CBBE Body de FO4 con y sin esas entradas movía 14.168 de 22.708
-    ''' vértices. <c>both</c> es el token canónico y significa exactamente lo mismo que Default en WM:
-    ''' aplica a los DOS pesos.
-    ''' ⚠️ El LECTOR sigue aceptando <c>"default"</c> — hay 999 entradas así en los presets del disco.
+    ''' INERTE.
+    ''' ⚠️ El LECTOR sigue aceptando <c>"default"</c> — hay 999 entradas así en los presets del disco,
+    ''' todas en archivos que escribió WM, y tienen que seguir construyendo igual.
+    ''' El caso <c>Default</c> NO llega acá: <see cref="SavePresetXml"/> lo emite como el par
+    ''' big+small, que es la forma que produce BodySlide.
     ''' </summary>
     Private Function Size_to_str(Size As WM_Config.SliderSize) As String
         Select Case Size
-            Case WM_Config.SliderSize.Big
-                Return "big"
             Case WM_Config.SliderSize.Small
                 Return "small"
-            Case WM_Config.SliderSize.Default
-                Return "both"
         End Select
         Return "big"
     End Function
@@ -1951,11 +1946,29 @@ Public Class Editor_Form
                     gr.Remove()
                 Next
                 For Each sli In Selected_Preset.Sliders
-                    Dim nuevo As New XElement("SetSlider", New XAttribute("name", sli.Name), New XAttribute("size", Size_to_str(sli.Size)), New XAttribute("value", sli.Value.ToString(CultureInfo.InvariantCulture)))
                     Dim copi As Boolean = True
                     If sli.Category = nif_cat AndAlso CheckBoxIncNIF.Checked = False Then copi = False
                     If sli.Category = Slid_cat AndAlso CheckBoxIncSlid.Checked = False Then copi = False
-                    If copi Then sel.Add(nuevo)
+                    If Not copi Then Continue For
+
+                    Dim valor = sli.Value.ToString(CultureInfo.InvariantCulture)
+                    ' ⛔ Un slider de tamaño Default se emite como el PAR big+small con el MISMO valor,
+                    ' que es literalmente lo que escribe BodySlide: su `SavePreset` recorre los dos
+                    ' campos del slider y emite un <SetSlider size="big"> y otro size="small" — NUNCA
+                    ' escribe `both`, aunque su parser sí lo lea. Así los presets de WM quedan
+                    ' indistinguibles de los suyos.
+                    ' (Antes se emitía `size="default"`, que BodySlide no reconoce y le queda INERTE:
+                    ' medido sobre el preset `Manolo`, eso movía 14.168 de 22.708 vértices según con
+                    ' qué herramienta construyeras.)
+                    If sli.Size = WM_Config.SliderSize.Default Then
+                        For Each talla In {"big", "small"}
+                            sel.Add(New XElement("SetSlider", New XAttribute("name", sli.Name),
+                                                 New XAttribute("size", talla), New XAttribute("value", valor)))
+                        Next
+                    Else
+                        sel.Add(New XElement("SetSlider", New XAttribute("name", sli.Name),
+                                             New XAttribute("size", Size_to_str(sli.Size)), New XAttribute("value", valor)))
+                    End If
                 Next
             End If
 
