@@ -39,7 +39,6 @@ Public Class Config_Form
             CheckBoxGPUSkinning.Checked = Config_App.Current.Setting_GPUSkinning
             CheckBoxDrawHiddenSegments.Checked = Config_App.Current.Setting_DrawHiddenSegments
 
-            NormalsForceOrthogonal.Checked = Config_App.Current.Setting_TBN.ForceOrthogonalBitangent
             NormalsRepairNan.Checked = Config_App.Current.Setting_TBN.RepairNaNs
             CheckBoxWelding.Checked = Config_App.Current.Setting_TBN.EnableWelding
             NumericUpDownPositionEps.Value = Config_App.Current.Setting_TBN.EpsilonPos
@@ -49,9 +48,6 @@ Public Class Config_Form
             RadioButtonWeldboth.Checked = Not Config_App.Current.Setting_TBN.WeldByPositionOnly
             NumericUpDownWeldEpspos.Value = Config_App.Current.Setting_TBN.WeldPosEpsilon
             NumericUpDownWeldEpsUv.Value = Config_App.Current.Setting_TBN.WeldUVEpsilon
-            RadioButtonByArea.Checked = (Config_App.Current.Setting_TBN.WeightMode = RecalcTBN.NormalWeightMode.AreaOnly)
-            RadioButtonByangles.Checked = (Config_App.Current.Setting_TBN.WeightMode = RecalcTBN.NormalWeightMode.AngleOnly)
-            RadioButtoncombined.Checked = (Config_App.Current.Setting_TBN.WeightMode = RecalcTBN.NormalWeightMode.AreaTimesAngle)
             CheckBoxanglereset.Checked = Config_App.Current.Settings_Camara.ResetAngles
             CheckBoxzoomreset.Checked = Config_App.Current.Settings_Camara.ResetZoom
             RadioButtonBSEngine.Checked = (WM_Config.Current.Settings_Build.OwnEngine = False)
@@ -91,13 +87,11 @@ Public Class Config_Form
     End Sub
     Private Sub Graba_Render_Options()
         Dim opts = New RecalcTBN.TBNOptions With {
-          .ForceOrthogonalBitangent = NormalsForceOrthogonal.Checked,
           .EnableWelding = CheckBoxWelding.Checked,
           .EpsilonUV = NumericUpDownUVEps.Value,
           .EpsilonPos = NumericUpDownPositionEps.Value,
           .NormalizeOutputs = NormalsNormalize.Checked,
           .RepairNaNs = NormalsRepairNan.Checked,
-          .WeightMode = IIf(RadioButtoncombined.Checked, RecalcTBN.NormalWeightMode.AreaTimesAngle, IIf(RadioButtonByangles.Checked, RecalcTBN.NormalWeightMode.AngleOnly, RecalcTBN.NormalWeightMode.AreaOnly)),
           .WeldByPositionOnly = RadioButtonWeldpsonly.Checked,
           .WeldPosEpsilon = NumericUpDownWeldEpspos.Value,
           .WeldUVEpsilon = NumericUpDownWeldEpsUv.Value

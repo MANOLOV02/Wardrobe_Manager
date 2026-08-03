@@ -531,6 +531,17 @@ Public Class Editor_Form
         ThenBy(Function(pf) pf.Name, StringComparer.OrdinalIgnoreCase).
         ToList()
 
+        ' ⛔ UN ZAP NO TIENE PESO SMALL. La decision de zapear sale SIEMPRE de `Zap_Setting_Big`
+        ' (`ResolveSlider` usa Zap_Setting_Big cuando el slider es zap y no es uv), asi que mover el
+        ' control de un zap con el combo en Small no cambia nada de lo que se construye. Se deshabilita
+        ' para que eso se vea, en vez de dejar un control que miente.
+        Dim zapsSinPesoSmall As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+        If Selected_size = WM_Config.SliderSize.Small AndAlso Selected_Slider IsNot Nothing Then
+            For Each sl In Selected_Slider.Sliders
+                If sl.IsZap AndAlso Not sl.IsUV Then zapsSinPesoSmall.Add(sl.Nombre)
+            Next
+        End If
+
         For Each catName In visibleSliders.Select(Function(pf) pf.Category).Distinct(StringComparer.OrdinalIgnoreCase)
             Dim sliderNames As List(Of PresetSlider_Class) =
             visibleSliders.Where(Function(pf) pf.Category.Equals(catName, StringComparison.OrdinalIgnoreCase)).ToList()
@@ -587,6 +598,12 @@ Public Class Editor_Form
 
                 If initValue < osRange.Min OrElse initValue > osRange.Max Then
                     tb.BackColor = Color.LightYellow
+                End If
+
+                ' Zap con el combo en Small: el control no puede cambiar nada, se muestra apagado.
+                If zapsSinPesoSmall.Contains(slideName.Name) Then
+                    tb.Enabled = False
+                    lbl.ForeColor = Color.Gray
                 End If
 
                 AddHandler tb.ValueChanged, AddressOf DynamicPresetTrackBar_Scroll

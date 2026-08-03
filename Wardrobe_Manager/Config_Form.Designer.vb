@@ -45,11 +45,7 @@ Partial Class Config_Form
         GroupBox1 = New GroupBox()
         NumericUpDownUVEps = New NumericUpDown()
         NormalsRepairNan = New CheckBox()
-        NormalsForceOrthogonal = New CheckBox()
         NormalsNormalize = New CheckBox()
-        RadioButtoncombined = New RadioButton()
-        RadioButtonByangles = New RadioButton()
-        RadioButtonByArea = New RadioButton()
         Label9 = New Label()
         Label8 = New Label()
         NumericUpDownPositionEps = New NumericUpDown()
@@ -350,11 +346,7 @@ Partial Class Config_Form
         ' 
         GroupBox1.Controls.Add(NumericUpDownUVEps)
         GroupBox1.Controls.Add(NormalsRepairNan)
-        GroupBox1.Controls.Add(NormalsForceOrthogonal)
         GroupBox1.Controls.Add(NormalsNormalize)
-        GroupBox1.Controls.Add(RadioButtoncombined)
-        GroupBox1.Controls.Add(RadioButtonByangles)
-        GroupBox1.Controls.Add(RadioButtonByArea)
         GroupBox1.Controls.Add(Label9)
         GroupBox1.Controls.Add(Label8)
         GroupBox1.Controls.Add(NumericUpDownPositionEps)
@@ -392,18 +384,6 @@ Partial Class Config_Form
         ToolTip1.SetToolTip(NormalsRepairNan, "Repair invalid NaN values found in recalculated tangent-space data.")
         NormalsRepairNan.UseVisualStyleBackColor = True
         ' 
-        ' NormalsForceOrthogonal
-        ' 
-        NormalsForceOrthogonal.AutoSize = True
-        NormalsForceOrthogonal.Checked = True
-        NormalsForceOrthogonal.CheckState = CheckState.Checked
-        NormalsForceOrthogonal.Location = New Point(274, 22)
-        NormalsForceOrthogonal.Name = "NormalsForceOrthogonal"
-        NormalsForceOrthogonal.Size = New Size(171, 19)
-        NormalsForceOrthogonal.TabIndex = 23
-        NormalsForceOrthogonal.Text = "Force orthogonal bitangent"
-        ToolTip1.SetToolTip(NormalsForceOrthogonal, "Force orthogonal tangent space when recalculating normals.")
-        NormalsForceOrthogonal.UseVisualStyleBackColor = True
         ' 
         ' NormalsNormalize
         ' 
@@ -419,40 +399,6 @@ Partial Class Config_Form
         ToolTip1.SetToolTip(NormalsNormalize, "Normalize recalculated tangent-space vectors.")
         NormalsNormalize.UseVisualStyleBackColor = True
         ' 
-        ' RadioButtoncombined
-        ' 
-        RadioButtoncombined.AutoSize = True
-        RadioButtoncombined.Checked = True
-        RadioButtoncombined.Location = New Point(486, 43)
-        RadioButtoncombined.Name = "RadioButtoncombined"
-        RadioButtoncombined.Size = New Size(164, 19)
-        RadioButtoncombined.TabIndex = 21
-        RadioButtoncombined.TabStop = True
-        RadioButtoncombined.Text = "Weight by area and angles"
-        ToolTip1.SetToolTip(RadioButtoncombined, "Weight normals by both triangle area and triangle angles.")
-        RadioButtoncombined.UseVisualStyleBackColor = True
-        ' 
-        ' RadioButtonByangles
-        ' 
-        RadioButtonByangles.AutoSize = True
-        RadioButtonByangles.Location = New Point(274, 43)
-        RadioButtonByangles.Name = "RadioButtonByangles"
-        RadioButtonByangles.Size = New Size(116, 19)
-        RadioButtonByangles.TabIndex = 20
-        RadioButtonByangles.Text = "Weight by angles"
-        ToolTip1.SetToolTip(RadioButtonByangles, "Weight normals by triangle angles.")
-        RadioButtonByangles.UseVisualStyleBackColor = True
-        ' 
-        ' RadioButtonByArea
-        ' 
-        RadioButtonByArea.AutoSize = True
-        RadioButtonByArea.Location = New Point(5, 43)
-        RadioButtonByArea.Name = "RadioButtonByArea"
-        RadioButtonByArea.Size = New Size(104, 19)
-        RadioButtonByArea.TabIndex = 19
-        RadioButtonByArea.Text = "Weight by area"
-        ToolTip1.SetToolTip(RadioButtonByArea, "Weight normals by triangle area.")
-        RadioButtonByArea.UseVisualStyleBackColor = True
         ' 
         ' Label9
         ' 
@@ -1658,12 +1604,8 @@ Partial Class Config_Form
     Friend WithEvents TabPage1 As TabPage
     Friend WithEvents TabPage2 As TabPage
     Friend WithEvents TabPage3 As TabPage
-    Friend WithEvents RadioButtonByArea As RadioButton
-    Friend WithEvents RadioButtoncombined As RadioButton
-    Friend WithEvents RadioButtonByangles As RadioButton
     Friend WithEvents NormalsNormalize As CheckBox
     Friend WithEvents NormalsRepairNan As CheckBox
-    Friend WithEvents NormalsForceOrthogonal As CheckBox
     Friend WithEvents NumericUpDownUVEps As NumericUpDown
     Friend WithEvents CheckBoxWelding As CheckBox
     Friend WithEvents GroupBox2 As GroupBox

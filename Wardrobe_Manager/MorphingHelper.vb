@@ -305,6 +305,11 @@ Public Class MorphingHelper
         If ((RecalculateNormals AndAlso huboCambioDePosicion) OrElse movioUVs) AndAlso Geometry.dirtyVertexIndices.Count > 0 Then
             Dim opt As RecalcTBN.TBNOptions = Config_App.Current.Setting_TBN
             opt.KeepExistingNormals = soloTangentes
+            ' ⚠️ MEDIDO y DESCARTADO (2026-08-03): forzar acá el recálculo de la malla ENTERA en vez de
+            ' la clausura de lo sucio NO cambia un solo byte de la salida — con un preset real la
+            ' clausura ya cubre 22.658 de 22.708 vértices. Se probó porque parecía explicar la
+            ' divergencia de tangentes contra BodySlide, y no la explica. No re-intentarlo: es costo
+            ' puro. Ver [[66-paridad-contra-bodyslide-real]].
             Dim adicionales = RecalcTBN.RecalculateNormalsTangentsBitangents(Geometry, opt)
             adicionales.ExceptWith(Geometry.dirtyVertexIndices)
             For Each ad In adicionales

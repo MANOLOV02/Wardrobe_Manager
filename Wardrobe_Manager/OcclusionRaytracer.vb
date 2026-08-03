@@ -118,6 +118,22 @@ Public Class OcclusionRaytracer
     ' ─── Ray–BVH traversal ───────────────────────────────────────────────────
 
     ''' <summary>
+    ''' Pila de recorrido del BVH, UNA POR HILO y reusada entre rayos.
+    ''' Antes se alocaba una Stack nueva en CADA rayo: del orden de 1,5 millones de allocations por
+    ''' corrida, todas del mismo tamano y con la vida del rayo. El recorrido es estrictamente local a
+    ''' la llamada, asi que reusar el buffer no cambia ningun resultado.
+    ''' El Clear() al entrar NO es opcional: una salida temprana (el Return del primer impacto) deja
+    ''' nodos adentro y el rayo siguiente arrancaria con basura.
+    ''' </summary>
+    <ThreadStatic>
+    Private Shared _pilaBvh As Stack(Of BvhNode)
+
+    Private Shared Function PilaDeRecorrido() As Stack(Of BvhNode)
+        If _pilaBvh Is Nothing Then _pilaBvh = New Stack(Of BvhNode)(64)
+        Return _pilaBvh
+    End Function
+
+    ''' <summary>
     ''' Returns True if the ray hits any triangle in [root/tris] with minDist &lt; t &lt;= maxDist.
     ''' minDist &gt; 0 skips hits too close to the origin (used for self-occlusion).
     ''' </summary>
@@ -127,7 +143,8 @@ Public Class OcclusionRaytracer
         If root Is Nothing Then Return False
 
         Dim dirInv = SafeInv(dir)
-        Dim stack As New Stack(Of BvhNode)(32)
+        Dim stack = PilaDeRecorrido()
+        stack.Clear()
         stack.Push(root)
 
         While stack.Count > 0
@@ -161,7 +178,8 @@ Public Class OcclusionRaytracer
 
         Dim dirInv = SafeInv(dir)
         Dim count = 0
-        Dim stack As New Stack(Of BvhNode)(32)
+        Dim stack = PilaDeRecorrido()
+        stack.Clear()
         stack.Push(root)
 
         While stack.Count > 0
