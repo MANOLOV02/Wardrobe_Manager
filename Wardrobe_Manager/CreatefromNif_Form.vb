@@ -211,6 +211,7 @@ Public Class Create_from_Nif_Form
                         For Each morp In shapeMorph.Value
                             If Not selected_slider.Sliders.Any(Function(pf) pf.Nombre.Equals(morp.Name, StringComparison.OrdinalIgnoreCase)) Then
                                 selected_slider.Sliders.Add(New Slider_class(morp.Name, selected_slider, morp.MorphType))
+                                selected_slider.NotifySlidersChanged()
                             End If
                             Dim slider = selected_slider.Sliders.First(Function(pf) pf.Nombre.Equals(morp.Name, StringComparison.OrdinalIgnoreCase))
                             Dim dat As Slider_Data_class

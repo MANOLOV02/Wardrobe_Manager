@@ -19,6 +19,9 @@ Public Module WM_RenderExtensions
         Public Last_rendered As SliderSet_Class
         Public Last_Preset As SlidersPreset_Class
         Public Last_size As WM_Config.SliderSize = WM_Config.SliderSize.Default
+        ' Version de la lista de sliders con la que se resolvio el ultimo SetPreset. Ver
+        ' SliderSet_Class.SlidersVersion: un reload la sube y obliga a re-resolver.
+        Public Last_SlidersVersion As Integer = -1
         ' SliderMorphResolver has no per-frame state — it rebuilds the same plan from each
         ' slider's persisted Current_Setting. Cache one instance per control and reuse it
         ' every frame instead of allocating on every Update_Render (incl. each animation tick).
@@ -118,7 +121,13 @@ Public Module WM_RenderExtensions
 
         ' Detect what changed
         Dim sameSet = (s.Last_rendered Is seleccionado) AndAlso ctrl.Model.Cleaned = False AndAlso Force = False
-        Dim presetChanged = Not (prevPreset Is Preset) OrElse (prevSize <> weight)
+        ' ⛔ El tercer termino NO es de adorno: `Current_Setting`/`Zap_Setting_Big` viven en los
+        ' Slider_class, y un reload los reconstruye con esos campos en 0. Sin mirar la version, el
+        ' skipPresetApply de abajo (que compara el preset por REFERENCIA) se saltearia el SetPreset y
+        ' el render aplicaria todos los zaps con peso 0.
+        Dim prevSlidersVersion = s.Last_SlidersVersion
+        Dim presetChanged = Not (prevPreset Is Preset) OrElse (prevSize <> weight) OrElse
+                            (prevSlidersVersion <> seleccionado.SlidersVersion)
         Dim skipPresetApply = sameSet AndAlso Not presetChanged
 
         ' Apply slider weights from preset. During animation playback the pose changes every
@@ -131,6 +140,7 @@ Public Module WM_RenderExtensions
             ' gateaba siempre por Big y divergia del _0.nif.
             s.MorphResolver.BuildSize = weight
             s.Last_Preset = Preset
+            s.Last_SlidersVersion = seleccionado.SlidersVersion
         End If
 
         ' Pose change detected against the SkeletonInstance's last applied pose (only used to

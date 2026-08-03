@@ -255,6 +255,18 @@ Public Class SliderPresetCollection
 
                 For Each ss In xp.Elements("SetSlider")
                     Dim sliderName = ss.Attribute("name")?.Value
+                    ' ⭐ El filtro de `size` va ANTES de validar `value`: el canonico descarta la entrada
+                    ' por size primero (SliderPresets.cpp:218-221) y ni mira el resto. Al reves, una
+                    ' entrada que el canonico saltea entera pero con `value` corrupto tiraba
+                    ' InvalidDataException y el Catch de mas abajo se llevaba TODOS los presets del
+                    ' archivo, donde BodySlide solo se saltea esa linea.
+                    Dim sizeRaw = ss.Attribute("size")?.Value?.ToLowerInvariant()
+                    If sizeRaw <> "small" AndAlso sizeRaw <> "big" AndAlso
+                       sizeRaw <> "default" AndAlso sizeRaw <> "both" Then Continue For
+                    Dim sz As WM_Config.SliderSize = If(sizeRaw = "small", WM_Config.SliderSize.Small,
+                                             If(sizeRaw = "big", WM_Config.SliderSize.Big,
+                                                                  WM_Config.SliderSize.Default))
+
                     Dim valText = ss.Attribute("value")?.Value
                     If String.IsNullOrEmpty(sliderName) Then
                         Throw New InvalidDataException($"<SetSlider> missing 'name' in preset '{nameAttr}' of '{path}'")
@@ -263,11 +275,6 @@ Public Class SliderPresetCollection
                     If Not Single.TryParse(valText, Globalization.NumberStyles.Float, Globalization.CultureInfo.InvariantCulture, valueFloat) Then
                         Throw New InvalidDataException($"<SetSlider name=""{sliderName}""> has invalid or missing 'value' in preset '{nameAttr}' of '{path}'")
                     End If
-
-                    Dim sizeRaw = ss.Attribute("size")?.Value?.ToLowerInvariant()
-                    Dim sz As WM_Config.SliderSize = If(sizeRaw = "small", WM_Config.SliderSize.Small,
-                                             If(sizeRaw = "big", WM_Config.SliderSize.Big,
-                                                                  WM_Config.SliderSize.Default))
 
                     p.Sliders.Add(New PresetSlider_Class With {
                         .Name = sliderName,
@@ -2120,6 +2127,7 @@ Public Class OSP_Project_Class
                 Next
                 Dim new_slider As New Slider_class(nodo, Sliderset_Madre)
                 Sliderset_Madre.Sliders.Add(new_slider)
+                Sliderset_Madre.NotifySlidersChanged()
             End If
         Next
         Sliderset_Target.InvalidateAllLookupCaches()
@@ -2741,39 +2749,65 @@ Public Class SliderSet_Class
         Next
     End Sub
 
-    ''' <summary>Valor que le corresponde a un slider para un peso, con el preset aplicado.</summary>
+    ''' <summary>
+    ''' Valor que le corresponde a un slider para un peso, con el preset aplicado.
+    '''
+    ''' ⭐ MODELO CANÓNICO, replica de <c>PresetCollection</c> (SliderPresets.cpp:40-95). Un preset NO
+    ''' es una lista de entradas: por slider son DOS CAMPOS, <c>big</c> y <c>small</c>, sembrados con
+    ''' el centinela <c>-10000</c>. Cada <c>&lt;SetSlider&gt;</c> PISA el campo que le toca
+    ''' (<c>SetSliderPreset</c>:65-70) ⇒ gana la ÚLTIMA entrada del archivo, y
+    ''' <c>size="both"</c> pisa los DOS (<c>s = b = o</c>, :230). Al resolver,
+    ''' <c>GetBigPreset</c>/<c>GetSmallPreset</c> devuelven false si el campo quedó en el centinela, y
+    ''' el llamador cae al default del propio slider (:83-95).
+    '''
+    ''' ⛔ Tres divergencias MEDIDAS el 2026-08-03 que esto corrige, todas preexistentes:
+    ''' <list type="number">
+    ''' <item>La rama de FO4 resolvía con <c>FirstOrDefault</c> ⇒ ganaba la PRIMERA entrada, y además
+    '''   prefería <c>Default</c> sobre <c>Big</c>. Con el preset `Manolo` del usuario (53 sliders con
+    '''   <c>default</c> ≠ <c>big</c>) eso movía <b>14.168 de 22.708 vértices</b> respecto de lo que
+    '''   construye BodySlide.</item>
+    ''' <item><c>both</c>/<c>Default</c> no llegaba al peso SMALL: el canónico hace <c>s = b = o</c>.</item>
+    ''' <item>El <c>OrderBy(Size)</c> rompía el orden de documento, que es justo lo que decide el
+    '''   desempate. El pliegue va en el orden en que están en el archivo.</item>
+    ''' </list>
+    ''' </summary>
     Private Shared Function ResolvePresetValue(slid As Slider_class, Preset As SlidersPreset_Class,
                                                Weight As WM_Config.SliderSize) As Single
         Dim result As Single = slid.EffectiveDefault(Weight)
         If IsNothing(Preset) Then Return result
 
-        Dim matches = Preset.Sliders.
-        Where(Function(pf) pf.Name.Equals(slid.Nombre, StringComparison.OrdinalIgnoreCase)).
-        OrderBy(Function(pf) pf.Size).
-        ToList()
+        ' Centinela: NaN en vez del -10000 del canónico. Un preset puede traer -10000 como valor real
+        ' de un slider (nada lo prohíbe) y ahí el centinela numérico se confundiría con un dato.
+        Dim vBig As Single = Single.NaN
+        Dim vSmall As Single = Single.NaN
+        Dim hubo As Boolean = False
 
-        If matches.Count = 0 Then Return result
-
-        If Config_App.Current.Game = Config_App.Game_Enum.Fallout4 Then
-            Dim presetDefault = matches.FirstOrDefault(Function(pf) pf.Size = WM_Config.SliderSize.Default)
-            Dim presetBig = matches.FirstOrDefault(Function(pf) pf.Size = WM_Config.SliderSize.Big)
-
-            If presetDefault IsNot Nothing Then
-                result = presetDefault.Value
-            ElseIf presetBig IsNot Nothing Then
-                result = presetBig.Value
-            End If
-
-            Return result
-        End If
-
-        For Each sli In matches
-            If sli.Size = WM_Config.SliderSize.Small Then
-                If Weight = WM_Config.SliderSize.Small Then result = sli.Value
-            Else
-                If Weight <> WM_Config.SliderSize.Small Then result = sli.Value
-            End If
+        ' ⛔ SIN OrderBy: orden de documento. Preset.Sliders se llena en el orden del archivo.
+        For Each pf In Preset.Sliders
+            If pf Is Nothing OrElse pf.Name Is Nothing Then Continue For
+            If Not pf.Name.Equals(slid.Nombre, StringComparison.OrdinalIgnoreCase) Then Continue For
+            hubo = True
+            Select Case pf.Size
+                Case WM_Config.SliderSize.Small
+                    vSmall = pf.Value
+                Case WM_Config.SliderSize.Big
+                    vBig = pf.Value
+                Case Else   ' Default == el `both` canónico: pisa los DOS campos.
+                    vBig = pf.Value
+                    vSmall = pf.Value
+            End Select
         Next
+
+        If Not hubo Then Return result
+
+        ' El pase de peso Small lee el campo small; todo lo demás (Big y Default) lee el big — que es
+        ' lo que hace BodySlide cuando no hay GenWeights: usa `vbig`/`defBigValue` y `vsmall` sólo
+        ' existe dentro de `if (currentSet.GenWeights())` (BodySlideApp.cpp:4356-4364).
+        If Weight = WM_Config.SliderSize.Small Then
+            If Not Single.IsNaN(vSmall) Then result = vSmall
+        Else
+            If Not Single.IsNaN(vBig) Then result = vBig
+        End If
         Return result
     End Function
     Public ReadOnly Property HasPhysics As Boolean
@@ -2848,7 +2882,33 @@ Public Class SliderSet_Class
         InvalidateAllLookupCaches()
     End Sub
 
+    ''' <summary>
+    ''' Sube cada vez que se RECONSTRUYE la lista de <c>Slider_class</c>. Es lo que permite a un
+    ''' consumidor saber que su estado derivado quedo viejo aunque el objeto <c>SliderSet_Class</c> sea
+    ''' el mismo.
+    ''' ⛔ Hace falta porque <c>Current_Setting</c> y <c>Zap_Setting_Big</c> viven en los
+    ''' <c>Slider_class</c> y sólo los escribe <c>SetPreset</c>: tras un reload vuelven a 0, y un
+    ''' consumidor que decida "no cambio nada" por identidad de referencia (el
+    ''' <c>skipPresetApply</c> del render) se saltearia el <c>SetPreset</c> y aplicaria TODOS los zaps
+    ''' con peso 0 — shapes que reaparecen, en silencio.
+    ''' </summary>
+    Public ReadOnly Property SlidersVersion As Integer
+        Get
+            Return _slidersVersion
+        End Get
+    End Property
+    Private _slidersVersion As Integer = 0
+
+    ''' <summary>Sube <see cref="SlidersVersion"/> cuando la lista de sliders se MUTA sin pasar por
+    ''' <see cref="Lee_SlidersAndShapes"/> (altas/bajas puntuales: merge de proyectos, agregar o quitar
+    ''' un zap desde el editor, crear desde NIF). Un slider recien agregado llega con
+    ''' <c>Current_Setting</c> sin resolver, asi que el consumidor tiene que re-resolver igual.</summary>
+    Public Sub NotifySlidersChanged()
+        _slidersVersion += 1
+    End Sub
+
     Public Sub Lee_SlidersAndShapes()
+        _slidersVersion += 1
         ' Invalidar ANTES de leer: `Reload(el As XmlNode)` reapunta Nodo a un XmlDocument recien
         ' parseado del disco, y sin esto el objeto se quedaba con el GenWeights del archivo VIEJO.
         ' Lo dispara el flujo "editar en Outfit Studio y recargar": si el usuario cambia ahi

@@ -382,8 +382,8 @@ Public Class Editor_Form
                     ' por Default y si no por Big (OSP_Clases ResolvePresetValue), asi que con la vista
                     ' en Small no encontraba ninguna y caia al default del sliderset; en SSE pasaba lo
                     ' mismo al reves para Zap_Setting_Big, que se resuelve SIEMPRE con Big.
-                    ' Ademas deja el preset guardado COMPLETO, que es lo que hace que el remapeo de
-                    ' Define_cual_size sea la identidad al recargarlo en vez de inventar equivalencias.
+                    ' Ademas deja el preset guardado COMPLETO: con las tres tallas presentes, la
+                    ' aplicacion del preset de mas abajo toma cada ranura de su propia entrada.
                     Dim creadas As New List(Of PresetSlider_Class)
                     For x = 0 To 2
                         Dim sz = CType(x, WM_Config.SliderSize)
@@ -404,22 +404,85 @@ Public Class Editor_Form
             Selected_Preset.Name = Selected_Combo_Preset.Name
             Selected_Preset.GroupNames = Selected_Combo_Preset.GroupNames.ToList
             Selected_Preset.SetName = Selected_Combo_Preset.SetName
-            Dim nodefault = Not Selected_Combo_Preset.Sliders.Any(Function(pf) pf.Size = WM_Config.SliderSize.Default)
-            Dim nobig = Not Selected_Combo_Preset.Sliders.Any(Function(pf) pf.Size = WM_Config.SliderSize.Big)
-            Dim nosmall = Not Selected_Combo_Preset.Sliders.Any(Function(pf) pf.Size = WM_Config.SliderSize.Small)
-            For Each slid In Selected_Combo_Preset.Sliders
+            ' ⭐ LA LEY ES POR SLIDER, NO POR ARCHIVO.
+            ' El canonico resuelve cada talla de cada slider por separado: `GetBigPreset`/`GetSmallPreset`
+            ' (SliderPresets.cpp:83-107) devuelven FALSE cuando ese campo vale el centinela -10000, y
+            ' `SliderManager.cpp:232-246` hace `ps = defVal` — el default del PROPIO slider. Nunca toma
+            ' el valor de otra talla.
+            '
+            ' ⛔ Antes esto miraba tres flags calculados sobre el PRESET ENTERO
+            ' (`nodefault/nobig/nosmall` con `.Sliders.Any(...)`) y, si al archivo le faltaba una clase
+            ' de talla completa, `Define_cual_size` la REMAPEABA a otra. Y el disparo es lo normal, no
+            ' un borde: `SavePreset` escribe la entrada solo si `SliderHasChanged`, y el writer emite
+            ' unicamente `big`/`small` — nunca `both` — asi que TODO preset de BodySlide llega sin
+            ' ninguna entrada `default`.
+            ' Roto concreto (SSE con GenWeights, preset donde solo se toco el peso alto): la entrada
+            ' Small recibia el valor de Big y el `_0.nif` salia con la geometria del peso alto. El caso
+            ' espejo era peor: un preset small-only alimentaba `Zap_Setting_Big`, que decide los zaps de
+            ' LOS DOS pesos ⇒ cambiaba la topologia de `_0` y `_1`.
+            '
+            ' ⚠️ `Size = Default` es una invencion de WM (el canonico solo conoce small/big/both). Se
+            ' trata como el `both` canonico: alimenta las tres ranuras cuando la especifica falta. Y la
+            ' ranura Default —que es la que `ResolvePresetValue` lee PRIMERO en FO4— cae al `big` del
+            ' preset, porque en FO4 el canonico resuelve por `GetBigPreset` (BodySlideApp.cpp:4349).
+            For Each grupo In Selected_Combo_Preset.Sliders.GroupBy(Function(pf) pf.Name, StringComparer.OrdinalIgnoreCase)
+                ' Pliegue EN ORDEN DE DOCUMENTO, que es el modelo del canonico: `SetSliderPreset`
+                ' (SliderPresets.cpp:65-70) mantiene DOS campos por slider (`b` y `s`) con centinela
+                ' -10000, y cada <SetSlider> PISA el que le toca ⇒ gana el ULTIMO del archivo.
+                ' ⛔ Agrupar y tomar el primero de cada talla perdia eso, y no solo contra el canonico:
+                ' el codigo anterior a este bloque asignaba secuencialmente y tambien era last-wins.
+                ' Casos que lo distinguen (presets hechos a mano o mergeados; ni el writer de BodySlide
+                ' ni SavePresetXml los producen): dos entradas con el mismo name Y size, y un `both`
+                ' DESPUES de un `big` — ahi el canonico deja big = small = valor del both.
+                ' `default` es la extension de WM y equivale al `both` canonico: escribe los dos campos.
+                Dim valBig As Single = 0 : Dim hayBig As Boolean = False
+                Dim valSmall As Single = 0 : Dim haySmall As Boolean = False
+                For Each pf In grupo
+                    Select Case pf.Size
+                        Case WM_Config.SliderSize.Big
+                            valBig = pf.Value : hayBig = True
+                        Case WM_Config.SliderSize.Small
+                            valSmall = pf.Value : haySmall = True
+                        Case Else
+                            ' Default == `both`: pisa los dos campos.
+                            valBig = pf.Value : hayBig = True
+                            valSmall = pf.Value : haySmall = True
+                    End Select
+                Next
+
                 Dim matches As List(Of PresetSlider_Class) = Nothing
-                If presetLookup.TryGetValue(slid.Name, matches) Then
-                    Dim sli0 = matches.FirstOrDefault(Function(s) s.Size = WM_Config.SliderSize.Default)
-                    If Not IsNothing(sli0) AndAlso slid.Size = Define_cual_size(WM_Config.SliderSize.Default, nodefault, nobig, nosmall) Then sli0.Value = slid.Value
-                    Dim sliB = matches.FirstOrDefault(Function(s) s.Size = WM_Config.SliderSize.Big)
-                    If Not IsNothing(sliB) AndAlso slid.Size = Define_cual_size(WM_Config.SliderSize.Big, nodefault, nobig, nosmall) Then sliB.Value = slid.Value
-                    Dim sliS = matches.FirstOrDefault(Function(s) s.Size = WM_Config.SliderSize.Small)
-                    If Not IsNothing(sliS) AndAlso slid.Size = Define_cual_size(WM_Config.SliderSize.Small, nodefault, nobig, nosmall) Then sliS.Value = slid.Value
+                If presetLookup.TryGetValue(grupo.Key, matches) Then
+                    ' La ranura Default de WM se alimenta del campo BIG: en FO4 el canonico resuelve por
+                    ' `GetBigPresetValue` (BodySlideApp.cpp:4349) y `ResolvePresetValue` lee esa ranura
+                    ' primero. Si el campo no quedo escrito, la ranura conserva el default ya sembrado
+                    ' del sliderset — que es lo que hace `GetBigPreset` devolviendo false y
+                    ' `SliderManager.cpp:232-246` cayendo a `defVal`.
+                    If hayBig Then
+                        Dim sli0 = matches.FirstOrDefault(Function(x) x.Size = WM_Config.SliderSize.Default)
+                        If Not IsNothing(sli0) Then sli0.Value = valBig
+                        Dim sliB = matches.FirstOrDefault(Function(x) x.Size = WM_Config.SliderSize.Big)
+                        If Not IsNothing(sliB) Then sliB.Value = valBig
+                    End If
+                    If haySmall Then
+                        Dim sliS = matches.FirstOrDefault(Function(x) x.Size = WM_Config.SliderSize.Small)
+                        If Not IsNothing(sliS) Then sliS.Value = valSmall
+                    End If
                 Else
-                    Dim sli As New PresetSlider_Class With {.Name = slid.Name, .DisplayName = slid.Name, .Value = slid.Value, .Category = Slid_cat, .Size = slid.Size}
-                    Selected_Preset.Sliders.Add(sli)
-                    presetLookup(slid.Name) = New List(Of PresetSlider_Class) From {sli}
+                    ' Ni en el catalogo ni en el sliderset: se conservan sus tallas crudas para que el
+                    ' round-trip del preset no las pierda, pero con el MISMO last-wins que la rama de
+                    ' arriba: `SetSliderPreset` pisa el campo, asi que dos <SetSlider> con el mismo
+                    ' name+size dejan UNA entrada con el valor del ultimo.
+                    ' ⛔ Sin el dedupe se creaban DOS ranuras del mismo nombre y talla: dos trackbars
+                    ' iguales en la lista, el segundo inerte (el Find de SetSliderValue encuentra solo
+                    ' el primero), y las dos serializadas por SavePresetXml.
+                    Dim creadas As New List(Of PresetSlider_Class)
+                    For Each pf In grupo.GroupBy(Function(q) q.Size).Select(Function(g) g.Last())
+                        Dim sli As New PresetSlider_Class With {.Name = pf.Name, .DisplayName = pf.Name,
+                                                                .Value = pf.Value, .Category = Slid_cat, .Size = pf.Size}
+                        Selected_Preset.Sliders.Add(sli)
+                        creadas.Add(sli)
+                    Next
+                    presetLookup(grupo.Key) = creadas
                 End If
             Next
         End If
@@ -428,26 +491,6 @@ Public Class Editor_Form
         Habilita_Preset_Botones(False)
         Pone_SLiders()
     End Sub
-    Private Function Define_cual_size(target As WM_Config.SliderSize, nodefault As Boolean, nobig As Boolean, nosmall As Boolean) As WM_Config.SliderSize
-        Select Case target
-            Case WM_Config.SliderSize.Default
-                If nodefault = False Then Return WM_Config.SliderSize.Default
-                If nobig = False Then Return WM_Config.SliderSize.Big
-                If nosmall = False Then Return WM_Config.SliderSize.Small
-                Return WM_Config.SliderSize.Default
-            Case WM_Config.SliderSize.Big
-                If nobig = False Then Return WM_Config.SliderSize.Big
-                If nodefault = False Then Return WM_Config.SliderSize.Default
-                If nosmall = False Then Return WM_Config.SliderSize.Small
-                Return WM_Config.SliderSize.Big
-            Case WM_Config.SliderSize.Small
-                If nosmall = False Then Return WM_Config.SliderSize.Small
-                If nodefault = False Then Return WM_Config.SliderSize.Default
-                If nobig = False Then Return WM_Config.SliderSize.Big
-                Return WM_Config.SliderSize.Small
-        End Select
-        Return target
-    End Function
 
     Private Sub Habilita_Preset_Botones(Opcion As Boolean)
         ButtondelPreset.Enabled = Not Opcion
@@ -1511,6 +1554,7 @@ Public Class Editor_Form
         Dim slid As New Slider_class(el, Selected_Slider)
         Selected_Slider.Nodo.AppendChild(el)
         Selected_Slider.Sliders.Add(slid)
+        Selected_Slider.NotifySlidersChanged()
         Selected_Slider.InvalidateAllLookupCaches()
         _LastSliderLayoutSignature = ""
         Actualiza_Preset()
@@ -1751,6 +1795,7 @@ Public Class Editor_Form
             Next
             Selected_Slider.Nodo.RemoveChild(SelectedZap.Nodo)
             Selected_Slider.Sliders.Remove(SelectedZap)
+            Selected_Slider.NotifySlidersChanged()
             SelectedZap = Nothing
             Selected_Slider.InvalidateAllLookupCaches()
             _LastSliderLayoutSignature = ""
@@ -1818,6 +1863,18 @@ Public Class Editor_Form
             SavePresetXml(filename, nombre, False)
         End If
     End Sub
+    ''' <summary>
+    ''' Token de <c>size</c> que se ESCRIBE en el .xml del preset.
+    ''' ⛔ <c>SliderSize.Default</c> se emite como <c>"both"</c>, NO como <c>"default"</c>.
+    ''' BodySlide sólo reconoce <c>small</c> / <c>big</c> / <c>both</c> (SliderPresets.cpp:216-232);
+    ''' cualquier otro token le deja los dos campos en el centinela -10000 y la entrada le queda
+    ''' INERTE. O sea que un preset guardado por WM con <c>"default"</c> no era del todo legible por
+    ''' BodySlide: medido sobre el preset `Manolo` del usuario, 53 sliders con <c>default</c> ≠
+    ''' <c>big</c>, y construir CBBE Body de FO4 con y sin esas entradas movía 14.168 de 22.708
+    ''' vértices. <c>both</c> es el token canónico y significa exactamente lo mismo que Default en WM:
+    ''' aplica a los DOS pesos.
+    ''' ⚠️ El LECTOR sigue aceptando <c>"default"</c> — hay 999 entradas así en los presets del disco.
+    ''' </summary>
     Private Function Size_to_str(Size As WM_Config.SliderSize) As String
         Select Case Size
             Case WM_Config.SliderSize.Big
@@ -1825,7 +1882,7 @@ Public Class Editor_Form
             Case WM_Config.SliderSize.Small
                 Return "small"
             Case WM_Config.SliderSize.Default
-                Return "default"
+                Return "both"
         End Select
         Return "big"
     End Function

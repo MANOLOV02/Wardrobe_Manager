@@ -39,6 +39,15 @@ Namespace My
         Private Sub MyApplication_Startup(sender As Object, e As Microsoft.VisualBasic.ApplicationServices.StartupEventArgs) Handles Me.Startup
             ' Initialize WM-specific hooks for the shared library
             WM_RenderExtensions.InitializeWM()
+
+            ' MODO CONSOLA. Se atiende ANTES de crear la ventana principal: si TryRun reconoce un modo
+            ' (--build / --list / --help) corre ahi mismo y cancela el arranque de la GUI, igual que el
+            ' --bake-all de NPC_Manager. Sin argumentos reconocidos devuelve False y la app abre normal.
+            ' Va DESPUES de InitializeWM porque el build usa los hooks que registra.
+            If WM_Cli.TryRun(e.CommandLine) Then
+                e.Cancel = True
+                Return
+            End If
             ' Logger habilitado SOLO en Debug builds. En Release: Logger.Enabled queda en False y todos los
             ' Logger.Log/LogLazy retornan early sin allocar — y, mas importante, TODOS los bloques
             ' `If Logger.Enabled Then ...` de diagnostico no corren. ⭐ DOBLE CANDADO: ademas de este

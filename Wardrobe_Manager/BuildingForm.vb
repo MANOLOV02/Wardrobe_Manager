@@ -59,7 +59,26 @@ Public Class BuildingForm
         End Try
     End Function
 
+    ''' <summary>
+    ''' Modo sin ventana: suprime los dos puntos interactivos del final (el dialogo de issues de carga y
+    ''' el MsgBox de errores) para que <see cref="RunBuild"/> pueda correr desde el CLI. NO cambia nada
+    ''' de lo que se construye — los NIF salen por el mismo camino que con la ventana abierta.
+    ''' </summary>
+    Public Property Headless As Boolean = False
+
     Private Sub BuildingForm_Shown(sender As Object, e As EventArgs) Handles Me.Shown
+        RunBuild()
+        Me.Close()
+    End Sub
+
+    ''' <summary>
+    ''' Corre el batch completo y devuelve "" si no hubo errores, o el texto acumulado.
+    ''' ⭐ Es el MISMO cuerpo que corria en el handler de Shown: se extrajo para que el CLI pueda
+    ''' instanciar el form y construir SIN mostrarlo (equivalente al --bake-all de NPC_Manager).
+    ''' Los controles de progreso se siguen escribiendo — en un form no mostrado eso solo fuerza la
+    ''' creacion perezosa del handle y no requiere bomba de mensajes.
+    ''' </summary>
+    Public Function RunBuild() As String
         ProgressBar1.Value = 0
         ProgressBar2.Value = 0
         ProgressBar1.Maximum = 5
@@ -367,7 +386,7 @@ Public Class BuildingForm
         If Config_App.Current.Game = Config_App.Game_Enum.Fallout4 AndAlso WM_Config.Current.Settings_Build.AddAddintionalSliders AndAlso WM_Config.Current.Settings_Build.SaveTri Then LooksMenuSliders.Serialize_LooksmenuAdditionalSiliders()
 
         ' Mostrar los issues de load acumulados durante todo el batch en un solo dialog
-        If buildLoadContext.Issues IsNot Nothing AndAlso buildLoadContext.Issues.Count > 0 Then
+        If Not Headless AndAlso buildLoadContext.Issues IsNot Nothing AndAlso buildLoadContext.Issues.Count > 0 Then
             Dim batchHandler = OSP_Project_Class.InteractiveIssueBatchDisplay
             If batchHandler IsNot Nothing Then
                 Try
@@ -377,11 +396,11 @@ Public Class BuildingForm
             End If
         End If
 
-        If Errores <> "" Then
+        If Errores <> "" AndAlso Not Headless Then
             MsgBox("Error building the following projects:" & vbCrLf & Errores)
         End If
-        Me.Close()
-    End Sub
+        Return Errores
+    End Function
 
 
 End Class

@@ -279,7 +279,16 @@ Public Class MorphingHelper
         ' 0,279 con las posiciones IDENTICAS. Mover un slider uv un 1 % te cambiaba todas las
         ' normales de la malla.
         Dim huboCambioDePosicion As Boolean = Geometry.dirtyVertexIndices.Count > 0
-        Dim soloTangentes As Boolean = movioUVs AndAlso Not huboCambioDePosicion
+        ' ⛔ La condicion es `Not (pidioNormales AndAlso huboCambioDePosicion)`, NO
+        ' `uv AndAlso Not posicion`. Esa version anterior cubria solo el caso UV-PURO: con un slider
+        ' uv Y uno de posicion a la vez, `huboCambioDePosicion` daba True, KeepExistingNormals caia a
+        ' False y las normales se recalculaban AUNQUE el ajuste estuviera apagado — o sea que el uv
+        ' reactivaba por la ventana un recalculo que el usuario habia desactivado.
+        ' Las normales se recomputan si y solo si el usuario lo pidio Y se movio geometria; las UVs
+        ' nunca las tocan. Es la separacion del canonico: `if (!lockNormals) CalcNormalsForShape`
+        ' (posiciones) y `CalcTangentsForShape` (UVs) son dos pases independientes
+        ' (BodySlideApp.cpp:4494-4501).
+        Dim soloTangentes As Boolean = Not (RecalculateNormals AndAlso huboCambioDePosicion)
         If movioUVs Then
             ' ⭐ SOLO los vertices cuyas UV se movieron. RecalculateNormalsTangentsBitangents hace la
             ' clausura sola (dirty -> triangulos incidentes -> los 3 vertices de cada uno) y elige
