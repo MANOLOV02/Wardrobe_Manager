@@ -353,7 +353,9 @@ Public Class OSD_Class
                     For x = 0 To Datablocks - 1
                         Dim Namelenght As Byte = reader.ReadByte
                         Dim namebytes As Byte() = reader.ReadBytes(Namelenght)
-                        Dim block As New OSD_Block_Class(Me) With {.BlockName = (System.Text.Encoding.UTF8.GetString(namebytes))}
+                        Dim block As New OSD_Block_Class(Me) With {
+                            .BlockName = (System.Text.Encoding.UTF8.GetString(namebytes)),
+                            .SourceOsdFile = IO.Path.GetFileName(Filename)}
                         Dim DifDatas = CType(reader.ReadUInt16, Int32)
                         ' O5.1: Pre-allocate compact arrays + DataDiff list in one pass
                         block.IndicesCompact = New Integer(DifDatas - 1) {}
@@ -543,6 +545,14 @@ Public Class OSD_Block_Class
     Public Property BlockName As String
     Public Property DataDiff As New List(Of OSD_DataDiff_Class)
     Public Property ParentOSDContent As OSD_Class
+
+    ''' <summary>
+    ''' Nombre del <c>.osd</c> del que salió este bloque (sin carpeta), o <c>Nothing</c> si se creó en
+    ''' memoria. Hace falta porque <see cref="OSD_Class.Blocks"/> es UNA sola lista con TODOS los .osd
+    ''' externos del sliderSet fusionados, y el nombre de bloque NO es único entre archivos: sin esto
+    ''' un <c>&lt;Data&gt;</c> se lleva también el bloque homónimo del otro .osd.
+    ''' </summary>
+    Public Property SourceOsdFile As String
 
     ' --- O5.1: Compact array storage for cache-friendly access ---
     ' Populated during binary Load; avoids per-element object traversal in hot paths.
@@ -2907,6 +2917,44 @@ Public Class SliderSet_Class
         _slidersVersion += 1
     End Sub
 
+    ''' <summary>
+    ''' Dos o más <c>&lt;Slider&gt;</c> con el MISMO <c>name</c> son UNO solo, con la unión de sus
+    ''' <c>&lt;Data&gt;</c>. Es la ley del canónico (SliderSet.cpp:263-283): al encontrar un homónimo
+    ''' fusiona sus dataFiles en el que ya estaba y NO agrega un segundo slider — sus atributos
+    ''' (<c>default</c>, <c>zap</c>, <c>invert</c>…) se descartan, gana el primero.
+    '''
+    ''' ⛔ Sin esto WM no construía distinto: RECHAZABA EL PROYECTO ENTERO. La validación de
+    ''' <c>(nombre de Data + nombre de Slider)</c> únicos tiraba "Duplicated Slider Data" y el
+    ''' sliderSet quedaba <c>Unreadable_NIF</c>. Está exhibido en el disco: los 4 sliderSets de
+    ''' <c>KS Hairdos SMP (TBD).osp</c> traen entre 11 y 21 sliders duplicados cada uno, y BodySlide
+    ''' los construye sin chistar.
+    '''
+    ''' Del homónimo sólo se toman los <c>&lt;Data&gt;</c> cuyo <c>target</c> el primero todavía no
+    ''' cubre. No es una simplificación: el canónico los apila todos, pero después resuelve con
+    ''' <c>TargetDataName</c> (SliderData.h:52-58), que devuelve el PRIMERO de ese target ⇒ los
+    ''' repetidos le quedan muertos. Quedándonos con el mismo conjunto efectivo, la validación de
+    ''' duplicados sigue sirviendo para los archivos de verdad rotos.
+    ''' Comparación ordinal en los dos ejes: el canónico usa <c>==</c> de <c>std::string</c>.
+    ''' </summary>
+    Private Shared Function FusionaSlidersHomonimos(leidos As List(Of Slider_class)) As List(Of Slider_class)
+        Dim primeroPorNombre As New Dictionary(Of String, Slider_class)(StringComparer.Ordinal)
+        Dim salida As New List(Of Slider_class)(leidos.Count)
+        For Each s In leidos
+            Dim primero As Slider_class = Nothing
+            If Not primeroPorNombre.TryGetValue(s.Nombre, primero) Then
+                primeroPorNombre(s.Nombre) = s
+                salida.Add(s)
+                Continue For
+            End If
+            For Each d In s.Datas
+                If primero.Datas.Any(Function(x) String.Equals(x.Target, d.Target, StringComparison.Ordinal)) Then Continue For
+                Dim nodo = d.Nodo
+                primero.Datas.Add(New Slider_Data_class(nodo, primero))
+            Next
+        Next
+        Return salida
+    End Function
+
     Public Sub Lee_SlidersAndShapes()
         _slidersVersion += 1
         ' Invalidar ANTES de leer: `Reload(el As XmlNode)` reapunta Nodo a un XmlDocument recien
@@ -2916,7 +2964,8 @@ Public Class SliderSet_Class
         ' `big`/`small` en un .osp que ya solo tiene `default` ⇒ TODOS los defaults en 0.
         _genWeightsCache = 0
         Shapes = Nodo.SelectNodes("Shape").Cast(Of XmlNode)().Select(Function(shap) New Shape_class(shap, Me)).ToList
-        Sliders = Nodo.SelectNodes("Slider").Cast(Of XmlNode)().Select(Function(slid) New Slider_class(slid, Me)).ToList
+        Sliders = FusionaSlidersHomonimos(
+            Nodo.SelectNodes("Slider").Cast(Of XmlNode)().Select(Function(slid) New Slider_class(slid, Me)).ToList)
         LastProjectFileSignature = GetProjectFileSignature()
         InvalidateMetadataLookupCache()
         ' Sembrado SERIAL de la cache. Este metodo es el unico punto por el que un sliderset queda
@@ -3047,8 +3096,24 @@ Public Class SliderSet_Class
         End Try
         Return 0
     End Function
+    ''' <summary>
+    ''' ¿Este sliderSet se construye en DOS pesos (<c>_0</c>/<c>_1</c>) o en uno solo?
+    '''
+    ''' ⛔ NO se gatea por juego. Antes había un <c>If Game = Fallout4 Then Return False</c> delante,
+    ''' y es una divergencia: el canónico no consulta el juego en ninguna parte de esta decisión —
+    ''' <c>GenWeights()</c> devuelve el campo del archivo y nada más.
+    ''' MEDIDO contra el binario de BodySlide de FO4, mismo sliderSet en tres variantes:
+    '''   <c>GenWeights="false"</c> ⇒ 1 archivo · <c>"true"</c> ⇒ <c>_0</c> y <c>_1</c> ·
+    '''   <b>atributo AUSENTE ⇒ también <c>_0</c> y <c>_1</c></b> (el parser lo toma TRUE por defecto).
+    ''' Y no es sólo el nombre del archivo: el pase small usa <c>defSmallValue</c> y gatea los clamps
+    ''' por ése.
+    '''
+    ''' ⚠️ Sobre el corpus del disco el cambio es INERTE: los <b>3.560</b> sliderSets de FO4 traen
+    ''' <c>GenWeights="false"</c> explícito — ninguno ausente, ninguno true. Sólo cambia el resultado
+    ''' de un <c>.osp</c> hecho a mano o de terceros que omita el atributo o lo ponga en true, que es
+    ''' justo el caso donde antes WM emitía un artefacto distinto del que emite BodySlide.
+    ''' </summary>
     Public Function Multisize() As Boolean
-        If Config_App.Current.Game = Config_App.Game_Enum.Fallout4 Then Return False
         If WM_Config.Current.Settings_Build.IgnoreWeightsFlags = False Then Return Me.GenWeights
         Return WM_Config.Current.Settings_Build.ForceWeights
     End Function
@@ -3472,6 +3537,40 @@ Public Class SliderSet_Class
     Public ReadOnly Property OutputFullPathBase As String
         Get
             Return IO.Path.Combine(Directorios.Fallout4data, OutputPathValue, OutputFileValue)
+        End Get
+    End Property
+
+    ''' <summary>
+    ''' La ruta que se estampa en el <c>BODYTRI</c> del NIF de salida: relativa a <c>Meshes\</c>, que es
+    ''' como la resuelven f4ee (FO4) y skee (SSE).
+    '''
+    ''' Se calcula igual que el canónico (BodySlideApp.cpp:4578-4584), sobre el path RELATIVO del
+    ''' proyecto y con dos pasadas: colapsar corridas de separadores, y borrar todo hasta el ÚLTIMO
+    ''' <c>meshes\</c> (el <c>.*</c> es greedy) sin distinguir mayúsculas.
+    '''
+    ''' ⛔ No sirve <c>Path.GetRelativePath(...\Meshes, ruta)</c>, que es lo que había, y no por
+    ''' prolijidad: cuando el <c>OutputPath</c> NO cuelga de <c>Meshes\</c> ese método devuelve un
+    ''' <c>..\</c> para subir, y un BODYTRI con <c>..\</c> no lo resuelve ningún consumidor ⇒ el mesh
+    ''' sale sin morphs in-game, en silencio. El canónico ante ese mismo caso no encuentra el ancla y
+    ''' deja la ruta como está. Segundo caso, más raro pero igual de real: un <c>OutputPath</c> con
+    ''' <c>Meshes\</c> repetido (<c>Meshes\armor\Meshes\x</c>) — greedy corta por el último y
+    ''' GetRelativePath por el primero, o sea dos rutas distintas para el mismo proyecto.
+    '''
+    ''' ⛔⛔ DIVERGENCIA DELIBERADA, y es la única de este método: el ancla es un SEGMENTO de ruta
+    ''' (<c>(?:^|\)meshes\</c>), no la subcadena <c>meshes\</c> que usa el canónico. Su regex no tiene
+    ''' límite de segmento, así que CUALQUIER carpeta cuyo nombre TERMINE en "meshes" se come la ruta.
+    ''' No es hipotético: medido sobre los 4.710 sliderSets del disco, hay exactamente uno,
+    ''' <c>Boots - Long.osp</c> con <c>OutputPath = meshes\ManoloCloned\ChicGeek-Meshes</c>, donde la
+    ''' regex literal devuelve <c>NX2C-SlootSuit.tri</c> — un BODYTRI que apunta a un archivo que no
+    ''' está ahí. Anclando por segmento el resultado es IDÉNTICO al del canónico en 4.709 de 4.710, y
+    ''' en el que sobra el canónico está roto. Predicho y medido: cero cambios de bytes sobre el disco.
+    ''' </summary>
+    Public ReadOnly Property BodyTriRelativePath As String
+        Get
+            Dim p As String = IO.Path.Combine(If(OutputPathValue, ""), If(OutputFileValue, "")) & ".tri"
+            p = System.Text.RegularExpressions.Regex.Replace(p, "[/\\]+", "\")
+            Return System.Text.RegularExpressions.Regex.Replace(
+                p, "^.*(?:^|\\)meshes\\", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase)
         End Get
     End Property
 
@@ -4009,9 +4108,14 @@ Public Class Shape_class
             Return HasLocalSliders And HasExternalSliders
         End Get
     End Property
+    ''' <summary>Ausente ⇒ el TEXTO del <c>&lt;Shape&gt;</c>, como
+    ''' <c>if (shape.targetShape.empty()) shape.targetShape = shapeText;</c> (SliderSet.cpp:250-253).
+    ''' Sin el guard esto tiraba NRE con un .osp que no lo trajera.</summary>
     Public Property Target As String
         Get
-            Return Nodo.Attributes("target").Value
+            Dim attr = Nodo.Attributes("target")
+            If IsNothing(attr) OrElse String.IsNullOrEmpty(attr.Value) Then Return Nombre
+            Return attr.Value
         End Get
         Set(value As String)
             Nodo.Attributes("target").Value = value
@@ -4080,17 +4184,58 @@ Public Class Slider_class
             Nodo.Attributes("name").Value = value
         End Set
     End Property
+
+''' <summary>
+''' Un atributo booleano del .osp, con la ley EXACTA del canonico
+''' (<c>StringsEqualNInsens(attr, "true", 4)</c>, SliderData.cpp + StringStuff.cpp:8-17):
+''' ausente ⇒ False, y presente ⇒ True solo si sus PRIMEROS 4 caracteres son "true" sin
+''' distinguir caja. O sea <c>"True"</c> y <c>"TRUExyz"</c> son True, y ⛔ <c>"1"</c> es
+''' <b>False</b>, igual que <c>"tru"</c> o <c>"yes"</c>.
+'''
+''' ⛔ Esto NO es lo que hacian los getters. <c>Return Nodo.Attributes("zap").Value</c> con
+''' Option Strict Off pasa por <c>Conversions.ToBoolean(String)</c>, que da True para
+''' <c>"1"</c> (el canonico da False) y <b>LANZA InvalidCastException</b> con cualquier
+''' valor que no sea numerico ni true/false — <c>"yes"</c> volteaba el proyecto entero a
+''' ilegible donde BodySlide simplemente lee False. Y <c>Islocal</c> comparaba
+''' <c>= "true"</c> con Option Compare Binary, o sea case-SENSITIVE: <c>local="True"</c>
+''' daba False y el .osd se buscaba en la carpeta equivocada.
+'''
+''' ⚠️ El corpus no puede exhibir nada de esto: los 4.710 sliderSets del disco escriben
+''' estos atributos solo en minusculas, y <c>clamp</c> no aparece NUNCA. El gate es sintetico.
+''' </summary>
+    ''' <summary>
+    ''' Un atributo numerico del .osp con la ley del canonico (<c>FloatAttribute</c> de tinyxml2):
+    ''' ausente O NO PARSEABLE ⇒ <b>0</b>, nunca una excepcion.
+    ''' ⛔ Antes era <c>Single.Parse</c>, que ante un valor corrupto lanzaba FormatException desde
+    ''' dentro de un getter que se llama desde los <c>Parallel.ForEach</c> por shape ⇒ el proyecto
+    ''' entero se caia donde BodySlide lee 0 y sigue.
+    ''' (Diferencia residual sin exhibir: tinyxml2 usa <c>sscanf("%f")</c>, que acepta basura DETRAS
+    ''' del numero — <c>"12abc"</c> le da 12 y aca da 0. El corpus no tiene ningun valor no numerico.)
+    ''' </summary>
+    Friend Shared Function AtributoNumerico(nodo As XmlNode, nombre As String) As Single
+        Dim attr = nodo.Attributes(nombre)
+        If IsNothing(attr) Then Return 0
+        Dim v As Single
+        If Not Single.TryParse(attr.Value, Globalization.NumberStyles.Float,
+                               System.Globalization.CultureInfo.InvariantCulture, v) Then Return 0
+        Return v
+    End Function
+
+    Friend Shared Function AtributoBooleano(nodo As XmlNode, nombre As String) As Boolean
+        Dim attr = nodo.Attributes(nombre)
+        If IsNothing(attr) Then Return False
+        Dim v = attr.Value
+        If v Is Nothing OrElse v.Length < 4 Then Return False
+        Return String.Compare(v, 0, "true", 0, 4, StringComparison.OrdinalIgnoreCase) = 0
+    End Function
+
     Public Property Invert As Boolean
         Get
             ' Atributo ausente => False, igual que `if (element->Attribute("invert")) ... else
             ' bInvert = false;` de SliderData::LoadSliderData. Sin el guard esto tiraba NRE con
             ' cualquier .osp que no lo trajera (BodySlide siempre lo escribe, pero un archivo
             ' hecho a mano o de terceros no tiene por que).
-            Dim attr = Nodo.Attributes("invert")
-            If IsNothing(attr) Then Return False
-            Dim parsed As Boolean
-            If Not Boolean.TryParse(attr.Value, parsed) Then Return False
-            Return parsed
+            Return Slider_class.AtributoBooleano(Nodo, "invert")
         End Get
         Set(value As Boolean)
             Dim attr = Nodo.Attributes("invert")
@@ -4163,22 +4308,26 @@ Public Class Slider_class
     Public Property Default_Setting(size As WM_Config.SliderSize) As Single
         Get
             If ParentSliderSet IsNot Nothing AndAlso ParentSliderSet.GenWeights Then
-                Return Default_Setting_SSE(size)
+                Return Default_Setting_PorPeso(size)
             End If
-            Return Default_Setting_FO
+            Return Default_Setting_Unico
         End Get
         Set(value As Single)
             If ParentSliderSet IsNot Nothing AndAlso ParentSliderSet.GenWeights Then
-                Default_Setting_SSE(size) = value
+                Default_Setting_PorPeso(size) = value
             Else
-                Default_Setting_FO = value
+                Default_Setting_Unico = value
             End If
         End Set
     End Property
-    Public Property Default_Setting_FO As Single
+
+    ''' <summary>Rama SIN <c>GenWeights</c>: un unico atributo <c>default</c> para los dos pesos.
+    ''' ⛔ No confundir con "la rama de FO4" — asi se llamaba antes y es falso: el despacho no mira el
+    ''' juego. Hay sliderSets de SSE sin GenWeights (60 medidos) que caen aca, y un .osp de FO4 con el
+    ''' atributo ausente cae en la otra.</summary>
+    Public Property Default_Setting_Unico As Single
         Get
-            If IsNothing(Nodo.Attributes("default")) Then Return 0
-            Return Single.Parse(Nodo.Attributes("default").Value, System.Globalization.CultureInfo.InvariantCulture)
+            Return Slider_class.AtributoNumerico(Nodo, "default")
         End Get
         Set(value As Single)
             If IsNothing(Nodo.Attributes("default")) Then
@@ -4189,7 +4338,8 @@ Public Class Slider_class
             Nodo.Attributes("default").Value = value.ToString(System.Globalization.CultureInfo.InvariantCulture)
         End Set
     End Property
-    Public Property Default_Setting_SSE(size As WM_Config.SliderSize) As Single
+    ''' <summary>Rama CON <c>GenWeights</c>: un valor por peso, atributos <c>big</c> y <c>small</c>.</summary>
+    Public Property Default_Setting_PorPeso(size As WM_Config.SliderSize) As Single
         Get
             If size = WM_Config.SliderSize.Small Then
                 Return Default_Small_Value
@@ -4207,8 +4357,7 @@ Public Class Slider_class
     End Property
     Public Property Default_Big_Value As Single
         Get
-            If IsNothing(Nodo.Attributes("big")) Then Return 0
-            Return Single.Parse(Nodo.Attributes("big").Value, System.Globalization.CultureInfo.InvariantCulture)
+            Return Slider_class.AtributoNumerico(Nodo, "big")
         End Get
         Set(value As Single)
             If IsNothing(Nodo.Attributes("big")) Then
@@ -4221,8 +4370,7 @@ Public Class Slider_class
     End Property
     Public Property Default_Small_Value As Single
         Get
-            If IsNothing(Nodo.Attributes("small")) Then Return 0
-            Return Single.Parse(Nodo.Attributes("small").Value, System.Globalization.CultureInfo.InvariantCulture)
+            Return Slider_class.AtributoNumerico(Nodo, "small")
         End Get
         Set(value As Single)
             If IsNothing(Nodo.Attributes("small")) Then
@@ -4251,8 +4399,7 @@ Public Class Slider_class
 
     Public Property IsZap As Boolean
         Get
-            If IsNothing(Nodo.Attributes("zap")) Then Return False
-            Return Nodo.Attributes("zap").Value
+            Return Slider_class.AtributoBooleano(Nodo, "zap")
         End Get
         Set(value As Boolean)
             If value = False Then
@@ -4271,8 +4418,7 @@ Public Class Slider_class
     End Property
     Public Property IsClamp As Boolean
         Get
-            If IsNothing(Nodo.Attributes("clamp")) Then Return False
-            Return Nodo.Attributes("clamp").Value
+            Return Slider_class.AtributoBooleano(Nodo, "clamp")
         End Get
         Set(value As Boolean)
             If value = False Then
@@ -4291,8 +4437,7 @@ Public Class Slider_class
     End Property
     Public Property IsUV As Boolean
         Get
-            If IsNothing(Nodo.Attributes("uv")) Then Return False
-            Return Nodo.Attributes("uv").Value
+            Return Slider_class.AtributoBooleano(Nodo, "uv")
         End Get
         Set(value As Boolean)
             If value = False Then
@@ -4312,8 +4457,7 @@ Public Class Slider_class
 
     Public Property IsManoloFix As Boolean
         Get
-            If IsNothing(Nodo.Attributes("manolofix")) Then Return False
-            Return Nodo.Attributes("manolofix").Value
+            Return Slider_class.AtributoBooleano(Nodo, "manolofix")
         End Get
         Set(value As Boolean)
             If value = False Then
@@ -4351,9 +4495,13 @@ Public Class Slider_Data_class
         ParentSlider = Slider
     End Sub
 
+    ''' <summary>Ausente ⇒ el nombre del SLIDER que lo contiene, como
+    ''' <c>else tmpDataFile.dataName = name;</c> (SliderData.cpp:87-90). Sin el guard tiraba NRE.</summary>
     Public Property Nombre As String
         Get
-            Return Nodo.Attributes("name").Value
+            Dim attr = Nodo.Attributes("name")
+            If IsNothing(attr) Then Return If(ParentSlider?.Nombre, "")
+            Return attr.Value
         End Get
         Set(value As String)
             Nodo.Attributes("name").Value = value
@@ -4372,9 +4520,7 @@ Public Class Slider_Data_class
 
     Public Property Islocal As Boolean
         Get
-            If IsNothing(Nodo.Attributes("local")) Then Return False
-            If Nodo.Attributes("local").Value = "true" Then Return True
-            Return False
+            Return Slider_class.AtributoBooleano(Nodo, "local")
         End Get
         Set(value As Boolean)
             If value = False Then
@@ -4437,10 +4583,40 @@ Public Class Slider_Data_class
             Return ParentSlider.ParentSliderSet.GetLocalOsdBlocksByNameCached(Me.Nombre)
         End Get
     End Property
+    ''' <summary>
+    ''' ⛔ DESEMPATA POR ARCHIVO. El texto de un <c>&lt;Data&gt;</c> es <c>&lt;archivo.osd&gt;\&lt;bloque&gt;</c>:
+    ''' el canónico abre ESE archivo y busca el bloque ahí (SliderSet.cpp:355-381), así que un homónimo
+    ''' en otro <c>.osd</c> no existe para él. WM carga todos los <c>.osd</c> externos del sliderSet en
+    ''' UNA lista y los indexaba SÓLO por nombre ⇒ se llevaba los dos y
+    ''' <c>WriteMorphTRI</c>/<c>ApplyMorph_CPU</c> los SUMAN ⇒ el morph salía con el DOBLE de amplitud.
+    '''
+    ''' MEDIDO con el binario de BodySlide sobre <c>CBBE Vanilla - Body - Forsworn (Physics)</c>:
+    ''' <c>CBBE\CBBE Body.osd</c> y <c>CBBE Vanilla\Body\Forsworn.osd</c> comparten exactamente 3
+    ''' nombres — <c>BaseShapeHRVanillaSSEHi</c>, <c>BaseShapeHR7B Upper</c>,
+    ''' <c>BaseShapeHRDoubleMelon</c> — y eran exactamente los 3 morphs (de 288) que salían distintos:
+    ''' <c>mult</c> exactamente 2× y, en DoubleMelon, 14 offsets de más (4.262 − 4.248, la unión de los
+    ''' dos soportes). El resto del <c>.tri</c> ya era byte-idéntico.
+    '''
+    ''' Se filtra sólo cuando hay MÁS DE UN candidato: sin colisión de nombres esto devuelve la misma
+    ''' lista cacheada, sin alocar, y no cambia un solo byte. Un bloque sin
+    ''' <see cref="OSD_Block_Class.SourceOsdFile"/> (creado en memoria) se conserva siempre.
+    ''' </summary>
     Public ReadOnly Property RelatedExternalOSDBlocks As IEnumerable(Of OSD_Block_Class)
         Get
             If Me.Islocal Then Return Enumerable.Empty(Of OSD_Block_Class)()
-            Return ParentSlider.ParentSliderSet.GetExternalOsdBlocksByNameCached(Me.Nombre)
+            Dim porNombre = ParentSlider.ParentSliderSet.GetExternalOsdBlocksByNameCached(Me.Nombre)
+            Dim lista = TryCast(porNombre, List(Of OSD_Block_Class))
+            If lista Is Nothing OrElse lista.Count < 2 Then Return porNombre
+
+            Dim quiero = IO.Path.GetFileName(If(Me.TargetOsd, "")).Trim()
+            If quiero.Length = 0 Then Return porNombre
+            Dim filtrados = lista.Where(
+                Function(b) b IsNot Nothing AndAlso (String.IsNullOrEmpty(b.SourceOsdFile) OrElse
+                    String.Equals(b.SourceOsdFile, quiero, StringComparison.OrdinalIgnoreCase))).ToList()
+            ' Si el archivo que pide el <Data> no aparece entre los candidatos, no se inventa nada: se
+            ' devuelve lo que había, que es el comportamiento previo.
+            If filtrados.Count = 0 Then Return porNombre
+            Return filtrados
         End Get
     End Property
 

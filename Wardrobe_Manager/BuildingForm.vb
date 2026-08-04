@@ -66,6 +66,24 @@ Public Class BuildingForm
     ''' </summary>
     Public Property Headless As Boolean = False
 
+    ''' <summary>El gate del SIMD del skinning, UNA vez por proceso. <c>Lazy</c> con
+    ''' <c>ExecutionAndPublication</c> ⇒ si dos builds arrancan a la vez, el test corre una sola vez y
+    ''' los dos ven el mismo resultado. Cuesta ~5 ms con el JIT en frio.</summary>
+    Private Shared ReadOnly _skinSimdGate As New Lazy(Of String)(
+        Function() SkinningHelper.SkinningSimdSelfTest(),
+        Threading.LazyThreadSafetyMode.ExecutionAndPublication)
+
+    ''' <summary>Lanza si el blend vectorial no es bit-identico al escalar. Lo llama
+    ''' <see cref="RunBuild"/> antes del primer NIF.</summary>
+    Friend Shared Sub EnsureSkinSimdGate()
+        Dim r = _skinSimdGate.Value
+        If r.Length = 0 Then Return
+        Throw New InvalidOperationException(
+            "Parity gate FAILED [skin-blend] — el blend vectorial de matrices de skin NO es bit-identico al " &
+            "escalar ⇒ los vertices saldrian distintos segun la CPU. Construir ahora produciria NIF que no " &
+            "describen la ley. Detalle: " & r)
+    End Sub
+
     Private Sub BuildingForm_Shown(sender As Object, e As EventArgs) Handles Me.Shown
         RunBuild()
         Me.Close()
@@ -79,6 +97,14 @@ Public Class BuildingForm
     ''' creacion perezosa del handle y no requiere bomba de mensajes.
     ''' </summary>
     Public Function RunBuild() As String
+        ' ⛔ GATE DEL BLEND VECTORIAL, antes del primer NIF. Corre la funcion real
+        ' SkinningHelper.BlendBoneMatrices por sus dos caminos (vectorial y escalar) y los compara bit
+        ' a bit; si divergen, los vertices que se escriban dependerian de la CPU de quien construye, y
+        ' la app SE DISTRIBUYE (00-reglas-app-distribuida).
+        ' ⭐ Va ACA, no en un PhaseReport del final: el equivalente de FaceGen vivia en un reporte que
+        ' solo corria al terminar el barrido, asi que un build normal no lo ejecutaba NUNCA y un
+        ' mismatch aparecia con los bytes ya en disco (61-perf-simd-evaluacion).
+        EnsureSkinSimdGate()
         ProgressBar1.Value = 0
         ProgressBar2.Value = 0
         ProgressBar1.Maximum = 5
@@ -136,7 +162,7 @@ Public Class BuildingForm
 
                     Dim fil = builder.OutputFullPathBase + If(sliderset_target.Multisize, "_" + Sizecount.ToString, "") + ".nif"
                     Dim tri = builder.OutputFullPathBase + ".tri"
-                    Dim Tridata = IO.Path.GetRelativePath(IO.Path.Combine(IO.Path.Combine(Directorios.Fallout4data, "Meshes")), tri)
+                    Dim Tridata = builder.BodyTriRelativePath
                     Dim dir = IO.Path.GetDirectoryName(fil)
                     Nombre = sliderset_target.Nombre
                     Label1.Text = "Building: " + Nombre + IIf(sliderset_target.Multisize(), "_" + Sizecount.ToString, "")
@@ -145,12 +171,11 @@ Public Class BuildingForm
                     ' con `vbig` / `defBigValue` — `vsmall` sólo existe dentro de
                     ' `if (currentSet.GenWeights())` (BodySlideApp.cpp:4356-4364, :4394, :4409).
                     ' Mapear el pase único a Small hacía que un proyecto SSE no-multisize leyera
-                    ' Default_Small_Value en vez de Default_Big_Value. FO4 no se ve afectado:
-                    ' FO4 no cambia de artefactos: Multisize() esta hard-gateado a False para FO4, y
-                    ' Default_Setting despacha por GenWeights — los 3.359 sliderSets de FO4 medidos
-                    ' traen GenWeights="false", asi que caen en Default_Setting_FO. Un .osp de FO4 con
-                    ' GenWeights ausente o true leeria big/small (inexistentes) y daria 0, pero
-                    ' BodySlide hace exactamente lo mismo con ese archivo (SliderData.cpp:38-48).
+                    ' Default_Small_Value en vez de Default_Big_Value.
+                    ' Ni esto ni Multisize() se gatean por juego. MEDIDO contra el binario de FO4:
+                    ' GenWeights="false" ⇒ 1 archivo, "true" ⇒ _0 y _1, y AUSENTE ⇒ _0 y _1 tambien.
+                    ' Sobre el disco no cambia nada (los 3.560 sliderSets de FO4 traen el atributo en
+                    ' false), sólo gobierna .osp de terceros.
                     If sliderset_target.Multisize Then
                         size = If(Sizecount = 0, WM_Config.SliderSize.Small, WM_Config.SliderSize.Big)
                     Else
@@ -279,8 +304,15 @@ Public Class BuildingForm
 
                     If WM_Config.Current.Settings_Build.SaveTri AndAlso triWritten AndAlso triAllowed Then
                         If Config_App.Current.Game = Config_App.Game_Enum.Skyrim Then
+                            ' ⛔ ORDINAL POR NOMBRE, no orden del documento. El canónico recorre
+                            ' `currentSet.ShapesBegin()`, que es un `std::map<std::string, SliderSetShape>`
+                            ' (SliderSet.h:56) — o sea ordenado por el nombre del shape, no por cómo estén
+                            ' los `<Shape>` en el .osp. WM recorría `Shapes`, que sale de un SelectNodes y
+                            ' viene en orden de documento: en un .osp cuyos `<Shape>` no estén alfabéticos
+                            ' el BODYTRI terminaba colgado de OTRO NiShape, y como sólo se estampa en uno,
+                            ' skee lo encuentra igual pero el NIF no es el que emite BodySlide.
                             Dim triShapeName As String = Nothing
-                            For Each shap In builder.Shapes
+                            For Each shap In builder.Shapes.OrderBy(Function(s) s.Nombre, StringComparer.Ordinal)
                                 Dim ns = shap.RelatedNifShape
                                 If ns IsNot Nothing AndAlso ns.VertexCount > 0 Then
                                     triShapeName = ns.Name.String

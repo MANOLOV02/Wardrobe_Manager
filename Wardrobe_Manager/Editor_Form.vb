@@ -1880,24 +1880,6 @@ Public Class Editor_Form
             SavePresetXml(filename, nombre, False)
         End If
     End Sub
-    ''' <summary>
-    ''' Token de <c>size</c> que se ESCRIBE en el .xml del preset.
-    ''' ⛔ <c>SliderSize.Default</c> se emite como <c>"both"</c>, NO como <c>"default"</c>.
-    ''' BodySlide sólo reconoce <c>small</c> / <c>big</c> / <c>both</c> (SliderPresets.cpp:216-232);
-    ''' cualquier otro token le deja los dos campos en el centinela -10000 y la entrada le queda
-    ''' INERTE.
-    ''' ⚠️ El LECTOR sigue aceptando <c>"default"</c> — hay 999 entradas así en los presets del disco,
-    ''' todas en archivos que escribió WM, y tienen que seguir construyendo igual.
-    ''' El caso <c>Default</c> NO llega acá: <see cref="SavePresetXml"/> lo emite como el par
-    ''' big+small, que es la forma que produce BodySlide.
-    ''' </summary>
-    Private Function Size_to_str(Size As WM_Config.SliderSize) As String
-        Select Case Size
-            Case WM_Config.SliderSize.Small
-                Return "small"
-        End Select
-        Return "big"
-    End Function
     Public Function SavePresetXml(path As String, Nombre As String, delete As Boolean) As Boolean
         Try
             If delete = False Then
@@ -1945,6 +1927,31 @@ Public Class Editor_Form
                 For Each gr As XElement In sel.Elements("SetSlider").ToList
                     gr.Remove()
                 Next
+                ' ⛔ Se emite EXACTAMENTE el par big/small por slider, que es el modelo del archivo:
+                ' `SavePreset` del canónico recorre los DOS campos del slider y emite un
+                ' <SetSlider size="big"> y otro size="small" — nunca `both`, nunca `default`, y jamás
+                ' dos entradas con el mismo (name,size). BodySlide sólo RECONOCE small/big/both
+                ' (SliderPresets.cpp:216-232): con cualquier otro token los dos campos le quedan en el
+                ' centinela -10000 y la entrada le queda INERTE. Por eso ya no se emite `default`, que
+                ' es lo que WM escribía: medido sobre el preset `Manolo`, sus 85 entradas así movían
+                ' 14.168 de 22.708 vértices según con qué herramienta construyeras.
+                ' ⚠️ El LECTOR sigue aceptando `default` — hay 999 entradas así en los presets del
+                ' disco, todas en archivos que escribió WM, y tienen que seguir construyendo igual.
+                '
+                ' Por eso hay que RESOLVER antes de escribir, y no emitir una entrada por cada
+                ' `Selected_Preset.Sliders`: esa lista trae hasta TRES tallas por nombre (Default, Big,
+                ' Small, las carga Actualiza_Preset), así que escribir una por elemento dejaba cuatro
+                ' <SetSlider> por slider — big(Default), small(Default), big(Big), small(Small) — de los
+                ' cuales los dos primeros quedan pisados. El valor final salía bien de casualidad,
+                ' porque el lector es last-wins; cualquier consumidor first-wins leía el valor de
+                ' Default, y el archivo tenía duplicados que el escritor canónico no puede producir.
+                '
+                ' La resolución usa el MISMO modelo que el lector (dos campos por slider, cada entrada
+                ' pisa el suyo, gana la última), así que el resultado efectivo no cambia.
+                ' Un campo que ningún slider tocó NO se emite: en el canónico se queda en el centinela
+                ' -10000 y se saltea, y emitirlo sería fijar un valor que no estaba.
+                Dim vBig As New Dictionary(Of String, String)(StringComparer.Ordinal)
+                Dim vSmall As New Dictionary(Of String, String)(StringComparer.Ordinal)
                 For Each sli In Selected_Preset.Sliders
                     Dim copi As Boolean = True
                     If sli.Category = nif_cat AndAlso CheckBoxIncNIF.Checked = False Then copi = False
@@ -1952,22 +1959,19 @@ Public Class Editor_Form
                     If Not copi Then Continue For
 
                     Dim valor = sli.Value.ToString(CultureInfo.InvariantCulture)
-                    ' ⛔ Un slider de tamaño Default se emite como el PAR big+small con el MISMO valor,
-                    ' que es literalmente lo que escribe BodySlide: su `SavePreset` recorre los dos
-                    ' campos del slider y emite un <SetSlider size="big"> y otro size="small" — NUNCA
-                    ' escribe `both`, aunque su parser sí lo lea. Así los presets de WM quedan
-                    ' indistinguibles de los suyos.
-                    ' (Antes se emitía `size="default"`, que BodySlide no reconoce y le queda INERTE:
-                    ' medido sobre el preset `Manolo`, eso movía 14.168 de 22.708 vértices según con
-                    ' qué herramienta construyeras.)
-                    If sli.Size = WM_Config.SliderSize.Default Then
-                        For Each talla In {"big", "small"}
-                            sel.Add(New XElement("SetSlider", New XAttribute("name", sli.Name),
-                                                 New XAttribute("size", talla), New XAttribute("value", valor)))
-                        Next
-                    Else
-                        sel.Add(New XElement("SetSlider", New XAttribute("name", sli.Name),
-                                             New XAttribute("size", Size_to_str(sli.Size)), New XAttribute("value", valor)))
+                    If sli.Size <> WM_Config.SliderSize.Small Then vBig(sli.Name) = valor
+                    If sli.Size <> WM_Config.SliderSize.Big Then vSmall(sli.Name) = valor
+                Next
+                ' Ordinal por nombre: el canónico las recorre desde un `std::map<std::string, …>`.
+                For Each nom In vBig.Keys.Concat(vSmall.Keys).Distinct().OrderBy(Function(n) n, StringComparer.Ordinal)
+                    Dim vb As String = Nothing, vs As String = Nothing
+                    If vBig.TryGetValue(nom, vb) Then
+                        sel.Add(New XElement("SetSlider", New XAttribute("name", nom),
+                                             New XAttribute("size", "big"), New XAttribute("value", vb)))
+                    End If
+                    If vSmall.TryGetValue(nom, vs) Then
+                        sel.Add(New XElement("SetSlider", New XAttribute("name", nom),
+                                             New XAttribute("size", "small"), New XAttribute("value", vs)))
                     End If
                 Next
             End If
