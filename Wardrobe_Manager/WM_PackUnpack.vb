@@ -647,33 +647,6 @@ Public Module WM_PackUnpack
         Next
     End Function
 
-    Private Sub BuildBundleFromLoose(dataDir As String,
-                                     ByRef loosePaths As List(Of String),
-                                     ByRef entries As List(Of VirtualEntry))
-        Dim materialRoot = Path.Combine(dataDir, MaterialsPrefix & CLONED_PREFIX.TrimEnd("\"c))
-        Dim textureRoot = Path.Combine(dataDir, TexturesPrefix & CLONED_PREFIX.TrimEnd("\"c))
-
-        If Directory.Exists(materialRoot) Then
-            For Each f In EnumerateLooseFiles(materialRoot, {".bgsm", ".bgem"})
-                Dim ve = MakeMaterialEntry(dataDir, f)
-                If ve IsNot Nothing Then
-                    entries.Add(ve)
-                    loosePaths.Add(f)
-                End If
-            Next
-        End If
-
-        If Directory.Exists(textureRoot) Then
-            For Each f In EnumerateLooseFiles(textureRoot, {".dds"})
-                Dim ve = MakeTextureEntry(dataDir, f)
-                If ve IsNot Nothing Then
-                    entries.Add(ve)
-                    loosePaths.Add(f)
-                End If
-            Next
-        End If
-    End Sub
-
     ''' <summary>
     ''' Builds a VirtualEntry for a .bgsm/.bgem/.mat. Reads the file, computes CRC32 of the raw
     ''' bytes (used by ComputeDiff for idempotent re-Pack), then compresses up front via
