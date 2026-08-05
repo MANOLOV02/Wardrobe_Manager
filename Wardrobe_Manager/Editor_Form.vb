@@ -114,18 +114,34 @@ Public Class Editor_Form
 
     Private _SuppressPresetSliderEvents As Boolean = False
 
+    ''' <summary>
+    ''' Reposa los valores en los controles que YA existen — el camino que corre en cada cambio de
+    ''' preset, porque la firma de layout sólo mira nombres/categorías/talla y ésas no cambian.
+    '''
+    ''' ⛔ PERF: esto hacía un <c>Selected_Preset.Sliders.Find(...)</c> lineal POR CONTROL. Son ~350
+    ''' controles contra ~1.100 entradas (el catálogo de SSE trae 311 sliders × 3 tallas más los del
+    ''' proyecto) ⇒ ~385.000 comparaciones case-insensitive por cada cambio de preset. Se indexa una
+    ''' vez y queda O(n+m).
+    ''' El <c>SuspendLayout</c> es por lo mismo: cada <c>tb.Value = …</c> dispara layout del
+    ''' TableLayoutPanel, y son 350.
+    ''' </summary>
     Private Sub UpdateExistingSliderControls()
         Dim osRange = WM_Config.GetOsSliderRange()
+        Dim porNombre As New Dictionary(Of String, PresetSlider_Class)(StringComparer.OrdinalIgnoreCase)
+        For Each s In Selected_Preset.Sliders
+            If s Is Nothing OrElse s.Name Is Nothing OrElse s.Size <> Selected_size Then Continue For
+            porNombre(s.Name) = s
+        Next
+
         _SuppressPresetSliderEvents = True
+        TableLayoutPanel4.SuspendLayout()
         Try
             For Each tb As FO4_Base_Library.TinySliderTextBox In TableLayoutPanel4.Controls.OfType(Of FO4_Base_Library.TinySliderTextBox)()
                 Dim sliderName As String = TryCast(tb.Tag, String)
                 If String.IsNullOrWhiteSpace(sliderName) Then Continue For
 
-                Dim presetItem As PresetSlider_Class =
-                Selected_Preset.Sliders.Find(Function(s) s.Name.Equals(sliderName, StringComparison.OrdinalIgnoreCase) AndAlso s.Size = Selected_size)
-
-                If IsNothing(presetItem) Then Continue For
+                Dim presetItem As PresetSlider_Class = Nothing
+                If Not porNombre.TryGetValue(sliderName, presetItem) Then Continue For
 
                 Dim newValue As Double = CDbl(presetItem.Value)
                 tb.Value = newValue
@@ -137,6 +153,7 @@ Public Class Editor_Form
                 End If
             Next
         Finally
+            TableLayoutPanel4.ResumeLayout()
             _SuppressPresetSliderEvents = False
         End Try
     End Sub
@@ -1857,6 +1874,13 @@ Public Class Editor_Form
 
     Private Sub ComboBoxPresets_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBoxPresets.SelectedIndexChanged
         Actualiza_Preset()
+        ' ⛔ PINTAR LA LISTA ANTES DEL RENDER. Los dos corren seguidos en este mismo handler, o sea en
+        ' el hilo de UI, y Windows no repinta hasta que el handler VUELVE: los sliders ya tenían su
+        ' valor nuevo en memoria pero se seguían viendo los viejos hasta que terminaba el pase de
+        ' morphs + TBN de TODAS las shapes (en un proyecto de 60 como Dracania eso es lo que se siente
+        ' como que "no aparecen"). Este Update() no acelera el render — hace que la lista deje de
+        ' esperarlo.
+        TableLayoutPanel4.Update()
         Process_render_Changes(False)
     End Sub
 
@@ -1915,6 +1939,8 @@ Public Class Editor_Form
             End If
 
 
+            ' Se declara afuera: lo que se ESCRIBIO es tambien lo que tiene que quedar en memoria.
+            Dim campos As Dictionary(Of String, SliderSet_Class.ParDePreset) = Nothing
             If delete Then
                 sel.Remove()
             Else
@@ -1948,19 +1974,26 @@ Public Class Editor_Form
                 '
                 ' La resolución usa el MISMO modelo que el lector (dos campos por slider, cada entrada
                 ' pisa el suyo, gana la última), así que el resultado efectivo no cambia.
-                ' Un campo que ningún slider tocó NO se emite: en el canónico se queda en el centinela
-                ' -10000 y se saltea, y emitirlo sería fijar un valor que no estaba.
+                '
+                ' La ley vive en SliderSet_Class.PliegaPresetParaGuardar, no acá: sacarla del Form es
+                ' lo que la hace testeable — el editor no tiene cobertura automática y esto era
+                ' justamente una regla de bytes.
+                Dim excluidos As New HashSet(Of String)(StringComparer.Ordinal)
+                For Each sli In Selected_Preset.Sliders
+                    If sli.Category = nif_cat AndAlso CheckBoxIncNIF.Checked = False Then excluidos.Add(sli.Name)
+                    If sli.Category = Slid_cat AndAlso CheckBoxIncSlid.Checked = False Then excluidos.Add(sli.Name)
+                Next
+                Dim previo As SlidersPreset_Class = Nothing
+                WM_SliderPresets.Presets.TryGetValue(Nombre, previo)
+                campos = If(Selected_Slider Is Nothing,
+                                New Dictionary(Of String, SliderSet_Class.ParDePreset)(StringComparer.OrdinalIgnoreCase),
+                                Selected_Slider.PliegaPresetParaGuardar(previo, Selected_Preset,
+                                                                        Function(n) excluidos.Contains(n)))
                 Dim vBig As New Dictionary(Of String, String)(StringComparer.Ordinal)
                 Dim vSmall As New Dictionary(Of String, String)(StringComparer.Ordinal)
-                For Each sli In Selected_Preset.Sliders
-                    Dim copi As Boolean = True
-                    If sli.Category = nif_cat AndAlso CheckBoxIncNIF.Checked = False Then copi = False
-                    If sli.Category = Slid_cat AndAlso CheckBoxIncSlid.Checked = False Then copi = False
-                    If Not copi Then Continue For
-
-                    Dim valor = sli.Value.ToString(CultureInfo.InvariantCulture)
-                    If sli.Size <> WM_Config.SliderSize.Small Then vBig(sli.Name) = valor
-                    If sli.Size <> WM_Config.SliderSize.Big Then vSmall(sli.Name) = valor
+                For Each kv In campos
+                    If Not Single.IsNaN(kv.Value.Big) Then vBig(kv.Key) = kv.Value.Big.ToString(CultureInfo.InvariantCulture)
+                    If Not Single.IsNaN(kv.Value.Small) Then vSmall(kv.Key) = kv.Value.Small.ToString(CultureInfo.InvariantCulture)
                 Next
                 ' Ordinal por nombre: el canónico las recorre desde un `std::map<std::string, …>`.
                 For Each nom In vBig.Keys.Concat(vSmall.Keys).Distinct().OrderBy(Function(n) n, StringComparer.Ordinal)
@@ -1986,7 +2019,24 @@ Public Class Editor_Form
                 ComboBoxPresets.Items.Remove(Nombre)
                 If ComboBoxPresets.Items.Count > 0 Then ComboBoxPresets.SelectedIndex = 0
             Else
-                Dim cloned As SlidersPreset_Class = SliderPresetCollection.Clone(Selected_Preset, path, Nombre)
+                ' ⛔ La copia en memoria se arma con lo que se ESCRIBIO, no con Selected_Preset.
+                ' Selected_Preset es la lista de TRABAJO del editor: el catalogo entero x 3 tallas mas
+                ' los sliders del proyecto x 3. Clonando eso, el proximo guardado tomaba esa lista como
+                ' "lo que ya habia en el archivo" y volvia a fijar todo — el mismo bug que arregla
+                ' PliegaPresetParaGuardar, entrando por la puerta de atras al segundo Save.
+                Dim cloned As New SlidersPreset_Class With {
+                    .Name = Nombre, .Filename = path,
+                    .SetName = Selected_Preset.SetName,
+                    .GroupNames = Selected_Preset.GroupNames.ToList}
+                If campos IsNot Nothing Then
+                    For Each nom In campos.Keys.OrderBy(Function(n) n, StringComparer.Ordinal)
+                        Dim par = campos(nom)
+                        If Not Single.IsNaN(par.Big) Then cloned.Sliders.Add(
+                            New PresetSlider_Class With {.Name = nom, .Size = WM_Config.SliderSize.Big, .Value = par.Big})
+                        If Not Single.IsNaN(par.Small) Then cloned.Sliders.Add(
+                            New PresetSlider_Class With {.Name = nom, .Size = WM_Config.SliderSize.Small, .Value = par.Small})
+                    Next
+                End If
                 If WM_SliderPresets.Presets.TryAdd(Nombre, cloned) = False Then
                     WM_SliderPresets.Presets(Nombre) = cloned
                 Else

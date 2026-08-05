@@ -75,6 +75,9 @@ Partial Class Config_Form
         Button5 = New Button()
         GroupBox2 = New GroupBox()
         NumericUpDownWeldEpsUv = New NumericUpDown()
+        CheckBoxSmoothSeams = New CheckBox()
+        LabelSmoothAngle = New Label()
+        NumericUpDownSmoothAngle = New NumericUpDown()
         RadioButtonWeldboth = New RadioButton()
         RadioButtonWeldpsonly = New RadioButton()
         Label10 = New Label()
@@ -145,6 +148,7 @@ Partial Class Config_Form
         CType(NumericUpDownRenderGridStep, ComponentModel.ISupportInitialize).BeginInit()
         GroupBox2.SuspendLayout()
         CType(NumericUpDownWeldEpsUv, ComponentModel.ISupportInitialize).BeginInit()
+        CType(NumericUpDownSmoothAngle, ComponentModel.ISupportInitialize).BeginInit()
         CType(NumericUpDownWeldEpspos, ComponentModel.ISupportInitialize).BeginInit()
         TabPage3.SuspendLayout()
         GroupBoxweights.SuspendLayout()
@@ -344,6 +348,9 @@ Partial Class Config_Form
         ' 
         ' GroupBox1
         ' 
+        GroupBox1.Controls.Add(CheckBoxSmoothSeams)
+        GroupBox1.Controls.Add(LabelSmoothAngle)
+        GroupBox1.Controls.Add(NumericUpDownSmoothAngle)
         GroupBox1.Controls.Add(NumericUpDownUVEps)
         GroupBox1.Controls.Add(NormalsRepairNan)
         GroupBox1.Controls.Add(NormalsNormalize)
@@ -352,7 +359,7 @@ Partial Class Config_Form
         GroupBox1.Controls.Add(NumericUpDownPositionEps)
         GroupBox1.Location = New Point(3, 58)
         GroupBox1.Name = "GroupBox1"
-        GroupBox1.Size = New Size(935, 105)
+        GroupBox1.Size = New Size(935, 84)
         GroupBox1.TabIndex = 15
         GroupBox1.TabStop = False
         GroupBox1.Text = "Normals recalculation (smoothing)"
@@ -361,7 +368,7 @@ Partial Class Config_Form
         ' 
         NumericUpDownUVEps.DecimalPlaces = 12
         NumericUpDownUVEps.Increment = New Decimal(New Integer() {5, 0, 0, 786432})
-        NumericUpDownUVEps.Location = New Point(383, 68)
+        NumericUpDownUVEps.Location = New Point(383, 48)
         NumericUpDownUVEps.Maximum = New Decimal(New Integer() {1, 0, 0, 196608})
         NumericUpDownUVEps.Minimum = New Decimal(New Integer() {1, 0, 0, 786432})
         NumericUpDownUVEps.Name = "NumericUpDownUVEps"
@@ -376,7 +383,7 @@ Partial Class Config_Form
         NormalsRepairNan.AutoSize = True
         NormalsRepairNan.Checked = True
         NormalsRepairNan.CheckState = CheckState.Checked
-        NormalsRepairNan.Location = New Point(486, 22)
+        NormalsRepairNan.Location = New Point(274, 22)
         NormalsRepairNan.Name = "NormalsRepairNan"
         NormalsRepairNan.Size = New Size(86, 19)
         NormalsRepairNan.TabIndex = 24
@@ -403,7 +410,7 @@ Partial Class Config_Form
         ' Label9
         ' 
         Label9.ImageAlign = ContentAlignment.MiddleRight
-        Label9.Location = New Point(274, 68)
+        Label9.Location = New Point(274, 48)
         Label9.Name = "Label9"
         Label9.Size = New Size(107, 23)
         Label9.TabIndex = 18
@@ -413,7 +420,7 @@ Partial Class Config_Form
         ' Label8
         ' 
         Label8.ImageAlign = ContentAlignment.MiddleRight
-        Label8.Location = New Point(6, 68)
+        Label8.Location = New Point(6, 48)
         Label8.Name = "Label8"
         Label8.Size = New Size(107, 23)
         Label8.TabIndex = 16
@@ -424,7 +431,7 @@ Partial Class Config_Form
         ' 
         NumericUpDownPositionEps.DecimalPlaces = 12
         NumericUpDownPositionEps.Increment = New Decimal(New Integer() {5, 0, 0, 786432})
-        NumericUpDownPositionEps.Location = New Point(115, 68)
+        NumericUpDownPositionEps.Location = New Point(115, 48)
         NumericUpDownPositionEps.Maximum = New Decimal(New Integer() {1, 0, 0, 196608})
         NumericUpDownPositionEps.Minimum = New Decimal(New Integer() {1, 0, 0, 786432})
         NumericUpDownPositionEps.Name = "NumericUpDownPositionEps"
@@ -588,7 +595,7 @@ Partial Class Config_Form
         GroupBox3.Controls.Add(CheckBoxFreeze)
         GroupBox3.Controls.Add(CheckBoxzoomreset)
         GroupBox3.Controls.Add(CheckBoxanglereset)
-        GroupBox3.Location = New Point(3, 366)
+        GroupBox3.Location = New Point(3, 345)
         GroupBox3.Name = "GroupBox3"
         GroupBox3.Size = New Size(687, 82)
         GroupBox3.TabIndex = 30
@@ -640,7 +647,7 @@ Partial Class Config_Form
         GroupBox4.Controls.Add(NumericUpDownRenderGridSize)
         GroupBox4.Controls.Add(Label14)
         GroupBox4.Controls.Add(NumericUpDownRenderGridStep)
-        GroupBox4.Location = New Point(3, 282)
+        GroupBox4.Location = New Point(3, 261)
         GroupBox4.Name = "GroupBox4"
         GroupBox4.Size = New Size(935, 78)
         GroupBox4.TabIndex = 31
@@ -731,7 +738,7 @@ Partial Class Config_Form
         ' 
         Button6.ImageKey = "thumbnail.ico"
         Button6.ImageList = ImageList1
-        Button6.Location = New Point(696, 414)
+        Button6.Location = New Point(696, 393)
         Button6.Name = "Button6"
         Button6.Size = New Size(240, 34)
         Button6.TabIndex = 29
@@ -744,7 +751,7 @@ Partial Class Config_Form
         ' 
         Button5.ImageKey = "agt_action_success.ico"
         Button5.ImageList = ImageList1
-        Button5.Location = New Point(696, 374)
+        Button5.Location = New Point(696, 353)
         Button5.Name = "Button5"
         Button5.Size = New Size(240, 34)
         Button5.TabIndex = 28
@@ -761,7 +768,7 @@ Partial Class Config_Form
         GroupBox2.Controls.Add(Label10)
         GroupBox2.Controls.Add(Label11)
         GroupBox2.Controls.Add(NumericUpDownWeldEpspos)
-        GroupBox2.Location = New Point(3, 192)
+        GroupBox2.Location = New Point(3, 171)
         GroupBox2.Name = "GroupBox2"
         GroupBox2.Size = New Size(935, 84)
         GroupBox2.TabIndex = 27
@@ -842,10 +849,43 @@ Partial Class Config_Form
         ' 
         ' CheckBoxWelding
         ' 
+        '
+        ' CheckBoxSmoothSeams
+        '
+        CheckBoxSmoothSeams.AutoSize = True
+        CheckBoxSmoothSeams.Checked = True
+        CheckBoxSmoothSeams.CheckState = CheckState.Checked
+        CheckBoxSmoothSeams.Location = New Point(542, 22)
+        CheckBoxSmoothSeams.Name = "CheckBoxSmoothSeams"
+        CheckBoxSmoothSeams.Size = New Size(220, 19)
+        CheckBoxSmoothSeams.TabIndex = 40
+        CheckBoxSmoothSeams.Text = "Smooth seam normals"
+        CheckBoxSmoothSeams.UseVisualStyleBackColor = True
+        '
+        ' LabelSmoothAngle
+        '
+        LabelSmoothAngle.Location = New Point(542, 48)
+        LabelSmoothAngle.Name = "LabelSmoothAngle"
+        LabelSmoothAngle.Size = New Size(107, 23)
+        LabelSmoothAngle.TabIndex = 42
+        LabelSmoothAngle.Text = "Seam angle"
+        LabelSmoothAngle.TextAlign = ContentAlignment.MiddleLeft
+        '
+        ' NumericUpDownSmoothAngle
+        '
+        NumericUpDownSmoothAngle.DecimalPlaces = 1
+        NumericUpDownSmoothAngle.TextAlign = HorizontalAlignment.Right
+        NumericUpDownSmoothAngle.Location = New Point(651, 48)
+        NumericUpDownSmoothAngle.Maximum = New Decimal(New Integer() {180, 0, 0, 0})
+        NumericUpDownSmoothAngle.Name = "NumericUpDownSmoothAngle"
+        NumericUpDownSmoothAngle.Size = New Size(128, 23)
+        NumericUpDownSmoothAngle.TabIndex = 41
+        NumericUpDownSmoothAngle.Value = New Decimal(New Integer() {600, 0, 0, 65536})
+        '
         CheckBoxWelding.AutoSize = True
         CheckBoxWelding.Checked = True
         CheckBoxWelding.CheckState = CheckState.Checked
-        CheckBoxWelding.Location = New Point(3, 167)
+        CheckBoxWelding.Location = New Point(3, 146)
         CheckBoxWelding.Name = "CheckBoxWelding"
         CheckBoxWelding.Size = New Size(160, 19)
         CheckBoxWelding.TabIndex = 26
@@ -1550,6 +1590,7 @@ Partial Class Config_Form
         GroupBox2.ResumeLayout(False)
         GroupBox2.PerformLayout()
         CType(NumericUpDownWeldEpsUv, ComponentModel.ISupportInitialize).EndInit()
+        CType(NumericUpDownSmoothAngle, ComponentModel.ISupportInitialize).EndInit()
         CType(NumericUpDownWeldEpspos, ComponentModel.ISupportInitialize).EndInit()
         TabPage3.ResumeLayout(False)
         TabPage3.PerformLayout()
@@ -1608,6 +1649,9 @@ Partial Class Config_Form
     Friend WithEvents NormalsRepairNan As CheckBox
     Friend WithEvents NumericUpDownUVEps As NumericUpDown
     Friend WithEvents CheckBoxWelding As CheckBox
+    Friend WithEvents CheckBoxSmoothSeams As CheckBox
+    Friend WithEvents LabelSmoothAngle As Label
+    Friend WithEvents NumericUpDownSmoothAngle As NumericUpDown
     Friend WithEvents GroupBox2 As GroupBox
     Friend WithEvents NumericUpDownWeldEpsUv As NumericUpDown
     Friend WithEvents RadioButtonWeldboth As RadioButton

@@ -2686,12 +2686,145 @@ Public Class SliderSet_Class
     ''' a `nifSmall` (:3616-3624 y :3643-3649). Decidir el zap por size hacia que `_0` y `_1`
     ''' tuvieran topologias distintas y que el .tri quedara indexado contra una sola de las dos.
     ''' </summary>
+    ''' <summary>Los DOS campos que el canónico mantiene por slider. <c>NaN</c> = el campo quedó en el
+    ''' centinela, o sea que ningún <c>&lt;SetSlider&gt;</c> lo escribió y hay que caer al default del
+    ''' propio slider.</summary>
+    Public Structure ParDePreset
+        Public Big As Single
+        Public Small As Single
+    End Structure
+
+    ''' <summary>
+    ''' Pliega el preset a <c>nombre → (big, small)</c> en UNA pasada, en orden de documento.
+    '''
+    ''' Es exactamente el modelo del canónico (dos campos por slider, cada entrada pisa el suyo, gana
+    ''' la última) — sólo que materializado una vez en vez de recalculado por slider.
+    '''
+    ''' ⛔ PERF, medido: <c>ResolvePresetValue</c> recorría TODAS las entradas del preset por CADA
+    ''' slider, y <see cref="SetPreset"/> la llama hasta dos veces por slider más una vez por zap con
+    ''' toggles ⇒ O(nSliders × nEntradas). Y no son las entradas del archivo: en el editor
+    ''' <c>Actualiza_Preset</c> arma la lista con el catálogo ENTERO × 3 tallas más los sliders del
+    ''' proyecto × 3. Medido sobre `Dracania` (187 sliders, 1.161 entradas): <b>9,31 ms por
+    ''' SetPreset</b>, y eso corre en cada cambio de preset Y en cada arrastre de trackbar.
+    ''' Con el pliegue queda O(nSliders + nEntradas).
+    '''
+    ''' ⚠️ Se pliega POR LLAMADA, no se cachea: el editor muta <c>Selected_Preset</c> in place
+    ''' conservando la misma referencia, así que cualquier caché por identidad de objeto quedaría
+    ''' viejo justo en el caso que importa.
+    ''' </summary>
+    Friend Shared Function PliegaPreset(Preset As SlidersPreset_Class) As Dictionary(Of String, ParDePreset)
+        If IsNothing(Preset) OrElse IsNothing(Preset.Sliders) Then Return Nothing
+        Dim d As New Dictionary(Of String, ParDePreset)(Preset.Sliders.Count, StringComparer.OrdinalIgnoreCase)
+        For Each pf In Preset.Sliders
+            If pf Is Nothing OrElse pf.Name Is Nothing Then Continue For
+            Dim par As ParDePreset = Nothing
+            If Not d.TryGetValue(pf.Name, par) Then
+                ' Centinela: NaN en vez del -10000 del canónico. Un preset puede traer -10000 como
+                ' valor real de un slider (nada lo prohíbe) y ahí el centinela numérico se confundiría
+                ' con un dato.
+                par.Big = Single.NaN
+                par.Small = Single.NaN
+            End If
+            Select Case pf.Size
+                Case WM_Config.SliderSize.Small
+                    par.Small = pf.Value
+                Case WM_Config.SliderSize.Big
+                    par.Big = pf.Value
+                Case Else   ' Default == el `both` canónico: pisa los DOS campos.
+                    par.Big = pf.Value
+                    par.Small = pf.Value
+            End Select
+            d(pf.Name) = par
+        Next
+        Return d
+    End Function
+
+    ''' <summary>
+    ''' Qué campos hay que ESCRIBIR en el .xml de un preset, para este outfit. Devuelve
+    ''' <c>nombre → (big, small)</c> con <c>NaN</c> en el campo que NO se emite.
+    '''
+    ''' ⭐ Es la ley del canónico (<c>SliderManager::SavePreset</c>, SliderManager.h:50-65):
+    ''' <code>
+    ''' for (s : slidersBig) {
+    '''     if (SliderHasChanged(s.name, true))  SetSliderPreset(preset, s.name, s.value);
+    '''     else                                 ClearSlider(preset, s.name, true);
+    '''     ... idem small ...
+    ''' }
+    ''' </code>
+    ''' con <c>SliderHasChanged = (defValue != value)</c>, y después
+    ''' <c>PresetCollection::SavePreset</c> emite sólo los campos distintos del centinela.
+    '''
+    ''' ⛔ Lo que corrige: WM escribía TODOS los sliders. Eso FIJA valores de sliders que el usuario
+    ''' nunca tocó, tomados del outfit abierto al guardar; aplicado a OTRO outfit le pisan sus propios
+    ''' defaults, donde un preset de BodySlide los deja caer.
+    '''
+    ''' Tres detalles que son fáciles de perder:
+    ''' <list type="bullet">
+    ''' <item>El recorrido es por los sliders del OUTFIT, no por el catálogo: un slider catalogado que
+    '''   este proyecto no tiene no se escribe ni se borra.</item>
+    ''' <item><paramref name="previo"/> es lo que el archivo ya traía, y se CONSERVA para los sliders
+    '''   ajenos a este outfit — el canónico arranca del mapa que cargó del disco.</item>
+    ''' <item>El baseline es <see cref="Slider_class.Default_Setting"/> (el default crudo), no
+    '''   <c>EffectiveDefault</c>: el flip de zapToggles ocurre en el build sobre una copia y no toca
+    '''   el <c>defValue</c> contra el que compara el editor.</item>
+    ''' </list>
+    '''
+    ''' ⚠️ No se replica el segundo término de <c>SliderHasChanged</c>, <c>(changed &amp;&amp; zap)</c>:
+    ''' un zap que el usuario movió y devolvió a su default el canónico igual lo escribe. WM no lleva
+    ''' un flag de "esta trackbar se tocó". No cambia la geometría de este outfit (ausente ⇒ mismo
+    ''' default); sólo se nota aplicando el preset a otro cuyo default para ese zap difiera.
+    ''' </summary>
+    ''' <param name="esExcluido">Nombres que el usuario destildó por categoría: se BORRAN del archivo,
+    ''' que es lo que pasaba antes por reescribirlo entero desde cero.</param>
+    Public Function PliegaPresetParaGuardar(previo As SlidersPreset_Class,
+                                            actual As SlidersPreset_Class,
+                                            esExcluido As Func(Of String, Boolean)) As Dictionary(Of String, ParDePreset)
+        ' 1) Semilla con lo que ya estaba en el archivo (mismo last-wins que el lector).
+        Dim salida = PliegaPreset(previo)
+        If salida Is Nothing Then salida = New Dictionary(Of String, ParDePreset)(StringComparer.OrdinalIgnoreCase)
+
+        ' 2) Lo que el editor muestra ahora.
+        Dim ahora = PliegaPreset(actual)
+
+        ' 3) La ley, sólo sobre los sliders de ESTE outfit.
+        For Each sl In Sliders
+            Dim nom = sl.Nombre
+            If nom Is Nothing Then Continue For
+            If esExcluido IsNot Nothing AndAlso esExcluido(nom) Then
+                salida.Remove(nom)
+                Continue For
+            End If
+            Dim cur As ParDePreset = Nothing
+            If ahora Is Nothing OrElse Not ahora.TryGetValue(nom, cur) Then Continue For
+
+            Dim par As ParDePreset = Nothing
+            If Not salida.TryGetValue(nom, par) Then
+                par.Big = Single.NaN
+                par.Small = Single.NaN
+            End If
+            If Not Single.IsNaN(cur.Big) Then
+                par.Big = If(cur.Big <> sl.Default_Setting(WM_Config.SliderSize.Big), cur.Big, Single.NaN)
+            End If
+            If Not Single.IsNaN(cur.Small) Then
+                par.Small = If(cur.Small <> sl.Default_Setting(WM_Config.SliderSize.Small), cur.Small, Single.NaN)
+            End If
+
+            If Single.IsNaN(par.Big) AndAlso Single.IsNaN(par.Small) Then
+                salida.Remove(nom)
+            Else
+                salida(nom) = par
+            End If
+        Next
+        Return salida
+    End Function
+
     Public Sub SetPreset(Preset As SlidersPreset_Class, Weight As WM_Config.SliderSize)
-        ApplyZapToggles(Preset)
+        Dim plegado = PliegaPreset(Preset)
+        ApplyZapToggles(plegado)
         For Each slid In Sliders
-            slid.Current_Setting = ResolvePresetValue(slid, Preset, Weight)
+            slid.Current_Setting = ResolvePresetValue(slid, plegado, Weight)
             slid.Zap_Setting_Big = If(slid.IsZap AndAlso Weight <> WM_Config.SliderSize.Big,
-                                      ResolvePresetValue(slid, Preset, WM_Config.SliderSize.Big),
+                                      ResolvePresetValue(slid, plegado, WM_Config.SliderSize.Big),
                                       slid.Current_Setting)
         Next
     End Sub
@@ -2728,7 +2861,7 @@ Public Class SliderSet_Class
     ''' existe devuelve un slider estatico <c>Empty</c> - mutarlo no hace nada - asi que aca un
     ''' destino desconocido simplemente se ignora.
     ''' </summary>
-    Private Sub ApplyZapToggles(Preset As SlidersPreset_Class)
+    Private Sub ApplyZapToggles(plegado As Dictionary(Of String, ParDePreset))
         Dim lista = Sliders
         If lista Is Nothing OrElse lista.Count = 0 Then Return
 
@@ -2749,7 +2882,7 @@ Public Class SliderSet_Class
             Dim toggles = slid.ZapToggles
             If toggles.Length = 0 Then Continue For
 
-            Dim vbig As Single = ResolvePresetValue(slid, Preset, WM_Config.SliderSize.Big)
+            Dim vbig As Single = ResolvePresetValue(slid, plegado, WM_Config.SliderSize.Big)
             If vbig = slid.EffectiveDefault(WM_Config.SliderSize.Big) Then Continue For
 
             For Each destino In toggles
@@ -2781,34 +2914,15 @@ Public Class SliderSet_Class
     '''   desempate. El pliegue va en el orden en que están en el archivo.</item>
     ''' </list>
     ''' </summary>
-    Private Shared Function ResolvePresetValue(slid As Slider_class, Preset As SlidersPreset_Class,
+    Private Shared Function ResolvePresetValue(slid As Slider_class, plegado As Dictionary(Of String, ParDePreset),
                                                Weight As WM_Config.SliderSize) As Single
         Dim result As Single = slid.EffectiveDefault(Weight)
-        If IsNothing(Preset) Then Return result
+        If IsNothing(plegado) Then Return result
 
-        ' Centinela: NaN en vez del -10000 del canónico. Un preset puede traer -10000 como valor real
-        ' de un slider (nada lo prohíbe) y ahí el centinela numérico se confundiría con un dato.
-        Dim vBig As Single = Single.NaN
-        Dim vSmall As Single = Single.NaN
-        Dim hubo As Boolean = False
-
-        ' ⛔ SIN OrderBy: orden de documento. Preset.Sliders se llena en el orden del archivo.
-        For Each pf In Preset.Sliders
-            If pf Is Nothing OrElse pf.Name Is Nothing Then Continue For
-            If Not pf.Name.Equals(slid.Nombre, StringComparison.OrdinalIgnoreCase) Then Continue For
-            hubo = True
-            Select Case pf.Size
-                Case WM_Config.SliderSize.Small
-                    vSmall = pf.Value
-                Case WM_Config.SliderSize.Big
-                    vBig = pf.Value
-                Case Else   ' Default == el `both` canónico: pisa los DOS campos.
-                    vBig = pf.Value
-                    vSmall = pf.Value
-            End Select
-        Next
-
-        If Not hubo Then Return result
+        Dim par As ParDePreset = Nothing
+        If Not plegado.TryGetValue(slid.Nombre, par) Then Return result
+        Dim vBig As Single = par.Big
+        Dim vSmall As Single = par.Small
 
         ' El pase de peso Small lee el campo small; todo lo demás (Big y Default) lee el big — que es
         ' lo que hace BodySlide cuando no hay GenWeights: usa `vbig`/`defBigValue` y `vsmall` sólo
@@ -2947,7 +3061,16 @@ Public Class SliderSet_Class
                 Continue For
             End If
             For Each d In s.Datas
+                ' Ya cubierto por TARGET: el canonico resuelve con TargetDataName, que devuelve el
+                ' PRIMER dataFile de ese target, asi que un segundo para el mismo target le queda muerto.
                 If primero.Datas.Any(Function(x) String.Equals(x.Target, d.Target, StringComparison.Ordinal)) Then Continue For
+                ' ⛔ Y tampoco puede repetirse el NOMBRE dentro del slider fusionado. La validacion de
+                ' carga exige (nombre de Data + nombre de Slider) unicos, asi que meter dos <Data>
+                ' homonimos —aunque apunten a targets distintos— tira "Duplicated Slider Data" y deja
+                ' el proyecto ILEGIBLE. MEDIDO: eso rompia 5 .osp de SSE (COR - CBBE SE y los 4 addons
+                ' SoS/TNG de UBE) que antes cargaban. El canonico tampoco los distingue: su
+                ' DataFileName busca por dataName y devuelve el primero.
+                If primero.Datas.Any(Function(x) String.Equals(x.Nombre, d.Nombre, StringComparison.OrdinalIgnoreCase)) Then Continue For
                 Dim nodo = d.Nodo
                 primero.Datas.Add(New Slider_Data_class(nodo, primero))
             Next

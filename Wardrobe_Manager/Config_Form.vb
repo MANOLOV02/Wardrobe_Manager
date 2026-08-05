@@ -40,7 +40,10 @@ Public Class Config_Form
             CheckBoxDrawHiddenSegments.Checked = Config_App.Current.Setting_DrawHiddenSegments
 
             NormalsRepairNan.Checked = Config_App.Current.Setting_TBN.RepairNaNs
+            CheckBoxSmoothSeams.Checked = Config_App.Current.Setting_TBN.SmoothSeamNormals
+            NumericUpDownSmoothAngle.Value = CDec(Config_App.Current.Setting_TBN.SmoothSeamNormalsAngle)
             CheckBoxWelding.Checked = Config_App.Current.Setting_TBN.EnableWelding
+            GroupBox2.Enabled = CheckBoxWelding.Checked
             NumericUpDownPositionEps.Value = Config_App.Current.Setting_TBN.EpsilonPos
             NumericUpDownUVEps.Value = Config_App.Current.Setting_TBN.EpsilonUV
             NormalsNormalize.Checked = Config_App.Current.Setting_TBN.NormalizeOutputs
@@ -87,6 +90,8 @@ Public Class Config_Form
     End Sub
     Private Sub Graba_Render_Options()
         Dim opts = New RecalcTBN.TBNOptions With {
+          .SmoothSeamNormals = CheckBoxSmoothSeams.Checked,
+          .SmoothSeamNormalsAngle = CDbl(NumericUpDownSmoothAngle.Value),
           .EnableWelding = CheckBoxWelding.Checked,
           .EpsilonUV = NumericUpDownUVEps.Value,
           .EpsilonPos = NumericUpDownPositionEps.Value,
@@ -152,6 +157,12 @@ Public Class Config_Form
             PackProgressLabel.Text = "Stop requested — finishing current archive safely…"
             cts.Cancel()
         End If
+    End Sub
+
+    ''' <summary>Las opciones de welding no tienen efecto con el welding apagado. Estaban SIEMPRE
+    ''' habilitadas, o sea que la UI dejaba tocar epsilons y radios que no hacian nada.</summary>
+    Private Sub CheckBoxWelding_CheckedChanged(sender As Object, e As EventArgs) Handles CheckBoxWelding.CheckedChanged
+        GroupBox2.Enabled = CheckBoxWelding.Checked
     End Sub
 
     Private Sub Config_Form_Load(sender As Object, e As EventArgs) Handles MyBase.Load
