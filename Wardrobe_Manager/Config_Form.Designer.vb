@@ -394,7 +394,6 @@ Partial Class Config_Form
         NormalsNormalize.AutoSize = True
         NormalsNormalize.Checked = True
         NormalsNormalize.CheckState = CheckState.Checked
-        NormalsNormalize.Enabled = False
         NormalsNormalize.Location = New Point(6, 22)
         NormalsNormalize.Name = "NormalsNormalize"
         NormalsNormalize.Size = New Size(80, 19)

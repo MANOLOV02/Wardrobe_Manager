@@ -122,6 +122,13 @@ Public Class BuildingForm
         Dim has_pose = (WM_Config.Current.Settings_Build.BuildInPose AndAlso _Pose.Source <> Poses_class.Pose_Source_Enum.None)
         For Each sliderset_target In _Lista
             Try
+                ' ⛔ El nombre se fija ACA, antes de que nada pueda tirar. Estaba asignado recien
+                ' dentro del bucle de sizes, DESPUES del chequeo de carga, asi que un proyecto que no
+                ' cargaba se reportaba como "Unknown: Could not load shape data for build." y no habia
+                ' forma de saber cual de los 9 proyectos de un .osp era. (Con 43 .osp instalados, el
+                ' usuario no tiene como averiguarlo; hubo que construirlos de a uno para encontrarlo.)
+                ' Solo alimenta el texto del error y el label de progreso: no cambia que se construye.
+                Nombre = sliderset_target.Nombre
                 Dim NodoClone = DummyOSP.xml.ImportNode(sliderset_target.Nodo.Clone, True)
                 Dim builder As New SliderSet_Class(NodoClone, DummyOSP)
                 ' Force the cloned output dir (per-pack) when the build setting is on. Runs on the
@@ -169,7 +176,17 @@ Public Class BuildingForm
                         End If
                     End If
                     ProgressBar1.Maximum = (builder.Shapes.Count * 4 + 6)
-                    If OSP_Project_Class.Load_and_CHeck_Project(builder, buildLoadContext) = False OrElse OSP_Project_Class.Load_and_Check_Shapedata(builder, buildLoadContext) = False Then Throw New InvalidOperationException("Could not load shape data for build.")
+                    If OSP_Project_Class.Load_and_CHeck_Project(builder, buildLoadContext) = False OrElse OSP_Project_Class.Load_and_Check_Shapedata(builder, buildLoadContext) = False Then
+                        ' ⛔ La CAUSA real ya la tiene el contexto: los dos Load_* atrapan su excepcion
+                        ' y la reportan con ReportLoadIssue ("More than one osd Local file", "Shape
+                        ' without Nif Shapes different", ...). Este Throw la tapaba con un texto
+                        ' generico y el usuario quedaba sin saber que revisar del mod. Se arrastra el
+                        ' ultimo issue de ESTE proyecto, si lo hay.
+                        Dim causa = buildLoadContext.Issues.
+                            LastOrDefault(Function(i) String.Equals(i.ProjectName, sliderset_target.Nombre, StringComparison.OrdinalIgnoreCase))
+                        Dim detalle = If(causa Is Nothing OrElse String.IsNullOrWhiteSpace(causa.Message), "", " — " & causa.Message)
+                        Throw New InvalidOperationException("Could not load shape data for build." & detalle)
+                    End If
                     ProgressBar1.Value += 1
                     ' El clon NO puede resolver su propio HH: ForceClonedOutputDir ya le reescribió el
                     ' OutputPath (la detección FO4 va contra ese path) y su ParentOSP es un dummy sin
@@ -231,8 +248,24 @@ Public Class BuildingForm
                     ' Extract/Bake read it from the SkeletonInstance's DeltaTransforms.
                     Parallel.ForEach(shapeList.Where(Function(s) s.RelatedNifShape IsNot Nothing),
                         Sub(shap)
-                            ' 1- cargo geometria
-                            Dim geom = SkinningHelper.ExtractSkinnedGeometry(shap, singleboneskinning:=localSingleBone, RecalculateNormals:=False)
+                            ' 1- cargo geometria.
+                            ' ⭐ UN SOLO recalculo COMPLETO, aca, y solo si el usuario lo pidio; de ahi en
+                            ' mas el morph refresca unicamente la clausura de lo que se movio. Estaba
+                            ' forzado a False, y eso dejaba SIN TOCAR toda shape que el preset no mueve:
+                            ' salia con el marco tangente del asset original, roto o no. MEDIDO sobre el
+                            ' corpus: 784 shapes en FO4 y 118 en SSE con la base hasta 90 grados fuera de
+                            ' ortogonal, heredada del mod.
+                            ' ⛔ No es trabajo tirado ni cambia de espacio, que es lo que parecia:
+                            '   · `ApplyMorph_CPU` reescribe posiciones, UVs y mascara pero NO toca
+                            '     Normals/Tangents/Bitangents, asi que este recalculo SOBREVIVE al morph.
+                            '   · `rawVerts` y `NifLocalVertices` son la MISMA copia (SkinningHelper:571),
+                            '     o sea el mismo espacio en el que despues trabaja el morph.
+                            '   · La pose ya esta en el esqueleto (ApplyPose, arriba) y el skinning lo
+                            '     aplica el bake, que transforma N/T/B junto con las posiciones.
+                            ' Para una shape que el preset SI mueve queda redundante con la clausura
+                            ' posterior — y esta medido que la clausura sola ya cubre 22.658 de 22.708
+                            ' vertices—, pero para la que NO se mueve es la unica oportunidad.
+                            Dim geom = SkinningHelper.ExtractSkinnedGeometry(shap, singleboneskinning:=localSingleBone, RecalculateNormals:=localRecalcNormals)
                             ' 3- aplico morph (y recalculo normales si esta elegido)
                             MorphingHelper.ApplyMorph_CPU(shap, geom, localRecalcNormals, AllowMask:=False, buildSize:=localSize)
                             ' 4- Borro zaps y revierto bakeo (includes InjectToTrishape per-shape)
