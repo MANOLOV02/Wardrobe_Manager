@@ -187,8 +187,7 @@ Public Class SplitShapeHelper
         sliderSet.Shapes.Insert(sliderSet.Shapes.IndexOf(shape) + 1, splitShape)
 
         ' 11. OSD: external blocks are read-only. Any remap happens on local copies.
-        Dim osdFilename = IO.Path.GetFileName(
-            sliderSet.SourceFileFullPath).Replace(".nif", ".osd", StringComparison.OrdinalIgnoreCase)
+        Dim osdFilename = sliderSet.LocalOsdFileName
         Dim osdContent = sliderSet.OSDContent_Local
 
         For Each slider In sliderSet.Sliders

@@ -427,7 +427,7 @@ Partial Class Config_Form
         NumericUpDownPositionEps.Size = New Size(128, 23)
         NumericUpDownPositionEps.TabIndex = 15
         NumericUpDownPositionEps.TextAlign = HorizontalAlignment.Right
-        ToolTip1.SetToolTip(NumericUpDownPositionEps, "Position epsilon used by the normal recalculation and welding logic.")
+        ToolTip1.SetToolTip(NumericUpDownPositionEps, "Degenerate-triangle threshold, as a LENGTH in model units: a face whose tangent direction is shorter than this is discarded. 0 (default) matches BodySlide.")
         NumericUpDownPositionEps.Value = New Decimal(0)
         ' 
         ' SingleBoneCheck

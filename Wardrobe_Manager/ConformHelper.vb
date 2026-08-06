@@ -292,8 +292,7 @@ Public Class ConformHelper
             overwrite As Boolean)
 
         Dim targetName = targetShape.Target
-        Dim osdFilename = IO.Path.GetFileName(
-            sliderSet.SourceFileFullPath).Replace(".nif", ".osd", StringComparison.OrdinalIgnoreCase)
+        Dim osdFilename = sliderSet.LocalOsdFileName
 
         For Each res In results
             If res.Deltas.Count = 0 Then Continue For

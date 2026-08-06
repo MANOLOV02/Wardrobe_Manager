@@ -479,14 +479,26 @@ Public Class OSD_Class
         Return merged
     End Function
 
-    Public Sub Save_As(Filename As String, Overwrite As Boolean)
+    ''' <summary>
+    ''' Escribe el <c>.osd</c>. Devuelve True SÓLO si el archivo se escribió de verdad.
+    '''
+    ''' ⛔ Era un <c>Sub</c> con DOS salidas silenciosas sin escribir (el usuario dice "No" al
+    ''' reemplazar, y <c>Header</c> en Nothing). Quien re-apunta los <c>&lt;Data&gt;</c> del .osp a este
+    ''' archivo (Save_Shapedatas) NO puede hacerlo si el archivo no se escribió: dejaría el .osp
+    ''' apuntando a algo que no existe.
+    '''
+    ''' ⚠️ El False NO cubre todo: los Throw de más abajo (nombre &gt; 255 bytes, &gt; 65535 diffs) salen
+    ''' DESPUÉS de que FileMode.Create ya truncó el archivo destino. En ese caso el .osd queda
+    ''' destruido en disco y esto no retorna: propaga. El llamador no debe re-apuntar nada.
+    ''' </summary>
+    Public Function Save_As(Filename As String, Overwrite As Boolean) As Boolean
         If IO.File.Exists(Filename) AndAlso Overwrite = False Then
             If MsgBox("ODS File already exists, replace?", vbYesNo, "Warning") = MsgBoxResult.No Then
-                Exit Sub
+                Return False
             End If
         End If
 
-        If IsNothing(Me.Header) Then Exit Sub
+        If IsNothing(Me.Header) Then Return False
         Using stream = IO.File.Open(Filename, IO.FileMode.Create)
             Using Writer As New IO.BinaryWriter(stream)
 
@@ -539,7 +551,50 @@ Public Class OSD_Class
                 Writer.Flush()
             End Using
         End Using
-    End Sub
+        Return True
+    End Function
+
+    ''' <summary>
+    ''' Primer <c>BlockName</c> que aparece en MÁS DE UN archivo <c>.osd</c> distinto, o
+    ''' <c>Nothing</c> si no hay ninguno. Sólo participan los bloques con
+    ''' <see cref="OSD_Block_Class.SourceOsdFile"/> no vacío — los creados en memoria no salieron de
+    ''' ningún archivo.
+    '''
+    ''' ⛔ Es el gate de los .osd locales MÚLTIPLES. Un mismo nombre en dos archivos NO es
+    ''' representable una vez que Save_Shapedatas colapsa todo a un solo archivo:
+    '''   · <see cref="MergeBlocksByName"/> los SUMARÍA en uno solo, y
+    '''   · BodySlide, que indexa con <c>emplace</c> (DiffData.cpp:181), se queda con el PRIMERO y
+    '''     descarta el resto.
+    ''' O sea que uno de los dos morphs se pierde por cualquiera de los dos caminos. Por eso se
+    ''' rechaza al CARGAR y no al guardar: así el estado inconsistente nunca llega a existir en
+    ''' memoria, y el error sale por el canal de ReportLoadIssue en vez de como excepción desde el
+    ''' botón Guardar (que además dejaría a medias a Agrega_Proyecto / Merge_Proyecto / el editor).
+    '''
+    ''' ⚠️⛔ El corpus NO puede exhibir esto: de los 3.716 .osd instalados ninguno tiene nombres
+    ''' repetidos adentro, y el único sliderSet con 2 .osd locales (COR - CBBE Body Special) comparte
+    ''' CERO nombres entre sus dos archivos. Por §9 de las reglas epistémicas el gate de esta rama
+    ''' TIENE que ser un self-test sintético — y ese self-test TODAVÍA NO EXISTE: esta función no
+    ''' tiene hoy ningún llamador fuera de Load_and_Check_Shapedata, así que la rama con choque
+    ''' nunca se ejercita. No dar por verificada esta función hasta escribirlo.
+    ''' </summary>
+    Friend Shared Function FindCrossFileBlockNameClash(source As List(Of OSD_Block_Class)) As String
+        If source Is Nothing OrElse source.Count < 2 Then Return Nothing
+
+        Dim primerArchivo As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase)
+        For Each b In source
+            If b Is Nothing OrElse String.IsNullOrWhiteSpace(b.BlockName) Then Continue For
+            If String.IsNullOrEmpty(b.SourceOsdFile) Then Continue For
+
+            Dim visto As String = Nothing
+            If Not primerArchivo.TryGetValue(b.BlockName, visto) Then
+                primerArchivo(b.BlockName) = b.SourceOsdFile
+            ElseIf Not String.Equals(visto, b.SourceOsdFile, StringComparison.OrdinalIgnoreCase) Then
+                Return b.BlockName
+            End If
+        Next
+
+        Return Nothing
+    End Function
 End Class
 Public Class OSD_Block_Class
     Public Property BlockName As String
@@ -705,6 +760,19 @@ Public Class Clone_Materials_class
 
         project.InvalidateAllLookupCaches()
         project.Save_Shapedatas(True)
+
+        ' ⛔ Save_Shapedatas COLAPSA los <Data> locales a un solo .osd, y para eso MUTA el XML del .osp.
+        ' Éste es el único de sus cuatro llamadores que no venía precedido de un Save_Pack_As: los
+        ' otros tres corren después de Agrega_Proyecto / Merge_Proyecto, que ya lo grabaron, así que
+        ' allá el colapso queda en no-op. Acá no, y el camino expuesto es el botón de REPARAR
+        ' materiales (TryRepairCloneIssue), que va de Load_and_Check_Shapedata a UnloadShapeData sin
+        ' tocar el .osp en toda la cadena.
+        ' Sin esto, en un proyecto con VARIOS .osd locales el archivo queda colapsado en disco mientras
+        ' el .osp sigue repartido ⇒ en el arranque siguiente los mismos bloques aparecen en los DOS
+        ' archivos y FindCrossFileBlockNameClash lo rechaza: el proyecto pasa de andar a no cargar.
+        ' El guard de File.Exists cubre el ParentOSP dummy (sin archivo), cuyo Filename da "Unknown".
+        Dim pack = project.ParentOSP
+        If pack IsNot Nothing AndAlso IO.File.Exists(pack.Filename) Then pack.Save_Pack(True)
     End Sub
 
     Private Shared Sub CollectClonePlan(project As SliderSet_Class, plan As ClonePlan)
@@ -1943,8 +2011,22 @@ Public Class OSP_Project_Class
             .Distinct(StringComparer.OrdinalIgnoreCase) _
             .ToArray()
 
-            If localOsdPaths.Length >= 2 Then Throw New Exception("More than one osd Local file")
-            If localOsdPaths.Length <> 0 Then Sliderset_Target.OSDContent_Local.Load(localOsdPaths)
+            ' N .osd LOCALES: permitido. El canónico los soporta — SliderSet::LoadSetDiffData indexa
+            ' por (archivo, bloque) y la ÚNICA diferencia entre local y externo es la carpeta donde
+            ' busca (SliderSet.cpp:337-341). El gate anterior rechazaba N>=2 de plano y por eso
+            ' "COR - CBBE Body Special" (CBBE Body.osd + CBBE Body Special.osd) no cargaba ni se
+            ' construía, siendo el único de sus 9 proyectos que fallaba.
+            '
+            ' Lo que SÍ se rechaza es el mismo nombre de bloque en dos archivos: ver
+            ' FindCrossFileBlockNameClash. Al cargar y no al guardar, para que el estado inconsistente
+            ' no llegue a existir. Medido: 0 casos en los 3.740 sliderSets del corpus.
+            If localOsdPaths.Length <> 0 Then
+                Sliderset_Target.OSDContent_Local.Load(localOsdPaths)
+                If localOsdPaths.Length >= 2 Then
+                    Dim choque = OSD_Class.FindCrossFileBlockNameClash(Sliderset_Target.OSDContent_Local.Blocks)
+                    If choque IsNot Nothing Then Throw New Exception("Block '" & choque & "' exists in more than one local osd file")
+                End If
+            End If
             If externalOsdPaths.Length <> 0 Then Sliderset_Target.OSDContent_External.Load(externalOsdPaths)
 
             Sliderset_Target.NIFContent.Load_Manolo(Sliderset_Target.SourceFileFullPath)
@@ -2158,7 +2240,13 @@ Public Class OSP_Project_Class
                         Next
                     End If
                     dat.Islocal = True
-                    dat.TargetOsd = IO.Path.GetFileName(Sliderset_Madre.OsdLocalFullPath.First)
+                    ' El .osd de la MADRE, que es la única que se guarda (Save_Shapedatas más abajo).
+                    ' Era `Sliderset_Madre.OsdLocalFullPath.First`: con más de un .osd local eso
+                    ' devuelve el PRIMERO en orden de documento, que no tiene por qué ser el del
+                    ' proyecto — medido en COR - CBBE Body Special devuelve "CBBE Body.osd" y no
+                    ' "CBBE Body Special.osd". Los bloques terminaban escritos en un archivo y los
+                    ' <Data> apuntando a otro.
+                    dat.TargetOsd = Sliderset_Madre.LocalOsdFileName
                 Next
                 extsh.Datafolder = ClearReferenceStringArray.ToList
             Next
@@ -2258,7 +2346,13 @@ Public Class OSP_Project_Class
                         Next
                     End If
                     dat.Islocal = True
-                    dat.TargetOsd = IO.Path.GetFileName(Sliderset_Target.OsdLocalFullPath.First)
+                    ' Sliderset_Target acá es SIEMPRE el sliderset que se va a guardar (Agrega_Proyecto
+                    ' le pasa el destino, Merge_Proyecto le pasa la madre), así que su .osd canónico es
+                    ' el destino real de los bloques. Era `OsdLocalFullPath.First`, que además se
+                    ' evaluaba DESPUÉS de poner Islocal=True: el propio Data recién volteado ya entraba
+                    ' en esa colección con su TargetOsd EXTERNO todavía puesto, y podía ser el que
+                    ' `.First` devolvía.
+                    dat.TargetOsd = Sliderset_Target.LocalOsdFileName
                 Next
                 extsh.Datafolder = OldReferenceStringArray.ToList
             End If
@@ -3406,11 +3500,6 @@ Public Class SliderSet_Class
     End Sub
 
     Public Sub Update_Names(Nombre As String, Pack As String, Optional context As ProjectLoadContext = Nothing)
-        ' Reemplaza nombres
-        Dim OldNif = Me.SourceFileFullPath
-        Dim Oldosd = ""
-        If Me.OsdLocalFullPath.Any Then Oldosd = Me.OsdLocalFullPath.First
-
         ' Carga OSD y NIF
         If OSP_Project_Class.Load_and_Check_Shapedata(Me, If(context, ProjectLoadContext.CreateInteractive())) = False Then Exit Sub
 
@@ -3418,21 +3507,24 @@ Public Class SliderSet_Class
         Me.DataFolderValue = Pack.ToString
         Me.SourceFileValue = Nombre + ".nif"
         Dim New_Nif = IO.Path.Combine(IO.Path.Combine(Directorios.ShapedataRoot, Pack), Nombre + ".nif")
-        Dim New_Osd = New_Nif.Replace(".nif", ".osd", StringComparison.OrdinalIgnoreCase)
+        ' ChangeExtension, no Replace: es el mismo destino que después calcula LocalOsdFullPath sobre
+        ' el SourceFileFullPath ya renombrado. Con Replace, un Pack o un Nombre que contuviera ".nif"
+        ' daba dos strings distintos y el .osp quedaba apuntando a un archivo inexistente.
+        Dim New_Osd = IO.Path.ChangeExtension(New_Nif, ".osd")
         If IO.Directory.Exists(IO.Path.GetDirectoryName(New_Nif)) = False Then
             IO.Directory.CreateDirectory(IO.Path.GetDirectoryName(New_Nif))
 
         End If
 
 
-        ' Reemplaza Data OSD References
-        For Each slid In Sliders
-            For Each dat In slid.Datas
-                If dat.Islocal AndAlso dat.TargetOsd.Equals(IO.Path.GetFileName(Oldosd), StringComparison.OrdinalIgnoreCase) Then
-                    dat.TargetOsd = IO.Path.GetFileName(New_Osd)
-                End If
-            Next
-        Next
+        ' Reemplaza Data OSD References.
+        ' TODOS los <Data> locales, no sólo los que coincidían con el "osd viejo". El proyecto
+        ' renombrado se guarda con Save_Shapedatas, que escribe UN solo .osd con TODOS los bloques
+        ' locales; dejar afuera a los que apuntaban a otro archivo los dejaba colgados apuntando a un
+        ' nombre que en la carpeta nueva no existe. Medido en COR - CBBE Body Special: el criterio
+        ' viejo (`= Oldosd`, con Oldosd = OsdLocalFullPath.First = "CBBE Body.osd") renombraba 91 de
+        ' 120 y la shape Labia perdía sus 28 morphs al clonar.
+        RepointLocalDatasTo(IO.Path.GetFileName(New_Osd))
         InvalidateMetadataLookupCache()
     End Sub
 
@@ -3743,14 +3835,103 @@ Public Class SliderSet_Class
 
     End Property
 
+    ''' <summary>
+    ''' Path completo del <c>.osd</c> CANÓNICO del proyecto: el que escribe
+    ''' <see cref="Save_Shapedatas"/> y al que apuntan TODOS los <c>&lt;Data local&gt;</c> después de
+    ''' guardar.
+    '''
+    ''' ⛔ ÚNICA expresión válida. Antes convivían dos: <c>SourceFileFullPath.Replace(".nif",".osd")</c>
+    ''' sobre el path COMPLETO (que reemplaza TODAS las ocurrencias, así que una carpeta o un nombre
+    ''' que contenga ".nif" corrompe el destino) en Save_Shapedatas, y
+    ''' <c>GetFileName(...).Replace(...)</c> en los otros seis sitios. Si las dos divergen, el .osp
+    ''' termina apuntando a un archivo que no existe. Es el MISMO bug que el comentario de
+    ''' Save_Shapedatas ya documenta haber arreglado para el sidecar .hht y que aquí había quedado.
+    '''
+    ''' Medido sobre el corpus (3.740 sliderSets de FO4+SSE): 0 SourceFile sin extensión .nif y 0
+    ''' paths con ".nif" más de una vez ⇒ ChangeExtension es byte-equivalente al Replace anterior.
+    ''' </summary>
+    Public ReadOnly Property LocalOsdFullPath As String
+        Get
+            Return IO.Path.ChangeExtension(SourceFileFullPath, ".osd")
+        End Get
+    End Property
+
+    ''' <summary>Nombre sin carpeta de <see cref="LocalOsdFullPath"/>: es lo que va en el
+    ''' <c>TargetOsd</c> de un <c>&lt;Data&gt;</c> local.</summary>
+    Public ReadOnly Property LocalOsdFileName As String
+        Get
+            Return IO.Path.GetFileName(LocalOsdFullPath)
+        End Get
+    End Property
+
+    ''' <summary>
+    ''' Apunta TODOS los <c>&lt;Data&gt;</c> locales al <c>.osd</c> <paramref name="destinoOsd"/> (nombre
+    ''' sin carpeta). Es la mitad "y el .osp dice lo mismo" del colapso N→1 de
+    ''' <see cref="Save_Shapedatas"/>, y la usa también Update_Names al renombrar un proyecto.
+    '''
+    ''' ⛔ SALTEA todo <c>&lt;Data&gt;</c> cuyo texto no sea EXACTAMENTE <c>archivo\bloque</c>. El setter
+    ''' de <see cref="Slider_Data_class.TargetOsd"/> reconstruye el texto como
+    ''' <c>valor &amp; "\" &amp; TargetSlider</c>, y <c>TargetSlider</c> es el SEGUNDO segmento
+    ''' (<c>parts(1)</c>), no el último. El canónico en cambio normaliza '/'→'\' primero
+    ''' (StringStuff.cpp:47-53) y recién ahí parte por el ÚLTIMO separador (SliderSet.cpp:355-362).
+    ''' O sea que con un texto de TRES segmentos (<c>sub\file.osd\bloque</c>) o de UNO
+    ''' (<c>file.osd/bloque</c>, sin backslash) el setter BORRARÍA el nombre del bloque — en silencio, y
+    ''' sin vuelta atrás una vez grabado el .osp.
+    '''
+    ''' Medido sobre el corpus instalado: de 447.827 <c>&lt;Data local&gt;</c>, CERO tienen una cantidad
+    ''' de backslash distinta de 1 ⇒ hoy este guard no saltea ni uno. Los 10 que traen '/' lo tienen
+    ''' DENTRO del nombre del bloque ("Remove Bow Ties - Bra L/R") y sobreviven intactos, porque
+    ''' <c>parts(1)</c> se lleva todo el resto. El guard existe para los .osp de TERCEROS, que es lo que
+    ''' la app se encuentra distribuida y que ninguna medición mía cubre.
+    ''' </summary>
+    Private Sub RepointLocalDatasTo(destinoOsd As String)
+        If String.IsNullOrEmpty(destinoOsd) Then Exit Sub
+
+        ' ⛔ Archivos que REALMENTE aportaron bloques a esta carga. OSD_Class.Load saltea en silencio
+        ' todo .osd que no exista en disco (mod instalado a medias, BA2 sin extraer, borrado a mano),
+        ' así que un <Data> puede nombrar un archivo cuyos bloques NUNCA llegaron a memoria. Re-apuntar
+        ' ESE <Data> borraría el único registro de dónde vivían sus morphs: Save_As no los va a escribir
+        ' en el destino (no los tiene), y restaurar el archivo después ya no arreglaría nada porque el
+        ' .osp perdió el nombre. Es pérdida IRREVERSIBLE, así que esos se dejan intactos.
+        ' Un <Data> cuyo archivo sí cargó se re-apunta aunque su bloque no esté adentro (colgado):
+        ' ahí no hay nada que perder y es lo que mantiene el invariante de "un solo .osd" para los 33
+        ' proyectos del corpus que leen de un archivo y escriben en otro.
+        Dim archivosCargados As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+        If OSDContent_Local IsNot Nothing AndAlso OSDContent_Local.Blocks IsNot Nothing Then
+            For Each b In OSDContent_Local.Blocks
+                If b IsNot Nothing AndAlso Not String.IsNullOrEmpty(b.SourceOsdFile) Then archivosCargados.Add(b.SourceOsdFile)
+            Next
+        End If
+
+        For Each slid In Sliders
+            For Each dat In slid.Datas
+                If Not dat.Islocal Then Continue For
+                ' <Data/> sin texto: FullText tiraría NullReference. El canónico lo descarta igual
+                ' (fileName vacío no llega a los 4 caracteres que exige SliderSet.cpp:326).
+                If dat.Nodo Is Nothing OrElse dat.Nodo.FirstChild Is Nothing Then Continue For
+                If dat.FullText.Split("\"c).Length <> 2 Then Continue For
+                If dat.TargetOsd.Equals(destinoOsd, StringComparison.OrdinalIgnoreCase) Then Continue For
+                If Not archivosCargados.Contains(dat.TargetOsd) Then Continue For
+                dat.TargetOsd = destinoOsd
+            Next
+        Next
+    End Sub
+
     Public ReadOnly Property OsdLocalFullPath As IEnumerable(Of String)
         Get
             Dim result = Sliders.SelectMany(Function(pf) pf.Datas.Where(Function(pq) pq.Islocal = True).Select(Function(pq) IO.Path.Combine(IO.Path.Combine(Directorios.ShapedataRoot, DataFolderValue), IO.Path.GetFileName(pq.TargetOsd.ToString)))).Distinct
+            ' ⛔ Los dos fallbacks usan LocalOsdFullPath, NO una expresión propia. Este es el camino de
+            ' LECTURA (decide qué .osd se cargan y alimenta GetShapeDataSignature) y tiene que dar
+            ' EXACTAMENTE el mismo string que el de ESCRITURA. Tenían `SourceFileValue.Replace(".nif",
+            ' ".osd")`, que diverge por DOS ejes: Replace pisa todas las ocurrencias (ChangeExtension
+            ' sólo la extensión) y usa SourceFileValue CRUDO (SourceFileFullPath lo pasa por
+            ' GetFileName). Con un SourceFile sin extensión .nif se leía de un archivo y se escribía en
+            ' otro — el mismo bug que Save_Shapedatas dice haber cerrado.
             If Not result.Any() Then
-                Return {IO.Path.Combine(IO.Path.Combine(Directorios.ShapedataRoot, DataFolderValue), SourceFileValue.Replace(".nif", ".osd", StringComparison.OrdinalIgnoreCase))}
+                Return {LocalOsdFullPath}
             End If
             If result.Count = 1 AndAlso result(0) = IO.Path.Combine(Directorios.ShapedataRoot, DataFolderValue) Then
-                Return {IO.Path.Combine(result(0), SourceFileValue.Replace(".nif", ".osd", StringComparison.OrdinalIgnoreCase))}
+                Return {LocalOsdFullPath}
             End If
             Return result
         End Get
@@ -3762,8 +3943,9 @@ Public Class SliderSet_Class
     End Property
 
     Public Sub Remove_DataShapeFiles()
-        Dim Legacy_Nif = IO.Path.Combine(IO.Path.Combine(Directorios.ShapedataRoot, Me.DataFolderValue), IO.Path.GetFileName(Me.SourceFileValue))
-        Dim Legacy_Osd = IO.Path.ChangeExtension(Legacy_Nif, ".osd")
+        Dim Legacy_Nif = SourceFileFullPath
+        ' Misma expresión que el resto: era una cuarta copia de la misma verdad.
+        Dim Legacy_Osd = LocalOsdFullPath
         Dim Legacy_htt = IO.Path.ChangeExtension(Legacy_Nif, ".hht")
 
         Dim Built_Nif = Me.OutputFullPathBase & ".nif"
@@ -3918,9 +4100,37 @@ Public Class SliderSet_Class
 
     Public Sub Save_Shapedatas(OverwriteShapeFiles As Boolean)
         Dim New_Nif = SourceFileFullPath
-        Dim New_Osd = New_Nif.Replace(".nif", ".osd", StringComparison.OrdinalIgnoreCase)
+        Dim New_Osd = LocalOsdFullPath
 
-        OSDContent_Local.Save_As(New_Osd, OverwriteShapeFiles)
+        ' ⭐ Al guardar queda SIEMPRE UN SOLO .osd local, y el .osp dice eso.
+        '
+        ' Save_As ya escribía TODOS los bloques locales en este único archivo, pero nadie reescribía
+        ' los <Data>: el .osp seguía repartiéndolos entre los N archivos de origen. Dos consecuencias
+        ' medidas, las dos silenciosas:
+        '   · con N archivos, los bloques quedaban DUPLICADOS (en el original y en el destino) y la
+        '     búsqueda por nombre los devolvía dos veces ⇒ morphs al doble de amplitud;
+        '   · con UN archivo cuyo nombre no fuera <sourcefile>.osd, se escribía en un archivo y se
+        '     leía de otro ⇒ CADA EDICIÓN SE PERDÍA en la recarga (forzada por el reset de
+        '     LastShapeDataSignature de más abajo). Medido: 33 sliderSets del corpus están así
+        '     (32 en SSE, 1 en FO4) — p.ej. "CBBE Vanilla - Body - Chef" lee Barkeeper.osd y escribe
+        '     Chef.osd.
+        '
+        ' Es lo mismo que hace OutfitStudio al guardar: un solo .osd y el .osp reescrito para
+        ' apuntarle (OutfitProject.cpp:468-469 + :598).
+        '
+        ' ⛔ Sólo si Save_As escribió DE VERDAD. Si el usuario dijo "No" al reemplazar, re-apuntar los
+        ' <Data> dejaría el .osp señalando un archivo que no existe.
+        Dim osdEscrito As Boolean = OSDContent_Local.Save_As(New_Osd, OverwriteShapeFiles)
+        If osdEscrito Then
+            ' ⛔ SIN invalidar caches, a propósito. Los lookup caches se indexan por NOMBRE de bloque
+            ' (_LocalOsdBlocksByNameCache) y se construyen desde OSDContent_Local.Blocks, que no se
+            ' tocó; y OsdLocalFullPath / GetShapeDataSignature se calculan en vivo desde el XML, sin
+            ' caché. O sea que no queda nada rancio. Invalidar acá era peor: más abajo se pone
+            ' ShapeDataLoaded=False, y con eso EnsureShapeDataLookupCacheCore corta en su guard
+            ' temprano y deja los diccionarios VACÍOS — cualquier lectura de bloques posterior al
+            ' guardado vería cero bloques en vez de los de siempre.
+            RepointLocalDatasTo(IO.Path.GetFileName(New_Osd))
+        End If
 
         ' SSE: mantener el link in-NIF de física HDT-SMP ("HDT Skinned Mesh Physics Object") sincronizado
         ' con el sidecar del proyecto — mismo modelo que HH_OFFSET/.hht para tacones. Se ajusta el path
@@ -4700,6 +4910,17 @@ Public Class Slider_Data_class
         End Get
     End Property
 
+    ''' <summary>
+    ''' ⛔ Resuelve SÓLO POR NOMBRE, sin desempatar por archivo — al revés que
+    ''' <see cref="RelatedExternalOSDBlocks"/>, que sí lo hace y cuyo doc registra el bug MEDIDO de
+    ''' amplitud DOBLE que eso causaba.
+    '''
+    ''' Es correcto únicamente porque un sliderSet con VARIOS .osd locales no puede tener el mismo
+    ''' nombre de bloque en dos de ellos: lo rechaza al cargar
+    ''' <see cref="OSD_Class.FindCrossFileBlockNameClash"/>, llamado desde Load_and_Check_Shapedata.
+    ''' El invariante vive ALLÁ, no acá. ⛔ Si alguna vez se relaja ese gate, esto se rompe en
+    ''' silencio y con el mismo síntoma: los morphs salen sumados dos veces.
+    ''' </summary>
     Public ReadOnly Property RelatedLocalOSDBlocks As IEnumerable(Of OSD_Block_Class)
         Get
             If Me.Islocal = False Then Return Enumerable.Empty(Of OSD_Block_Class)()
@@ -4755,7 +4976,7 @@ Public Class Slider_Data_class
         If sourceBlocks.Count = 0 Then Return New List(Of OSD_Block_Class)()
 
         Dim sliderSet = ParentSlider.ParentSliderSet
-        Dim osdFilename = IO.Path.GetFileName(sliderSet.SourceFileFullPath).Replace(".nif", ".osd", StringComparison.OrdinalIgnoreCase)
+        Dim osdFilename = sliderSet.LocalOsdFileName
         Dim clones As New List(Of OSD_Block_Class)()
 
         ' A single Data can own MORE THAN ONE external block sharing the same BlockName

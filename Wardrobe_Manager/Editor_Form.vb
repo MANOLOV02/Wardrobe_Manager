@@ -1619,7 +1619,7 @@ Public Class Editor_Form
             el.SetAttribute("name", Selected_Shape.Target + SelectedZap.Nombre)
             el.SetAttribute("target", Selected_Shape.Target)
             el.SetAttribute("local", "true")
-            el.InnerText = Path.GetFileName(Selected_Slider.SourceFileFullPath).Replace(".nif", ".osd", StringComparison.OrdinalIgnoreCase) + "\" + Selected_Shape.Target + SelectedZap.Nombre
+            el.InnerText = Selected_Slider.LocalOsdFileName + "\" + Selected_Shape.Target + SelectedZap.Nombre
             dat = New Slider_Data_class(el, SelectedZap)
             SelectedZap.Nodo.AppendChild(el)
             SelectedZap.Datas.Add(dat)
@@ -1643,7 +1643,7 @@ Public Class Editor_Form
                 End If
             Next
             dat.Islocal = True
-            dat.TargetOsd = Path.GetFileName(Selected_Slider.SourceFileFullPath).Replace(".nif", ".osd", StringComparison.OrdinalIgnoreCase)
+            dat.TargetOsd = Selected_Slider.LocalOsdFileName
             Selected_Slider.InvalidateAllLookupCaches()
         End If
 

@@ -344,8 +344,7 @@ Public Class MergeShapesHelper
         sliderSet.NIFContent.UpdateSkinPartitions(targetNifRaw)
 
         ' ── 6. Merge OSD blocks: donor deltas offset into target blocks ───────
-        Dim osdFilename = IO.Path.GetFileName(
-            sliderSet.SourceFileFullPath).Replace(".nif", ".osd", StringComparison.OrdinalIgnoreCase)
+        Dim osdFilename = sliderSet.LocalOsdFileName
 
         For Each slider In sliderSet.Sliders
             Dim targetBlock = Slider_Data_class.GetEditableTargetBlock(targetShape, slider, sliderSet, osdFilename)

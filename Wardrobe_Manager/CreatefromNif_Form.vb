@@ -81,7 +81,15 @@ Public Class Create_from_Nif_Form
             If smpXmlPath IsNot Nothing Then
                 File.WriteAllText(smpXmlPath, selected_slider.PhysicsXmlContent, System.Text.Encoding.UTF8)
             End If
-            selected_slider.OSDContent_Local.Save_As(New_osd, False)
+            ' ⛔ Si el .osd NO se escribió (el usuario dijo "No" al reemplazar uno preexistente), NO se
+            ' puede grabar el .osp: sus <Data> ya nombran New_osd (arriba, línea del TargetOsd), así que
+            ' el proyecto nuevo quedaría heredando en silencio los morphs del proyecto VIEJO que dejó
+            ' ese archivo ahí. Antes el retorno se descartaba y el Save_Pack_As de abajo corría igual.
+            ' Queda un .nif huérfano en ShapeData (se escribió unas líneas más arriba); es mucho menos
+            ' malo que un proyecto con morphs ajenos, y el usuario ve el error.
+            If Not selected_slider.OSDContent_Local.Save_As(New_osd, False) Then
+                Throw New Exception("The osd file was not written, project not created: " & New_osd)
+            End If
             selected_slider.Nombre = TextBox1.Text
             selected_slider.DataFolderValue = TextBox1.Text
             selected_slider.SourceFileValue = TextBox1.Text + ".nif"

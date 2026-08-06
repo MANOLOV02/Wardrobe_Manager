@@ -178,8 +178,8 @@ Public Class BuildingForm
                     ProgressBar1.Maximum = (builder.Shapes.Count * 4 + 6)
                     If OSP_Project_Class.Load_and_CHeck_Project(builder, buildLoadContext) = False OrElse OSP_Project_Class.Load_and_Check_Shapedata(builder, buildLoadContext) = False Then
                         ' ⛔ La CAUSA real ya la tiene el contexto: los dos Load_* atrapan su excepcion
-                        ' y la reportan con ReportLoadIssue ("More than one osd Local file", "Shape
-                        ' without Nif Shapes different", ...). Este Throw la tapaba con un texto
+                        ' y la reportan con ReportLoadIssue ("Block 'X' exists in more than one local
+                        ' osd file", "Shape without Nif Shapes different", ...). Este Throw la tapaba con un texto
                         ' generico y el usuario quedaba sin saber que revisar del mod. Se arrastra el
                         ' ultimo issue de ESTE proyecto, si lo hay.
                         Dim causa = buildLoadContext.Issues.
