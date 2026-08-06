@@ -32,7 +32,18 @@ Public Class Config_Form
             Reflection.BindingFlags.Instance Or Reflection.BindingFlags.NonPublic)
         prop?.SetValue(c, True, Nothing)
     End Sub
+    ''' <summary>
+    ''' ⛔ Queda en False si <see cref="Setea_Render_Options"/> no llego hasta el final. Sin esto,
+    ''' CUALQUIER excepcion a mitad de la carga —el Catch de abajo la tragaba en silencio— dejaba los
+    ''' controles que faltaban con el valor del Designer, y al cerrar `Graba_Render_Options` los
+    ''' escribia encima de la configuracion del usuario. Medido: con `EpsilonPos = 0` (el default) y
+    ''' el minimo del control en 1e-12, abrir y cerrar el dialogo revertia EpsilonPos,
+    ''' WeldByPositionOnly y TODA la seccion de build.
+    ''' </summary>
+    Private _cargaCompleta As Boolean = False
+
     Private Sub Setea_Render_Options()
+        _cargaCompleta = False
         Try
             RecalculateNormalsCheck.Checked = Config_App.Current.Setting_RecalculateNormals
             SingleBoneCheck.Checked = Config_App.Current.Setting_SingleBoneSkinning
@@ -45,8 +56,8 @@ Public Class Config_Form
             CheckBoxWelding.Checked = Config_App.Current.Setting_TBN.EnableWelding
             GroupBox2.Enabled = CheckBoxWelding.Checked
             NumericUpDownPositionEps.Value = Config_App.Current.Setting_TBN.EpsilonPos
-            NumericUpDownUVEps.Value = Config_App.Current.Setting_TBN.EpsilonUV
             NormalsNormalize.Checked = Config_App.Current.Setting_TBN.NormalizeOutputs
+            CheckBoxDeterministicCollapse.Checked = Config_App.Current.Setting_TBN.DeterministicOnCollapse
             RadioButtonWeldpsonly.Checked = Config_App.Current.Setting_TBN.WeldByPositionOnly
             RadioButtonWeldboth.Checked = Not Config_App.Current.Setting_TBN.WeldByPositionOnly
             NumericUpDownWeldEpspos.Value = Config_App.Current.Setting_TBN.WeldPosEpsilon
@@ -82,9 +93,13 @@ Public Class Config_Form
             NumericUpDownRenderGridSize.Value = CDec(Config_App.Current.Settings_RenderGrid.Size)
             NumericUpDownRenderGridStep.Value = CDec(Config_App.Current.Settings_RenderGrid.StepSize)
             GridColor.SelectedColor = Config_App.Current.RenderGridColor
+            _cargaCompleta = True
 
         Catch ex As Exception
-            'MsgBox("Render options error", vbCritical, "Reset render options")
+            ' No se traga en silencio: se avisa Y se bloquea el guardado, porque guardar desde una
+            ' pantalla a medio cargar destruye la configuracion.
+            MessageBox.Show("Could not load all settings into this dialog, so nothing will be saved when it closes." & vbCrLf & vbCrLf & ex.Message,
+                            "Settings", MessageBoxButtons.OK, MessageBoxIcon.Warning)
         End Try
 
     End Sub
@@ -93,13 +108,15 @@ Public Class Config_Form
           .SmoothSeamNormals = CheckBoxSmoothSeams.Checked,
           .SmoothSeamNormalsAngle = CDbl(NumericUpDownSmoothAngle.Value),
           .EnableWelding = CheckBoxWelding.Checked,
-          .EpsilonUV = NumericUpDownUVEps.Value,
           .EpsilonPos = NumericUpDownPositionEps.Value,
           .NormalizeOutputs = NormalsNormalize.Checked,
           .RepairNaNs = NormalsRepairNan.Checked,
+          .DeterministicOnCollapse = CheckBoxDeterministicCollapse.Checked,
           .WeldByPositionOnly = RadioButtonWeldpsonly.Checked,
           .WeldPosEpsilon = NumericUpDownWeldEpspos.Value,
-          .WeldUVEpsilon = NumericUpDownWeldEpsUv.Value
+          .WeldUVEpsilon = NumericUpDownWeldEpsUv.Value,
+          .KeepExistingNormals = Config_App.Current.Setting_TBN.KeepExistingNormals,
+          .OptionsVersion = RecalcTBN.VersionDeOpcionesTBN
           }
 
         Dim buildSet = New WM_Config.BuildSettings With {
@@ -581,7 +598,8 @@ Public Class Config_Form
                 End If
             End If
         End If
-        Graba_Render_Options()
+        ' ⛔ Sólo si la pantalla se cargó ENTERA: ver _cargaCompleta.
+        If _cargaCompleta Then Graba_Render_Options()
     End Sub
 
     Private Sub Button5_Click_1(sender As Object, e As EventArgs) Handles Button5.Click
@@ -598,6 +616,7 @@ Public Class Config_Form
 
     Private Sub Button6_Click(sender As Object, e As EventArgs) Handles Button6.Click
 
+        If Not _cargaCompleta Then Exit Sub   ' ver _cargaCompleta: no guardar desde una pantalla a medias
         Graba_Render_Options()
         If Not IsNothing(Me.Owner) AndAlso Me.Owner.GetType Is GetType(Wardrobe_Manager_Form) Then
             If Not IsNothing(CType(Owner, Wardrobe_Manager_Form).preview_Control) Then

@@ -9,6 +9,7 @@ Imports NiflySharp.Blocks
 
 Public Class Create_from_Nif_Form
     Private WithEvents EditPreviewControl As PreviewControl = Nothing
+    Private _initializingUI As Boolean = False
     Private Selected_OSP As New OSP_Project_Class
     Private selected_slider As New SliderSet_Class(Selected_OSP)
     Private HasSaved As Boolean = False
@@ -35,6 +36,14 @@ Public Class Create_from_Nif_Form
 
 
     Private Sub Create_from_Nif_2_Shown(sender As Object, e As EventArgs) Handles Me.Shown
+        ' El checkbox refleja el ajuste persistido; el flag evita que este seteo dispare el handler
+        ' (que reescribiria el config y forzaria un re-read del nif antes de haber seleccionado nada).
+        _initializingUI = True
+        chkAutoConvert.Checked = WM_Config.Current.Setting_AutoConvertNif
+        _initializingUI = False
+        ' Solo aplica al camino LE -> SE; en Fallout 4 no hay conversion automatica que ofrecer.
+        chkAutoConvert.Enabled = (Config_App.Current.Game = Config_App.Game_Enum.Skyrim)
+
         EditPreviewControl = New PreviewControl With {.Dock = DockStyle.Fill}
         Panel1.Controls.Add(EditPreviewControl)
         EditPreviewControl.Model.SingleBoneSkinning = False
@@ -170,9 +179,15 @@ Public Class Create_from_Nif_Form
 
             If Config_App.Current.Game = Config_App.Game_Enum.Skyrim Then
 
-                ' Solo soportado: Skyrim LE -> Skyrim SE
+                ' Solo soportado: Skyrim LE -> Skyrim SE. Con "Auto-convert" encendido no se pregunta:
+                ' el prompt salia en CADA seleccion del picker, no una vez por sesion (MsgBox no tiene
+                ' "Yes to all"), asi que la decision vive en el checkbox y se persiste en wm_config.json.
                 If ver.IsSK Then
-                    If MsgBox("Current nif is Skyrim LE. Try to optimize it to Skyrim SE?", MsgBoxStyle.Information Or MsgBoxStyle.YesNo, "Warning") = MsgBoxResult.Yes Then
+                    Dim doOptimize As Boolean = chkAutoConvert.Checked
+                    If Not doOptimize Then
+                        doOptimize = (MsgBox("Current nif is Skyrim LE. Try to optimize it to Skyrim SE?", MsgBoxStyle.Information Or MsgBoxStyle.YesNo, "Warning") = MsgBoxResult.Yes)
+                    End If
+                    If doOptimize Then
                         OptResult = selected_slider.NIFContent.Optimize(Config_App.Game_Enum.Skyrim)
                         If Not IsNothing(OptResult) AndAlso OptResult.VersionMismatch Then
                             MsgBox("Optimization failed, not supported for this file and game.", MsgBoxStyle.Critical, "Error")
@@ -241,20 +256,6 @@ Public Class Create_from_Nif_Form
             selected_slider.InvalidateShapeDataLookupCache()
             selected_slider.RebuildShapeDataLookupCache()
 
-            ' ── Shape type validator hook — DISABLED AFTER INITIAL VALIDATION PASS ──
-            ' ShapeTypeValidator runs the A/B/C/D harness (round-trip, split, merge, zap)
-            ' on shape types not yet marked "Validated" in shape_validator_cache.json.
-            ' Needed only when refactoring the geometry adapter path or when adding support
-            ' for a new shape type.  Re-enable by uncommenting this block; the validator's
-            ' code lives in ShapeTypeValidator.vb and remains intact.
-            '
-            'Try
-            '    ShapeTypeValidator.ValidateUntestedTypes(selected_slider, filLoc.FullPath)
-            'Catch exValidator As Exception
-            '    MsgBox("Shape Validator error (no bloquea el load): " & exValidator.Message,
-            '           vbInformation, "Shape Validator")
-            'End Try
-
         Catch ex As Exception
 #If DEBUG Then
             Debugger.Break()
@@ -294,6 +295,15 @@ Public Class Create_from_Nif_Form
     End Sub
 
     Private Sub CheckBox1_CheckedChanged(sender As Object, e As EventArgs) Handles CheckBox1.CheckedChanged
+        If Last_key <> "" Then Read_selected(Last_key)
+    End Sub
+
+    Private Sub ChkAutoConvert_CheckedChanged(sender As Object, e As EventArgs) Handles chkAutoConvert.CheckedChanged
+        If _initializingUI Then Exit Sub
+        WM_Config.Current.Setting_AutoConvertNif = chkAutoConvert.Checked
+        ' Re-leer en los DOS sentidos, igual que los otros checks de la barra. Sin esto, destildar no
+        ' preguntaba nada: el picker no vuelve a disparar SelectionChanged si se reclica el mismo item,
+        ' asi que el prompt reactivado no aparecia hasta elegir OTRO nif.
         If Last_key <> "" Then Read_selected(Last_key)
     End Sub
 

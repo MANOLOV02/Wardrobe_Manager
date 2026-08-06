@@ -1686,11 +1686,9 @@ Public Class Editor_Form
             If renderMesh IsNot Nothing Then
                 ' Normals are already in local space (GPU skinning) — use directly.
                 Dim geom = renderMesh.MeshData.Meshgeometry
+                ' geom.Normals ya es Vector3 (Single): sin conversion.
                 rawNorms = Enumerable.Range(0, geom.Normals.Length) _
-                    .Select(Function(i)
-                                Dim n = geom.Normals(i)
-                                Return SafeNormalize(New Vector3(CSng(n.X), CSng(n.Y), CSng(n.Z)))
-                            End Function).ToArray()
+                    .Select(Function(i) SafeNormalize(geom.Normals(i))).ToArray()
             Else
                 ' Polymorphic via IR_Geometry (adapter).  HasNormals / GetNormals /
                 ' GetVertexPositions / Bounds are all on IShapeGeometry.  Bounds comes from

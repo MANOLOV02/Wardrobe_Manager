@@ -31,6 +31,7 @@ Partial Class Create_from_Nif_Form
         TextBox1 = New TextBox()
         CheckBox1 = New CheckBox()
         chkDirSkeleton = New CheckBox()
+        chkAutoConvert = New CheckBox()
         ToolTip1 = New ToolTip(components)
         CType(SplitContainer1, ComponentModel.ISupportInitialize).BeginInit()
         SplitContainer1.Panel1.SuspendLayout()
@@ -87,16 +88,17 @@ Partial Class Create_from_Nif_Form
         SplitContainer2.Panel2.Controls.Add(TextBox1)
         SplitContainer2.Panel2.Controls.Add(CheckBox1)
         SplitContainer2.Panel2.Controls.Add(chkDirSkeleton)
+        SplitContainer2.Panel2.Controls.Add(chkAutoConvert)
         SplitContainer2.Size = New Size(516, 582)
-        SplitContainer2.SplitterDistance = 533
+        SplitContainer2.SplitterDistance = 513
         SplitContainer2.TabIndex = 0
-        ' 
+        '
         ' Panel1
-        ' 
+        '
         Panel1.Dock = DockStyle.Fill
         Panel1.Location = New Point(0, 0)
         Panel1.Name = "Panel1"
-        Panel1.Size = New Size(516, 533)
+        Panel1.Size = New Size(516, 513)
         Panel1.TabIndex = 0
         ' 
         ' TextBox1
@@ -137,7 +139,21 @@ Partial Class Create_from_Nif_Form
         chkDirSkeleton.Text = "Use directory skeleton"
         ToolTip1.SetToolTip(chkDirSkeleton, "Use a skeleton.nif from the same directory as the selected NIF for preview.")
         chkDirSkeleton.UseVisualStyleBackColor = True
-        ' 
+        '
+        ' chkAutoConvert
+        '
+        chkAutoConvert.Anchor = AnchorStyles.Top Or AnchorStyles.Right
+        chkAutoConvert.AutoSize = True
+        chkAutoConvert.Checked = True
+        chkAutoConvert.CheckState = CheckState.Checked
+        chkAutoConvert.Location = New Point(287, 43)
+        chkAutoConvert.Name = "chkAutoConvert"
+        chkAutoConvert.Size = New Size(180, 19)
+        chkAutoConvert.TabIndex = 3
+        chkAutoConvert.Text = "Auto-convert Skyrim LE to SE"
+        ToolTip1.SetToolTip(chkAutoConvert, "When on, a Skyrim LE mesh is optimized to Skyrim SE automatically, without asking every time.")
+        chkAutoConvert.UseVisualStyleBackColor = True
+        '
         ' Create_from_Nif_Form
         ' 
         AutoScaleDimensions = New SizeF(7F, 15F)
@@ -171,4 +187,5 @@ Partial Class Create_from_Nif_Form
     Friend WithEvents TextBox1 As TextBox
     Friend WithEvents ToolTip1 As ToolTip
     Friend WithEvents chkDirSkeleton As CheckBox
+    Friend WithEvents chkAutoConvert As CheckBox
 End Class

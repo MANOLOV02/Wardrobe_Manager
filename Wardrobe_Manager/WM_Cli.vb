@@ -167,6 +167,15 @@ Friend Module WM_Cli
             Return 3
         End If
 
+        ' ── Configuracion persistida ─────────────────────────────────────────────────────────────
+        ' ⛔ Va ANTES de aplicar los overrides de la linea de comandos, para que el orden sea
+        ' archivo -> flags. Sin esto el headless corria con los defaults del codigo e IGNORABA la
+        ' configuracion del usuario: la misma build desde la UI y desde el CLI podian dar distinto
+        ' (suavizado de costura, epsilons, welding, normalizacion), y ningun barrido de opciones
+        ' sobre el CLI medía nada porque los cambios del config no llegaban.
+        Config_App.LoadConfig()
+        WM_Config.LoadConfig()
+
         ' ── Config: juego y rutas ────────────────────────────────────────────────────────────────
         ' FO4EDataPath y BsPath son COMPUTADAS a partir de los exe (Config_Class / WM_Config), asi que
         ' apuntar la salida es apuntar el exe. Es tambien lo que permite armar un sandbox sintetico.

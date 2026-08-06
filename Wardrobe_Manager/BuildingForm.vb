@@ -137,7 +137,6 @@ Public Class BuildingForm
                 Dim triWritten As Boolean = False
                 For Sizecount = 0 To CInt(IIf(sliderset_target.Multisize, 1, 0))
                     ProgressBar1.Value = 0
-                    ProgressBar1.Maximum = (builder.Shapes.Count * 4 + 6)
                     ' Cada peso debe partir de la geometría PRISTINE. Sin esto, la pasada _1 (Big)
                     ' hereda el NIFContent ya bakeado con Small: Load_and_Check_Shapedata skipea la
                     ' recarga (ShapeDataLoaded + misma signature) y BakeFromMemoryUsingOriginal de la
@@ -145,7 +144,31 @@ Public Class BuildingForm
                     ' preset _1 sale byte-idéntico a _0 (deltas Big=0 sobre base ya morphada); con
                     ' preset, _1 = small+big APILADOS. OS (BodySlideApp::BuildBodies) aplica cada
                     ' peso desde cero sobre la base — replicamos eso recargando.
-                    If Sizecount > 0 Then builder.UnloadShapeData(False)
+                    '
+                    ' ⛔⛔ Y EL PROYECTO TAMBIÉN, NO SÓLO LA GEOMETRÍA. `RemoveShape` no se limita a
+                    ' sacar la shape del NIF: le borra el `<Shape>` y sus `<Data>` al XML DEL CLON
+                    ' (`Nodo.RemoveChild(Shape.Nodo)`, OSP_Clases.vb). Y el clon se creaba UNA sola vez
+                    ' para TODOS los pesos, así que esa mutilación cruzaba de una pasada a la otra:
+                    ' una shape que queda 100 % zapeada en el pase Small desaparecía del proyecto, y en
+                    ' el pase Big `Lee_SlidersAndShapes` releía un XML que ya no la tenía ⇒ nadie la
+                    ' procesaba, nadie la zapeaba, y el NIF recién recargado de disco la escribía
+                    ' INTACTA. Resultado: `_0` y `_1` con TOPOLOGÍAS DISTINTAS y el `.tri` indexado
+                    ' contra una sola de las dos.
+                    ' MEDIDO 2026-08-05 sobre el corpus de SSE: 4 sliderSets de CBBE (`Prisoner Bloody`
+                    ' y `Roughspun Tunic`, con y sin Physics) perdían la shape `Bra` en `_0` y la
+                    ' conservaban en `_1`; el `_1` salía byte-idéntico a lo que emitía 1.4.0.
+                    ' ⚠️ Re-clonar es lo mismo que ya se hace con la geometría: el estado del pase
+                    ' anterior no puede sobrevivir. Es inerte para todo proyecto donde ninguna shape se
+                    ' remueve, que es el caso normal.
+                    If Sizecount > 0 Then
+                        builder.UnloadShapeData(False)
+                        NodoClone = DummyOSP.xml.ImportNode(sliderset_target.Nodo.Clone, True)
+                        builder = New SliderSet_Class(NodoClone, DummyOSP)
+                        If WM_Config.Current.Settings_Build.ForceClonedOnBuild Then
+                            builder.ForceClonedOutputDir(If(sliderset_target.ParentOSP?.Nombre, ""))
+                        End If
+                    End If
+                    ProgressBar1.Maximum = (builder.Shapes.Count * 4 + 6)
                     If OSP_Project_Class.Load_and_CHeck_Project(builder, buildLoadContext) = False OrElse OSP_Project_Class.Load_and_Check_Shapedata(builder, buildLoadContext) = False Then Throw New InvalidOperationException("Could not load shape data for build.")
                     ProgressBar1.Value += 1
                     ' El clon NO puede resolver su propio HH: ForceClonedOutputDir ya le reescribió el

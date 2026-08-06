@@ -63,6 +63,10 @@ Public Class WM_Config
     Public Property Default_Preset As String = ""
     Public Property Settings_Build As BuildSettings = Default_Build_Settings()
     Public Property Setting_Fix_Uncloned As Boolean = True
+    ' "Create project from nif": convert a Skyrim LE nif to SE without asking. WM_Config is a Class,
+    ' so this initializer DOES survive deserialization of a wm_config.json written before the key
+    ' existed (unlike a Structure field, which would come back False). Default True = never prompt.
+    Public Property Setting_AutoConvertNif As Boolean = True
 
     Public Property Setting_OverWrite As Boolean = False
     Public Property Setting_ChangeOutDir As Boolean = False

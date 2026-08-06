@@ -43,10 +43,9 @@ Partial Class Config_Form
         Label6 = New Label()
         TextBox4 = New TextBox()
         GroupBox1 = New GroupBox()
-        NumericUpDownUVEps = New NumericUpDown()
         NormalsRepairNan = New CheckBox()
         NormalsNormalize = New CheckBox()
-        Label9 = New Label()
+        CheckBoxDeterministicCollapse = New CheckBox()
         Label8 = New Label()
         NumericUpDownPositionEps = New NumericUpDown()
         SingleBoneCheck = New CheckBox()
@@ -137,7 +136,6 @@ Partial Class Config_Form
         PackLastActionLabel = New Label()
         ToolTip1 = New ToolTip(components)
         GroupBox1.SuspendLayout()
-        CType(NumericUpDownUVEps, ComponentModel.ISupportInitialize).BeginInit()
         CType(NumericUpDownPositionEps, ComponentModel.ISupportInitialize).BeginInit()
         TabControl1.SuspendLayout()
         TabPage1.SuspendLayout()
@@ -351,10 +349,9 @@ Partial Class Config_Form
         GroupBox1.Controls.Add(CheckBoxSmoothSeams)
         GroupBox1.Controls.Add(LabelSmoothAngle)
         GroupBox1.Controls.Add(NumericUpDownSmoothAngle)
-        GroupBox1.Controls.Add(NumericUpDownUVEps)
         GroupBox1.Controls.Add(NormalsRepairNan)
         GroupBox1.Controls.Add(NormalsNormalize)
-        GroupBox1.Controls.Add(Label9)
+        GroupBox1.Controls.Add(CheckBoxDeterministicCollapse)
         GroupBox1.Controls.Add(Label8)
         GroupBox1.Controls.Add(NumericUpDownPositionEps)
         GroupBox1.Location = New Point(3, 58)
@@ -364,19 +361,6 @@ Partial Class Config_Form
         GroupBox1.TabStop = False
         GroupBox1.Text = "Normals recalculation (smoothing)"
         ' 
-        ' NumericUpDownUVEps
-        ' 
-        NumericUpDownUVEps.DecimalPlaces = 12
-        NumericUpDownUVEps.Increment = New Decimal(New Integer() {5, 0, 0, 786432})
-        NumericUpDownUVEps.Location = New Point(383, 48)
-        NumericUpDownUVEps.Maximum = New Decimal(New Integer() {1, 0, 0, 196608})
-        NumericUpDownUVEps.Minimum = New Decimal(New Integer() {1, 0, 0, 786432})
-        NumericUpDownUVEps.Name = "NumericUpDownUVEps"
-        NumericUpDownUVEps.Size = New Size(128, 23)
-        NumericUpDownUVEps.TabIndex = 25
-        NumericUpDownUVEps.TextAlign = HorizontalAlignment.Right
-        ToolTip1.SetToolTip(NumericUpDownUVEps, "UV epsilon used by tangent-space and welding operations.")
-        NumericUpDownUVEps.Value = New Decimal(New Integer() {1, 0, 0, 786432})
         ' 
         ' NormalsRepairNan
         ' 
@@ -391,6 +375,19 @@ Partial Class Config_Form
         ToolTip1.SetToolTip(NormalsRepairNan, "Repair invalid NaN values found in recalculated tangent-space data.")
         NormalsRepairNan.UseVisualStyleBackColor = True
         ' 
+        ' 
+        ' CheckBoxDeterministicCollapse
+        ' 
+        CheckBoxDeterministicCollapse.AutoSize = True
+        CheckBoxDeterministicCollapse.Checked = True
+        CheckBoxDeterministicCollapse.CheckState = CheckState.Checked
+        CheckBoxDeterministicCollapse.Location = New Point(274, 47)
+        CheckBoxDeterministicCollapse.Name = "CheckBoxDeterministicCollapse"
+        CheckBoxDeterministicCollapse.Size = New Size(230, 19)
+        CheckBoxDeterministicCollapse.TabIndex = 27
+        CheckBoxDeterministicCollapse.Text = "Deterministic basis on cancellation"
+        ToolTip1.SetToolTip(CheckBoxDeterministicCollapse, "When the bitangent's Gram-Schmidt residual falls below single-precision noise, complete the basis from the normal and tangent instead of normalizing rounding noise. Turn off to reproduce BodySlide byte for byte.")
+        CheckBoxDeterministicCollapse.UseVisualStyleBackColor = True
         ' 
         ' NormalsNormalize
         ' 
@@ -407,15 +404,6 @@ Partial Class Config_Form
         NormalsNormalize.UseVisualStyleBackColor = True
         ' 
         ' 
-        ' Label9
-        ' 
-        Label9.ImageAlign = ContentAlignment.MiddleRight
-        Label9.Location = New Point(274, 48)
-        Label9.Name = "Label9"
-        Label9.Size = New Size(107, 23)
-        Label9.TabIndex = 18
-        Label9.Text = "UV Epsilon"
-        Label9.TextAlign = ContentAlignment.MiddleLeft
         ' 
         ' Label8
         ' 
@@ -433,13 +421,15 @@ Partial Class Config_Form
         NumericUpDownPositionEps.Increment = New Decimal(New Integer() {5, 0, 0, 786432})
         NumericUpDownPositionEps.Location = New Point(115, 48)
         NumericUpDownPositionEps.Maximum = New Decimal(New Integer() {1, 0, 0, 196608})
-        NumericUpDownPositionEps.Minimum = New Decimal(New Integer() {1, 0, 0, 786432})
+        ' Minimo CERO: cero es el default y el valor canonico. Con el minimo en 1e-12 la asignacion
+        ' desde el config tiraba ArgumentOutOfRangeException y dejaba media pantalla sin cargar.
+        NumericUpDownPositionEps.Minimum = New Decimal(0)
         NumericUpDownPositionEps.Name = "NumericUpDownPositionEps"
         NumericUpDownPositionEps.Size = New Size(128, 23)
         NumericUpDownPositionEps.TabIndex = 15
         NumericUpDownPositionEps.TextAlign = HorizontalAlignment.Right
         ToolTip1.SetToolTip(NumericUpDownPositionEps, "Position epsilon used by the normal recalculation and welding logic.")
-        NumericUpDownPositionEps.Value = New Decimal(New Integer() {1, 0, 0, 786432})
+        NumericUpDownPositionEps.Value = New Decimal(0)
         ' 
         ' SingleBoneCheck
         ' 
@@ -1574,7 +1564,6 @@ Partial Class Config_Form
         Text = "Configuration"
         GroupBox1.ResumeLayout(False)
         GroupBox1.PerformLayout()
-        CType(NumericUpDownUVEps, ComponentModel.ISupportInitialize).EndInit()
         CType(NumericUpDownPositionEps, ComponentModel.ISupportInitialize).EndInit()
         TabControl1.ResumeLayout(False)
         TabPage1.ResumeLayout(False)
@@ -1640,14 +1629,13 @@ Partial Class Config_Form
     Friend WithEvents Label8 As Label
     Friend WithEvents NumericUpDownPositionEps As NumericUpDown
     Friend WithEvents SingleBoneCheck As CheckBox
-    Friend WithEvents Label9 As Label
     Friend WithEvents TabControl1 As TabControl
     Friend WithEvents TabPage1 As TabPage
     Friend WithEvents TabPage2 As TabPage
     Friend WithEvents TabPage3 As TabPage
     Friend WithEvents NormalsNormalize As CheckBox
+    Friend WithEvents CheckBoxDeterministicCollapse As CheckBox
     Friend WithEvents NormalsRepairNan As CheckBox
-    Friend WithEvents NumericUpDownUVEps As NumericUpDown
     Friend WithEvents CheckBoxWelding As CheckBox
     Friend WithEvents CheckBoxSmoothSeams As CheckBox
     Friend WithEvents LabelSmoothAngle As Label

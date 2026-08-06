@@ -310,8 +310,9 @@ Public Class MorphingHelper
             ' clausura ya cubre 22.658 de 22.708 vértices. Se probó porque parecía explicar la
             ' divergencia de tangentes contra BodySlide, y no la explica. No re-intentarlo: es costo
             ' puro. Ver [[66-paridad-contra-bodyslide-real]].
+            ' Devuelve una List, no un HashSet, y puede repetir vertices que ya estaban sucios: los
+            ' dos Add de abajo son idempotentes, asi que el ExceptWith que habia aca era optimizacion.
             Dim adicionales = RecalcTBN.RecalculateNormalsTangentsBitangents(Geometry, opt)
-            adicionales.ExceptWith(Geometry.dirtyVertexIndices)
             For Each ad In adicionales
                 Geometry.dirtyVertexIndices.Add(ad)
                 Geometry.dirtyVertexFlags(ad) = True
