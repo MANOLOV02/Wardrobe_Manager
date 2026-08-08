@@ -84,6 +84,20 @@ Public Module WM_RenderExtensions
         ctrl.InvalidateRender()
     End Sub
 
+    ''' <summary>
+    ''' Vacía el preview y deja el cartel <paramref name="statusText"/>. Además del clear del
+    ''' render hay que soltar el estado de WM: <c>Last_rendered</c> apuntando al sliderSet viejo
+    ''' haría que al re-seleccionarlo se tomara el atajo de "mismo set", y <c>PinnedForPreview</c>
+    ''' lo mantiene a salvo del LRU aunque ya no se muestre.
+    ''' </summary>
+    Private Sub ClearUnreadable(ctrl As PreviewControl, s As WM_RenderState, statusText As String)
+        ctrl.Model.FloorOffset = 0
+        ctrl.ClearRender(statusText)
+        s.Last_rendered = Nothing
+        s.Last_SlidersVersion = -1
+        OSP_Project_Class.PinnedForPreview = Nothing
+    End Sub
+
     <Extension()>
     Public Sub Update_Render(ctrl As PreviewControl, seleccionado As SliderSet_Class, Force As Boolean,
                              Preset As SlidersPreset_Class, Pose As Poses_class, weight As WM_Config.SliderSize)
@@ -93,21 +107,23 @@ Public Module WM_RenderExtensions
 
         Dim s = GetState(ctrl)
 
+        ' Sin selección / proyecto ilegible: hay que DESCARGAR lo anterior, no sólo pintar el
+        ' cartel. Con un Processing_Status suelto las mallas del sliderSet previo seguían cargadas
+        ' con Can_Render=True, y el primer repaint que llegara (el heartbeat de ~1 s del
+        ' RenderTimer, un resize, el mouse) las redibujaba encima: el cartel aparecía y al toque
+        ' reaparecía el proyecto anterior.
         If IsNothing(seleccionado) Then
-            ctrl.Model.FloorOffset = 0
-            ctrl.Processing_Status("Select project")
+            ClearUnreadable(ctrl, s, "Select project")
             Exit Sub
         End If
 
         If seleccionado.Unreadable_Project Then
-            ctrl.Model.FloorOffset = 0
-            ctrl.Processing_Status("Unreadable...")
+            ClearUnreadable(ctrl, s, "Unreadable...")
             Exit Sub
         End If
         If seleccionado.BypassDiskShapeDataLoad = False Then
             If OSP_Project_Class.Load_and_Check_Shapedata(seleccionado, False) = False Then
-                ctrl.Model.FloorOffset = 0
-                ctrl.Processing_Status("Unreadable...")
+                ClearUnreadable(ctrl, s, "Unreadable...")
                 Exit Sub
             End If
         End If
