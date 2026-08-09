@@ -4495,10 +4495,17 @@ Public Class Slider_class
         SliderNode.SetAttribute("invert", "false")
         SliderNode.SetAttribute("default", "0")
         SliderNode.SetAttribute("name", Name)
-        If tipo = FO4_Base_Library.TriMorphType.UV Then Me.IsUV = True
         Nodo = SliderNode
         Sliderset.Nodo.AppendChild(Nodo)
         ParentSliderSet = Sliderset
+        ' ⛔ VA DESPUES de Nodo y ParentSliderSet, no antes. El setter de IsUV escribe el atributo
+        ' sobre `Nodo` y crea el XmlAttribute con `Me.ParentSliderSet.ParentOSP.xml`: con los dos
+        ' todavia en Nothing tiraba NullReferenceException en el PRIMER morph UV. El importador
+        ' tri→OSD (CreatefromNif_Form.Read_selected) envuelve el doble loop de shapes/morphs en un
+        ' solo Try mudo, asi que esa excepcion abortaba la importacion ENTERA — se perdian tambien
+        ' los morphs de POSICION posteriores, no solo el UV. Un .tri sin seccion UV no lo disparaba
+        ' nunca, que es por que sobrevivio.
+        If tipo = FO4_Base_Library.TriMorphType.UV Then Me.IsUV = True
     End Sub
 
     Public Sub Lee_Data()

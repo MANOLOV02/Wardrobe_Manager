@@ -232,9 +232,26 @@ Public Class Create_from_Nif_Form
                 Try
                     For Each shapeMorph In TriFileParese.ShapeMorphs
                         For Each morp In shapeMorph.Value
-                            If Not selected_slider.Sliders.Any(Function(pf) pf.Nombre.Equals(morp.Name, StringComparison.OrdinalIgnoreCase)) Then
+                            Dim esUv As Boolean = (morp.MorphType = FO4_Base_Library.TriMorphType.UV)
+                            Dim existente = selected_slider.Sliders.FirstOrDefault(
+                                Function(pf) pf.Nombre.Equals(morp.Name, StringComparison.OrdinalIgnoreCase))
+                            If existente Is Nothing Then
                                 selected_slider.Sliders.Add(New Slider_class(morp.Name, selected_slider, morp.MorphType))
                                 selected_slider.NotifySlidersChanged()
+                            ElseIf existente.IsUV <> esUv Then
+                                ' El .tri trae el MISMO nombre en las dos secciones (posicion Y uv). El motor de
+                                ' SSE si soporta el par — BodyMorphMap es unordered_map<nombre, pair<pos, uv>>
+                                ' (skee64 BodyMorphInterface.h:194) — pero el modelo del .osp NO: un slider es
+                                ' posicion O uv (Slider_class.IsUV, y MorphingHelper.ResolveSlider devuelve UN
+                                ' SliderKind), y dos sliders con el mismo nombre revientan MorphDiffs, que se
+                                ' indexa por nombre (MorphingHelper.LoadMorphTargets: shape.MorphDiffs.Add).
+                                ' Antes el match era SOLO por nombre: la segunda entrada se colgaba del slider
+                                ' de la PRIMERA y sus deltas se aplicaban con el tipo equivocado — deltas de UV
+                                ' sumados a POSICIONES, que es justo lo que deforma la malla.
+                                ' Se conserva la primera y se descarta la segunda, avisando: perder un canal es
+                                ' recuperable, aplicarlo como el otro tipo no.
+                                Logger.LogLazy(Function() $"[TRI2OSD] shape='{shapeMorph.Key}' morph='{morp.Name}': el .tri lo declara como posicion Y como uv; el modelo del .osp no admite las dos. Se conserva {If(existente.IsUV, "UV", "POSICION")} y se descarta {If(esUv, "UV", "POSICION")}.")
+                                Continue For
                             End If
                             Dim slider = selected_slider.Sliders.First(Function(pf) pf.Nombre.Equals(morp.Name, StringComparison.OrdinalIgnoreCase))
                             Dim dat As Slider_Data_class
