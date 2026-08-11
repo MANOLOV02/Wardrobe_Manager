@@ -42,47 +42,11 @@ Partial Class Config_Form
         Button4 = New Button()
         Label6 = New Label()
         TextBox4 = New TextBox()
-        GroupBox1 = New GroupBox()
-        NormalsRepairNan = New CheckBox()
-        NormalsNormalize = New CheckBox()
-        CheckBoxDeterministicCollapse = New CheckBox()
-        Label8 = New Label()
-        NumericUpDownPositionEps = New NumericUpDown()
-        SingleBoneCheck = New CheckBox()
-        CheckBoxGPUSkinning = New CheckBox()
-        CheckBoxDrawHiddenSegments = New CheckBox()
-        RecalculateNormalsCheck = New CheckBox()
         TabControl1 = New TabControl()
         TabPage1 = New TabPage()
         ComboBoxGame = New ComboBox()
         LabelGameMismatch = New Label()
         Label7 = New Label()
-        TabPage2 = New TabPage()
-        GroupBox3 = New GroupBox()
-        CheckBoxFreeze = New CheckBox()
-        CheckBoxzoomreset = New CheckBox()
-        CheckBoxanglereset = New CheckBox()
-        GroupBox4 = New GroupBox()
-        Label16 = New Label()
-        GridColor = New ColorComboBox()
-        CheckBoxRenderGrid = New CheckBox()
-        Label13 = New Label()
-        NumericUpDownRenderGridSize = New NumericUpDown()
-        Label14 = New Label()
-        NumericUpDownRenderGridStep = New NumericUpDown()
-        Button6 = New Button()
-        Button5 = New Button()
-        GroupBox2 = New GroupBox()
-        NumericUpDownWeldEpsUv = New NumericUpDown()
-        CheckBoxSmoothSeams = New CheckBox()
-        LabelSmoothAngle = New Label()
-        NumericUpDownSmoothAngle = New NumericUpDown()
-        RadioButtonWeldboth = New RadioButton()
-        RadioButtonWeldpsonly = New RadioButton()
-        Label10 = New Label()
-        Label11 = New Label()
-        NumericUpDownWeldEpspos = New NumericUpDown()
-        CheckBoxWelding = New CheckBox()
         TabPage3 = New TabPage()
         GroupBoxweights = New GroupBox()
         RadioButtonAllwaysWeight = New RadioButton()
@@ -135,19 +99,8 @@ Partial Class Config_Form
         PackElapsedLabel = New Label()
         PackLastActionLabel = New Label()
         ToolTip1 = New ToolTip(components)
-        GroupBox1.SuspendLayout()
-        CType(NumericUpDownPositionEps, ComponentModel.ISupportInitialize).BeginInit()
         TabControl1.SuspendLayout()
         TabPage1.SuspendLayout()
-        TabPage2.SuspendLayout()
-        GroupBox3.SuspendLayout()
-        GroupBox4.SuspendLayout()
-        CType(NumericUpDownRenderGridSize, ComponentModel.ISupportInitialize).BeginInit()
-        CType(NumericUpDownRenderGridStep, ComponentModel.ISupportInitialize).BeginInit()
-        GroupBox2.SuspendLayout()
-        CType(NumericUpDownWeldEpsUv, ComponentModel.ISupportInitialize).BeginInit()
-        CType(NumericUpDownSmoothAngle, ComponentModel.ISupportInitialize).BeginInit()
-        CType(NumericUpDownWeldEpspos, ComponentModel.ISupportInitialize).BeginInit()
         TabPage3.SuspendLayout()
         GroupBoxweights.SuspendLayout()
         GroupBoxLooksmenu.SuspendLayout()
@@ -344,147 +297,13 @@ Partial Class Config_Form
         TextBox4.TabIndex = 12
         ToolTip1.SetToolTip(TextBox4, "Path to the skeleton NIF used for preview and posing.")
         ' 
-        ' GroupBox1
-        ' 
-        GroupBox1.Controls.Add(CheckBoxSmoothSeams)
-        GroupBox1.Controls.Add(LabelSmoothAngle)
-        GroupBox1.Controls.Add(NumericUpDownSmoothAngle)
-        GroupBox1.Controls.Add(NormalsRepairNan)
-        GroupBox1.Controls.Add(NormalsNormalize)
-        GroupBox1.Controls.Add(CheckBoxDeterministicCollapse)
-        GroupBox1.Controls.Add(Label8)
-        GroupBox1.Controls.Add(NumericUpDownPositionEps)
-        GroupBox1.Location = New Point(3, 58)
-        GroupBox1.Name = "GroupBox1"
-        GroupBox1.Size = New Size(935, 84)
-        GroupBox1.TabIndex = 15
-        GroupBox1.TabStop = False
-        GroupBox1.Text = "Normals recalculation (smoothing)"
-        ' 
-        ' 
-        ' NormalsRepairNan
-        ' 
-        NormalsRepairNan.AutoSize = True
-        NormalsRepairNan.Checked = True
-        NormalsRepairNan.CheckState = CheckState.Checked
-        NormalsRepairNan.Location = New Point(274, 22)
-        NormalsRepairNan.Name = "NormalsRepairNan"
-        NormalsRepairNan.Size = New Size(86, 19)
-        NormalsRepairNan.TabIndex = 24
-        NormalsRepairNan.Text = "Repair NaN"
-        ToolTip1.SetToolTip(NormalsRepairNan, "Repair invalid NaN values found in recalculated tangent-space data.")
-        NormalsRepairNan.UseVisualStyleBackColor = True
-        ' 
-        ' 
-        ' CheckBoxDeterministicCollapse
-        ' 
-        CheckBoxDeterministicCollapse.AutoSize = True
-        CheckBoxDeterministicCollapse.Checked = True
-        CheckBoxDeterministicCollapse.CheckState = CheckState.Checked
-        CheckBoxDeterministicCollapse.Location = New Point(274, 47)
-        CheckBoxDeterministicCollapse.Name = "CheckBoxDeterministicCollapse"
-        CheckBoxDeterministicCollapse.Size = New Size(230, 19)
-        CheckBoxDeterministicCollapse.TabIndex = 27
-        CheckBoxDeterministicCollapse.Text = "Deterministic basis on cancellation"
-        ToolTip1.SetToolTip(CheckBoxDeterministicCollapse, "When the bitangent's Gram-Schmidt residual falls below single-precision noise, complete the basis from the normal and tangent instead of normalizing rounding noise. Turn off to reproduce BodySlide byte for byte.")
-        CheckBoxDeterministicCollapse.UseVisualStyleBackColor = True
-        ' 
-        ' NormalsNormalize
-        ' 
-        NormalsNormalize.AutoSize = True
-        NormalsNormalize.Checked = True
-        NormalsNormalize.CheckState = CheckState.Checked
-        NormalsNormalize.Location = New Point(6, 22)
-        NormalsNormalize.Name = "NormalsNormalize"
-        NormalsNormalize.Size = New Size(80, 19)
-        NormalsNormalize.TabIndex = 22
-        NormalsNormalize.Text = "Normalize"
-        ToolTip1.SetToolTip(NormalsNormalize, "Normalize recalculated tangent-space vectors.")
-        NormalsNormalize.UseVisualStyleBackColor = True
-        ' 
-        ' 
-        ' 
-        ' Label8
-        ' 
-        Label8.ImageAlign = ContentAlignment.MiddleRight
-        Label8.Location = New Point(6, 48)
-        Label8.Name = "Label8"
-        Label8.Size = New Size(107, 23)
-        Label8.TabIndex = 16
-        Label8.Text = "Position epsilon"
-        Label8.TextAlign = ContentAlignment.MiddleLeft
-        ' 
-        ' NumericUpDownPositionEps
-        ' 
-        NumericUpDownPositionEps.DecimalPlaces = 12
-        NumericUpDownPositionEps.Increment = New Decimal(New Integer() {5, 0, 0, 786432})
-        NumericUpDownPositionEps.Location = New Point(115, 48)
-        NumericUpDownPositionEps.Maximum = New Decimal(New Integer() {1, 0, 0, 196608})
         ' Minimo CERO: cero es el default y el valor canonico. Con el minimo en 1e-12 la asignacion
         ' desde el config tiraba ArgumentOutOfRangeException y dejaba media pantalla sin cargar.
-        NumericUpDownPositionEps.Minimum = New Decimal(0)
-        NumericUpDownPositionEps.Name = "NumericUpDownPositionEps"
-        NumericUpDownPositionEps.Size = New Size(128, 23)
-        NumericUpDownPositionEps.TabIndex = 15
-        NumericUpDownPositionEps.TextAlign = HorizontalAlignment.Right
-        ToolTip1.SetToolTip(NumericUpDownPositionEps, "Degenerate-triangle threshold, as a LENGTH in model units: a face whose tangent direction is shorter than this is discarded. 0 (default) matches BodySlide.")
-        NumericUpDownPositionEps.Value = New Decimal(0)
-        ' 
-        ' SingleBoneCheck
-        ' 
-        SingleBoneCheck.AutoSize = True
-        SingleBoneCheck.Location = New Point(3, 6)
-        SingleBoneCheck.Name = "SingleBoneCheck"
-        SingleBoneCheck.Size = New Size(229, 19)
-        SingleBoneCheck.TabIndex = 11
-        SingleBoneCheck.Text = "Single bone skinning (Disables posing)"
-        ToolTip1.SetToolTip(SingleBoneCheck, "Use single-bone skinning in rendering and preview.")
-        SingleBoneCheck.UseVisualStyleBackColor = True
-        ' 
-        ' CheckBoxGPUSkinning
-        ' 
-        CheckBoxGPUSkinning.AutoSize = True
-        CheckBoxGPUSkinning.Checked = True
-        CheckBoxGPUSkinning.CheckState = CheckState.Checked
-        CheckBoxGPUSkinning.Location = New Point(3, 31)
-        CheckBoxGPUSkinning.Name = "CheckBoxGPUSkinning"
-        CheckBoxGPUSkinning.Size = New Size(98, 19)
-        CheckBoxGPUSkinning.TabIndex = 34
-        CheckBoxGPUSkinning.Text = "GPU Skinning"
-        ToolTip1.SetToolTip(CheckBoxGPUSkinning, "Toggles GPU Skinning (otherwise CPU Skinning) best performance will depend on your computer specs")
-        CheckBoxGPUSkinning.UseVisualStyleBackColor = True
-        ' 
-        ' CheckBoxDrawHiddenSegments
-        ' 
-        CheckBoxDrawHiddenSegments.AutoSize = True
-        CheckBoxDrawHiddenSegments.Checked = True
-        CheckBoxDrawHiddenSegments.CheckState = CheckState.Checked
-        CheckBoxDrawHiddenSegments.Location = New Point(277, 31)
-        CheckBoxDrawHiddenSegments.Name = "CheckBoxDrawHiddenSegments"
-        CheckBoxDrawHiddenSegments.Size = New Size(147, 19)
-        CheckBoxDrawHiddenSegments.TabIndex = 35
-        CheckBoxDrawHiddenSegments.Text = "Draw hidden segments"
-        ToolTip1.SetToolTip(CheckBoxDrawHiddenSegments, "Draw normally-hidden geometry segments (e.g. Pip-Boy forearm variant, occluded segments) in the viewport. WM inspection aid; does not affect exports.")
-        CheckBoxDrawHiddenSegments.UseVisualStyleBackColor = True
-        ' 
-        ' RecalculateNormalsCheck
-        ' 
-        RecalculateNormalsCheck.AutoSize = True
-        RecalculateNormalsCheck.Checked = True
-        RecalculateNormalsCheck.CheckState = CheckState.Checked
-        RecalculateNormalsCheck.Location = New Point(277, 6)
-        RecalculateNormalsCheck.Name = "RecalculateNormalsCheck"
-        RecalculateNormalsCheck.Size = New Size(134, 19)
-        RecalculateNormalsCheck.TabIndex = 10
-        RecalculateNormalsCheck.Text = "Recalculate Normals"
-        ToolTip1.SetToolTip(RecalculateNormalsCheck, "Enable normal recalculation during preview and internal rendering.")
-        RecalculateNormalsCheck.UseVisualStyleBackColor = True
         ' 
         ' TabControl1
         ' 
         TabControl1.Appearance = TabAppearance.Buttons
         TabControl1.Controls.Add(TabPage1)
-        TabControl1.Controls.Add(TabPage2)
         TabControl1.Controls.Add(TabPage3)
         TabControl1.Controls.Add(TabPagePack)
         TabControl1.Dock = DockStyle.Fill
@@ -556,331 +375,6 @@ Partial Class Config_Form
         Label7.TabIndex = 15
         Label7.Text = "Game"
         Label7.TextAlign = ContentAlignment.MiddleLeft
-        ' 
-        ' TabPage2
-        ' 
-        TabPage2.Controls.Add(GroupBox3)
-        TabPage2.Controls.Add(GroupBox4)
-        TabPage2.Controls.Add(Button6)
-        TabPage2.Controls.Add(Button5)
-        TabPage2.Controls.Add(GroupBox2)
-        TabPage2.Controls.Add(CheckBoxWelding)
-        TabPage2.Controls.Add(GroupBox1)
-        TabPage2.Controls.Add(RecalculateNormalsCheck)
-        TabPage2.Controls.Add(CheckBoxGPUSkinning)
-        TabPage2.Controls.Add(CheckBoxDrawHiddenSegments)
-        TabPage2.Controls.Add(SingleBoneCheck)
-        TabPage2.ImageKey = "thumbnail.ico"
-        TabPage2.Location = New Point(4, 27)
-        TabPage2.Name = "TabPage2"
-        TabPage2.Padding = New Padding(3)
-        TabPage2.Size = New Size(944, 449)
-        TabPage2.TabIndex = 1
-        TabPage2.Text = "Rendering"
-        TabPage2.UseVisualStyleBackColor = True
-        ' 
-        ' GroupBox3
-        ' 
-        GroupBox3.Controls.Add(CheckBoxFreeze)
-        GroupBox3.Controls.Add(CheckBoxzoomreset)
-        GroupBox3.Controls.Add(CheckBoxanglereset)
-        GroupBox3.Location = New Point(3, 345)
-        GroupBox3.Name = "GroupBox3"
-        GroupBox3.Size = New Size(687, 82)
-        GroupBox3.TabIndex = 30
-        GroupBox3.TabStop = False
-        GroupBox3.Text = "Camera"
-        ' 
-        ' CheckBoxFreeze
-        ' 
-        CheckBoxFreeze.Location = New Point(6, 58)
-        CheckBoxFreeze.Name = "CheckBoxFreeze"
-        CheckBoxFreeze.Size = New Size(473, 23)
-        CheckBoxFreeze.TabIndex = 33
-        CheckBoxFreeze.Text = "Completely freeze camera on nif change (make sure to uncheck it after use)"
-        ToolTip1.SetToolTip(CheckBoxFreeze, "Keep the camera fully frozen when the loaded NIF changes (be sure to uncheck it for different size nifs).")
-        CheckBoxFreeze.UseVisualStyleBackColor = True
-        ' 
-        ' CheckBoxzoomreset
-        ' 
-        CheckBoxzoomreset.AutoSize = True
-        CheckBoxzoomreset.Checked = True
-        CheckBoxzoomreset.CheckState = CheckState.Checked
-        CheckBoxzoomreset.Location = New Point(6, 41)
-        CheckBoxzoomreset.Name = "CheckBoxzoomreset"
-        CheckBoxzoomreset.Size = New Size(145, 19)
-        CheckBoxzoomreset.TabIndex = 32
-        CheckBoxzoomreset.Text = "Reset to optimal zoom"
-        ToolTip1.SetToolTip(CheckBoxzoomreset, "Reset the camera zoom to an optimal distance when loading a new project.")
-        CheckBoxzoomreset.UseVisualStyleBackColor = True
-        ' 
-        ' CheckBoxanglereset
-        ' 
-        CheckBoxanglereset.AutoSize = True
-        CheckBoxanglereset.Checked = True
-        CheckBoxanglereset.CheckState = CheckState.Checked
-        CheckBoxanglereset.Location = New Point(6, 20)
-        CheckBoxanglereset.Name = "CheckBoxanglereset"
-        CheckBoxanglereset.Size = New Size(99, 19)
-        CheckBoxanglereset.TabIndex = 31
-        CheckBoxanglereset.Text = "Reset rotation"
-        ToolTip1.SetToolTip(CheckBoxanglereset, "Reset camera rotation when loading a new project.")
-        CheckBoxanglereset.UseVisualStyleBackColor = True
-        ' 
-        ' GroupBox4
-        ' 
-        GroupBox4.Controls.Add(Label16)
-        GroupBox4.Controls.Add(GridColor)
-        GroupBox4.Controls.Add(CheckBoxRenderGrid)
-        GroupBox4.Controls.Add(Label13)
-        GroupBox4.Controls.Add(NumericUpDownRenderGridSize)
-        GroupBox4.Controls.Add(Label14)
-        GroupBox4.Controls.Add(NumericUpDownRenderGridStep)
-        GroupBox4.Location = New Point(3, 261)
-        GroupBox4.Name = "GroupBox4"
-        GroupBox4.Size = New Size(935, 78)
-        GroupBox4.TabIndex = 31
-        GroupBox4.TabStop = False
-        GroupBox4.Text = "Render floor"
-        ' 
-        ' Label16
-        ' 
-        Label16.Location = New Point(383, 46)
-        Label16.Name = "Label16"
-        Label16.Size = New Size(82, 23)
-        Label16.TabIndex = 8
-        Label16.Text = "Grid color"
-        Label16.TextAlign = ContentAlignment.MiddleLeft
-        ' 
-        ' GridColor
-        ' 
-        GridColor.Dibuja = False
-        GridColor.DrawMode = DrawMode.OwnerDrawFixed
-        GridColor.DropDownStyle = ComboBoxStyle.DropDownList
-        GridColor.Enabled = False
-        GridColor.FormattingEnabled = True
-        GridColor.Location = New Point(471, 45)
-        GridColor.Name = "GridColor"
-        GridColor.SelectedColor = Color.Black
-        GridColor.Size = New Size(179, 24)
-        GridColor.TabIndex = 7
-        ToolTip1.SetToolTip(GridColor, "Color of the grid lines.")
-        ' 
-        ' CheckBoxRenderGrid
-        ' 
-        CheckBoxRenderGrid.AutoSize = True
-        CheckBoxRenderGrid.Location = New Point(6, 22)
-        CheckBoxRenderGrid.Name = "CheckBoxRenderGrid"
-        CheckBoxRenderGrid.Size = New Size(119, 19)
-        CheckBoxRenderGrid.TabIndex = 0
-        CheckBoxRenderGrid.Text = "Enable render flor"
-        ToolTip1.SetToolTip(CheckBoxRenderGrid, "Show the render grid in preview.")
-        CheckBoxRenderGrid.UseVisualStyleBackColor = True
-        ' 
-        ' Label13
-        ' 
-        Label13.Location = New Point(6, 46)
-        Label13.Name = "Label13"
-        Label13.Size = New Size(58, 23)
-        Label13.TabIndex = 1
-        Label13.Text = "Size"
-        Label13.TextAlign = ContentAlignment.MiddleLeft
-        ' 
-        ' NumericUpDownRenderGridSize
-        ' 
-        NumericUpDownRenderGridSize.DecimalPlaces = 3
-        NumericUpDownRenderGridSize.Enabled = False
-        NumericUpDownRenderGridSize.Location = New Point(70, 46)
-        NumericUpDownRenderGridSize.Maximum = New Decimal(New Integer() {100000, 0, 0, 0})
-        NumericUpDownRenderGridSize.Minimum = New Decimal(New Integer() {1, 0, 0, 0})
-        NumericUpDownRenderGridSize.Name = "NumericUpDownRenderGridSize"
-        NumericUpDownRenderGridSize.Size = New Size(100, 23)
-        NumericUpDownRenderGridSize.TabIndex = 2
-        NumericUpDownRenderGridSize.TextAlign = HorizontalAlignment.Right
-        ToolTip1.SetToolTip(NumericUpDownRenderGridSize, "Total grid size.")
-        NumericUpDownRenderGridSize.Value = New Decimal(New Integer() {400, 0, 0, 0})
-        ' 
-        ' Label14
-        ' 
-        Label14.Location = New Point(202, 46)
-        Label14.Name = "Label14"
-        Label14.Size = New Size(39, 23)
-        Label14.TabIndex = 3
-        Label14.Text = "Step"
-        Label14.TextAlign = ContentAlignment.MiddleLeft
-        ' 
-        ' NumericUpDownRenderGridStep
-        ' 
-        NumericUpDownRenderGridStep.DecimalPlaces = 3
-        NumericUpDownRenderGridStep.Enabled = False
-        NumericUpDownRenderGridStep.Location = New Point(245, 46)
-        NumericUpDownRenderGridStep.Maximum = New Decimal(New Integer() {100000, 0, 0, 0})
-        NumericUpDownRenderGridStep.Minimum = New Decimal(New Integer() {1, 0, 0, 0})
-        NumericUpDownRenderGridStep.Name = "NumericUpDownRenderGridStep"
-        NumericUpDownRenderGridStep.Size = New Size(102, 23)
-        NumericUpDownRenderGridStep.TabIndex = 4
-        NumericUpDownRenderGridStep.TextAlign = HorizontalAlignment.Right
-        ToolTip1.SetToolTip(NumericUpDownRenderGridStep, "Distance between grid lines.")
-        NumericUpDownRenderGridStep.Value = New Decimal(New Integer() {10, 0, 0, 0})
-        ' 
-        ' Button6
-        ' 
-        Button6.ImageKey = "thumbnail.ico"
-        Button6.ImageList = ImageList1
-        Button6.Location = New Point(696, 393)
-        Button6.Name = "Button6"
-        Button6.Size = New Size(240, 34)
-        Button6.TabIndex = 29
-        Button6.Text = "Apply to rendered project"
-        Button6.TextImageRelation = TextImageRelation.ImageBeforeText
-        ToolTip1.SetToolTip(Button6, "Apply the current rendering settings to the project currently shown in the main preview.")
-        Button6.UseVisualStyleBackColor = True
-        ' 
-        ' Button5
-        ' 
-        Button5.ImageKey = "agt_action_success.ico"
-        Button5.ImageList = ImageList1
-        Button5.Location = New Point(696, 353)
-        Button5.Name = "Button5"
-        Button5.Size = New Size(240, 34)
-        Button5.TabIndex = 28
-        Button5.Text = "Reset all changes to defaults"
-        Button5.TextImageRelation = TextImageRelation.ImageBeforeText
-        ToolTip1.SetToolTip(Button5, "Reset rendering-related settings to defaults.")
-        Button5.UseVisualStyleBackColor = True
-        ' 
-        ' GroupBox2
-        ' 
-        GroupBox2.Controls.Add(NumericUpDownWeldEpsUv)
-        GroupBox2.Controls.Add(RadioButtonWeldboth)
-        GroupBox2.Controls.Add(RadioButtonWeldpsonly)
-        GroupBox2.Controls.Add(Label10)
-        GroupBox2.Controls.Add(Label11)
-        GroupBox2.Controls.Add(NumericUpDownWeldEpspos)
-        GroupBox2.Location = New Point(3, 171)
-        GroupBox2.Name = "GroupBox2"
-        GroupBox2.Size = New Size(935, 84)
-        GroupBox2.TabIndex = 27
-        GroupBox2.TabStop = False
-        GroupBox2.Text = "Welding"
-        ' 
-        ' NumericUpDownWeldEpsUv
-        ' 
-        NumericUpDownWeldEpsUv.DecimalPlaces = 12
-        NumericUpDownWeldEpsUv.Increment = New Decimal(New Integer() {5, 0, 0, 786432})
-        NumericUpDownWeldEpsUv.Location = New Point(383, 48)
-        NumericUpDownWeldEpsUv.Maximum = New Decimal(New Integer() {1, 0, 0, 196608})
-        NumericUpDownWeldEpsUv.Minimum = New Decimal(New Integer() {1, 0, 0, 786432})
-        NumericUpDownWeldEpsUv.Name = "NumericUpDownWeldEpsUv"
-        NumericUpDownWeldEpsUv.Size = New Size(128, 23)
-        NumericUpDownWeldEpsUv.TabIndex = 25
-        NumericUpDownWeldEpsUv.TextAlign = HorizontalAlignment.Right
-        ToolTip1.SetToolTip(NumericUpDownWeldEpsUv, "UV epsilon used when welding vertices.")
-        NumericUpDownWeldEpsUv.Value = New Decimal(New Integer() {1, 0, 0, 786432})
-        ' 
-        ' RadioButtonWeldboth
-        ' 
-        RadioButtonWeldboth.AutoSize = True
-        RadioButtonWeldboth.Checked = True
-        RadioButtonWeldboth.Location = New Point(274, 22)
-        RadioButtonWeldboth.Name = "RadioButtonWeldboth"
-        RadioButtonWeldboth.Size = New Size(130, 19)
-        RadioButtonWeldboth.TabIndex = 20
-        RadioButtonWeldboth.TabStop = True
-        RadioButtonWeldboth.Text = "By position and UVs"
-        ToolTip1.SetToolTip(RadioButtonWeldboth, "Weld vertices only when both position and UVs match.")
-        RadioButtonWeldboth.UseVisualStyleBackColor = True
-        ' 
-        ' RadioButtonWeldpsonly
-        ' 
-        RadioButtonWeldpsonly.AutoSize = True
-        RadioButtonWeldpsonly.Location = New Point(5, 22)
-        RadioButtonWeldpsonly.Name = "RadioButtonWeldpsonly"
-        RadioButtonWeldpsonly.Size = New Size(110, 19)
-        RadioButtonWeldpsonly.TabIndex = 19
-        RadioButtonWeldpsonly.Text = "By position only"
-        ToolTip1.SetToolTip(RadioButtonWeldpsonly, "Weld vertices using position only.")
-        RadioButtonWeldpsonly.UseVisualStyleBackColor = True
-        ' 
-        ' Label10
-        ' 
-        Label10.ImageAlign = ContentAlignment.MiddleRight
-        Label10.Location = New Point(274, 48)
-        Label10.Name = "Label10"
-        Label10.Size = New Size(107, 23)
-        Label10.TabIndex = 18
-        Label10.Text = "UV Epsilon"
-        Label10.TextAlign = ContentAlignment.MiddleLeft
-        ' 
-        ' Label11
-        ' 
-        Label11.ImageAlign = ContentAlignment.MiddleRight
-        Label11.Location = New Point(6, 48)
-        Label11.Name = "Label11"
-        Label11.Size = New Size(107, 23)
-        Label11.TabIndex = 16
-        Label11.Text = "Position Epsilon"
-        Label11.TextAlign = ContentAlignment.MiddleLeft
-        ' 
-        ' NumericUpDownWeldEpspos
-        ' 
-        NumericUpDownWeldEpspos.DecimalPlaces = 12
-        NumericUpDownWeldEpspos.Increment = New Decimal(New Integer() {5, 0, 0, 786432})
-        NumericUpDownWeldEpspos.Location = New Point(115, 48)
-        NumericUpDownWeldEpspos.Maximum = New Decimal(New Integer() {1, 0, 0, 196608})
-        NumericUpDownWeldEpspos.Minimum = New Decimal(New Integer() {1, 0, 0, 786432})
-        NumericUpDownWeldEpspos.Name = "NumericUpDownWeldEpspos"
-        NumericUpDownWeldEpspos.Size = New Size(128, 23)
-        NumericUpDownWeldEpspos.TabIndex = 15
-        NumericUpDownWeldEpspos.TextAlign = HorizontalAlignment.Right
-        ToolTip1.SetToolTip(NumericUpDownWeldEpspos, "Position epsilon used when welding vertices.")
-        NumericUpDownWeldEpspos.Value = New Decimal(New Integer() {1, 0, 0, 786432})
-        ' 
-        ' CheckBoxWelding
-        ' 
-        '
-        ' CheckBoxSmoothSeams
-        '
-        CheckBoxSmoothSeams.AutoSize = True
-        CheckBoxSmoothSeams.Checked = True
-        CheckBoxSmoothSeams.CheckState = CheckState.Checked
-        CheckBoxSmoothSeams.Location = New Point(542, 22)
-        CheckBoxSmoothSeams.Name = "CheckBoxSmoothSeams"
-        CheckBoxSmoothSeams.Size = New Size(220, 19)
-        CheckBoxSmoothSeams.TabIndex = 40
-        CheckBoxSmoothSeams.Text = "Smooth seam normals"
-        CheckBoxSmoothSeams.UseVisualStyleBackColor = True
-        '
-        ' LabelSmoothAngle
-        '
-        LabelSmoothAngle.Location = New Point(542, 48)
-        LabelSmoothAngle.Name = "LabelSmoothAngle"
-        LabelSmoothAngle.Size = New Size(107, 23)
-        LabelSmoothAngle.TabIndex = 42
-        LabelSmoothAngle.Text = "Seam angle"
-        LabelSmoothAngle.TextAlign = ContentAlignment.MiddleLeft
-        '
-        ' NumericUpDownSmoothAngle
-        '
-        NumericUpDownSmoothAngle.DecimalPlaces = 1
-        NumericUpDownSmoothAngle.TextAlign = HorizontalAlignment.Right
-        NumericUpDownSmoothAngle.Location = New Point(651, 48)
-        NumericUpDownSmoothAngle.Maximum = New Decimal(New Integer() {180, 0, 0, 0})
-        NumericUpDownSmoothAngle.Name = "NumericUpDownSmoothAngle"
-        NumericUpDownSmoothAngle.Size = New Size(128, 23)
-        NumericUpDownSmoothAngle.TabIndex = 41
-        NumericUpDownSmoothAngle.Value = New Decimal(New Integer() {600, 0, 0, 65536})
-        '
-        CheckBoxWelding.AutoSize = True
-        CheckBoxWelding.Checked = True
-        CheckBoxWelding.CheckState = CheckState.Checked
-        CheckBoxWelding.Location = New Point(3, 146)
-        CheckBoxWelding.Name = "CheckBoxWelding"
-        CheckBoxWelding.Size = New Size(160, 19)
-        CheckBoxWelding.TabIndex = 26
-        CheckBoxWelding.Text = "Weld Vertices for normals"
-        ToolTip1.SetToolTip(CheckBoxWelding, "Temporarily weld matching vertices before recalculating normals.")
-        CheckBoxWelding.UseVisualStyleBackColor = True
         ' 
         ' TabPage3
         ' 
@@ -1561,25 +1055,9 @@ Partial Class Config_Form
         Name = "Config_Form"
         StartPosition = FormStartPosition.CenterParent
         Text = "Configuration"
-        GroupBox1.ResumeLayout(False)
-        GroupBox1.PerformLayout()
-        CType(NumericUpDownPositionEps, ComponentModel.ISupportInitialize).EndInit()
         TabControl1.ResumeLayout(False)
         TabPage1.ResumeLayout(False)
         TabPage1.PerformLayout()
-        TabPage2.ResumeLayout(False)
-        TabPage2.PerformLayout()
-        GroupBox3.ResumeLayout(False)
-        GroupBox3.PerformLayout()
-        GroupBox4.ResumeLayout(False)
-        GroupBox4.PerformLayout()
-        CType(NumericUpDownRenderGridSize, ComponentModel.ISupportInitialize).EndInit()
-        CType(NumericUpDownRenderGridStep, ComponentModel.ISupportInitialize).EndInit()
-        GroupBox2.ResumeLayout(False)
-        GroupBox2.PerformLayout()
-        CType(NumericUpDownWeldEpsUv, ComponentModel.ISupportInitialize).EndInit()
-        CType(NumericUpDownSmoothAngle, ComponentModel.ISupportInitialize).EndInit()
-        CType(NumericUpDownWeldEpspos, ComponentModel.ISupportInitialize).EndInit()
         TabPage3.ResumeLayout(False)
         TabPage3.PerformLayout()
         GroupBoxweights.ResumeLayout(False)
@@ -1623,34 +1101,9 @@ Partial Class Config_Form
     Friend WithEvents Button4 As Button
     Friend WithEvents Label6 As Label
     Friend WithEvents TextBox4 As TextBox
-    Friend WithEvents GroupBox1 As GroupBox
-    Friend WithEvents RecalculateNormalsCheck As CheckBox
-    Friend WithEvents Label8 As Label
-    Friend WithEvents NumericUpDownPositionEps As NumericUpDown
-    Friend WithEvents SingleBoneCheck As CheckBox
     Friend WithEvents TabControl1 As TabControl
     Friend WithEvents TabPage1 As TabPage
-    Friend WithEvents TabPage2 As TabPage
     Friend WithEvents TabPage3 As TabPage
-    Friend WithEvents NormalsNormalize As CheckBox
-    Friend WithEvents CheckBoxDeterministicCollapse As CheckBox
-    Friend WithEvents NormalsRepairNan As CheckBox
-    Friend WithEvents CheckBoxWelding As CheckBox
-    Friend WithEvents CheckBoxSmoothSeams As CheckBox
-    Friend WithEvents LabelSmoothAngle As Label
-    Friend WithEvents NumericUpDownSmoothAngle As NumericUpDown
-    Friend WithEvents GroupBox2 As GroupBox
-    Friend WithEvents NumericUpDownWeldEpsUv As NumericUpDown
-    Friend WithEvents RadioButtonWeldboth As RadioButton
-    Friend WithEvents RadioButtonWeldpsonly As RadioButton
-    Friend WithEvents Label10 As Label
-    Friend WithEvents Label11 As Label
-    Friend WithEvents NumericUpDownWeldEpspos As NumericUpDown
-    Friend WithEvents Button5 As Button
-    Friend WithEvents Button6 As Button
-    Friend WithEvents GroupBox3 As GroupBox
-    Friend WithEvents CheckBoxzoomreset As CheckBox
-    Friend WithEvents CheckBoxanglereset As CheckBox
     Friend WithEvents CheckBoxDeletewithProject As CheckBox
     Friend WithEvents CheckBoxDeleteBefore As CheckBox
     Friend WithEvents CheckBoxBuildTri As CheckBox
@@ -1669,7 +1122,6 @@ Partial Class Config_Form
     Friend WithEvents CheckBoxIgnorePrevent As CheckBox
     Friend WithEvents CheckBoxBuildInPose As CheckBox
     Friend WithEvents CheckBoxForceCloned As CheckBox
-    Friend WithEvents CheckBoxFreeze As CheckBox
     Friend WithEvents ComboBoxGame As ComboBox
     Friend WithEvents LabelGameMismatch As Label
     Friend WithEvents Label7 As Label
@@ -1678,14 +1130,6 @@ Partial Class Config_Form
     Friend WithEvents RadioButtonNeverWeights As RadioButton
     Friend WithEvents CheckBoxweightignore As CheckBox
     Friend WithEvents ToolTip1 As ToolTip
-    Friend WithEvents GroupBox4 As GroupBox
-    Friend WithEvents CheckBoxRenderGrid As CheckBox
-    Friend WithEvents Label13 As Label
-    Friend WithEvents NumericUpDownRenderGridSize As NumericUpDown
-    Friend WithEvents Label14 As Label
-    Friend WithEvents NumericUpDownRenderGridStep As NumericUpDown
-    Friend WithEvents Label16 As Label
-    Friend WithEvents GridColor As ColorComboBox
     Friend WithEvents TabPagePack As TabPage
     Friend WithEvents PackRootLayout As TableLayoutPanel
     Friend WithEvents PackHeaderPanel As Panel
@@ -1714,6 +1158,4 @@ Partial Class Config_Form
     Friend WithEvents PackProgressLabel As Label
     Friend WithEvents PackElapsedLabel As Label
     Friend WithEvents PackLastActionLabel As Label
-    Friend WithEvents CheckBoxGPUSkinning As CheckBox
-    Friend WithEvents CheckBoxDrawHiddenSegments As CheckBox
 End Class

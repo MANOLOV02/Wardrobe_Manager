@@ -33,37 +33,18 @@ Public Class Config_Form
         prop?.SetValue(c, True, Nothing)
     End Sub
     ''' <summary>
-    ''' ⛔ Queda en False si <see cref="Setea_Render_Options"/> no llego hasta el final. Sin esto,
+    ''' ⛔ Queda en False si <see cref="Setea_Build_Options"/> no llego hasta el final. Sin esto,
     ''' CUALQUIER excepcion a mitad de la carga —el Catch de abajo la tragaba en silencio— dejaba los
-    ''' controles que faltaban con el valor del Designer, y al cerrar `Graba_Render_Options` los
+    ''' controles que faltaban con el valor del Designer, y al cerrar `Graba_Build_Options` los
     ''' escribia encima de la configuracion del usuario. Medido: con `EpsilonPos = 0` (el default) y
     ''' el minimo del control en 1e-12, abrir y cerrar el dialogo revertia EpsilonPos,
     ''' WeldByPositionOnly y TODA la seccion de build.
     ''' </summary>
     Private _cargaCompleta As Boolean = False
 
-    Private Sub Setea_Render_Options()
+    Private Sub Setea_Build_Options()
         _cargaCompleta = False
         Try
-            RecalculateNormalsCheck.Checked = Config_App.Current.Setting_RecalculateNormals
-            SingleBoneCheck.Checked = Config_App.Current.Setting_SingleBoneSkinning
-            CheckBoxGPUSkinning.Checked = Config_App.Current.Setting_GPUSkinning
-            CheckBoxDrawHiddenSegments.Checked = Config_App.Current.Setting_DrawHiddenSegments
-
-            NormalsRepairNan.Checked = Config_App.Current.Setting_TBN.RepairNaNs
-            CheckBoxSmoothSeams.Checked = Config_App.Current.Setting_TBN.SmoothSeamNormals
-            NumericUpDownSmoothAngle.Value = CDec(Config_App.Current.Setting_TBN.SmoothSeamNormalsAngle)
-            CheckBoxWelding.Checked = Config_App.Current.Setting_TBN.EnableWelding
-            GroupBox2.Enabled = CheckBoxWelding.Checked
-            NumericUpDownPositionEps.Value = Config_App.Current.Setting_TBN.EpsilonPos
-            NormalsNormalize.Checked = Config_App.Current.Setting_TBN.NormalizeOutputs
-            CheckBoxDeterministicCollapse.Checked = Config_App.Current.Setting_TBN.DeterministicOnCollapse
-            RadioButtonWeldpsonly.Checked = Config_App.Current.Setting_TBN.WeldByPositionOnly
-            RadioButtonWeldboth.Checked = Not Config_App.Current.Setting_TBN.WeldByPositionOnly
-            NumericUpDownWeldEpspos.Value = Config_App.Current.Setting_TBN.WeldPosEpsilon
-            NumericUpDownWeldEpsUv.Value = Config_App.Current.Setting_TBN.WeldUVEpsilon
-            CheckBoxanglereset.Checked = Config_App.Current.Settings_Camara.ResetAngles
-            CheckBoxzoomreset.Checked = Config_App.Current.Settings_Camara.ResetZoom
             RadioButtonBSEngine.Checked = (WM_Config.Current.Settings_Build.OwnEngine = False)
             RadioButtonWMEngine.Checked = (WM_Config.Current.Settings_Build.OwnEngine = True)
             CheckBoxBuildHH.Checked = WM_Config.Current.Settings_Build.SaveHHS
@@ -80,7 +61,6 @@ Public Class Config_Form
             CheckBoxIgnorePrevent.Checked = WM_Config.Current.Settings_Build.IgnorePreventri
             CheckBoxBuildInPose.Checked = WM_Config.Current.Settings_Build.BuildInPose
             CheckBoxForceCloned.Checked = WM_Config.Current.Settings_Build.ForceClonedOnBuild
-            CheckBoxFreeze.Checked = Config_App.Current.Settings_Camara.FreezeCamera
             CheckBoxweightignore.Checked = WM_Config.Current.Settings_Build.IgnoreWeightsFlags
             RadioButtonAllwaysWeight.Checked = WM_Config.Current.Settings_Build.ForceWeights
             RadioButtonNeverWeights.Checked = Not WM_Config.Current.Settings_Build.ForceWeights
@@ -88,11 +68,6 @@ Public Class Config_Form
             RadioButtonAllwaysWeight.Enabled = WM_Config.Current.Settings_Build.IgnoreWeightsFlags AndAlso WM_Config.Current.Settings_Build.OwnEngine
             CheckBoxweightignore.Enabled = WM_Config.Current.Settings_Build.OwnEngine = True
 
-            ' GRID
-            CheckBoxRenderGrid.Checked = Config_App.Current.Settings_RenderGrid.Enabled
-            NumericUpDownRenderGridSize.Value = CDec(Config_App.Current.Settings_RenderGrid.Size)
-            NumericUpDownRenderGridStep.Value = CDec(Config_App.Current.Settings_RenderGrid.StepSize)
-            GridColor.SelectedColor = Config_App.Current.RenderGridColor
             _cargaCompleta = True
 
         Catch ex As Exception
@@ -103,21 +78,15 @@ Public Class Config_Form
         End Try
 
     End Sub
-    Private Sub Graba_Render_Options()
-        Dim opts = New RecalcTBN.TBNOptions With {
-          .SmoothSeamNormals = CheckBoxSmoothSeams.Checked,
-          .SmoothSeamNormalsAngle = CDbl(NumericUpDownSmoothAngle.Value),
-          .EnableWelding = CheckBoxWelding.Checked,
-          .EpsilonPos = NumericUpDownPositionEps.Value,
-          .NormalizeOutputs = NormalsNormalize.Checked,
-          .RepairNaNs = NormalsRepairNan.Checked,
-          .DeterministicOnCollapse = CheckBoxDeterministicCollapse.Checked,
-          .WeldByPositionOnly = RadioButtonWeldpsonly.Checked,
-          .WeldPosEpsilon = NumericUpDownWeldEpspos.Value,
-          .WeldUVEpsilon = NumericUpDownWeldEpsUv.Value,
-          .KeepExistingNormals = Config_App.Current.Setting_TBN.KeepExistingNormals,
-          .OptionsVersion = RecalcTBN.VersionDeOpcionesTBN
-          }
+    Private Sub Graba_Build_Options()
+        ' ⛔ ACA NO HAY NADA DE RENDER, Y NO ES UN OLVIDO. Normales/TBN/welding, skinning, camara y grilla
+        ' del piso viven en Config_App (la libreria) y los edita el dialogo COMPARTIDO
+        ' FO4_Base_Library.LightRigForm, pestana "Rendering", que tambien usa FO4_NPC_Manager. La pestana
+        ' "Rendering" de esta pantalla se elimino ENTERA, con sus 35 controles y sus tooltips (que se
+        ' mudaron al dialogo compartido). Las dos medias tintas eran peores: dejarla visible con la
+        ' escritura desactivada hacia que el usuario destildara algo, cerrara con OK y se descartara en
+        ' silencio; dejar la escritura viva pisaba al cerrar la config que el dialogo compartido acababa de
+        ' guardar, con los valores del Designer. Es el modo de falla que documenta _cargaCompleta arriba.
 
         Dim buildSet = New WM_Config.BuildSettings With {
             .DeleteUnbuilt = CheckBoxDeleteBefore.Checked,
@@ -136,21 +105,7 @@ Public Class Config_Form
             .ForceClonedOnBuild = CheckBoxForceCloned.Checked
                     }
 
-        Config_App.Current.Settings_RenderGrid = New Config_App.RenderGridSettings With {
-    .Enabled = CheckBoxRenderGrid.Checked,
-    .Size = CDbl(NumericUpDownRenderGridSize.Value),
-    .StepSize = CDbl(NumericUpDownRenderGridStep.Value)
-    }
-
-        Dim cam = New Config_App.CameraSettings With {.ResetAngles = CheckBoxanglereset.Checked, .ResetZoom = CheckBoxzoomreset.Checked, .FreezeCamera = CheckBoxFreeze.Checked}
-        Config_App.Current.Settings_Camara = cam
-        Config_App.Current.Setting_RenderGridColor = GridColor.SelectedColor.Name
         WM_Config.Current.Settings_Build = buildSet
-        Config_App.Current.Setting_TBN = opts
-        Config_App.Current.Setting_RecalculateNormals = RecalculateNormalsCheck.Checked
-        Config_App.Current.Setting_SingleBoneSkinning = SingleBoneCheck.Checked
-        Config_App.Current.Setting_GPUSkinning = CheckBoxGPUSkinning.Checked
-        Config_App.Current.Setting_DrawHiddenSegments = CheckBoxDrawHiddenSegments.Checked
     End Sub
 
     ''' <summary>
@@ -176,12 +131,6 @@ Public Class Config_Form
         End If
     End Sub
 
-    ''' <summary>Las opciones de welding no tienen efecto con el welding apagado. Estaban SIEMPRE
-    ''' habilitadas, o sea que la UI dejaba tocar epsilons y radios que no hacian nada.</summary>
-    Private Sub CheckBoxWelding_CheckedChanged(sender As Object, e As EventArgs) Handles CheckBoxWelding.CheckedChanged
-        GroupBox2.Enabled = CheckBoxWelding.Checked
-    End Sub
-
     Private Sub Config_Form_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         'ThemeManager.SetTheme(Config_App.Current.theme, Me)
         TextBox1.Text = Config_App.Current.FO4ExePath
@@ -191,10 +140,8 @@ Public Class Config_Form
         ComboBoxGame.SelectedIndex = Config_App.Current.Game
         initialgame = Config_App.Current.Game
         initialDataPath = If(Config_App.Current.FO4EDataPath, "")
-        Setea_Render_Options()
+        Setea_Build_Options()
         Button8.Enabled = IO.File.Exists(Wardrobe_Manager_Form.Directorios.LooksMenuWMSliders)
-        GridColor.Rellena()
-        GridColor.SelectedColor = Config_App.Current.RenderGridColor
         Check_Folders()
         Check_GameMismatch()
         InitClonedMaterialTab()
@@ -581,10 +528,6 @@ Public Class Config_Form
     End Sub
 
 
-    Private Sub Button5_Click(sender As Object, e As EventArgs)
-        SingleBoneCheck.Checked = False
-        RecalculateNormalsCheck.Checked = True
-    End Sub
     Private actualizar = False
     Private Sub Config_Form_Shown(sender As Object, e As EventArgs) Handles Me.Shown
         actualizar = True
@@ -599,46 +542,12 @@ Public Class Config_Form
             End If
         End If
         ' ⛔ Sólo si la pantalla se cargó ENTERA: ver _cargaCompleta.
-        If _cargaCompleta Then Graba_Render_Options()
+        If _cargaCompleta Then Graba_Build_Options()
     End Sub
 
-    Private Sub Button5_Click_1(sender As Object, e As EventArgs) Handles Button5.Click
-        Config_App.Current.Setting_SingleBoneSkinning = False
-        Config_App.Current.Setting_GPUSkinning = True
-        Config_App.Current.Setting_DrawHiddenSegments = True ' WM default ON (lib default is False)
-        Config_App.Current.Setting_RecalculateNormals = True
-        Config_App.Current.Setting_TBN = RecalcTBN.DefaultTBNOptions
-        Config_App.Current.Settings_Camara = Config_App.Default_CameraSettings
-        Config_App.Current.Settings_RenderGrid = Config_App.Default_RenderGrid_Settings
-        Config_App.Current.Setting_RenderGridColor = Color.FromKnownColor(KnownColor.LightGray).Name
-        Setea_Render_Options()
-    End Sub
-
-    Private Sub Button6_Click(sender As Object, e As EventArgs) Handles Button6.Click
-
-        If Not _cargaCompleta Then Exit Sub   ' ver _cargaCompleta: no guardar desde una pantalla a medias
-        Graba_Render_Options()
-        If Not IsNothing(Me.Owner) AndAlso Me.Owner.GetType Is GetType(Wardrobe_Manager_Form) Then
-            If Not IsNothing(CType(Owner, Wardrobe_Manager_Form).preview_Control) Then
-                Dim ctrl = CType(Owner, Wardrobe_Manager_Form).preview_Control
-                ctrl.Model.RecalculateNormals = RecalculateNormalsCheck.Checked
-                ctrl.Model.SingleBoneSkinning = SingleBoneCheck.Checked
-                ctrl.Model.Floor.Enabled = CheckBoxRenderGrid.Checked
-                ctrl.Model.Floor.Size = NumericUpDownRenderGridSize.Value
-                ctrl.Model.Floor.StepSize = NumericUpDownRenderGridStep.Value
-                ctrl.Model.Floor.Color = GridColor.SelectedColor
-                ctrl.Model.Floor.Rebuild()
-                ctrl.ForceRerender(RenderDirtyFlags.Shapes Or RenderDirtyFlags.Camera)
-
-            End If
-        End If
-    End Sub
-    Private Sub CheckBoxRenderGrid_CheckedChanged(sender As Object, e As EventArgs) Handles CheckBoxRenderGrid.CheckedChanged
-        Update_RenderGrid_Controls()
-    End Sub
     Private Sub Button7_Click(sender As Object, e As EventArgs) Handles Button7.Click
         WM_Config.Current.Settings_Build = WM_Config.Default_Build_Settings
-        Setea_Render_Options()
+        Setea_Build_Options()
     End Sub
 
     Private Sub Button8_Click(sender As Object, e As EventArgs) Handles Button8.Click
@@ -681,15 +590,6 @@ Public Class Config_Form
 
     End Sub
 
-    Private Sub CheckBoxzoomreset_CheckedChanged(sender As Object, e As EventArgs) Handles CheckBoxzoomreset.CheckedChanged
-
-    End Sub
-
-    Private Sub CheckBoxFreeze_CheckedChanged(sender As Object, e As EventArgs) Handles CheckBoxFreeze.CheckedChanged
-        CheckBoxzoomreset.Enabled = Not CheckBoxFreeze.Checked
-        CheckBoxanglereset.Enabled = Not CheckBoxFreeze.Checked
-    End Sub
-
     Private Sub ComboBoxGame_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBoxGame.SelectedIndexChanged
         If ComboBoxGame.SelectedIndex <> -1 Then
             Config_App.Current.Game = ComboBoxGame.SelectedIndex
@@ -715,12 +615,6 @@ Public Class Config_Form
         RadioButtonNeverWeights.Enabled = CheckBoxweightignore.Checked AndAlso RadioButtonWMEngine.Checked
         RadioButtonAllwaysWeight.Enabled = CheckBoxweightignore.Checked AndAlso RadioButtonWMEngine.Checked
 
-    End Sub
-    Private Sub Update_RenderGrid_Controls()
-        Dim enabled As Boolean = CheckBoxRenderGrid.Checked
-        NumericUpDownRenderGridSize.Enabled = enabled
-        NumericUpDownRenderGridStep.Enabled = enabled
-        GridColor.Enabled = enabled
     End Sub
 
 End Class

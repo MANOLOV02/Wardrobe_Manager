@@ -2842,6 +2842,7 @@ Public Class Wardrobe_Manager_Form
     End Sub
 
     Private Sub CheckBox2_CheckedChanged(sender As Object, e As EventArgs) Handles SingleBoneCheck.CheckedChanged
+        If _sincronizandoEspejosRender Then Exit Sub   ' ver OnRenderSettingsChanged
         If IsNothing(preview_Control) Then Exit Sub
         preview_Control.Model.SingleBoneSkinning = SingleBoneCheck.Checked
         Config_App.Current.Setting_SingleBoneSkinning = SingleBoneCheck.Checked
@@ -2956,6 +2957,7 @@ Public Class Wardrobe_Manager_Form
     End Sub
 
     Private Sub CheckBoxRecalculate_CheckedChanged(sender As Object, e As EventArgs) Handles RecalculateNormalsCheck.CheckedChanged
+        If _sincronizandoEspejosRender Then Exit Sub   ' ver OnRenderSettingsChanged
         If IsNothing(preview_Control) Then Exit Sub
         preview_Control.Model.RecalculateNormals = RecalculateNormalsCheck.Checked
         Config_App.Current.Setting_RecalculateNormals = RecalculateNormalsCheck.Checked
@@ -3074,14 +3076,52 @@ Public Class Wardrobe_Manager_Form
     End Class
 
     Private Sub Button7_Click(sender As Object, e As EventArgs) Handles ButtonLightRigSettings.Click
-        Dim lightfirn As New LightRigForm
-        AddHandler lightfirn.LightsChanged, AddressOf OnLightRigChanged
-        Try
-            lightfirn.ShowDialog(Me)
-        Finally
-            RemoveHandler lightfirn.LightsChanged, AddressOf OnLightRigChanged
-        End Try
+        ' WM SI puede editar Draw hidden segments: es su toggle de inspeccion. Ver AllowHiddenSegments.
+        ' ⛔ Using: ShowDialog NO dispone el form. Sin esto, cada apertura del dialogo compartido filtra
+        ' los handles de una pestana entera de NUD, sliders y swatches; el Finally solo saca handlers.
+        Using lightfirn As New LightRigForm
+            AddHandler lightfirn.LightsChanged, AddressOf OnLightRigChanged
+            AddHandler lightfirn.RenderSettingsChanged, AddressOf OnRenderSettingsChanged
+            Try
+                lightfirn.ShowDialog(Me)
+            Finally
+                RemoveHandler lightfirn.LightsChanged, AddressOf OnLightRigChanged
+                RemoveHandler lightfirn.RenderSettingsChanged, AddressOf OnRenderSettingsChanged
+            End Try
+        End Using
     End Sub
+
+    ''' <summary>La pestana Rendering toca cosas que NO se arreglan repintando (recalculo de normales,
+    ''' welding, skinning): hay que re-correr el pipeline con la geometria marcada sucia.</summary>
+    Private Sub OnRenderSettingsChanged()
+        If preview_Control Is Nothing OrElse preview_Control.IsDisposed Then Return
+
+        ' ⛔ DOS DE ESTOS AJUSTES TIENEN ESPEJO EN LA BARRA PRINCIPAL, y hay que re-sincronizarlos igual
+        ' que se hace al volver de Config_Form. Sin esto: el usuario apaga "Recalculate normals" en el
+        ' dialogo, la casilla de la barra sigue tildada, y al clickearla para PRENDERLA el handler escribe
+        ' False otra vez —pide ON y obtiene OFF, con un Clean+RequestLeeShapes de regalo— y necesita dos
+        ' clicks para llegar a donde queria.
+        ' La bandera evita que los handlers de esas casillas re-escriban la config y disparen su propia
+        ' recarga: abajo va una sola, la de la libreria.
+        _sincronizandoEspejosRender = True
+        Try
+            SingleBoneCheck.Checked = Config_App.Current.Setting_SingleBoneSkinning
+            RecalculateNormalsCheck.Checked = Config_App.Current.Setting_RecalculateNormals
+            ' Efecto lateral propio del handler de SingleBoneCheck, que la bandera acaba de saltear.
+            ComboBoxPoses.Enabled = Not SingleBoneCheck.Checked
+        Finally
+            _sincronizandoEspejosRender = False
+        End Try
+
+        ' Toda la logica vive en la libreria: los ajustes de render estan duplicados como estado del
+        ' PreviewModel y del Floor, y sin empujarlos la casilla no hace nada visible.
+        preview_Control.ApplyRenderSettingsFromConfig()
+    End Sub
+
+    ''' <summary>True mientras <see cref="OnRenderSettingsChanged"/> copia la config a las casillas
+    ''' espejo de la barra principal, para que sus handlers no vuelvan a escribir la config ni disparen
+    ''' una segunda recarga de shapes.</summary>
+    Private _sincronizandoEspejosRender As Boolean
 
     Private Sub OnLightRigChanged()
         If preview_Control IsNot Nothing AndAlso Not preview_Control.IsDisposed Then
