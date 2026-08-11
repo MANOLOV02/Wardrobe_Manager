@@ -49,6 +49,9 @@ Friend Module WM_Cli
     ''' Los nombres de proyecto y de slider llevan acentos, y una consola recien abierta esta en una
     ''' codepage OEM que los muestra como mojibake.</summary>
     Private Sub EnsureConsole()
+        ' Con consola en mano el reporte de caida va por stderr: un MessageBox modal en un --build headless
+        ' colgaria la corrida hasta que alguien lo cierre. Ver Shared\CrashReport.vb.
+        CrashReport.UseConsole()
         If Not AttachConsole(ATTACH_PARENT_PROCESS) Then AllocConsole()
         Try
             Dim utf8 As New Text.UTF8Encoding(encoderShouldEmitUTF8Identifier:=False)

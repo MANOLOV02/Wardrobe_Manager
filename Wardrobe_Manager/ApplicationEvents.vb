@@ -37,6 +37,10 @@ Namespace My
         End Sub
 
         Private Sub MyApplication_Startup(sender As Object, e As Microsoft.VisualBasic.ApplicationServices.StartupEventArgs) Handles Me.Startup
+            ' PRIMERO DE TODO: el handler de AppDomain cubre los hilos que NO son el de UI (el build corre en
+            ' background), donde MyApplication.UnhandledException no llega. Ver Shared\CrashReport.vb.
+            CrashReport.Install()
+
             ' Initialize WM-specific hooks for the shared library
             WM_RenderExtensions.InitializeWM()
 
@@ -59,10 +63,15 @@ Namespace My
 #End If
         End Sub
 
+        ''' <summary>⛔ NO VA POR <c>Logger</c>: en Release <c>Logger.Enabled</c> queda en False y su setter
+        ''' descarta cualquier True, asi que esto logueaba a NINGUN LADO y el cartel igual decia "Details have
+        ''' been logged". CrashReport escribe un archivo de verdad y muestra donde quedo.
+        ''' <para>⛔ Y TERMINA. Con <c>ExitApplication = False</c> la app seguia viva despues de una excepcion no
+        ''' controlada, con el estado que hubiera quedado — en una app que ESCRIBE NIF eso es corrupcion
+        ''' silenciosa, que es peor que cerrarse.</para></summary>
         Private Sub MyApplication_UnhandledException(sender As Object, e As Microsoft.VisualBasic.ApplicationServices.UnhandledExceptionEventArgs) Handles Me.UnhandledException
-            Logger.LogLazy(Function() "Unhandled exception: " & e.Exception.ToString)
-            MessageBox.Show("An unexpected error occurred: " & e.Exception.Message & vbCrLf & "Details have been logged.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
-            e.ExitApplication = False
+            CrashReport.Report(e.Exception, "unhandled")
+            e.ExitApplication = True
         End Sub
 
     End Class
