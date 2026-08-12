@@ -878,7 +878,7 @@ Public Class Editor_Form
             For Each mesh In EditPreviewControl.Model.meshes
                 If Not IsNothing(mesh.MeshData.Meshgeometry) AndAlso mesh.MeshData.Meshgeometry.Vertices IsNot Nothing Then
                     Dim vertCount = mesh.MeshData.Meshgeometry.Vertices.Length
-                    mesh.MeshData.Meshgeometry.dirtyVertexIndices = New HashSet(Of Integer)(Enumerable.Range(0, vertCount))
+                    mesh.MeshData.Meshgeometry.dirtyVertexIndices.MarcarTodos(vertCount)
                     Array.Fill(mesh.MeshData.Meshgeometry.dirtyVertexFlags, True)
                     RecalcTBN.RecalculateNormalsTangentsBitangents(mesh.MeshData.Meshgeometry, Config_App.Current.Setting_TBN)
                     mesh.UpdateSkinBuffers_GL()
@@ -1233,7 +1233,7 @@ Public Class Editor_Form
                 Dim _shapeName = shap.Nombre
                 Dim _matPath = shap.RelatedMaterial.path
                 Logger.LogLazy(Function()
-                                   Dim fileOnly = FO4UnifiedMaterial_Class.GetDifferences(_liveMat, _fresh, FO4UnifiedMaterial_Class.NifShaderOnlyPropertyNames)
+                                   Dim fileOnly = FO4UnifiedMaterial_Class.GetDifferences(_liveMat, _fresh, _liveMat.CamposSoloDelNif())
                                    Dim full = FO4UnifiedMaterial_Class.GetDifferences(_liveMat, _fresh)
                                    Dim fileParts = fileOnly.Select(Function(d) $"{d.PropertyName}(live={If(d.ValueA, "null")}|fresh={If(d.ValueB, "null")})")
                                    Dim allParts = full.Select(Function(d) $"{d.PropertyName}(live={If(d.ValueA, "null")}|fresh={If(d.ValueB, "null")})")

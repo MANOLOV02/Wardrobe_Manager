@@ -227,10 +227,8 @@ Public Class MorphingHelper
         Next
         ' O2.3: If dirty count exceeds 60% of vertex count, mark all dirty (full update is cheaper than sparse HashSet lookups)
         If Geometry.dirtyVertexIndices.Count > count * 0.6 Then
-            Geometry.dirtyVertexIndices = New HashSet(Of Integer)(Enumerable.Range(0, count))
-            For i = 0 To count - 1
-                Geometry.dirtyVertexFlags(i) = True
-            Next
+            Geometry.dirtyVertexIndices.MarcarTodos(count)
+            Array.Fill(Geometry.dirtyVertexFlags, True, 0, count)
         End If
         Geometry.Vertices = verts
         ' El cache de TBN guarda las DERIVADAS UV por triangulo (RecalcTBN.BuildTBNCache), asi que un
@@ -599,9 +597,7 @@ Public Class MorphingHelper
         If Not AllowMask Then
             Array.Clear(Geometry.VertexMask, 0, count)
             Geometry.dirtyMaskIndices.Clear()
-            For i = 0 To count - 1
-                Geometry.dirtyMaskFlags(i) = False
-            Next
+            Array.Clear(Geometry.dirtyMaskFlags, 0, count)
         Else
             Dim maskeds = shape.MaskedVertices
             For i = 0 To count - 1

@@ -36,11 +36,29 @@ Namespace My
             e.HighDpiMode = HighDpiMode.DpiUnaware
         End Sub
 
+        ''' <summary>⛔ ACÁ NO SE TOCA NADA DE <c>FO4_Base_Library</c> NI DE NINGÚN DLL PROPIO: el arranque
+        ''' real vive en <see cref="ArranqueReal"/>.
+        ''' <para>El JIT resuelve las referencias de TODO el cuerpo de un método ANTES de ejecutar su primera
+        ''' línea. Con una llamada a la librería en este mismo cuerpo, un DLL faltante o en cuarentena
+        ''' (antivirus, instalación a medias, MO2 mal configurado) mata el proceso ANTES de que
+        ''' <c>CrashReport.Install()</c> llegue a correr: el usuario ve un cierre mudo, con
+        ''' <c>0xE0434352</c> y un Event ID 1000 sin stack, y no hay archivo de crash que pedirle.</para>
+        ''' <para><c>NoInlining</c> en <c>ArranqueReal</c> es PARTE DEL CONTRATO: si se inlinea, sus
+        ''' referencias vuelven a resolverse en el JIT de este método y el agujero reaparece.</para>
+        ''' <para>⛔ <c>CrashReport</c> puede llamarse desde acá porque vive en <c>Shared\</c> y se compila
+        ''' DENTRO de este ensamblado — no arrastra la librería. Ver el <c>.vbproj</c>.</para>
+        ''' <para>Es el mismo contrato que <c>FO4_NPC_Manager\Program.vb</c>, donde está MEDIDO: sacando
+        ''' <c>FO4_Base_Library.dll</c> de la carpeta, la excepción sale con nombre y stack. WM lo tenía
+        ''' documentado y no aplicado, o sea que era justo la app donde el diagnóstico no funcionaba.</para></summary>
         Private Sub MyApplication_Startup(sender As Object, e As Microsoft.VisualBasic.ApplicationServices.StartupEventArgs) Handles Me.Startup
             ' PRIMERO DE TODO: el handler de AppDomain cubre los hilos que NO son el de UI (el build corre en
             ' background), donde MyApplication.UnhandledException no llega. Ver Shared\CrashReport.vb.
             CrashReport.Install()
+            ArranqueReal(e)
+        End Sub
 
+        <System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)>
+        Private Sub ArranqueReal(e As Microsoft.VisualBasic.ApplicationServices.StartupEventArgs)
             ' Initialize WM-specific hooks for the shared library
             WM_RenderExtensions.InitializeWM()
 
