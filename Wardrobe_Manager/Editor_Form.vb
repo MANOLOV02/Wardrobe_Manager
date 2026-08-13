@@ -1249,26 +1249,24 @@ Public Class Editor_Form
                     Exit Sub
                 End If
             End If
-            ' Promote the clone's node into the OSP document tree so Save_Pack persists XML changes
-            ' ⛔ IDEMPOTENTE, Y ES OBLIGATORIO SERLO. Con el `Exit Sub` del guardado fallido (más abajo)
-            ' este handler puede correr DOS veces; tras el primer ReplaceChild el nodo original ya no está
-            ' en el árbol y su `.ParentNode` da Nothing. El `?.` sólo cubría `_OriginalSlider`, no
-            ' `ParentNode`, así que el segundo click en Save era un NRE sin Try — crash de la app.
-            If _OriginalSlider IsNot Nothing AndAlso _OriginalSlider.Nodo IsNot Nothing AndAlso
-               _OriginalSlider.Nodo.ParentNode IsNot Nothing Then
-                _OriginalSlider.Nodo.ParentNode.ReplaceChild(Selected_Slider.Nodo, _OriginalSlider.Nodo)
-            End If
-
-            ' Only for shapes whose ModelSpaceNormals changed: inject computed N/T/B from geo.
-            ' Shapes that didn't change: leave the NIF exactly as it was.
-            If msnChangedShapes.Count > 0 Then
-                For Each mesh In EditPreviewControl.Model.meshes
-                    If Not IsNothing(mesh.MeshData.Meshgeometry) Then Continue For
-                    If mesh.MeshData.Shape Is Nothing Then Continue For
-                    If Not msnChangedShapes.Contains(mesh.MeshData.Shape.ShapeName) Then Continue For
-                    SkinningHelper.InjectNormalsToTrishape(mesh.MeshData.Meshgeometry)
-                Next
-            End If
+            ' ⛔⛔ EL EDITOR NO ESCRIBE N/T/B EN EL NIF. NI CON MSN NI SIN MSN.
+            ' Las normales/tangentes recalculadas son para el BUILD, no para el editor: el editor guarda
+            ' el proyecto, pero las N/T/B del NIF quedan COMO ESTABAN. (Alcance de lo que verifique: N/T/B.
+            ' No estoy afirmando nada del resto de la geometria que escribe Save_As_Manolo.)
+            ' `RecalcTBN` (linea 883 de este
+            ' archivo) recalcula la copia de RENDER —los arrays del `SkinnedGeometry`— y ahi se queda;
+            ' el unico write-back al NIF es `InjectNormalsToTrishape`, y sus llamadores legitimos son
+            ' `SkinningHelper.InjectToTrishape` (:1506), `BuildingForm` y `MorphingHelper`: TODOS del
+            ' camino de build. Desde aca no se llama, a proposito.
+            ' ⛔ ACA HABIA UN BUCLE QUE DECIA INYECTARLAS Y NO LO HACIA: su guard era
+            ' `Not IsNothing(mesh.MeshData.Meshgeometry)`, y como `SkinnedGeometry` es una Structure
+            ' (SkinningHelper.vb:18) `IsNothing` la BOXEA y da siempre False ⇒ `Continue For` salteaba
+            ' TODAS las mallas. O sea que el comportamiento correcto ya se venia dando, pero POR UN BUG
+            ' y con un comentario que afirmaba lo contrario. Se elimino el bucle: la regla queda escrita
+            ' en vez de emerger de un accidente. (Si alguna vez se quiere lo otro, es un cambio de BYTES
+            ' del NIF y lo decide el usuario.)
+            ' ⚠️ El `IsNothing` boxeado tambien esta en la linea 879, pero ALLI es inofensivo: la
+            ' polaridad es la contraria y el guard real es el `Vertices IsNot Nothing` que le sigue.
 
             ' Save_Shapedatas ya persiste el sidecar de tacones en el path canónico; la escritura
             ' extra que había acá apuntaba al mismo archivo con otra expresión (dos dueños del
@@ -1280,6 +1278,32 @@ Public Class Editor_Form
                 MsgBox("The project shapedata could not be written. Nothing was saved.", vbExclamation, "Save")
                 Exit Sub
             End If
+
+            ' Promote the clone's node into the OSP document tree so Save_Pack persists XML changes
+            ' ⛔ VA DESPUÉS DEL GUARDADO, NO ANTES. Estaba arriba de todo, y con el `Exit Sub` de recién
+            ' eso dejaba el DOM A MEDIO PROMOVER: el nodo del clon ya adentro del documento, el de
+            ' `_OriginalSlider` desprendido, nada escrito y el form todavía abierto. Si el usuario apretaba
+            ' Cancel, el cierre sale por `DialogResult.Abort` y `Open_Editor` NO llama a `Reload`, así que
+            ' el pack en memoria se quedaba con las ediciones que se le dijo al usuario que no se guardaron
+            ' —y cualquier `Save_Pack_As` posterior sobre ese pack las escribía—.
+            ' Verificado que moverlo es seguro: `Save_Shapedatas` no necesita el nodo adjunto
+            ' (`RepointLocalDatasTo` itera `Sliders`/`Datas` del objeto, sin XPath sobre el documento);
+            ' lo único que exige es ocurrir antes de `Save_Pack`.
+            ' ⛔ El guard de nulos se conserva: tras un ReplaceChild el `.ParentNode` del nodo original da
+            ' Nothing, y el `?.` que había sólo cubría `_OriginalSlider`, no `ParentNode`.
+            ' ⚠️ HOY el segundo paso no se alcanza. Acá se llama `Save_Shapedatas(True)`, y con
+            ' Overwrite=True su única salida False restante es `Not osdEscrito`, que exige
+            ' `OSD_Class.Header Is Nothing` — imposible: se inicializa en la declaración y su única
+            ' reasignación viene de ReadBytes. Desde este llamador `Save_Shapedatas` devuelve True o TIRA
+            ' (los fallos de IO del .nif/.hht/.xml de SMP suben como excepción, no como False). El único
+            ' llamador donde el False sí se dispara es `Agrega_Proyecto`, que pasa `OverwriteShapeFiles` y
+            ' puede venir en False. El guard se conserva por CONTRATO, igual que el gate documentado en
+            ' Save_Shapedatas.
+            If _OriginalSlider IsNot Nothing AndAlso _OriginalSlider.Nodo IsNot Nothing AndAlso
+               _OriginalSlider.Nodo.ParentNode IsNot Nothing Then
+                _OriginalSlider.Nodo.ParentNode.ReplaceChild(Selected_Slider.Nodo, _OriginalSlider.Nodo)
+            End If
+
             Selected_Slider.ParentOSP.Save_Pack(True)
             Finalizado_Edit()
             SavedTargetProject = True

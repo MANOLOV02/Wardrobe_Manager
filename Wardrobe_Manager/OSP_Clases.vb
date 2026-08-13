@@ -1914,6 +1914,10 @@ Public Class OSP_Project_Class
             If Not IsNothing(Sliderset_Target.Nodo) AndAlso Not IsNothing(Sliderset_Target.Nodo.ParentNode) Then
                 Sliderset_Target.Nodo.ParentNode.RemoveChild(Sliderset_Target.Nodo)
             End If
+            ' ⛔ EL NODO SE DESHACIA Y EL SLOT NO. Mismo agujero que en Merge_Proyecto: este camino
+            ' limpiaba el XML pero dejaba el target anotado en `LoadedShapeDataSlots`. Ver alla el
+            ' porque de que `Forget` sea seguro en los dos ramales del OrElse.
+            ForgetLoadedShapeDataSlot(Sliderset_Target)
             Return Nothing
         End If
         SliderSets.Add(Sliderset_Target)
@@ -2234,7 +2238,16 @@ Public Class OSP_Project_Class
         ' Add project and update
         Dim Sliderset_Target = New SliderSet_Class(Sliderset_Madre.ParentOSP.xml.ImportNode(Sliderset_Source.Nodo.Clone, True), Sliderset_Madre.ParentOSP)
         Dim loadContext = If(context, ProjectLoadContext.CreateInteractive())
-        If OSP_Project_Class.Load_and_CHeck_Project(Sliderset_Target, loadContext) = False OrElse OSP_Project_Class.Load_and_Check_Shapedata(Sliderset_Target, loadContext) = False Then Return Nothing
+        If OSP_Project_Class.Load_and_CHeck_Project(Sliderset_Target, loadContext) = False OrElse OSP_Project_Class.Load_and_Check_Shapedata(Sliderset_Target, loadContext) = False Then
+            ' ⛔ ERA EL UNICO Return de este metodo que no soltaba el slot. `Load_and_Check_Shapedata`
+            ' anota el target en `LoadedShapeDataSlots` ANTES de poder fallar (su Catch cubre el tramo de
+            ' ReportLoadIssue/BuildCloneMaterialIssue), asi que con Default_Memory_Pause=True el cascaron
+            ' quedaba retenido para siempre. `Forget` es Remove bajo lock: no-op si nunca se anoto —el
+            ' caso en que el OrElse corta en Load_and_CHeck_Project— y no descarga nada, asi que no le
+            ' puede sacar datos a nadie. El Catch de Load_and_Check_Shapedata ya hizo UnloadShapeData.
+            OSP_Project_Class.ForgetLoadedShapeDataSlot(Sliderset_Target)
+            Return Nothing
+        End If
 
         ' Define HighHeels. El source ya trae su valor resuelto por el sidecar canónico (antes el clon
         ' se construía reparentado al pack DESTINO y su sidecar se buscaba en la carpeta equivocada,
@@ -2271,10 +2284,6 @@ Public Class OSP_Project_Class
             OSP_Project_Class.ForgetLoadedShapeDataSlot(Sliderset_Target)
             Return Nothing
         End If
-
-        ' Punto de no retorno: de acá para abajo Merge_Proyecto no vuelve a rechazar (el resto sale sólo
-        ' por Return Sliderset_Madre), así que recién ahora el aviso es cierto.
-        If avisarTaconesDistintos Then MsgBox("Different High Heels setup. Higher assumed", vbInformation, "Warning")
 
         ' Agrega Sliders Faltantes
         For Each slid In Sliderset_Target.Sliders
@@ -2411,6 +2420,15 @@ Public Class OSP_Project_Class
 
         ' Graba el proyecto
         Sliderset_Madre.ParentOSP.Save_Pack_As(Sliderset_Madre.ParentOSP.Filename, True)
+
+        ' ⛔ EL AVISO DE TACONES SE MUESTRA ACÁ, NO DONDE SE DECIDE. Se decide arriba (donde se toma la
+        ' altura más alta) pero se DIFIERE hasta este punto porque hasta acá el merge todavía se puede
+        ' rechazar: el gate de `Update_Names` y el `Save_Shapedatas` de recién devuelven Nothing, y en
+        ' esos casos el usuario veía "Higher assumed" por un merge que NUNCA ocurrió.
+        ' ⛔ Y VA DESPUÉS DE `Save_Pack_As`, no antes: `Save_Pack_As` no rechaza pero PUEDE TIRAR
+        ' (`xml.Save`). Éste es el único punto del método donde ya no queda nada que pueda fallar.
+        If avisarTaconesDistintos Then MsgBox("Different High Heels setup. Higher assumed", vbInformation, "Warning")
+
         Return Sliderset_Madre
     End Function
 
