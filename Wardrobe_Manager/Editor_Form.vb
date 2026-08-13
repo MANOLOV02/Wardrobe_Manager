@@ -1136,12 +1136,46 @@ Public Class Editor_Form
                         ' (Editor_Form:715/721), así que hasta entonces seguiría apuntando al NIFContent
                         ' MUTADO y un Save inmediato lo grabaría. `UnloadShapeData` hace el `Clear()` del
                         ' NIF y suelta la referencia YA; el próximo acceso lo relee del disco.
+                        ' ⛔⛔ SE DESCARTA **Y SE CIERRA EL EDITOR**. Descartar solo no alcanzaba y era peor:
+                        ' `UnloadShapeData` deja `NIFContent` como un cascaron vacio, pero este modal sigue
+                        ' abierto con `Selected_Slider`/`Selected_Shape` apuntando a el, y NADIE vuelve a
+                        ' llamar `Load_and_Check_Shapedata` (`Lee_Edit` sólo corre al ABRIR). El primer gesto
+                        ' posterior —un Save— hace `shap.RelatedMaterial.path` sobre Nothing y revienta con
+                        ' NRE sin Try. O sea: la capa anterior grababa un Frankenstein y ésta lo cambiaba por
+                        ' un crash. Ninguna de las dos es el arreglo.
+                        ' Cerrar es lo único consistente: el NIF en memoria quedó a medio reescribir y no hay
+                        ' rollback en el helper, así que la sesión de edición ya no es confiable. Al reabrir,
+                        ' el proyecto se relee del disco intacto.
+                        ' ⛔ PRIMERO SE APAGA EL PREVIEW, DESPUES SE DESCARGA, Y RECIEN AHI SE HABLA.
+                        ' `MsgBox` corre un loop de mensajes anidado, asi que entre el `Clear()` del NIF y
+                        ' el `Close()` entra un WM_PAINT y el control dibuja contra shapedata ya liberada
+                        ' (`RelatedNifShape`/`RelatedMaterial` en Nothing). El propio `EditorControl_Closing`
+                        ' apaga `AllowMask`/`Enabled` ANTES de limpiar, y `RememberLoadedShapeDataSlot` se
+                        ' niega a evictar un sliderset `PinnedForPreview` justo porque sus VBOs dependen de
+                        ' que la shapedata siga viva. Este camino la descargaba a mano, salteando esa red.
+                        ' ⛔ `BeginTeardown()`, NO `Enabled = False`. Mi primer intento fue apagar
+                        ' AllowMask/Enabled copiando lo que hace `EditorControl_Closing`, y NO SIRVE:
+                        ' `OnPaint` (Render.vb:1441) está gateado por `_isTearingDown OrElse IsDisposed
+                        ' OrElse Disposing` — ni `Enabled` ni `AllowMask` lo tocan, y en WinForms un control
+                        ' deshabilitado SIGUE recibiendo WM_PAINT. `BeginTeardown` levanta ese flag y ademas
+                        ' para el RenderTimer; su propio doc describe justo este caso ("paints queued by the
+                        ' safety-repaint heartbeat cannot drain mid-teardown"). Es idempotente, asi que el
+                        ' `Clean()` del cierre lo vuelve a llamar sin problema.
+                        If EditPreviewControl IsNot Nothing AndAlso Not EditPreviewControl.IsDisposed Then
+                            EditPreviewControl.BeginTeardown()
+                        End If
                         Selected_Slider.UnloadShapeData(False)
                         Selected_Slider.ShapeDataLoaded = False
                         Selected_Slider.LastShapeDataSignature = ""
                         MsgBox(report & Environment.NewLine & Environment.NewLine &
-                               "The in-memory mesh was left partially rewritten and has been discarded; " &
-                               "it will be reloaded from disk.", vbExclamation, "Remove Physics")
+                               "The mesh was left partially rewritten in memory and has been discarded. " &
+                               "The editor will close; reopen the project to continue from the saved data.",
+                               vbExclamation, "Remove Physics")
+                        ' Sin esto el cierre sale por Abort y `Open_Editor` NO llama a `selected.Reload(...)`:
+                        ' quedaria el DOM del .osp con las ediciones del usuario contra la shapedata vaciada,
+                        ' y el preview principal mostrando la malla vieja.
+                        ForzarRecargaAlCerrar = True
+                        Me.Close()
                         Exit Sub
                     End If
                 End If
@@ -1216,7 +1250,14 @@ Public Class Editor_Form
                 End If
             End If
             ' Promote the clone's node into the OSP document tree so Save_Pack persists XML changes
-            _OriginalSlider?.Nodo.ParentNode.ReplaceChild(Selected_Slider.Nodo, _OriginalSlider.Nodo)
+            ' ⛔ IDEMPOTENTE, Y ES OBLIGATORIO SERLO. Con el `Exit Sub` del guardado fallido (más abajo)
+            ' este handler puede correr DOS veces; tras el primer ReplaceChild el nodo original ya no está
+            ' en el árbol y su `.ParentNode` da Nothing. El `?.` sólo cubría `_OriginalSlider`, no
+            ' `ParentNode`, así que el segundo click en Save era un NRE sin Try — crash de la app.
+            If _OriginalSlider IsNot Nothing AndAlso _OriginalSlider.Nodo IsNot Nothing AndAlso
+               _OriginalSlider.Nodo.ParentNode IsNot Nothing Then
+                _OriginalSlider.Nodo.ParentNode.ReplaceChild(Selected_Slider.Nodo, _OriginalSlider.Nodo)
+            End If
 
             ' Only for shapes whose ModelSpaceNormals changed: inject computed N/T/B from geo.
             ' Shapes that didn't change: leave the NIF exactly as it was.
@@ -1232,7 +1273,13 @@ Public Class Editor_Form
             ' Save_Shapedatas ya persiste el sidecar de tacones en el path canónico; la escritura
             ' extra que había acá apuntaba al mismo archivo con otra expresión (dos dueños del
             ' mismo path, que divergían en cuanto el nombre del fuente contenía ".nif").
-            Selected_Slider.Save_Shapedatas(True)
+            ' ⛔ SI NO SE ESCRIBIO LA SHAPEDATA, NO SE GRABA EL .osp NI SE MARCA COMO GUARDADO.
+            ' `RepointLocalDatasTo` vive dentro del `If osdEscrito`, o sea que con False el DOM no quedó
+            ' colapsado y el Save_Pack de abajo escribiría un .osp que no corresponde a lo que hay en disco.
+            If Not Selected_Slider.Save_Shapedatas(True) Then
+                MsgBox("The project shapedata could not be written. Nothing was saved.", vbExclamation, "Save")
+                Exit Sub
+            End If
             Selected_Slider.ParentOSP.Save_Pack(True)
             Finalizado_Edit()
             SavedTargetProject = True
@@ -1367,11 +1414,21 @@ Public Class Editor_Form
         Process_render_Changes(True)
     End Sub
 
+    ''' <summary>⛔ Fuerza que el cierre NO salga por <c>DialogResult.Abort</c>. <c>Open_Editor</c> usa Abort
+    ''' como "no pasó nada, no recargues", y el camino del reweight fallido es un TERCER estado: no se
+    ''' escribió nada A DISCO pero SÍ se descartó la shapedata en memoria. Sin esto, <c>selected.Reload(...)</c>
+    ''' no corre, el preview principal no se limpia aunque esté mostrando este sliderset, y queda el DOM del
+    ''' .osp con las ediciones del usuario contra un NIF/OSD vaciado.</summary>
+    Private ForzarRecargaAlCerrar As Boolean = False
+
     Private Sub EditorControl_Closing(sender As Object, e As CancelEventArgs) Handles Me.Closing
         DialogResult = DialogResult.Continue
         If WroteFilesToDisk = True And SavedTargetProject = True Then DialogResult = DialogResult.OK
         If WroteFilesToDisk = True And SavedTargetProject = False Then DialogResult = DialogResult.Cancel
         If WroteFilesToDisk = False And SavedTargetProject = False Then DialogResult = DialogResult.Abort
+        ' Ver ForzarRecargaAlCerrar: Continue cae en la rama de Reload de Open_Editor. Va DESPUES de los tres
+        ' If de arriba, que son incondicionales y lo pisarian. `Continue` ya es el default de este handler.
+        If ForzarRecargaAlCerrar Then DialogResult = DialogResult.Continue
         If EditPreviewControl IsNot Nothing AndAlso Not EditPreviewControl.IsDisposed Then
             EditPreviewControl.AllowMask = False
             EditPreviewControl.Enabled = False
@@ -2446,6 +2503,12 @@ Public Class Editor_Form
 
         ' Esta llamada es exigida por el dise?ador.
         InitializeComponent()
+
+        ' Los iconos del ImageList ya no viven en el .resx (MSB3821): ver FormImageLists.vb. Va
+        ' aca y no en InitializeComponent para que el diseñador no lo pise al regenerar el archivo.
+        ' Los ImageIndex/ImageKey que el Designer ya asigno se resuelven al pintar, no ahora.
+        FormImageLists.FillEditorForm(ImageList1)
+
         ' SAM (ScreenArcher Menu) is a Fallout 4 mod, so "Save for screen archer" only makes sense for
         ' FO4; on Skyrim SSE force the toggle off and disable it (Enabled set before Checked so the
         ' CheckedChanged guard sees the right state and does not clobber the persisted FO4 preference).

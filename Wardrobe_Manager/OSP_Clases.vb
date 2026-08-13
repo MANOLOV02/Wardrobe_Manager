@@ -759,7 +759,14 @@ Public Class Clone_Materials_class
         ApplyShapeBindings(plan)
 
         project.InvalidateAllLookupCaches()
-        project.Save_Shapedatas(True)
+        ' ⛔ SI NO SE ESCRIBIO LA SHAPEDATA, NO SE TOCA EL .osp. `RepointLocalDatasTo` vive DENTRO del
+        ' `If osdEscrito Then`, y las dos salidas False de `Save_Shapedatas` estan ANTES: con False el DOM
+        ' NO quedo colapsado, asi que el `Save_Pack` de abajo no tiene nada que sincronizar. (Es `Exit Sub`
+        ' y no `Return False` porque esto es un Sub, no una Function.)
+        If Not project.Save_Shapedatas(True) Then
+            Logger.LogLazy(Function() "[WM] Clone_Materials_For_Project: no se pudo guardar la shapedata reparada; no se toca el .osp")
+            Exit Sub
+        End If
 
         ' ⛔ Save_Shapedatas COLAPSA los <Data> locales a un solo .osd, y para eso MUTA el XML del .osp.
         ' Éste es el único de sus cuatro llamadores que no venía precedido de un Save_Pack_As: los
@@ -2155,7 +2162,19 @@ Public Class OSP_Project_Class
         Dim Old_Osd = Old_Nif.Replace(".nif", ".osd", StringComparison.OrdinalIgnoreCase)
 
         ' Procesa los cambios de nombre
-        Sliderset_Target.Update_Names(Nombre_Proyecto, Me.Nombre, context)
+        ' ⛔ SI NO RENOMBRO, NO SE SIGUE. Sin esto el target queda apuntando al DataFolder/SourceFile del
+        ' ORIGEN y el Save_Shapedatas de abajo pisa los archivos del proyecto fuente con el clon mutado.
+        If Not Sliderset_Target.Update_Names(Nombre_Proyecto, Me.Nombre, context) Then
+            SliderSets.Remove(Sliderset_Target)
+            If Not IsNothing(Sliderset_Target.Nodo) AndAlso Not IsNothing(Sliderset_Target.Nodo.ParentNode) Then
+                Sliderset_Target.Nodo.ParentNode.RemoveChild(Sliderset_Target.Nodo)
+            End If
+            ' ⛔ Y del LRU estatico tambien. `Load_and_Check_Shapedata` lo anoto en `LoadedShapeDataSlots`;
+            ' con `Default_Memory_Pause = True` (batch, Merge) no hay eviccion, asi que cada rechazado
+            ' de la tanda quedaba retenido con su NIF y su OSD.
+            OSP_Project_Class.ForgetLoadedShapeDataSlot(Sliderset_Target)
+            Return Nothing
+        End If
 
         ' Define High Heels. Se propaga el valor EFECTIVO y su condición de autorizado: el clon nace
         ' con su propio sidecar (Save_Shapedatas más abajo), así que si el origen tenía intención el
@@ -2199,6 +2218,10 @@ Public Class OSP_Project_Class
             If Not IsNothing(Sliderset_Target.Nodo) AndAlso Not IsNothing(Sliderset_Target.Nodo.ParentNode) Then
                 Sliderset_Target.Nodo.ParentNode.RemoveChild(Sliderset_Target.Nodo)
             End If
+            ' ⛔ Y del LRU estatico tambien. `Load_and_Check_Shapedata` lo anoto en `LoadedShapeDataSlots`;
+            ' con `Default_Memory_Pause = True` (batch, Merge) no hay eviccion, asi que cada rechazado
+            ' de la tanda quedaba retenido con su NIF y su OSD.
+            OSP_Project_Class.ForgetLoadedShapeDataSlot(Sliderset_Target)
             Return Nothing
         End If
 
@@ -2216,12 +2239,19 @@ Public Class OSP_Project_Class
         ' Define HighHeels. El source ya trae su valor resuelto por el sidecar canónico (antes el clon
         ' se construía reparentado al pack DESTINO y su sidecar se buscaba en la carpeta equivocada,
         ' así que el merge no transfería los tacones). Decidir aquí es INTENCIÓN: se marca autorizado.
+        ' Estado previo de la MADRE: si el merge se rechaza mas abajo hay que devolverlo (ver el undo).
+        Dim avisarTaconesDistintos As Boolean = False
+        Dim hhAlturaPrevia = Sliderset_Madre.HighHeelHeight
+        Dim hhAutoradaPrevia = Sliderset_Madre.HighHeelAuthored
         If Sliderset_Target.HighHeelHeight <> 0 Then
             If Sliderset_Madre.IsHighHeel = False OrElse Sliderset_Madre.HighHeelHeight = Sliderset_Target.HighHeelHeight Then
                 Sliderset_Madre.HighHeelHeight = Sliderset_Target.HighHeelHeight
             Else
                 Sliderset_Madre.HighHeelHeight = Math.Max(Sliderset_Madre.HighHeelHeight, Sliderset_Target.HighHeelHeight)
-                MsgBox("Different High Heels setup. Higher assumed", vbInformation, "Warning")
+                ' ⛔ El aviso se DIFIERE hasta pasado el punto de no retorno: acá el merge todavia puede
+                ' rechazarse mas abajo, y avisarle al usuario "Higher assumed" de algo que despues se
+                ' descarta —y que ademas se revierte en el undo— es informacion falsa.
+                avisarTaconesDistintos = True
             End If
             Sliderset_Madre.HighHeelAuthored = True
         End If
@@ -2230,7 +2260,21 @@ Public Class OSP_Project_Class
         Dim Old_Osd = Old_Nif.Replace(".nif", ".osd", StringComparison.OrdinalIgnoreCase)
 
         ' Procesa los cambios de nombre
-        Sliderset_Target.Update_Names(Sliderset_Madre.Nombre, Sliderset_Madre.ParentOSP.Nombre, context)
+        ' Mismo motivo que en Agrega_Proyecto: sin renombrar, lo de abajo escribe sobre el origen.
+        ' ⛔ Y ACA EL UNDO TIENE QUE DESHACER LO DE LA MADRE. A esta altura ya se le escribio
+        ' `HighHeelHeight` y `HighHeelAuthored = True` (arriba), que es el proyecto REAL del usuario y mata
+        ' la autodeteccion de tacones para siempre. `Merge_Part` saltea el item y sigue el bucle, asi que
+        ' sin esto la madre queda con una altura importada de un source que despues se rechazo.
+        If Not Sliderset_Target.Update_Names(Sliderset_Madre.Nombre, Sliderset_Madre.ParentOSP.Nombre, context) Then
+            Sliderset_Madre.HighHeelHeight = hhAlturaPrevia
+            Sliderset_Madre.HighHeelAuthored = hhAutoradaPrevia
+            OSP_Project_Class.ForgetLoadedShapeDataSlot(Sliderset_Target)
+            Return Nothing
+        End If
+
+        ' Punto de no retorno: de acá para abajo Merge_Proyecto no vuelve a rechazar (el resto sale sólo
+        ' por Return Sliderset_Madre), así que recién ahora el aviso es cierto.
+        If avisarTaconesDistintos Then MsgBox("Different High Heels setup. Higher assumed", vbInformation, "Warning")
 
         ' Agrega Sliders Faltantes
         For Each slid In Sliderset_Target.Sliders
@@ -2350,8 +2394,20 @@ Public Class OSP_Project_Class
         ' Make Local Sliders
         Make_Sliders_Local(Sliderset_Madre)
 
+        ' ⛔ El clon ya cumplio su funcion: sus shapes, sliders y bloques OSD se copiaron a la madre
+        ' (`CloneShape_Original`/`Clone_block` clonan, no comparten), y su Nodo es un huerfano que nunca se
+        ' appendeo. Pero `Load_and_Check_Shapedata` lo anoto en el LRU estatico y nadie lo saca: con
+        ' `Default_Memory_Pause = True` (batch) cada source mergeado quedaba retenido con su NIF y su OSD.
+        ' Va ANTES del guardado a proposito: si el guardado falla y sale por Return, el olvido ya ocurrio.
+        OSP_Project_Class.ForgetLoadedShapeDataSlot(Sliderset_Target)
+
         ' Graba OSD y NIF
-        Sliderset_Madre.Save_Shapedatas(True)
+        ' ⚠️ Nothing = "no muevas el source a Processed" y el disco queda intacto (ni .osd, ni .nif, ni .osp
+        ' se escribieron: el Return False de Save_Shapedatas esta antes del Save_As_Manolo del NIF). Lo que
+        ' NO se deshace es la madre EN MEMORIA: a esta altura ya tiene los shapes, los sliders, los bloques
+        ' OSD y la geometria del source, sin rollback. Si el siguiente item del bucle guarda, commitea
+        ' tambien este merge.
+        If Not Sliderset_Madre.Save_Shapedatas(True) Then Return Nothing
 
         ' Graba el proyecto
         Sliderset_Madre.ParentOSP.Save_Pack_As(Sliderset_Madre.ParentOSP.Filename, True)
@@ -3521,22 +3577,42 @@ Public Class SliderSet_Class
         If legacy.Length > 0 AndAlso legacy.Equals(filename, StringComparison.OrdinalIgnoreCase) = False AndAlso IO.File.Exists(legacy) Then IO.File.Delete(legacy)
     End Sub
 
-    Public Sub Update_Names(Nombre As String, Pack As String, Optional context As ProjectLoadContext = Nothing)
+    ''' <returns>False si no pudo renombrar. ⛔ EL LLAMADOR TIENE QUE MIRARLO: si esto sale sin renombrar,
+    ''' el target sigue apuntando al DataFolder/SourceFile del ORIGEN, y el `Save_Shapedatas` que viene
+    ''' despues PISA LOS ARCHIVOS DEL PROYECTO FUENTE con el clon ya mutado — sin diálogo si el usuario
+    ''' tiene marcado "Overwrite data files".</returns>
+    Public Function Update_Names(Nombre As String, Pack As String, Optional context As ProjectLoadContext = Nothing) As Boolean
         ' Carga OSD y NIF
-        If OSP_Project_Class.Load_and_Check_Shapedata(Me, If(context, ProjectLoadContext.CreateInteractive())) = False Then Exit Sub
+        If OSP_Project_Class.Load_and_Check_Shapedata(Me, If(context, ProjectLoadContext.CreateInteractive())) = False Then Return False
+
+        ' ⛔⛔ EL DESTINO SE VALIDA **ANTES** DE MUTAR NADA. Devolver Boolean no alcanzaba: las tres
+        ' asignaciones de abajo corren y RECIEN despues `CreateDirectory` puede tirar
+        ' (ArgumentException por un caracter invalido en el nombre que tipeo el usuario,
+        ' PathTooLongException, UnauthorizedAccessException si el ShapedataRoot esta en un disco ausente
+        ' o de solo lectura). Esa excepcion NO es False: se saltea el `If Not Update_Names(...)` de los dos
+        ' llamadores, que ademas no tienen Try, y deja el proyecto renombrado, en SliderSets y en el DOM,
+        ' sin ningun undo — exactamente el fantasma que esto existe para cerrar.
+        Dim New_Nif_Probe As String
+        Try
+            New_Nif_Probe = IO.Path.Combine(IO.Path.Combine(Directorios.ShapedataRoot, Pack), Nombre + ".nif")
+            Dim dirDestino = IO.Path.GetDirectoryName(New_Nif_Probe)
+            If String.IsNullOrEmpty(dirDestino) Then Return False
+            If IO.Directory.Exists(dirDestino) = False Then IO.Directory.CreateDirectory(dirDestino)
+        Catch ex As Exception
+            Dim mu = ex.GetType().Name & ": " & ex.Message
+            Logger.LogLazy(Function() $"[WM] Update_Names no pudo preparar el destino, no se renombra nada: {mu}")
+            Return False
+        End Try
 
         Me.Nombre = Nombre
         Me.DataFolderValue = Pack.ToString
         Me.SourceFileValue = Nombre + ".nif"
-        Dim New_Nif = IO.Path.Combine(IO.Path.Combine(Directorios.ShapedataRoot, Pack), Nombre + ".nif")
+        Dim New_Nif = New_Nif_Probe
         ' ChangeExtension, no Replace: es el mismo destino que después calcula LocalOsdFullPath sobre
         ' el SourceFileFullPath ya renombrado. Con Replace, un Pack o un Nombre que contuviera ".nif"
         ' daba dos strings distintos y el .osp quedaba apuntando a un archivo inexistente.
         Dim New_Osd = IO.Path.ChangeExtension(New_Nif, ".osd")
-        If IO.Directory.Exists(IO.Path.GetDirectoryName(New_Nif)) = False Then
-            IO.Directory.CreateDirectory(IO.Path.GetDirectoryName(New_Nif))
-
-        End If
+        ' (el directorio destino ya se creo arriba, antes de mutar el objeto)
 
 
         ' Reemplaza Data OSD References.
@@ -3548,7 +3624,8 @@ Public Class SliderSet_Class
         ' 120 y la shape Labia perdía sus 28 morphs al clonar.
         RepointLocalDatasTo(IO.Path.GetFileName(New_Osd))
         InvalidateMetadataLookupCache()
-    End Sub
+        Return True
+    End Function
 
     Public Function Check_Unique_Shapename(Prueba As String) As String
         Dim index = 0
@@ -4210,7 +4287,15 @@ Public Class SliderSet_Class
         '
         ' ⛔ Sólo si Save_As escribió DE VERDAD. Si el usuario dijo "No" al reemplazar, re-apuntar los
         ' <Data> dejaría el .osp señalando un archivo que no existe.
+        ' ⚠️ ESTE GATE NO PUEDE DISPARARSE Y LO DIGO EN VEZ DE FINGIR QUE PROTEGE. Arriba se fuerza
+        ' `OverwriteShapeFiles = True` incondicionalmente, asi que la rama "el usuario dijo No" de
+        ' `Save_As` es inalcanzable desde aca, y `Header` nunca es Nothing (se inicializa en la
+        ' declaracion y su unica asignacion viene de ReadBytes). Desde este llamador `Save_As` devuelve
+        ' True o TIRA. Se conserva por contrato —si mañana alguien saca el forzado, esto ya esta— pero
+        ' NO es la red del borrado del original: esa la abre el `Throw` posterior a `FileMode.Create`,
+        ' que trunca el destino y sube sin Try por Agrega_Proyecto ni Rename_Clone_Target. Sigue abierto.
         Dim osdEscrito As Boolean = OSDContent_Local.Save_As(New_Osd, OverwriteShapeFiles)
+        If Not osdEscrito Then Return False
         If osdEscrito Then
             ' ⛔ SIN invalidar caches, a propósito. Los lookup caches se indexan por NOMBRE de bloque
             ' (_LocalOsdBlocksByNameCache) y se construyen desde OSDContent_Local.Blocks, que no se

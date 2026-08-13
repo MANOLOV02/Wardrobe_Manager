@@ -149,16 +149,9 @@ Partial Class Config_Form
         ' ImageList1
         ' 
         ImageList1.ColorDepth = ColorDepth.Depth32Bit
-        ImageList1.ImageStream = CType(resources.GetObject("ImageList1.ImageStream"), ImageListStreamer)
         ImageList1.TransparentColor = Color.Transparent
-        ImageList1.Images.SetKeyName(0, "agt_action_success.ico")
-        ImageList1.Images.SetKeyName(1, "cancel.ico")
-        ImageList1.Images.SetKeyName(2, "thumbnail.ico")
-        ImageList1.Images.SetKeyName(3, "attach.ico")
-        ImageList1.Images.SetKeyName(4, "agt_update_drivers.ico")
-        ImageList1.Images.SetKeyName(5, "add_group.ico")
-        ImageList1.Images.SetKeyName(6, "db_comit.ico")
-        ImageList1.Images.SetKeyName(7, "db_update.ico")
+        ' Las imagenes y sus keys las carga FormImageLists.FillConfigForm desde el constructor.
+        ' No volver a poner el ImageStream aca: ver el remarks de FormImageLists.vb (MSB3821).
         ' 
         ' Label2
         ' 

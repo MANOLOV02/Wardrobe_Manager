@@ -216,26 +216,9 @@ Partial Class Wardrobe_Manager_Form
         ' ImageList1
         ' 
         ImageList1.ColorDepth = ColorDepth.Depth32Bit
-        ImageList1.ImageStream = CType(resources.GetObject("ImageList1.ImageStream"), ImageListStreamer)
         ImageList1.TransparentColor = Color.Transparent
-        ImageList1.Images.SetKeyName(0, "agt_action_fail.ico")
-        ImageList1.Images.SetKeyName(1, "agt_action_success.ico")
-        ImageList1.Images.SetKeyName(2, "mail_find.ico")
-        ImageList1.Images.SetKeyName(3, "edit.ico")
-        ImageList1.Images.SetKeyName(4, "1leftarrow.ico")
-        ImageList1.Images.SetKeyName(5, "1rightarrow.ico")
-        ImageList1.Images.SetKeyName(6, "2leftarrow.ico")
-        ImageList1.Images.SetKeyName(7, "2rightarrow.ico")
-        ImageList1.Images.SetKeyName(8, "1downarrow1.ico")
-        ImageList1.Images.SetKeyName(9, "attach.ico")
-        ImageList1.Images.SetKeyName(10, "appearance.ico")
-        ImageList1.Images.SetKeyName(11, "folder_sent_mail.ico")
-        ImageList1.Images.SetKeyName(12, "gear.ico")
-        ImageList1.Images.SetKeyName(13, "personal.ico")
-        ImageList1.Images.SetKeyName(14, "layer-visible-off.ico")
-        ImageList1.Images.SetKeyName(15, "layer-visible-on.ico")
-        ImageList1.Images.SetKeyName(16, "help-hint.ico")
-        ImageList1.Images.SetKeyName(17, "Gnome-Video-X-Generic.ico")
+        ' Las imagenes y sus keys las carga FormImageLists.FillMainForm desde el constructor.
+        ' No volver a poner el ImageStream aca: ver el remarks de FormImageLists.vb (MSB3821).
         ' 
         ' ListView2
         ' 
@@ -1518,7 +1501,8 @@ Partial Class Wardrobe_Manager_Form
         AutoScroll = True
         ClientSize = New Size(1491, 701)
         Controls.Add(SplitPrincipal_1)
-        Icon = CType(resources.GetObject("$this.Icon"), Icon)
+        ' El Icon lo pone FormImageLists.MainFormIcon desde el constructor: serializado en el resx
+        ' era un <data mimetype="..."> y disparaba MSB3821. Ver el remarks de FormImageLists.vb.
         KeyPreview = True
         MinimumSize = New Size(1024, 714)
         Name = "Wardrobe_Manager_Form"

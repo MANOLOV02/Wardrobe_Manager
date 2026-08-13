@@ -36,6 +36,19 @@ Imports NiflySharp.Enums
 
 Public Class Wardrobe_Manager_Form
 
+    ''' <summary>
+    ''' Constructor explicito. Antes no habia y VB generaba el implicito; hace falta uno propio
+    ''' porque los iconos del ImageList y el Icon de la ventana ya no salen del .resx (MSB3821):
+    ''' ver el remarks de FormImageLists.vb. Va aca y no en InitializeComponent para que el
+    ''' diseñador no lo pise cuando regenera el Designer.
+    ''' </summary>
+    Public Sub New()
+        InitializeComponent()
+
+        FormImageLists.FillMainForm(ImageList1)
+        Icon = FormImageLists.MainFormIcon()
+    End Sub
+
     Public Class Directorios
 
         Public Shared ReadOnly Property Fallout4data As String

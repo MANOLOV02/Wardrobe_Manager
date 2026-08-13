@@ -12,6 +12,11 @@ Public Class Config_Form
         ' Esta llamada es exigida por el diseñador.
         InitializeComponent()
 
+        ' Los iconos del ImageList ya no viven en el .resx (MSB3821): ver FormImageLists.vb. Va
+        ' aca y no en InitializeComponent para que el diseñador no lo pise al regenerar el archivo.
+        ' Los ImageIndex/ImageKey que el Designer ya asigno se resuelven al pintar, no ahora.
+        FormImageLists.FillConfigForm(ImageList1)
+
         ' Enable double-buffering on the two labels that get hammered by progress updates during
         ' Pack/Unpack — without this the Text-per-tick assignments cause visible flicker. Done
         ' via reflection so the Designer can keep these as plain Label (a custom subclass would

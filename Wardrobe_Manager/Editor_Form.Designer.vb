@@ -827,31 +827,9 @@ Partial Class Editor_Form
         ' ImageList1
         ' 
         ImageList1.ColorDepth = ColorDepth.Depth32Bit
-        ImageList1.ImageStream = CType(resources.GetObject("ImageList1.ImageStream"), ImageListStreamer)
         ImageList1.TransparentColor = Color.Transparent
-        ImageList1.Images.SetKeyName(0, "agt_forum.ico")
-        ImageList1.Images.SetKeyName(1, "configure.ico")
-        ImageList1.Images.SetKeyName(2, "fileopen.ico")
-        ImageList1.Images.SetKeyName(3, "filesave.ico")
-        ImageList1.Images.SetKeyName(4, "filesaveas.ico")
-        ImageList1.Images.SetKeyName(5, "agt_action_fail.ico")
-        ImageList1.Images.SetKeyName(6, "agt_reload.ico")
-        ImageList1.Images.SetKeyName(7, "agt_update_drivers.ico")
-        ImageList1.Images.SetKeyName(8, "agt_virussafe.ico")
-        ImageList1.Images.SetKeyName(9, "compfile.ico")
-        ImageList1.Images.SetKeyName(10, "edit_add.ico")
-        ImageList1.Images.SetKeyName(11, "edit_remove.ico")
-        ImageList1.Images.SetKeyName(12, "connect_creating.ico")
-        ImageList1.Images.SetKeyName(13, "connect_no.ico")
-        ImageList1.Images.SetKeyName(14, "button_cancel.ico")
-        ImageList1.Images.SetKeyName(15, "runprog.ico")
-        ImageList1.Images.SetKeyName(16, "db_add.ico")
-        ImageList1.Images.SetKeyName(17, "db_remove.ico")
-        ImageList1.Images.SetKeyName(18, "applications-development.ico")
-        ImageList1.Images.SetKeyName(19, "editcut.ico")
-        ImageList1.Images.SetKeyName(20, "editcopy.ico")
-        ImageList1.Images.SetKeyName(21, "filter.ico")
-        ImageList1.Images.SetKeyName(22, "tab_duplicate.ico")
+        ' Las imagenes y sus keys las carga FormImageLists.FillEditorForm desde el constructor.
+        ' No volver a poner el ImageStream aca: ver el remarks de FormImageLists.vb (MSB3821).
         ' 
         ' ButtonMatSaveAs
         ' 

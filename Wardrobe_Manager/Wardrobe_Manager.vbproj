@@ -103,6 +103,22 @@
     <Folder Include="Resources\" />
   </ItemGroup>
 
+  <!-- ⛔ Los iconos de los ImageList van como recursos SUELTOS, no dentro de los .resx: un nodo
+       <data mimetype="..."> hace que GenerateResource marque el resx como peligroso y, con el arbol
+       bajo el sync root de OneDrive (zona 4), el build muere con MSB3821. Por el mismo motivo NO
+       pueden ir en Resources.resx, que los serializaria como ResXFileRef (tambien en la lista negra).
+       LogicalName explicito porque el naming por defecto de VB ignora las carpetas y colisionaria.
+       Los lee FormImageLists.vb. -->
+  <ItemGroup>
+    <None Remove="Resources\FormIcons\**" />
+    <EmbeddedResource Include="Resources\FormIcons\*.png">
+      <LogicalName>WMIcons.%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Resources\FormIcons\*.ico">
+      <LogicalName>WMIcons.%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\FO4_Base_Library\FO4_Base_Library.vbproj" />
   </ItemGroup>
