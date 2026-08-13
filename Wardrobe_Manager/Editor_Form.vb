@@ -1099,8 +1099,43 @@ Public Class Editor_Form
             If Selected_Slider.NIFContent.Blocks.Any(Function(b) b.GetType Is GetType(BSClothExtraData)) Then
                 Dim report As String = ""
                 If MsgBox("do you want to try to reweight vertices with physics to base skeleton", vbYesNo, "Remove Physics") = MsgBoxResult.Yes Then
-                    If PhysicsWeightCollapseHelper.TryCollapseInjectedWeightsAndExpandPaletteBeforeRemovingPhysics(Selected_Slider, report) = False Then
-                        MsgBox(report, vbExclamation, "Remove Physics")
+                    ' ⛔ EL DESBORDE DE PALETA SALE POR `report`, NO COMO EXCEPCIÓN NO ATRAPADA.
+                    ' `BoneInfluencePacker.PackPaletteIndex` pasó de enmascarar en silencio (bindeo al hueso
+                    ' EQUIVOCADO) a tirar `InvalidOperationException` — la dirección correcta. Pero esta
+                    ' cadena no tenía Try/Catch, así que con una malla de más de 256 huesos el botón pasaba
+                    ' de "build OK con binding mal" a reventar la app, esquivando el canal de error que este
+                    ' mismo bloque ya tiene dos líneas abajo.
+                    Dim okCollapse As Boolean
+                    Try
+                        okCollapse = PhysicsWeightCollapseHelper.TryCollapseInjectedWeightsAndExpandPaletteBeforeRemovingPhysics(Selected_Slider, report)
+                    Catch ex As InvalidOperationException
+                        ' ⛔ SOLO InvalidOperationException, que es la que tira `PackPaletteIndex` por
+                        ' desborde de paleta. Un `Catch ex As Exception` se tragaba tambien
+                        ' NullReference/IndexOutOfRange/OutOfMemory: un bug del helper se le mostraba al
+                        ' usuario como "Reweight aborted: Object reference not set..." y la app seguia con
+                        ' el NIF a MEDIO REESCRIBIR en memoria (el helper muta mientras avanza), listo
+                        ' para que un Save posterior lo grabe.
+                        okCollapse = False
+                        report = If(String.IsNullOrEmpty(report), "", report & Environment.NewLine) &
+                                 "Reweight aborted: " & ex.Message
+                    End Try
+                    If Not okCollapse Then
+                        ' ⛔⛔ EL NIF EN MEMORIA QUEDA A MEDIO REESCRIBIR Y HAY QUE TIRARLO.
+                        ' `TryCollapseInjectedWeightsInternal` aplica los planes EN BUCLE y cada
+                        ' `ApplyShapeRewritePlan` MUTA: expande la paleta del skin, hace `SetSkinning`,
+                        ' `UpdateBounds` y `UpdateSkinPartitions`. Si falla en la shape 2 de 3 —sea por
+                        ' excepción o por el `Return False`— la shape 1 ya quedó colapsada, la 2 con la
+                        ' paleta expandida y el skinning viejo, la 3 intacta, y la física todavía puesta.
+                        ' Antes eso reventaba a la vista; ahora el usuario aprieta OK y sigue trabajando
+                        ' sobre ese Frankenstein, y un Save posterior lo graba.
+                        ' No hay rollback en el helper, así que se usa el mecanismo que YA existe: marcar
+                        ' la shapedata como no cargada fuerza que el próximo acceso la relea del disco y
+                        ' descarte lo mutado. Es lo mismo que hace `Save_Shapedatas` en su epílogo.
+                        Selected_Slider.ShapeDataLoaded = False
+                        Selected_Slider.LastShapeDataSignature = ""
+                        MsgBox(report & Environment.NewLine & Environment.NewLine &
+                               "The in-memory mesh was left partially rewritten and has been discarded; " &
+                               "it will be reloaded from disk.", vbExclamation, "Remove Physics")
                         Exit Sub
                     End If
                 End If

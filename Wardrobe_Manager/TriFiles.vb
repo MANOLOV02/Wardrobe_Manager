@@ -428,9 +428,16 @@ Public Module LooksMenuSliders
         Dim genders = EngineGenders()
 
         ' Candidate sliders (not Clamp/Zap/ManoloFix) don't depend on the shape — build once.
+        ' ⛔⛔ EL PREDICADO DEL ZAP ES `ResolveSlider(...).Kind`, NO `IsZap`. Acá decía `Not IsZap` a secas,
+        ' y la ley canónica —MorphingHelper, tomada de BodySlideApp::BuildListBodies:4373— es
+        ' `bZap && !bUV`: un slider con IsZap=True Y IsUV=True NO es un zap, es un morph UV. O sea que ese
+        ' slider se APLICABA como UvMorph en el render y en el bake, pero quedaba fuera de los candidatos
+        ' del .tri ⇒ se perdía del archivo, en silencio. Que TriFiles sabe emitir morphs UV lo prueba el
+        ' bloque de abajo, que ya hace `.MorphType = If(slider.IsUV, TriMorphType.UV, …)`.
         Dim candidateIndices As New List(Of Integer)
         For s = 0 To sliderSet.Sliders.Count - 1
-            If Not sliderSet.Sliders(s).IsClamp AndAlso Not sliderSet.Sliders(s).IsZap AndAlso
+            Dim esZap = MorphingHelper.ResolveSlider(sliderSet.Sliders(s)).Kind = SliderKind.Zap
+            If Not sliderSet.Sliders(s).IsClamp AndAlso Not esZap AndAlso
                (Not sliderSet.Sliders(s).IsManoloFix OrElse skipManoloFix = False) Then
                 candidateIndices.Add(s)
             End If

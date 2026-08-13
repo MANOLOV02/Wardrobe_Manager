@@ -3,6 +3,7 @@ Imports System.Collections.Concurrent
 Imports System.IO
 Imports System.Threading
 Imports BSA_BA2_Library_DLL.BethesdaArchive.Core
+Imports FO4_Base_Library.Archives
 
 ''' <summary>
 ''' Bridges Clone_Materials_class' loose output (under Materials\ManoloCloned\ and
@@ -18,8 +19,9 @@ Public Module WM_PackUnpack
     ' Per-game caps. SSE BSA has a hard u32 offset limit at 4GB — 3GB leaves margin for header
     ' overhead and LZ4 frame inflation. FO4 BA2 uses u64 offsets but the engine is reported
     ' unstable >4GB; 3GB is the safe sweet spot.
-    Private Const MAX_BYTES_FO4 As Long = 3L * 1024L * 1024L * 1024L
-    Private Const MAX_BYTES_SSE As Long = 3L * 1024L * 1024L * 1024L
+    ' El tope es del FORMATO, no de esta app: vive en PackagerRequest.MaxArchiveBytesDefault.
+    Private ReadOnly MAX_BYTES_FO4 As Long = BSA_BA2_Library_DLL.BethesdaArchive.Core.PackagerRequest.MaxArchiveBytesDefault
+        Private ReadOnly MAX_BYTES_SSE As Long = BSA_BA2_Library_DLL.BethesdaArchive.Core.PackagerRequest.MaxArchiveBytesDefault
 
     Public Class StatusInfo
         Public Property LooseMaterialCount As Integer
@@ -195,8 +197,8 @@ Public Module WM_PackUnpack
                         Dim lf = allLoose(looseIndex + i)
                         Try
                             micro(i) = If(lf.IsTexture,
-                                          MakeTextureEntry(dataDir, lf.FullPath),
-                                          MakeMaterialEntry(dataDir, lf.FullPath))
+                                          MakeTextureEntry(dataDir, lf.FullPath, lf.FullPath, Config_App.Current.Game),
+                                          MakeMaterialEntry(dataDir, lf.FullPath, lf.FullPath, Config_App.Current.Game))
                         Catch ex As Exception
                             micro(i) = Nothing
                             failedSources.Add(lf.FullPath)
@@ -654,40 +656,6 @@ Public Module WM_PackUnpack
     ''' stream-copies the bytes verbatim. Materials always go through the GNRL path on FO4 or
     ''' the BSA path on SSE.
     ''' </summary>
-    Private Function MakeMaterialEntry(dataDir As String, fullPath As String) As VirtualEntry
-        Dim relUnderData = Path.GetRelativePath(dataDir, fullPath).Correct_Path_Separator
-        Dim bytes = IO.File.ReadAllBytes(fullPath)
-        Dim dir As String = "", file As String = ""
-        PathUtil.SplitDirFile(relUnderData, dir, file)
-        Dim crc = Ba2WriterCommon.Crc32Bytes(bytes)
-
-        Dim ve As New VirtualEntry With {
-            .Directory = dir,
-            .FileName = file,
-            .Crc32 = crc
-        }
-
-        If Config_App.Current.Game = Config_App.Game_Enum.Skyrim Then
-            ' BSA: compress with LZ4 frame matching the archive's GlobalCompressed flag (true).
-            Dim cp = PayloadCompressor.CompressForBsa(bytes, wantCompressed:=True)
-            ve.PreCompressed = True
-            ve.PreCompressedBytes = cp.Bytes
-            ve.PreCompressedCompSize = cp.CompSize
-            ve.PreCompressedDecompSize = cp.DecompSize
-        Else
-            ' BA2 GNRL: Zlib (default preset, v8 by default — matches Ba2WriterGNRL.Options defaults).
-            Dim cp = PayloadCompressor.CompressForBa2Gnrl(bytes,
-                version:=8UI,
-                compressionFormat:=Ba2WriterCommon.CompressionFormat.Zip,
-                preset:=Ba2WriterCommon.ZlibPreset.Default)
-            ve.PreCompressed = True
-            ve.PreCompressedBytes = cp.Bytes
-            ve.PreCompressedCompSize = cp.CompSize
-            ve.PreCompressedDecompSize = cp.DecompSize
-        End If
-
-        Return ve
-    End Function
 
     ''' <summary>
     ''' Builds a VirtualEntry for a .dds. The shape and contract depends on the target format:
@@ -698,55 +666,7 @@ Public Module WM_PackUnpack
     '''   - SSE (BSA): the entire .dds file is treated as opaque bytes, compressed with LZ4 frame
     '''     to match the archive's GlobalCompressed flag. CRC32 is over the whole file.
     ''' </summary>
-    Private Function MakeTextureEntry(dataDir As String, fullPath As String) As VirtualEntry
-        Dim relUnderData = Path.GetRelativePath(dataDir, fullPath).Correct_Path_Separator
-        Dim bytes = File.ReadAllBytes(fullPath)
 
-        If Config_App.Current.Game = Config_App.Game_Enum.Skyrim Then
-            Dim dir As String = "", file As String = ""
-            PathUtil.SplitDirFile(relUnderData, dir, file)
-            Dim cp = PayloadCompressor.CompressForBsa(bytes, wantCompressed:=True)
-            Return New VirtualEntry With {
-                .Directory = dir,
-                .FileName = file,
-                .Crc32 = Ba2WriterCommon.Crc32Bytes(bytes),
-                .PreCompressed = True,
-                .PreCompressedBytes = cp.Bytes,
-                .PreCompressedCompSize = cp.CompSize,
-                .PreCompressedDecompSize = cp.DecompSize
-            }
-        End If
 
-        ' FO4 BA2 DX10: parse header → metadata + stripped payload → compress payload.
-        Dim ve = Dx10Importer.FromDdsBytes(bytes, relUnderData)
-        Dim payload = If(ve.Data, Array.Empty(Of Byte)())
-        ve.Crc32 = Ba2WriterCommon.Crc32Bytes(payload)
-        Dim cpDx10 = PayloadCompressor.CompressForBa2Dx10(payload,
-            version:=8UI,
-            compressionFormat:=Ba2WriterCommon.CompressionFormat.Zip,
-            preset:=Ba2WriterCommon.ZlibPreset.Default)
-        ve.Data = Nothing                           ' free raw payload — only the compressed copy is needed downstream
-        ve.PreCompressed = True
-        ve.PreCompressedBytes = cpDx10.Bytes
-        ve.PreCompressedCompSize = cpDx10.CompSize
-        ve.PreCompressedDecompSize = cpDx10.DecompSize
-        Return ve
-    End Function
-
-    Private Function MapGame(g As Config_App.Game_Enum) As GameKind
-        Select Case g
-            Case Config_App.Game_Enum.Fallout4 : Return GameKind.FO4_BA2
-            Case Config_App.Game_Enum.Skyrim : Return GameKind.SSE_BSA
-            Case Else : Throw New ArgumentOutOfRangeException(NameOf(g))
-        End Select
-    End Function
-
-    Private Function MapGameBack(g As GameKind) As Config_App.Game_Enum
-        Select Case g
-            Case GameKind.FO4_BA2 : Return Config_App.Game_Enum.Fallout4
-            Case GameKind.SSE_BSA : Return Config_App.Game_Enum.Skyrim
-            Case Else : Throw New ArgumentOutOfRangeException(NameOf(g))
-        End Select
-    End Function
 
 End Module

@@ -1010,15 +1010,27 @@ Public Class Wardrobe_Manager_Form
     End Sub
     Private Sub MergeButton_Click(sender As Object, e As EventArgs) Handles MergeButton.Click
         Empieza_Procesos(ListViewSources.SelectedItems.Count)
+        ' ⛔⛔ LA PAUSA SE PRENDÍA ANTES DEL MsgBox Y EL `= False` ESTABA DESPUÉS DEL `Exit Sub`. Si el
+        ' usuario contestaba "No", quedaba encendida PARA TODA LA SESIÓN: `OSP_Clases` deja de evictar
+        ' (`While LoadedShapeDataSlots.Count > Default_Memory`, con Default_Memory = 3), así que cada
+        ' sliderset que el usuario navegara después quedaba residente con su NIF y su OSD. Síntoma
+        ' diferido y a mil clicks de la causa — el peor modo de falla justo para los equipos de 8 GB.
+        ' Va en Try/Finally: además del "No", cualquier excepción de Merge_Singles la dejaba prendida.
+        Dim prevPausa = OSP_Project_Class.Default_Memory_Pause
         OSP_Project_Class.Default_Memory_Pause = True
-        If MsgBox("Are you sure you want to merge " + ListViewSources.SelectedIndices.Count.ToString + " items into category " + ComboboxPacks.Items(ComboboxPacks.SelectedIndex).ToString + "?", vbYesNo, "Confirm") = MsgBoxResult.No Then
+        Try
+            If MsgBox("Are you sure you want to merge " + ListViewSources.SelectedIndices.Count.ToString + " items into category " + ComboboxPacks.Items(ComboboxPacks.SelectedIndex).ToString + "?", vbYesNo, "Confirm") = MsgBoxResult.No Then
+                Termina_Procesos()
+                Exit Sub
+            End If
+            Dim Selected_Pack As OSP_Project_Class = ComboboxPacks.SelectedItem
+            Merge_Singles(Selected_Pack, Selected_Pack.Filename)
             Termina_Procesos()
-            Exit Sub
-        End If
-        Dim Selected_Pack As OSP_Project_Class = ComboboxPacks.SelectedItem
-        Merge_Singles(Selected_Pack, Selected_Pack.Filename)
-        Termina_Procesos()
-        OSP_Project_Class.Default_Memory_Pause = False
+        Finally
+            ' Se devuelve el valor PREVIO, no False: este camino puede correr anidado dentro de otro bulk
+            ' que pausó la eviction a propósito, y ahí un False duro la reactivaría en el medio.
+            OSP_Project_Class.Default_Memory_Pause = prevPausa
+        End Try
     End Sub
     Private Sub ButtonDelete_Click_1(sender As Object, e As EventArgs) Handles ButtonDelete.Click
         Empieza_Procesos(ListViewTargets.SelectedItems.Count * 2)

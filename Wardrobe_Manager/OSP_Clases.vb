@@ -2178,7 +2178,29 @@ Public Class OSP_Project_Class
         ' Make Local Sliders
         Make_Sliders_Local(Sliderset_Target)
         Sliderset_Target.InvalidateAllLookupCaches()
-        Sliderset_Target.Save_Shapedatas(OverwriteShapeFiles)
+        ' ⛔⛔ SI EL USUARIO DIJO "NO", NO SE GRABA EL .osp NI SE DEVUELVE UN PROYECTO.
+        ' `Save_Shapedatas` era un `Sub`: el "no reemplaces" era INDISTINGUIBLE de un guardado exitoso.
+        ' Con eso, `Rename_Clone_Target` veía un resultado no-Nothing y ejecutaba `RemoveProject(original)`,
+        ' que BORRA del disco el .nif/.osd/.hht del proyecto ORIGINAL — el usuario decía "no pises nada" y
+        ' perdía el original. Antes había una red por accidente (con un .hht existente `SaveHighHeel` tiraba
+        ' y abortaba la cadena); al unificar la pregunta esa red desapareció, así que la señal tiene que ser
+        ' explícita.
+        If Not Sliderset_Target.Save_Shapedatas(OverwriteShapeFiles) Then
+            ' ⛔⛔ DESHACER EL AddProject. Cortar acá sin limpiar dejaba un PROYECTO FANTASMA: `AddProject`
+            ' ya hizo `xml.DocumentElement.AppendChild(...)` Y `SliderSets.Add(...)`, y sólo limpia cuando
+            ' falla ÉL. El fantasma aparecía en la lista (`Lee_Listbox_Targets` corre FUERA del chequeo de
+            ' Nothing) y, si el usuario lo borraba, `RemoveProject` → `Remove_DataShapeFiles` borraba
+            ' EXACTAMENTE los .nif/.osd/.hht que el usuario acababa de negarse a pisar, porque
+            ' `Update_Names` ya había apuntado el target a esos nombres. Y cualquier `Save_Pack_As`
+            ' posterior serializaba el DOM con el fantasma adentro.
+            ' ⛔ NO se usa `RemoveProject`: ese BORRA ARCHIVOS DEL DISCO, que es justo lo que hay que evitar.
+            ' Esto es la misma limpieza quirúrgica que hace `AddProject` en su propio camino de fallo.
+            SliderSets.Remove(Sliderset_Target)
+            If Not IsNothing(Sliderset_Target.Nodo) AndAlso Not IsNothing(Sliderset_Target.Nodo.ParentNode) Then
+                Sliderset_Target.Nodo.ParentNode.RemoveChild(Sliderset_Target.Nodo)
+            End If
+            Return Nothing
+        End If
 
         ' Graba el proyecto
         Save_Pack_As(Filename, True)
@@ -4098,9 +4120,77 @@ Public Class SliderSet_Class
         Return Nothing
     End Function
 
-    Public Sub Save_Shapedatas(OverwriteShapeFiles As Boolean)
+    ''' <summary>Escribe los cuatro archivos hermanos del proyecto (.osd, .nif, .hht y el .xml de SMP).
+    ''' <para>⛔⛔ UNA SOLA PREGUNTA, RESUELTA ANTES DE ESCRIBIR NADA. La misma ley —"no pisar si existe y
+    ''' no se pidió overwrite"— estaba escrita CUATRO veces y cada una la interpretaba distinto: el .osd
+    ''' preguntaba y devolvía Boolean, el .nif preguntaba y hacía <c>Exit Sub</c> sin avisarle a nadie, el
+    ''' .hht TIRABA una excepción sin preguntar, y el .xml de SMP se salteaba en silencio. El resultado:
+    ''' con el destino ya existente se escribía el .osd, se re-apuntaba el .osp, se escribía el .nif y
+    ''' recién ahí <c>SaveHighHeel</c> reventaba — proyecto a medio escribir y excepción no manejada. Y si
+    ''' el usuario contestaba "No" al NIF, el .osp ya había quedado apuntando a un .osd nuevo con un .nif
+    ''' viejo.</para>
+    ''' <para>Ahora se juntan los destinos que EXISTEN, se pregunta una vez nombrándolos, y o se escribe
+    ''' TODO o no se toca NADA (ni se re-apunta el .osp). Después de decidir se baja
+    ''' <c>OverwriteShapeFiles = True</c>, así que ninguno de los cuatro vuelve a preguntar por su cuenta
+    ''' — de paso, ESTE camino deja de abrir un modal desde <c>NifContent_Class</c>, que es librería
+    ''' distribuida y no tiene por qué hablarle al usuario.</para>
+    ''' <para>⚠️ SIN SOBREVENDERLO: los <c>MsgBox</c> por-archivo SIGUEN existiendo en
+    ''' <c>NifContent_Class.Save_As_Manolo</c> y en <c>OSD_Class.Save_As</c>, y otros llamadores
+    ''' (p.ej. <c>CreatefromNif_Form</c>) los siguen disparando. Lo unificado es ESTE camino, no la
+    ''' política del proyecto entero: siguen conviviendo dos, y ninguna sabe de la otra.</para></summary>
+    Public Function Save_Shapedatas(OverwriteShapeFiles As Boolean) As Boolean
         Dim New_Nif = SourceFileFullPath
         Dim New_Osd = LocalOsdFullPath
+
+        ' El path del sidecar de SMP se necesita ACÁ para la pregunta; más abajo se vuelve a usar tal cual.
+        Dim smpXmlPath As String = Nothing
+        If Config_App.Current.Game = Config_App.Game_Enum.Skyrim Then
+            smpXmlPath = IO.Path.ChangeExtension(New_Nif, ".xml")
+        End If
+
+        If Not OverwriteShapeFiles Then
+            Dim yaExisten As New List(Of String)()
+            If IO.File.Exists(New_Osd) Then yaExisten.Add(IO.Path.GetFileName(New_Osd))
+            If IO.File.Exists(New_Nif) Then yaExisten.Add(IO.Path.GetFileName(New_Nif))
+            ' El .hht entra aunque no haya tacones: sin `HighHeelAuthored` el guardado lo BORRA, que para
+            ' el usuario es igual de destructivo que pisarlo.
+            If Not String.IsNullOrEmpty(HighHeelSidecarPath) AndAlso IO.File.Exists(HighHeelSidecarPath) Then
+                yaExisten.Add(IO.Path.GetFileName(HighHeelSidecarPath))
+            End If
+            If smpXmlPath IsNot Nothing AndAlso IO.File.Exists(smpXmlPath) Then
+                yaExisten.Add(IO.Path.GetFileName(smpXmlPath))
+            End If
+            ' ⛔ EL .hht LEGACY TAMBIÉN SE ANUNCIA. `SaveHighHeel` lo BORRA al final cuando el sidecar
+            ' canónico tiene otro nombre, y quedaba fuera del inventario — el diálogo promete listar todo
+            ' lo que se reemplaza y estaba borrando un archivo sin nombrarlo.
+            Dim hhLegacy = HighHeelSidecarLegacyPath
+            If Not String.IsNullOrEmpty(hhLegacy) AndAlso
+               Not hhLegacy.Equals(HighHeelSidecarPath, StringComparison.OrdinalIgnoreCase) AndAlso
+               IO.File.Exists(hhLegacy) Then
+                yaExisten.Add(IO.Path.GetFileName(hhLegacy))
+            End If
+
+            If yaExisten.Count > 0 Then
+                Dim lista = String.Join(Environment.NewLine & "  • ", yaExisten)
+                If MsgBox("These project files already exist and will be replaced:" & Environment.NewLine &
+                          Environment.NewLine & "  • " & lista & Environment.NewLine & Environment.NewLine &
+                          "Replace them?", vbYesNo Or vbExclamation, "Save project") = MsgBoxResult.No Then
+                    ' ⛔ NO se escribe NADA y el .osp queda como estaba.
+                    ' ⚠️ ESTE Return False SE SALTEA EL EPÍLOGO del final (`ShapeDataLoaded = False`,
+                    ' `LastShapeDataSignature = ""`, `Unreadable_NIF = False`), que antes corría siempre.
+                    ' Es DELIBERADO y es lo correcto: esas tres líneas fuerzan una recarga desde disco, y
+                    ' acá justamente no se escribió nada, así que lo que hay en memoria sigue siendo la
+                    ' verdad y los `<Data local>` siguen apuntando a los archivos viejos (RepointLocalDatasTo
+                    ' tampoco corrió). Marcar "recargá" mandaría a leer un .osd que puede no existir.
+                    ' ⚠️ EL LLAMADOR TIENE QUE MIRAR ESTE False. `Agrega_Proyecto` deshace su `AddProject`
+                    ' y devuelve Nothing SIN grabar el .osp. (Antes decía que el .osp se grababa igual: eso
+                    ' describía el comportamiento viejo y era justo lo que dejaba el proyecto fantasma.)
+                    Return False
+                End If
+            End If
+            ' Decidido. A partir de acá nadie más pregunta.
+            OverwriteShapeFiles = True
+        End If
 
         ' ⭐ Al guardar queda SIEMPRE UN SOLO .osd local, y el .osp dice eso.
         '
@@ -4135,9 +4225,7 @@ Public Class SliderSet_Class
         ' SSE: mantener el link in-NIF de física HDT-SMP ("HDT Skinned Mesh Physics Object") sincronizado
         ' con el sidecar del proyecto — mismo modelo que HH_OFFSET/.hht para tacones. Se ajusta el path
         ' ANTES de guardar el NIF; el motor lee ESE path, no el basename del sidecar.
-        Dim smpXmlPath As String = Nothing
         If Config_App.Current.Game = Config_App.Game_Enum.Skyrim Then
-            smpXmlPath = IO.Path.ChangeExtension(New_Nif, ".xml")
             If Not String.IsNullOrEmpty(PhysicsXmlContent) Then
                 NIFContent.SetSmpPhysicsXmlPath(BuildSmpInNifPath(smpXmlPath))
             Else
@@ -4164,7 +4252,8 @@ Public Class SliderSet_Class
         ShapeDataLoaded = False
         LastShapeDataSignature = ""
         Unreadable_NIF = False
-    End Sub
+        Return True
+    End Function
 
 End Class
 Public Class Shape_class

@@ -216,7 +216,12 @@ Public NotInheritable Class PhysicsWeightCollapseHelper
             Dim baseIdx = vIdx * wpv
             Dim slots = Math.Min(wpv, influences.Count)
             For j = 0 To slots - 1
-                flatIdx(baseIdx + j) = CByte(influences(j).PaletteIndex And &HFF)
+                ' ⛔ ERA `CByte(... And &HFF)`: exactamente el defecto que NiTriShapeGeometry documenta
+                ' haber sacado. Con más de 256 huesos la máscara produce un índice VÁLIDO pero de otro
+                ' hueso ⇒ el vértice queda bindeado mal y el archivo sale sin síntoma hasta que se anima.
+                ' La ley única está en FO4_Base_Library.BoneInfluencePacker.
+                flatIdx(baseIdx + j) = FO4_Base_Library.BoneInfluencePacker.PackPaletteIndex(
+                    influences(j).PaletteIndex, "VertexInfluence")
                 flatWgt(baseIdx + j) = CType(influences(j).Weight, Half)
             Next
         Next
@@ -834,11 +839,13 @@ Public NotInheritable Class PhysicsWeightCollapseHelper
         Dim result As New List(Of VertexInfluence)()
         If source Is Nothing OrElse source.Count = 0 Then Return result
 
-        Dim entries = source.
-            Where(Function(kvp) kvp.Value > WeightEpsilon).
-            OrderByDescending(Function(kvp) kvp.Value).
-            ThenBy(Function(kvp) kvp.Key).
-            ToList()
+        ' ⛔ EL ORDEN LO DECIDE `BoneInfluencePacker.CompararInfluencias`, NO UN LINQ ACÁ.
+        ' Esto era `OrderByDescending(value).ThenBy(key)`: conductualmente idéntico al comparador canónico,
+        ' pero es una SEGUNDA EXPRESIÓN de la misma ley, no una llamada — y el doc de BoneInfluencePacker
+        ' afirma que el sitio es único. Coincidía hoy y nada garantizaba que siguiera coincidiendo: es
+        ' exactamente la forma en que las dos copias del empaquetado divergieron en primer lugar.
+        Dim entries = source.Where(Function(kvp) kvp.Value > WeightEpsilon).ToList()
+        entries.Sort(Function(a, b) FO4_Base_Library.BoneInfluencePacker.CompararInfluencias(a.Value, a.Key, b.Value, b.Key))
 
         If maxInfluences > 0 AndAlso entries.Count > maxInfluences Then
             entries = entries.Take(maxInfluences).ToList()
