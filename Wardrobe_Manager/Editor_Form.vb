@@ -1131,6 +1131,12 @@ Public Class Editor_Form
                         ' No hay rollback en el helper, así que se usa el mecanismo que YA existe: marcar
                         ' la shapedata como no cargada fuerza que el próximo acceso la relea del disco y
                         ' descarte lo mutado. Es lo mismo que hace `Save_Shapedatas` en su epílogo.
+                        ' ⛔ MARCAR NO ALCANZA: HAY QUE SOLTARLO ACÁ. `Load_and_Check_Shapedata` sí relee
+                        ' con el flag en False, pero este formulario sólo entra por ahí al SELECCIONAR
+                        ' (Editor_Form:715/721), así que hasta entonces seguiría apuntando al NIFContent
+                        ' MUTADO y un Save inmediato lo grabaría. `UnloadShapeData` hace el `Clear()` del
+                        ' NIF y suelta la referencia YA; el próximo acceso lo relee del disco.
+                        Selected_Slider.UnloadShapeData(False)
                         Selected_Slider.ShapeDataLoaded = False
                         Selected_Slider.LastShapeDataSignature = ""
                         MsgBox(report & Environment.NewLine & Environment.NewLine &
