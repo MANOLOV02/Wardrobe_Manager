@@ -144,6 +144,14 @@ Public Module WM_PackUnpack
             Throw New InvalidOperationException("Data folder not configured / missing.")
         End If
 
+        ' ⛔ El pack escribe BA2 DX10 y para eso PARSEA cada .dds con el wrapper nativo (MakeTextureEntry →
+        ' Dx10Importer.FromDdsBytes → Loader.GetDdsMetadata). Con el wrapper desajustado cada textura tira, la
+        ' come el Catch del micro-batch, y la causa se va por Logger.LogLazy — que en Release NO EXISTE: el
+        ' usuario ve "failed N file(s)" sin motivo y se queda con un BA2 de puros materiales. Se chequea UNA
+        ' vez acá; adentro de MakeTextureEntry correría dentro del Parallel.For.
+        Dim fallaWrapperPack = DirectXTexWrapperGate.Verificar()
+        If fallaWrapperPack <> "" Then Throw New InvalidOperationException(fallaWrapperPack)
+
         Dim game = MapGame(Config_App.Current.Game)
         Dim chunkMaxComp As Long = If(game = GameKind.FO4_BA2, MAX_BYTES_FO4, MAX_BYTES_SSE)
         ' BA2 header version is FO4-only; the packager ignores it for SSE (BSA v105).
@@ -433,11 +441,15 @@ Public Module WM_PackUnpack
             Try
                 Dim postSet = ArchivePackager.DiscoverArchiveSet(dataDir, MOD_BASE_NAME)
                 For Each archivePath In postSet.Archives
+                    ' ⛔ EL Try VA ADENTRO DEL For. Envolviendo el loop entero, un archive que desaparece
+                    ' entre el Discover y el Register (antivirus, MO2, el usuario) abortaba el loop y dejaba
+                    ' TODOS los archives siguientes desmontados —con su generación ya bumpeada, o sea todos
+                    ' sus assets resolviendo a nada— en silencio y por el resto de la sesión.
                     Try
                         FilesDictionary_class.UnregisterArchive(archivePath)
+                        FilesDictionary_class.RegisterArchive(archivePath)
                     Catch
                     End Try
-                    FilesDictionary_class.RegisterArchive(archivePath)
                 Next
             Catch
                 ' Restaurar el montaje no puede convertirse en una segunda excepción que tape la primera.
@@ -509,6 +521,13 @@ Public Module WM_PackUnpack
         If String.IsNullOrEmpty(dataDir) OrElse Not Directory.Exists(dataDir) Then
             Throw New InvalidOperationException("Data folder not configured / missing.")
         End If
+
+        ' ⛔⛔ ACÁ EL WRAPPER ROTO ES PÉRDIDA DE DATOS, no una degradación. Extraer una entrada DX10 pasa por
+        ' Loader.EncodeDDSHeader; con el wrapper desajustado devuelve 0 bytes, el unpack ESCRIBE un .dds
+        ' vacío por cada textura y después BORRA el .ba2, que era la única copia. Se chequea antes de tocar
+        ' nada.
+        Dim fallaWrapperUnpack = DirectXTexWrapperGate.Verificar()
+        If fallaWrapperUnpack <> "" Then Throw New InvalidOperationException(fallaWrapperUnpack)
 
         Dim setInfo = ArchivePackager.DiscoverArchiveSet(dataDir, MOD_BASE_NAME)
         If setInfo.Archives.Count = 0 AndAlso setInfo.Plugins.Count = 0 Then
