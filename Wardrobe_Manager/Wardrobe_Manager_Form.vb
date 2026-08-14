@@ -2162,6 +2162,13 @@ Public Class Wardrobe_Manager_Form
             ProgressBar1.Maximum = update.Max
             ProgressBar1.Value = Math.Min(update.Value, update.Max)
         End Sub)
+        ' ⛔ El diccionario se arma con la PRIORIDAD que sale del load order, así que si no hay Plugins.txt
+        ' hay que decirlo ANTES de montar y no después: sin él ningún archive de mod entra al grupo de
+        ' "plugins cargados", todos caen a huérfanos con orden negativo (por debajo de vanilla) y WM termina
+        ' mostrando la malla/textura de vanilla donde va la del mod, sin un solo mensaje. No es bloqueo duro
+        ' porque WM igual sirve para editar .osp sueltos — pero deja de ser mudo.
+        WarnIfNoLoadOrder()
+
         Dim cacheDir = IO.Path.Combine(Application.StartupPath, "Caches")
         IO.Directory.CreateDirectory(cacheDir)
         FilesDictionary_class.CacheDirectory = cacheDir
@@ -2183,6 +2190,39 @@ Public Class Wardrobe_Manager_Form
             MsgBox(body, vbExclamation Or vbOKOnly, "Dictionary scan errors")
         End If
     End Function
+
+    ''' <summary>Una sola vez por sesión: avisa que no hay load order y ofrece elegir el Plugins.txt en el
+    ''' acto. El flag evita convertir cada refresco del diccionario en un cartel — el usuario que eligió
+    ''' seguir así ya contestó.</summary>
+    Private _loadOrderWarningShown As Boolean = False
+
+    Private Sub WarnIfNoLoadOrder()
+        If _loadOrderWarningShown Then Return
+        Dim problem = PluginManager.LoadOrderSourceProblem()
+        If problem = "" Then Return
+        _loadOrderWarningShown = True
+
+        Dim answer = MessageBox.Show(
+            problem & vbCrLf & vbCrLf &
+            "Without it Wardrobe Manager cannot tell which mod wins a file conflict, so modded meshes, " &
+            "textures and materials may show up as vanilla." & vbCrLf & vbCrLf &
+            "Pick Plugins.txt now?" & vbCrLf &
+            "   Yes — choose the file (remembered for this game)." & vbCrLf &
+            "   No — carry on; archive priority will be wrong.",
+            "Load order not found", MessageBoxButtons.YesNo, MessageBoxIcon.Warning)
+        If answer <> DialogResult.Yes Then Return
+
+        Using dlg As New OpenFileDialog()
+            dlg.Title = "Select the game's Plugins.txt"
+            dlg.Filter = "Plugins.txt|Plugins.txt|Text files (*.txt)|*.txt|All files (*.*)|*.*"
+            dlg.CheckFileExists = True
+            dlg.CheckPathExists = True
+            dlg.Multiselect = False
+            If dlg.ShowDialog() <> DialogResult.OK Then Return
+            Config_App.Current.SetActivePluginsTxtOverride(dlg.FileName)
+        End Using
+        Config_App.SaveConfig()
+    End Sub
 
     Private Sub RadioButton1_CheckedChanged(sender As Object, e As EventArgs) Handles RadioButton1.CheckedChanged
         RequestLeeShapes()

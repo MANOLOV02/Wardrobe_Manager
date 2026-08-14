@@ -145,6 +145,7 @@ Public Class Config_Form
         ComboBoxGame.SelectedIndex = Config_App.Current.Game
         initialgame = Config_App.Current.Game
         initialDataPath = If(Config_App.Current.FO4EDataPath, "")
+        RefreshPluginsTxtRow()
         Setea_Build_Options()
         Button8.Enabled = IO.File.Exists(Wardrobe_Manager_Form.Directorios.LooksMenuWMSliders)
         Check_Folders()
@@ -439,6 +440,9 @@ Public Class Config_Form
         Config_App.Current.FO4ExePath = result
         TextBox1.Text = Config_App.Current.FO4ExePath
         Check_GameMismatch()
+        ' El exe decide la variante (plana / VR) y con ella los candidatos de carpeta. Un override que el
+        ' usuario haya fijado NO se toca: lo fijó porque el automático no le servía.
+        RefreshPluginsTxtRow()
         Dim exe = IO.Path.GetFileName(Config_App.Current.FO4ExePath)
         If exe.ToLower.Contains("fallout4", StringComparison.CurrentCultureIgnoreCase) AndAlso Config_App.Current.Game <> Config_App.Game_Enum.Fallout4 Then ComboBoxGame.SelectedIndex = Config_App.Game_Enum.Fallout4
         If exe.ToLower.Contains("skyrimse", StringComparison.CurrentCultureIgnoreCase) AndAlso Config_App.Current.Game <> Config_App.Game_Enum.Skyrim Then ComboBoxGame.SelectedIndex = Config_App.Game_Enum.Skyrim
@@ -601,6 +605,8 @@ Public Class Config_Form
             GroupBoxweights.Enabled = ComboBoxGame.SelectedIndex <> 0
             GroupBoxLooksmenu.Enabled = CheckBoxBuildTri.Checked And RadioButtonWMEngine.Checked AndAlso ComboBoxGame.SelectedIndex = 0
             Check_GameMismatch()
+            ' El override del Plugins.txt es POR JUEGO: cambiar de juego cambia de slot.
+            RefreshPluginsTxtRow()
             RefreshClonedMaterialStatus()
             UpdateBa2VersionVisibility()
         End If
@@ -614,6 +620,70 @@ Public Class Config_Form
         Dim mismatch = (game = Config_App.Game_Enum.Fallout4 AndAlso isSkyrimExe) OrElse
                        (game = Config_App.Game_Enum.Skyrim AndAlso isFO4Exe)
         LabelGameMismatch.Visible = mismatch
+    End Sub
+
+    ' ==============================================================================================
+    ' Load order (Plugins.txt) — automático, con opción de fijarlo a mano. Persistido POR JUEGO.
+    ' ==============================================================================================
+    ' ⭐ WM SÍ depende de este archivo, aunque no cargue un solo plugin: Fill_DictionaryAsync deriva de
+    '    ReadActiveLoadOrder la PRIORIDAD de los BA2/BSA (BuildArchivePriority). Sin él, `loadedOrder` queda
+    '    en los masters implícitos, ningún archive de mod cae en el grupo de "plugins cargados", TODOS pasan
+    '    a huérfanos con orden NEGATIVO — o sea por debajo de vanilla — y WM muestra la malla/textura/material
+    '    de vanilla donde debería mostrar la del mod. Sin un solo error. Por eso vale una fila propia acá.
+    ' ⛔ El .ini NO va en esta pantalla: sus dos únicos consumidores (PluginEncodingSettings y
+    '    LocalizedStrings) decodifican strings de PLUGINS, y WM no lee ni escribe ESPs. Para WM es inerte.
+    '    El selector de inis vive en el Preflight del NPC Manager; como el override se guarda en Config_App
+    '    (compartido) y por juego, lo que se fije allá lo hereda WM y viceversa.
+
+    ''' <summary>Repinta la fila del Plugins.txt. Es barato: la resolución está memoizada por
+    ''' (exe, juego, overrides).
+    '''
+    ''' <para>⚠️ Sale por la puerta si los controles todavía no existen: igual que
+    ''' <c>RefreshClonedMaterialStatus</c>, esto se llama desde <c>ComboBoxGame.SelectedIndexChanged</c>, que
+    ''' dispara DURANTE <c>InitializeComponent()</c> — en el momento en que el Designer asigna
+    ''' <c>SelectedIndex</c>, con medio formulario sin instanciar.</para></summary>
+    Private Sub RefreshPluginsTxtRow()
+        If TextBoxPluginsTxt Is Nothing OrElse LabelPluginsTxt Is Nothing OrElse ButtonAutoPluginsTxt Is Nothing Then Return
+
+        Dim r = GamePathsResolver.Resolve()
+        Dim overridden = (r.PluginsTxtOrigin = GamePathsResolver.PathOrigin.UserOverride)
+
+        TextBoxPluginsTxt.Text = If(r.HasPluginsTxt, r.PluginsTxtPath, "")
+        TextBoxPluginsTxt.PlaceholderText = "Not found — click .... to pick it"
+        ' El COLOR es lo que distingue "lo dedujo la app" de "lo elegiste vos". Un usuario que ve gris y otro
+        ' que ve negro están mirando problemas distintos.
+        TextBoxPluginsTxt.ForeColor = If(overridden, SystemColors.WindowText, SystemColors.GrayText)
+        ButtonAutoPluginsTxt.Enabled = overridden
+
+        ' El estado va en el ICONO de la etiqueta, igual que las otras cuatro filas de esta pantalla
+        ' (ver Check_Folders): ImageIndex 0 = tilde, 1 = cruz. Se hace acá y no en Check_Folders porque
+        ' esto no depende de una carpeta sino del resolver, y se repinta en más momentos (cambio de juego,
+        ' Browse, Auto). El detalle —de dónde salió la ruta, o por qué falta— va al tooltip.
+        LabelPluginsTxt.ImageIndex = If(r.HasPluginsTxt, 0, 1)
+        ToolTip1.SetToolTip(TextBoxPluginsTxt, r.StatusLine)
+    End Sub
+
+    Private Sub ButtonBrowsePluginsTxt_Click(sender As Object, e As EventArgs) Handles ButtonBrowsePluginsTxt.Click
+        Using dlg As New OpenFileDialog()
+            dlg.Title = "Select the game's Plugins.txt"
+            dlg.Filter = "Plugins.txt|Plugins.txt|Text files (*.txt)|*.txt|All files (*.*)|*.*"
+            dlg.CheckFileExists = True
+            dlg.CheckPathExists = True
+            dlg.Multiselect = False
+            Try
+                Dim dir = IO.Path.GetDirectoryName(TextBoxPluginsTxt.Text)
+                If Not String.IsNullOrEmpty(dir) AndAlso IO.Directory.Exists(dir) Then dlg.InitialDirectory = dir
+            Catch
+            End Try
+            If dlg.ShowDialog() <> DialogResult.OK Then Return
+            Config_App.Current.SetActivePluginsTxtOverride(dlg.FileName)
+        End Using
+        RefreshPluginsTxtRow()
+    End Sub
+
+    Private Sub ButtonAutoPluginsTxt_Click(sender As Object, e As EventArgs) Handles ButtonAutoPluginsTxt.Click
+        Config_App.Current.SetActivePluginsTxtOverride("")
+        RefreshPluginsTxtRow()
     End Sub
 
     Private Sub CheckBoxweightignore_CheckedChanged(sender As Object, e As EventArgs) Handles CheckBoxweightignore.CheckedChanged

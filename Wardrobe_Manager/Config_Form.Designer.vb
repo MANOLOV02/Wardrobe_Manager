@@ -27,6 +27,10 @@ Partial Class Config_Form
         Dim resources As System.ComponentModel.ComponentResourceManager = New System.ComponentModel.ComponentResourceManager(GetType(Config_Form))
         TextBox1 = New TextBox()
         Button1 = New Button()
+        LabelPluginsTxt = New Label()
+        TextBoxPluginsTxt = New TextBox()
+        ButtonAutoPluginsTxt = New Button()
+        ButtonBrowsePluginsTxt = New Button()
         Label1 = New Label()
         ImageList1 = New ImageList(components)
         Label2 = New Label()
@@ -133,7 +137,47 @@ Partial Class Config_Form
         Button1.Text = "...."
         ToolTip1.SetToolTip(Button1, "Browse for the game executable and auto-detect related tool paths when possible.")
         Button1.UseVisualStyleBackColor = True
-        ' 
+        '
+        ' LabelPluginsTxt
+        '
+        LabelPluginsTxt.ImageAlign = ContentAlignment.MiddleRight
+        LabelPluginsTxt.ImageIndex = 1
+        LabelPluginsTxt.ImageList = ImageList1
+        LabelPluginsTxt.Location = New Point(6, 74)
+        LabelPluginsTxt.Name = "LabelPluginsTxt"
+        LabelPluginsTxt.Size = New Size(193, 23)
+        LabelPluginsTxt.TabIndex = 18
+        LabelPluginsTxt.Text = "Load order (Plugins.txt)"
+        LabelPluginsTxt.TextAlign = ContentAlignment.MiddleLeft
+        '
+        ' TextBoxPluginsTxt
+        '
+        TextBoxPluginsTxt.Location = New Point(197, 74)
+        TextBoxPluginsTxt.Name = "TextBoxPluginsTxt"
+        TextBoxPluginsTxt.ReadOnly = True
+        TextBoxPluginsTxt.Size = New Size(623, 23)
+        TextBoxPluginsTxt.TabIndex = 19
+        '
+        ' ButtonAutoPluginsTxt
+        '
+        ButtonAutoPluginsTxt.Location = New Point(826, 74)
+        ButtonAutoPluginsTxt.Name = "ButtonAutoPluginsTxt"
+        ButtonAutoPluginsTxt.Size = New Size(53, 23)
+        ButtonAutoPluginsTxt.TabIndex = 20
+        ButtonAutoPluginsTxt.Text = "Auto"
+        ToolTip1.SetToolTip(ButtonAutoPluginsTxt, "Go back to detecting the load order automatically from the game executable.")
+        ButtonAutoPluginsTxt.UseVisualStyleBackColor = True
+        '
+        ' ButtonBrowsePluginsTxt
+        '
+        ButtonBrowsePluginsTxt.Location = New Point(885, 74)
+        ButtonBrowsePluginsTxt.Name = "ButtonBrowsePluginsTxt"
+        ButtonBrowsePluginsTxt.Size = New Size(53, 23)
+        ButtonBrowsePluginsTxt.TabIndex = 21
+        ButtonBrowsePluginsTxt.Text = "...."
+        ToolTip1.SetToolTip(ButtonBrowsePluginsTxt, "Pick the game's Plugins.txt by hand. Needed for GOG / Epic / Store editions, whose folder name this app cannot know. Remembered per game.")
+        ButtonBrowsePluginsTxt.UseVisualStyleBackColor = True
+        '
         ' Label1
         ' 
         Label1.ImageAlign = ContentAlignment.MiddleRight
@@ -158,7 +202,7 @@ Partial Class Config_Form
         Label2.ImageAlign = ContentAlignment.MiddleRight
         Label2.ImageIndex = 1
         Label2.ImageList = ImageList1
-        Label2.Location = New Point(6, 74)
+        Label2.Location = New Point(6, 103)
         Label2.Name = "Label2"
         Label2.Size = New Size(193, 23)
         Label2.TabIndex = 4
@@ -167,7 +211,7 @@ Partial Class Config_Form
         ' 
         ' TextBox2
         ' 
-        TextBox2.Location = New Point(197, 74)
+        TextBox2.Location = New Point(197, 103)
         TextBox2.Name = "TextBox2"
         TextBox2.ReadOnly = True
         TextBox2.Size = New Size(682, 23)
@@ -179,7 +223,7 @@ Partial Class Config_Form
         Label3.ImageAlign = ContentAlignment.MiddleRight
         Label3.ImageIndex = 1
         Label3.ImageList = ImageList1
-        Label3.Location = New Point(6, 103)
+        Label3.Location = New Point(6, 132)
         Label3.Name = "Label3"
         Label3.Size = New Size(193, 23)
         Label3.TabIndex = 6
@@ -188,7 +232,7 @@ Partial Class Config_Form
         ' 
         ' TextBox3
         ' 
-        TextBox3.Location = New Point(197, 103)
+        TextBox3.Location = New Point(197, 132)
         TextBox3.Name = "TextBox3"
         TextBox3.ReadOnly = True
         TextBox3.Size = New Size(682, 23)
@@ -197,7 +241,7 @@ Partial Class Config_Form
         ' 
         ' Button2
         ' 
-        Button2.Location = New Point(885, 74)
+        Button2.Location = New Point(885, 103)
         Button2.Name = "Button2"
         Button2.Size = New Size(53, 23)
         Button2.TabIndex = 7
@@ -207,7 +251,7 @@ Partial Class Config_Form
         ' 
         ' Button3
         ' 
-        Button3.Location = New Point(885, 103)
+        Button3.Location = New Point(885, 132)
         Button3.Name = "Button3"
         Button3.Size = New Size(53, 23)
         Button3.TabIndex = 8
@@ -220,10 +264,10 @@ Partial Class Config_Form
         ListView1.CheckBoxes = True
         ListView1.Columns.AddRange(New ColumnHeader() {Ba2_Name})
         ListView1.FullRowSelect = True
-        ListView1.Location = New Point(6, 191)
+        ListView1.Location = New Point(6, 220)
         ListView1.MultiSelect = False
         ListView1.Name = "ListView1"
-        ListView1.Size = New Size(873, 248)
+        ListView1.Size = New Size(873, 219)
         ListView1.TabIndex = 9
         ToolTip1.SetToolTip(ListView1, "List of BA2/BSA archives. Checked entries are allowed as clone sources for materials and textures.")
         ListView1.UseCompatibleStateImageBehavior = False
@@ -239,7 +283,7 @@ Partial Class Config_Form
         Label4.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Label4.ImageAlign = ContentAlignment.MiddleRight
         Label4.ImageIndex = 0
-        Label4.Location = New Point(6, 165)
+        Label4.Location = New Point(6, 194)
         Label4.Name = "Label4"
         Label4.Size = New Size(326, 23)
         Label4.TabIndex = 10
@@ -252,7 +296,7 @@ Partial Class Config_Form
         Label5.ForeColor = Color.IndianRed
         Label5.ImageAlign = ContentAlignment.MiddleRight
         Label5.ImageIndex = 0
-        Label5.Location = New Point(431, 165)
+        Label5.Location = New Point(431, 194)
         Label5.Name = "Label5"
         Label5.Size = New Size(448, 23)
         Label5.TabIndex = 11
@@ -261,7 +305,7 @@ Partial Class Config_Form
         ' 
         ' Button4
         ' 
-        Button4.Location = New Point(885, 132)
+        Button4.Location = New Point(885, 161)
         Button4.Name = "Button4"
         Button4.Size = New Size(53, 23)
         Button4.TabIndex = 14
@@ -274,7 +318,7 @@ Partial Class Config_Form
         Label6.ImageAlign = ContentAlignment.MiddleRight
         Label6.ImageIndex = 1
         Label6.ImageList = ImageList1
-        Label6.Location = New Point(6, 132)
+        Label6.Location = New Point(6, 161)
         Label6.Name = "Label6"
         Label6.Size = New Size(193, 23)
         Label6.TabIndex = 13
@@ -283,7 +327,7 @@ Partial Class Config_Form
         ' 
         ' TextBox4
         ' 
-        TextBox4.Location = New Point(197, 132)
+        TextBox4.Location = New Point(197, 161)
         TextBox4.Name = "TextBox4"
         TextBox4.ReadOnly = True
         TextBox4.Size = New Size(682, 23)
@@ -311,6 +355,10 @@ Partial Class Config_Form
         ' 
         TabPage1.BackColor = SystemColors.Control
         TabPage1.Controls.Add(ComboBoxGame)
+        TabPage1.Controls.Add(LabelPluginsTxt)
+        TabPage1.Controls.Add(TextBoxPluginsTxt)
+        TabPage1.Controls.Add(ButtonAutoPluginsTxt)
+        TabPage1.Controls.Add(ButtonBrowsePluginsTxt)
         TabPage1.Controls.Add(LabelGameMismatch)
         TabPage1.Controls.Add(Label7)
         TabPage1.Controls.Add(Label1)
@@ -1077,6 +1125,10 @@ Partial Class Config_Form
         ResumeLayout(False)
     End Sub
 
+    Friend WithEvents LabelPluginsTxt As Label
+    Friend WithEvents TextBoxPluginsTxt As TextBox
+    Friend WithEvents ButtonAutoPluginsTxt As Button
+    Friend WithEvents ButtonBrowsePluginsTxt As Button
     Friend WithEvents TextBox1 As TextBox
     Friend WithEvents Button1 As Button
     Friend WithEvents Label1 As Label

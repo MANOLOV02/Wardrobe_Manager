@@ -340,11 +340,13 @@ Public Module WM_PackUnpack
                     entriesDone, totalEntries)
 
         ' Unregister any existing WM_ClonePack* archives BEFORE the packager tries to rewrite
-        ' them. FilesDictionary keeps a pooled reader/FileStream alive (lazy, populated when
-        ' anything previously called GetBytes; idle handles linger up to 30 s before the cleanup
-        ' timer fires). FileStream uses FileShare.Read by default — that lets other reads in but
-        ' BLOCKS File.Move / File.Delete with a sharing violation. Explicitly disposing the pool
-        ' here makes the rewrite path race-free.
+        ' them: hay que dejar de SERVIR entradas del archive viejo, cuyos índices dejan de valer
+        ' apenas se reescribe.
+        ' ⛔⛔ ACÁ DECÍA "Explicitly disposing the pool here makes the rewrite path race-free". ERA FALSO.
+        ' Vaciar el pool no alcanza: un reader ALQUILADO ya salió del pool y su FileStream vive todo el
+        ' ExtractToMemory, así que UnregisterArchive vuelve con ese handle abierto. Lo que hace que el
+        ' File.Move del packager funcione es que las lecturas de archive abren con FileShare.Delete
+        ' (FilesDictionary_class.AbrirArchiveParaLectura), no este loop.
         Dim preSet = ArchivePackager.DiscoverArchiveSet(dataDir, MOD_BASE_NAME)
         For Each archivePath In preSet.Archives
             Try
@@ -385,48 +387,62 @@ Public Module WM_PackUnpack
         AddHandler Ba2WriterDX10.Writed, AddressOf OnWriterWrited
         AddHandler BsaWriter.Writed, AddressOf OnWriterWrited
 
-        Dim chunkResult As PackagerResult
+        ' ⛔⛔ EL RE-MONTAJE VA EN UN `Finally`, Y ES EL MISMO `Try` QUE ENVUELVE AL `Pack`. Antes el `Pack`
+        ' corría sin red desde acá (re-lanza sus fallos) y el llamador tampoco lo atrapaba: si tiraba, el
+        ' loop de re-montaje de más abajo NUNCA corría, y los archives que este método desregistró al
+        ' empezar quedaban DESMONTADOS el resto de la sesión. El diccionario perdía esas entradas y la UI
+        ' mostraba assets faltantes sin un solo error a la vista. NPC_Manager ya lo hacía bien: sus tres
+        ' call sites de FlushChunk capturan y su paso de re-montaje corre igual.
+        Dim chunkResult As PackagerResult = Nothing
         Try
-            chunkResult = ArchivePackager.Pack(req)
-        Finally
-            RemoveHandler Ba2WriterGNRL.Writed, AddressOf OnWriterWrited
-            RemoveHandler Ba2WriterDX10.Writed, AddressOf OnWriterWrited
-            RemoveHandler BsaWriter.Writed, AddressOf OnWriterWrited
-            _writerProgress = Nothing
-        End Try
-
-        accumResult.Archives.AddRange(chunkResult.Archives)
-        accumResult.Plugins.AddRange(chunkResult.Plugins)
-        accumResult.Skipped.AddRange(chunkResult.Skipped)
-
-        ' After-the-fact summary of what got written this chunk (in case the packager produced
-        ' more than one archive — e.g. Main + Textures for FO4).
-        If chunkResult.Archives.Count > 0 Then
-            Dim names = String.Join(", ", chunkResult.Archives.Select(Function(p) Path.GetFileName(p)))
-            ReportStageBox(progress,
-                           $"Wrote archive(s): {names}",
-                           $"Wrote: {names}",
-                           -1, -1)
-        End If
-
-        ' Drop the entries' bytes ASAP so the next chunk has clean memory.
-        For Each ve In chunkEntries
-            ve.Data = Nothing
-            ve.PreCompressedBytes = Nothing
-        Next
-
-        ' Re-mount EVERY archive in the set, not just the ones rewritten this chunk: we
-        ' Unregistered them all at the top of this method to free pool handles, and
-        ' chunkResult.Archives only includes the ones the packager actually touched
-        ' (Skipped / unchanged ones aren't there). DiscoverArchiveSet picks up everything.
-        Dim postSet = ArchivePackager.DiscoverArchiveSet(dataDir, MOD_BASE_NAME)
-        For Each archivePath In postSet.Archives
             Try
-                FilesDictionary_class.UnregisterArchive(archivePath)
-            Catch
+                chunkResult = ArchivePackager.Pack(req)
+            Finally
+                RemoveHandler Ba2WriterGNRL.Writed, AddressOf OnWriterWrited
+                RemoveHandler Ba2WriterDX10.Writed, AddressOf OnWriterWrited
+                RemoveHandler BsaWriter.Writed, AddressOf OnWriterWrited
+                _writerProgress = Nothing
             End Try
-            FilesDictionary_class.RegisterArchive(archivePath)
-        Next
+
+            accumResult.Archives.AddRange(chunkResult.Archives)
+            accumResult.Plugins.AddRange(chunkResult.Plugins)
+            accumResult.Skipped.AddRange(chunkResult.Skipped)
+
+            ' After-the-fact summary of what got written this chunk (in case the packager produced
+            ' more than one archive — e.g. Main + Textures for FO4).
+            If chunkResult.Archives.Count > 0 Then
+                Dim names = String.Join(", ", chunkResult.Archives.Select(Function(p) Path.GetFileName(p)))
+                ReportStageBox(progress,
+                               $"Wrote archive(s): {names}",
+                               $"Wrote: {names}",
+                               -1, -1)
+            End If
+        Finally
+            ' Drop the entries' bytes ASAP so the next chunk has clean memory.
+            For Each ve In chunkEntries
+                ve.Data = Nothing
+                ve.PreCompressedBytes = Nothing
+            Next
+
+            ' Re-mount EVERY archive in the set, not just the ones rewritten this chunk: we
+            ' Unregistered them all at the top of this method to free pool handles, and
+            ' chunkResult.Archives only includes the ones the packager actually touched
+            ' (Skipped / unchanged ones aren't there). DiscoverArchiveSet picks up everything.
+            ' Corre TAMBIÉN si el Pack falló: es el estado del diccionario lo que hay que restaurar,
+            ' y con el pack a medias importa más, no menos.
+            Try
+                Dim postSet = ArchivePackager.DiscoverArchiveSet(dataDir, MOD_BASE_NAME)
+                For Each archivePath In postSet.Archives
+                    Try
+                        FilesDictionary_class.UnregisterArchive(archivePath)
+                    Catch
+                    End Try
+                    FilesDictionary_class.RegisterArchive(archivePath)
+                Next
+            Catch
+                ' Restaurar el montaje no puede convertirse en una segunda excepción que tape la primera.
+            End Try
+        End Try
 
         ' Delete the loose sources of this batch (sanity-guarded to ManoloCloned\ paths).
         ' After deleting each file, walk up emptied parent directories and prune them too,
