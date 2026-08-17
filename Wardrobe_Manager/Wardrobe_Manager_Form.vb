@@ -36,18 +36,6 @@ Imports NiflySharp.Enums
 
 Public Class Wardrobe_Manager_Form
 
-    ''' <summary>
-    ''' Constructor explicito. Antes no habia y VB generaba el implicito; hace falta uno propio
-    ''' porque los iconos del ImageList y el Icon de la ventana ya no salen del .resx (MSB3821):
-    ''' ver el remarks de FormImageLists.vb. Va aca y no en InitializeComponent para que el
-    ''' diseñador no lo pise cuando regenera el Designer.
-    ''' </summary>
-    Public Sub New()
-        InitializeComponent()
-
-        FormImageLists.FillMainForm(ImageList1)
-        Icon = FormImageLists.MainFormIcon()
-    End Sub
 
     Public Class Directorios
 
@@ -3044,23 +3032,25 @@ Public Class Wardrobe_Manager_Form
     End Sub
 
 
+    ''' <summary>Ojo abierto o cerrado segun el panel este visible o plegado.</summary>
+    ''' <remarks>⛔ Por CLAVE y no por indice. Antes era <c>ImageIndex = 14/15</c> contra el ImageList
+    ''' propio de este formulario. Los iconos ahora salen del ImageList compartido
+    ''' <c>IconsSmall</c> de <see cref="FO4_Base_Library.IconFormBase"/>, donde el orden es otro —y
+    ''' encima se corre solo con agregar un PNG a Resources\Icons— asi que un indice hardcodeado
+    ''' pintaria cualquier cosa sin que nada falle.</remarks>
+    ' ⛔ Calificado: este archivo importa VisualStyleElement, donde `Button` es otra cosa.
+    Private Shared Sub Ojo(boton As System.Windows.Forms.Button, plegado As Boolean)
+        boton.ImageKey = If(plegado, "LayerVisibleOff", "LayerVisibleOn")
+    End Sub
+
     Private Sub Button5_Click_1(sender As Object, e As EventArgs) Handles ButtonRightPanel.Click
         Split_Principal2.Panel2Collapsed = Not Split_Principal2.Panel2Collapsed
-        If Split_Principal2.Panel2Collapsed Then
-            ButtonRightPanel.ImageIndex = 14
-        Else
-            ButtonRightPanel.ImageIndex = 15
-        End If
-
+        Ojo(ButtonRightPanel, Split_Principal2.Panel2Collapsed)
     End Sub
 
     Private Sub Button6_Click(sender As Object, e As EventArgs) Handles ButtonLeftPanel.Click
         SplitPrincipal_1.Panel1Collapsed = Not SplitPrincipal_1.Panel1Collapsed
-        If SplitPrincipal_1.Panel1Collapsed Then
-            ButtonLeftPanel.ImageIndex = 14
-        Else
-            ButtonLeftPanel.ImageIndex = 15
-        End If
+        Ojo(ButtonLeftPanel, SplitPrincipal_1.Panel1Collapsed)
     End Sub
 
     Private _Sourcesort As Integer = 0

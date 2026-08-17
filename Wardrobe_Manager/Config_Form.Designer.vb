@@ -1,7 +1,11 @@
 ﻿' Version Uploaded of Wardrobe 3.2.0
 <Global.Microsoft.VisualBasic.CompilerServices.DesignerGenerated()>
 Partial Class Config_Form
-    Inherits System.Windows.Forms.Form
+    ' Hereda de FO4_Base_Library.IconFormBase, que aporta los ImageList compartidos IconsSmall (16x16)
+    ' e IconsLarge (24x24) — los iconos viven UNA sola vez, en el resx de ese formulario base, y no en
+    ' el de este. El formulario base no tiene controles ni fija Size/Text/AutoScale, asi que heredar
+    ' de el no cambia el aspecto de nada. Ver el remarks de IconFormBase.vb.
+    Inherits FO4_Base_Library.IconFormBase
 
     'Form reemplaza a Dispose para limpiar la lista de componentes.
     <System.Diagnostics.DebuggerNonUserCode()>
@@ -32,7 +36,6 @@ Partial Class Config_Form
         ButtonAutoPluginsTxt = New Button()
         ButtonBrowsePluginsTxt = New Button()
         Label1 = New Label()
-        ImageList1 = New ImageList(components)
         Label2 = New Label()
         TextBox2 = New TextBox()
         Label3 = New Label()
@@ -137,29 +140,29 @@ Partial Class Config_Form
         Button1.Text = "...."
         ToolTip1.SetToolTip(Button1, "Browse for the game executable and auto-detect related tool paths when possible.")
         Button1.UseVisualStyleBackColor = True
-        '
+        ' 
         ' LabelPluginsTxt
-        '
+        ' 
         LabelPluginsTxt.ImageAlign = ContentAlignment.MiddleRight
-        LabelPluginsTxt.ImageIndex = 1
-        LabelPluginsTxt.ImageList = ImageList1
+        LabelPluginsTxt.ImageKey = "Cancel"
+        LabelPluginsTxt.ImageList = IconsSmall
         LabelPluginsTxt.Location = New Point(6, 74)
         LabelPluginsTxt.Name = "LabelPluginsTxt"
         LabelPluginsTxt.Size = New Size(193, 23)
         LabelPluginsTxt.TabIndex = 18
         LabelPluginsTxt.Text = "Load order (Plugins.txt)"
         LabelPluginsTxt.TextAlign = ContentAlignment.MiddleLeft
-        '
+        ' 
         ' TextBoxPluginsTxt
-        '
+        ' 
         TextBoxPluginsTxt.Location = New Point(197, 74)
         TextBoxPluginsTxt.Name = "TextBoxPluginsTxt"
         TextBoxPluginsTxt.ReadOnly = True
         TextBoxPluginsTxt.Size = New Size(623, 23)
         TextBoxPluginsTxt.TabIndex = 19
-        '
+        ' 
         ' ButtonAutoPluginsTxt
-        '
+        ' 
         ButtonAutoPluginsTxt.Location = New Point(826, 74)
         ButtonAutoPluginsTxt.Name = "ButtonAutoPluginsTxt"
         ButtonAutoPluginsTxt.Size = New Size(53, 23)
@@ -167,9 +170,9 @@ Partial Class Config_Form
         ButtonAutoPluginsTxt.Text = "Auto"
         ToolTip1.SetToolTip(ButtonAutoPluginsTxt, "Go back to detecting the load order automatically from the game executable.")
         ButtonAutoPluginsTxt.UseVisualStyleBackColor = True
-        '
+        ' 
         ' ButtonBrowsePluginsTxt
-        '
+        ' 
         ButtonBrowsePluginsTxt.Location = New Point(885, 74)
         ButtonBrowsePluginsTxt.Name = "ButtonBrowsePluginsTxt"
         ButtonBrowsePluginsTxt.Size = New Size(53, 23)
@@ -177,12 +180,12 @@ Partial Class Config_Form
         ButtonBrowsePluginsTxt.Text = "...."
         ToolTip1.SetToolTip(ButtonBrowsePluginsTxt, "Pick the game's Plugins.txt by hand. Needed for GOG / Epic / Store editions, whose folder name this app cannot know. Remembered per game.")
         ButtonBrowsePluginsTxt.UseVisualStyleBackColor = True
-        '
+        ' 
         ' Label1
         ' 
         Label1.ImageAlign = ContentAlignment.MiddleRight
-        Label1.ImageIndex = 1
-        Label1.ImageList = ImageList1
+        Label1.ImageKey = "Cancel"
+        Label1.ImageList = IconsSmall
         Label1.Location = New Point(6, 45)
         Label1.Name = "Label1"
         Label1.Size = New Size(193, 23)
@@ -190,18 +193,11 @@ Partial Class Config_Form
         Label1.Text = "FO4 / SSE executable path"
         Label1.TextAlign = ContentAlignment.MiddleLeft
         ' 
-        ' ImageList1
-        ' 
-        ImageList1.ColorDepth = ColorDepth.Depth32Bit
-        ImageList1.TransparentColor = Color.Transparent
-        ' Las imagenes y sus keys las carga FormImageLists.FillConfigForm desde el constructor.
-        ' No volver a poner el ImageStream aca: ver el remarks de FormImageLists.vb (MSB3821).
-        ' 
         ' Label2
         ' 
         Label2.ImageAlign = ContentAlignment.MiddleRight
-        Label2.ImageIndex = 1
-        Label2.ImageList = ImageList1
+        Label2.ImageKey = "Cancel"
+        Label2.ImageList = IconsSmall
         Label2.Location = New Point(6, 103)
         Label2.Name = "Label2"
         Label2.Size = New Size(193, 23)
@@ -221,8 +217,8 @@ Partial Class Config_Form
         ' Label3
         ' 
         Label3.ImageAlign = ContentAlignment.MiddleRight
-        Label3.ImageIndex = 1
-        Label3.ImageList = ImageList1
+        Label3.ImageKey = "Cancel"
+        Label3.ImageList = IconsSmall
         Label3.Location = New Point(6, 132)
         Label3.Name = "Label3"
         Label3.Size = New Size(193, 23)
@@ -316,8 +312,8 @@ Partial Class Config_Form
         ' Label6
         ' 
         Label6.ImageAlign = ContentAlignment.MiddleRight
-        Label6.ImageIndex = 1
-        Label6.ImageList = ImageList1
+        Label6.ImageKey = "Cancel"
+        Label6.ImageList = IconsSmall
         Label6.Location = New Point(6, 161)
         Label6.Name = "Label6"
         Label6.Size = New Size(193, 23)
@@ -334,9 +330,6 @@ Partial Class Config_Form
         TextBox4.TabIndex = 12
         ToolTip1.SetToolTip(TextBox4, "Path to the skeleton NIF used for preview and posing.")
         ' 
-        ' Minimo CERO: cero es el default y el valor canonico. Con el minimo en 1e-12 la asignacion
-        ' desde el config tiraba ArgumentOutOfRangeException y dejaba media pantalla sin cargar.
-        ' 
         ' TabControl1
         ' 
         TabControl1.Appearance = TabAppearance.Buttons
@@ -344,7 +337,7 @@ Partial Class Config_Form
         TabControl1.Controls.Add(TabPage3)
         TabControl1.Controls.Add(TabPagePack)
         TabControl1.Dock = DockStyle.Fill
-        TabControl1.ImageList = ImageList1
+        TabControl1.ImageList = IconsSmall
         TabControl1.Location = New Point(0, 0)
         TabControl1.Name = "TabControl1"
         TabControl1.SelectedIndex = 0
@@ -376,7 +369,7 @@ Partial Class Config_Form
         TabPage1.Controls.Add(Label3)
         TabPage1.Controls.Add(Button3)
         TabPage1.Controls.Add(Button2)
-        TabPage1.ImageKey = "attach.ico"
+        TabPage1.ImageKey = "Attach"
         TabPage1.Location = New Point(4, 27)
         TabPage1.Name = "TabPage1"
         TabPage1.Padding = New Padding(3)
@@ -409,7 +402,7 @@ Partial Class Config_Form
         ' Label7
         ' 
         Label7.ImageAlign = ContentAlignment.MiddleRight
-        Label7.ImageList = ImageList1
+        Label7.ImageList = IconsSmall
         Label7.Location = New Point(6, 15)
         Label7.Name = "Label7"
         Label7.Size = New Size(193, 23)
@@ -433,7 +426,7 @@ Partial Class Config_Form
         TabPage3.Controls.Add(CheckBoxBuildHH)
         TabPage3.Controls.Add(RadioButtonWMEngine)
         TabPage3.Controls.Add(Label12)
-        TabPage3.ImageKey = "agt_update_drivers.ico"
+        TabPage3.ImageKey = "AgtUpdateDrivers"
         TabPage3.Location = New Point(4, 27)
         TabPage3.Name = "TabPage3"
         TabPage3.Size = New Size(944, 449)
@@ -522,8 +515,8 @@ Partial Class Config_Form
         ' 
         ' Button8
         ' 
-        Button8.ImageKey = "cancel.ico"
-        Button8.ImageList = ImageList1
+        Button8.ImageKey = "Cancel"
+        Button8.ImageList = IconsSmall
         Button8.Location = New Point(6, 334)
         Button8.Name = "Button8"
         Button8.Size = New Size(240, 34)
@@ -535,8 +528,8 @@ Partial Class Config_Form
         ' 
         ' Button7
         ' 
-        Button7.ImageKey = "agt_action_success.ico"
-        Button7.ImageList = ImageList1
+        Button7.ImageKey = "AgtReload"
+        Button7.ImageList = IconsSmall
         Button7.Location = New Point(6, 294)
         Button7.Name = "Button7"
         Button7.Size = New Size(240, 34)
@@ -598,18 +591,18 @@ Partial Class Config_Form
         CheckBoxLMAddAditionals.Text = "Add additional sliders"
         ToolTip1.SetToolTip(CheckBoxLMAddAditionals, "Export additional sliders for LooksMenu integration.")
         CheckBoxLMAddAditionals.UseVisualStyleBackColor = True
-        '
+        ' 
         ' LabelLMGender
-        '
+        ' 
         LabelLMGender.AutoSize = True
         LabelLMGender.Location = New Point(676, 23)
         LabelLMGender.Name = "LabelLMGender"
         LabelLMGender.Size = New Size(45, 15)
         LabelLMGender.TabIndex = 32
         LabelLMGender.Text = "Gender"
-        '
+        ' 
         ' ComboBoxLMGender
-        '
+        ' 
         ComboBoxLMGender.DropDownStyle = ComboBoxStyle.DropDownList
         ComboBoxLMGender.FormattingEnabled = True
         ComboBoxLMGender.Items.AddRange(New Object() {"Female", "Male", "Both"})
@@ -618,7 +611,7 @@ Partial Class Config_Form
         ComboBoxLMGender.Size = New Size(120, 23)
         ComboBoxLMGender.TabIndex = 33
         ToolTip1.SetToolTip(ComboBoxLMGender, "Sex the additional sliders are registered for in LooksMenu. CBBE ships Female only.")
-        '
+        ' 
         ' CheckBoxDeletewithProject
         ' 
         CheckBoxDeletewithProject.AutoSize = True
@@ -697,7 +690,7 @@ Partial Class Config_Form
         ' 
         ' Label12
         ' 
-        Label12.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        Label12.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Label12.ImageAlign = ContentAlignment.MiddleRight
         Label12.Location = New Point(8, 11)
         Label12.Name = "Label12"
@@ -709,7 +702,7 @@ Partial Class Config_Form
         ' TabPagePack
         ' 
         TabPagePack.Controls.Add(PackRootLayout)
-        TabPagePack.ImageKey = "add_group.ico"
+        TabPagePack.ImageKey = "AddGroup"
         TabPagePack.Location = New Point(4, 27)
         TabPagePack.Name = "TabPagePack"
         TabPagePack.Size = New Size(944, 449)
@@ -720,7 +713,7 @@ Partial Class Config_Form
         ' PackRootLayout
         ' 
         PackRootLayout.ColumnCount = 1
-        PackRootLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+        PackRootLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100F))
         PackRootLayout.Controls.Add(PackHeaderPanel, 0, 0)
         PackRootLayout.Controls.Add(PackStatusGroup, 0, 1)
         PackRootLayout.Controls.Add(PackActionGroup, 0, 2)
@@ -733,7 +726,7 @@ Partial Class Config_Form
         PackRootLayout.RowStyles.Add(New RowStyle())
         PackRootLayout.RowStyles.Add(New RowStyle())
         PackRootLayout.RowStyles.Add(New RowStyle())
-        PackRootLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+        PackRootLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100F))
         PackRootLayout.Size = New Size(944, 449)
         PackRootLayout.TabIndex = 0
         ' 
@@ -752,7 +745,7 @@ Partial Class Config_Form
         ' PackHeaderTitleLabel
         ' 
         PackHeaderTitleLabel.AutoSize = True
-        PackHeaderTitleLabel.Font = New Font("Segoe UI", 11.0F, FontStyle.Bold)
+        PackHeaderTitleLabel.Font = New Font("Segoe UI", 11F, FontStyle.Bold)
         PackHeaderTitleLabel.Location = New Point(0, 0)
         PackHeaderTitleLabel.Name = "PackHeaderTitleLabel"
         PackHeaderTitleLabel.Size = New Size(230, 20)
@@ -788,10 +781,10 @@ Partial Class Config_Form
         PackStatusGrid.AutoSize = True
         PackStatusGrid.AutoSizeMode = AutoSizeMode.GrowAndShrink
         PackStatusGrid.ColumnCount = 4
-        PackStatusGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 15.0F))
-        PackStatusGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 45.0F))
-        PackStatusGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 15.0F))
-        PackStatusGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
+        PackStatusGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 15F))
+        PackStatusGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 45F))
+        PackStatusGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 15F))
+        PackStatusGrid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
         PackStatusGrid.Controls.Add(PackStatusLooseCaption, 0, 0)
         PackStatusGrid.Controls.Add(PackStatusLooseValue, 1, 0)
         PackStatusGrid.Controls.Add(PackStatusLooseSizeCaption, 2, 0)
@@ -826,7 +819,7 @@ Partial Class Config_Form
         ' 
         PackStatusLooseValue.Anchor = AnchorStyles.Left
         PackStatusLooseValue.AutoSize = True
-        PackStatusLooseValue.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold)
+        PackStatusLooseValue.Font = New Font("Segoe UI", 9F, FontStyle.Bold)
         PackStatusLooseValue.Location = New Point(134, 8)
         PackStatusLooseValue.Margin = New Padding(0, 4, 24, 4)
         PackStatusLooseValue.Name = "PackStatusLooseValue"
@@ -850,7 +843,7 @@ Partial Class Config_Form
         ' 
         PackStatusLooseSizeValue.Anchor = AnchorStyles.Left
         PackStatusLooseSizeValue.AutoSize = True
-        PackStatusLooseSizeValue.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold)
+        PackStatusLooseSizeValue.Font = New Font("Segoe UI", 9F, FontStyle.Bold)
         PackStatusLooseSizeValue.Location = New Point(671, 8)
         PackStatusLooseSizeValue.Margin = New Padding(0, 4, 24, 4)
         PackStatusLooseSizeValue.Name = "PackStatusLooseSizeValue"
@@ -874,7 +867,7 @@ Partial Class Config_Form
         ' 
         PackStatusArchivesValue.Anchor = AnchorStyles.Left
         PackStatusArchivesValue.AutoSize = True
-        PackStatusArchivesValue.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold)
+        PackStatusArchivesValue.Font = New Font("Segoe UI", 9F, FontStyle.Bold)
         PackStatusArchivesValue.Location = New Point(134, 38)
         PackStatusArchivesValue.Margin = New Padding(0, 4, 24, 4)
         PackStatusArchivesValue.Name = "PackStatusArchivesValue"
@@ -898,7 +891,7 @@ Partial Class Config_Form
         ' 
         PackStatusArchiveSizeValue.Anchor = AnchorStyles.Left
         PackStatusArchiveSizeValue.AutoSize = True
-        PackStatusArchiveSizeValue.Font = New Font("Segoe UI", 9.0F, FontStyle.Bold)
+        PackStatusArchiveSizeValue.Font = New Font("Segoe UI", 9F, FontStyle.Bold)
         PackStatusArchiveSizeValue.Location = New Point(671, 38)
         PackStatusArchiveSizeValue.Margin = New Padding(0, 4, 24, 4)
         PackStatusArchiveSizeValue.Name = "PackStatusArchiveSizeValue"
@@ -924,7 +917,7 @@ Partial Class Config_Form
         PackActionLayout.AutoSize = True
         PackActionLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink
         PackActionLayout.ColumnCount = 1
-        PackActionLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+        PackActionLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100F))
         PackActionLayout.Controls.Add(PackButtonRow, 0, 0)
         PackActionLayout.Controls.Add(PackProgressBar, 0, 1)
         PackActionLayout.Controls.Add(PackProgressRow, 0, 2)
@@ -958,8 +951,8 @@ Partial Class Config_Form
         ' 
         ' PackButton
         ' 
-        PackButton.ImageKey = "db_update.ico"
-        PackButton.ImageList = ImageList1
+        PackButton.ImageKey = "DbUpdate"
+        PackButton.ImageList = IconsSmall
         PackButton.Location = New Point(0, 0)
         PackButton.Margin = New Padding(0, 0, 8, 0)
         PackButton.Name = "PackButton"
@@ -971,8 +964,8 @@ Partial Class Config_Form
         ' 
         ' UnpackButton
         ' 
-        UnpackButton.ImageKey = "db_comit.ico"
-        UnpackButton.ImageList = ImageList1
+        UnpackButton.ImageKey = "DbComit"
+        UnpackButton.ImageList = IconsSmall
         UnpackButton.Location = New Point(188, 0)
         UnpackButton.Margin = New Padding(0, 0, 8, 0)
         UnpackButton.Name = "UnpackButton"
@@ -984,8 +977,8 @@ Partial Class Config_Form
         ' 
         ' StopButton
         ' 
-        StopButton.ImageKey = "cancel.ico"
-        StopButton.ImageList = ImageList1
+        StopButton.ImageKey = "Cancel"
+        StopButton.ImageList = IconsSmall
         StopButton.Location = New Point(376, 0)
         StopButton.Margin = New Padding(0)
         StopButton.Name = "StopButton"
@@ -1033,7 +1026,7 @@ Partial Class Config_Form
         PackProgressRow.AutoSize = True
         PackProgressRow.AutoSizeMode = AutoSizeMode.GrowAndShrink
         PackProgressRow.ColumnCount = 2
-        PackProgressRow.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+        PackProgressRow.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100F))
         PackProgressRow.ColumnStyles.Add(New ColumnStyle())
         PackProgressRow.Controls.Add(PackProgressLabel, 0, 0)
         PackProgressRow.Controls.Add(PackElapsedLabel, 1, 0)
@@ -1085,7 +1078,7 @@ Partial Class Config_Form
         ' 
         ' Config_Form
         ' 
-        AutoScaleDimensions = New SizeF(7.0F, 15.0F)
+        AutoScaleDimensions = New SizeF(7F, 15F)
         AutoScaleMode = AutoScaleMode.Font
         AutoScroll = True
         ClientSize = New Size(952, 480)
@@ -1132,7 +1125,6 @@ Partial Class Config_Form
     Friend WithEvents TextBox1 As TextBox
     Friend WithEvents Button1 As Button
     Friend WithEvents Label1 As Label
-    Friend WithEvents ImageList1 As ImageList
     Friend WithEvents Label2 As Label
     Friend WithEvents TextBox2 As TextBox
     Friend WithEvents Label3 As Label

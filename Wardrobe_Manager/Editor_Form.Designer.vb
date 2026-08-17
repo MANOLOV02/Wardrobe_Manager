@@ -1,7 +1,13 @@
 ﻿' Version Uploaded of Wardrobe 3.2.0
 <Global.Microsoft.VisualBasic.CompilerServices.DesignerGenerated()>
 Partial Class Editor_Form
-    Inherits System.Windows.Forms.Form
+    ' Hereda de FO4_Base_Library.IconFormBase, que aporta los ImageList compartidos IconsSmall
+    ' (16x16) e IconsLarge (24x24): los iconos viven UNA sola vez, en el resx de ese formulario
+    ' base, y no en el de este. El formulario base no tiene controles ni fija Size/Text/AutoScale,
+    ' asi que heredar de el no cambia el aspecto de nada. Ver el remarks de IconFormBase.vb.
+    ' ⛔ Todo va por ImageKey y NUNCA por ImageIndex: el orden del ImageList compartido no es el
+    ' que tenia el ImageList1 de este formulario, y ademas cambia al agregar iconos.
+    Inherits FO4_Base_Library.IconFormBase
 
     'UserControl reemplaza a Dispose para limpiar la lista de componentes.
     <System.Diagnostics.DebuggerNonUserCode()> _
@@ -71,7 +77,6 @@ Partial Class Editor_Form
         ButtonCopyPath = New Button()
         TableLayoutPanel3 = New TableLayoutPanel()
         ButtonMatCancel = New Button()
-        ImageList1 = New ImageList(components)
         ButtonMatSaveAs = New Button()
         ButtonMatSave = New Button()
         ButtonMatLoad = New Button()
@@ -172,12 +177,12 @@ Partial Class Editor_Form
         Label19 = New Label()
         TreeViewSkeleton = New TreeView()
         TabPage5 = New TabPage()
+        btnMakeHelper = New Button()
+        btnConvertToRenderable = New Button()
         ButtonMaskOccluded = New Button()
         ButtonConform = New Button()
         ButtonSplitShape = New Button()
         ButtonMergeShapes = New Button()
-        btnConvertToRenderable = New Button()
-        btnMakeHelper = New Button()
         SingleBoneCheck = New CheckBox()
         NumericMaskRadius = New NumericUpDown()
         Label17 = New Label()
@@ -663,7 +668,7 @@ Partial Class Editor_Form
         HHNumericUpDown.Increment = New Decimal(New Integer() {5, 0, 0, 65536})
         HHNumericUpDown.Location = New Point(184, 74)
         HHNumericUpDown.Maximum = New Decimal(New Integer() {1000, 0, 0, 0})
-        HHNumericUpDown.Minimum = New Decimal(New Integer() {1000, 0, 0, -2147483648})
+        HHNumericUpDown.Minimum = New Decimal(New Integer() {1000, 0, 0, Integer.MinValue})
         HHNumericUpDown.Name = "HHNumericUpDown"
         HHNumericUpDown.Size = New Size(61, 23)
         HHNumericUpDown.TabIndex = 4
@@ -815,8 +820,8 @@ Partial Class Editor_Form
         ' 
         ButtonMatCancel.Dock = DockStyle.Fill
         ButtonMatCancel.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        ButtonMatCancel.ImageIndex = 5
-        ButtonMatCancel.ImageList = ImageList1
+        ButtonMatCancel.ImageKey = "AgtActionFail"
+        ButtonMatCancel.ImageList = IconsSmall
         ButtonMatCancel.Location = New Point(519, 3)
         ButtonMatCancel.Name = "ButtonMatCancel"
         ButtonMatCancel.Size = New Size(166, 25)
@@ -826,19 +831,12 @@ Partial Class Editor_Form
         ToolTip1.SetToolTip(ButtonMatCancel, "Discard unsaved material edits and reload the current material from disk.")
         ButtonMatCancel.UseVisualStyleBackColor = True
         ' 
-        ' ImageList1
-        ' 
-        ImageList1.ColorDepth = ColorDepth.Depth32Bit
-        ImageList1.TransparentColor = Color.Transparent
-        ' Las imagenes y sus keys las carga FormImageLists.FillEditorForm desde el constructor.
-        ' No volver a poner el ImageStream aca: ver el remarks de FormImageLists.vb (MSB3821).
-        ' 
         ' ButtonMatSaveAs
         ' 
         ButtonMatSaveAs.Dock = DockStyle.Fill
         ButtonMatSaveAs.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        ButtonMatSaveAs.ImageIndex = 4
-        ButtonMatSaveAs.ImageList = ImageList1
+        ButtonMatSaveAs.ImageKey = "FileSaveAs"
+        ButtonMatSaveAs.ImageList = IconsSmall
         ButtonMatSaveAs.Location = New Point(347, 3)
         ButtonMatSaveAs.Name = "ButtonMatSaveAs"
         ButtonMatSaveAs.Size = New Size(166, 25)
@@ -852,8 +850,8 @@ Partial Class Editor_Form
         ' 
         ButtonMatSave.Dock = DockStyle.Fill
         ButtonMatSave.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        ButtonMatSave.ImageIndex = 3
-        ButtonMatSave.ImageList = ImageList1
+        ButtonMatSave.ImageKey = "FileSave"
+        ButtonMatSave.ImageList = IconsSmall
         ButtonMatSave.Location = New Point(175, 3)
         ButtonMatSave.Name = "ButtonMatSave"
         ButtonMatSave.Size = New Size(166, 25)
@@ -867,8 +865,8 @@ Partial Class Editor_Form
         ' 
         ButtonMatLoad.Dock = DockStyle.Fill
         ButtonMatLoad.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        ButtonMatLoad.ImageKey = "fileopen.ico"
-        ButtonMatLoad.ImageList = ImageList1
+        ButtonMatLoad.ImageKey = "FileOpen"
+        ButtonMatLoad.ImageList = IconsSmall
         ButtonMatLoad.Location = New Point(3, 3)
         ButtonMatLoad.Name = "ButtonMatLoad"
         ButtonMatLoad.Size = New Size(166, 25)
@@ -908,8 +906,8 @@ Partial Class Editor_Form
         ' 
         ButtonSave.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
         ButtonSave.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        ButtonSave.ImageIndex = 3
-        ButtonSave.ImageList = ImageList1
+        ButtonSave.ImageKey = "FileSave"
+        ButtonSave.ImageList = IconsSmall
         ButtonSave.Location = New Point(3, 3)
         ButtonSave.Name = "ButtonSave"
         ButtonSave.Size = New Size(350, 32)
@@ -923,8 +921,8 @@ Partial Class Editor_Form
         ' 
         ButtonCancel.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
         ButtonCancel.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        ButtonCancel.ImageIndex = 5
-        ButtonCancel.ImageList = ImageList1
+        ButtonCancel.ImageKey = "AgtActionFail"
+        ButtonCancel.ImageList = IconsSmall
         ButtonCancel.Location = New Point(359, 3)
         ButtonCancel.Name = "ButtonCancel"
         ButtonCancel.Size = New Size(351, 32)
@@ -973,7 +971,7 @@ Partial Class Editor_Form
         TabControl1.Controls.Add(TabPage3)
         TabControl1.Controls.Add(TabPage4)
         TabControl1.Controls.Add(TabPage5)
-        TabControl1.ImageList = ImageList1
+        TabControl1.ImageList = IconsSmall
         TabControl1.Location = New Point(10, 249)
         TabControl1.Name = "TabControl1"
         TabControl1.SelectedIndex = 0
@@ -984,7 +982,7 @@ Partial Class Editor_Form
         ' 
         TabPage1.BackColor = SystemColors.Control
         TabPage1.Controls.Add(GroupBox1)
-        TabPage1.ImageIndex = 0
+        TabPage1.ImageKey = "AgtForum"
         TabPage1.Location = New Point(4, 24)
         TabPage1.Name = "TabPage1"
         TabPage1.Padding = New Padding(3)
@@ -996,7 +994,7 @@ Partial Class Editor_Form
         ' 
         TabPage2.BackColor = SystemColors.Control
         TabPage2.Controls.Add(GroupBox3)
-        TabPage2.ImageIndex = 1
+        TabPage2.ImageKey = "Configure"
         TabPage2.Location = New Point(4, 24)
         TabPage2.Name = "TabPage2"
         TabPage2.Padding = New Padding(3)
@@ -1044,8 +1042,8 @@ Partial Class Editor_Form
         ' 
         ButtonShrinkMask.Anchor = AnchorStyles.Top Or AnchorStyles.Right
         ButtonShrinkMask.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        ButtonShrinkMask.ImageIndex = 17
-        ButtonShrinkMask.ImageList = ImageList1
+        ButtonShrinkMask.ImageKey = "DbRemove"
+        ButtonShrinkMask.ImageList = IconsSmall
         ButtonShrinkMask.Location = New Point(216, 379)
         ButtonShrinkMask.Name = "ButtonShrinkMask"
         ButtonShrinkMask.Size = New Size(211, 23)
@@ -1059,8 +1057,8 @@ Partial Class Editor_Form
         ' 
         ButtonClearZap.Anchor = AnchorStyles.Top Or AnchorStyles.Right
         ButtonClearZap.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        ButtonClearZap.ImageKey = "button_cancel.ico"
-        ButtonClearZap.ImageList = ImageList1
+        ButtonClearZap.ImageKey = "ButtonCancel"
+        ButtonClearZap.ImageList = IconsSmall
         ButtonClearZap.Location = New Point(216, 257)
         ButtonClearZap.Name = "ButtonClearZap"
         ButtonClearZap.Size = New Size(211, 23)
@@ -1074,8 +1072,8 @@ Partial Class Editor_Form
         ' 
         DeleteZap.Anchor = AnchorStyles.Top Or AnchorStyles.Right
         DeleteZap.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        DeleteZap.ImageIndex = 5
-        DeleteZap.ImageList = ImageList1
+        DeleteZap.ImageKey = "AgtActionFail"
+        DeleteZap.ImageList = IconsSmall
         DeleteZap.Location = New Point(4, 379)
         DeleteZap.Name = "DeleteZap"
         DeleteZap.Size = New Size(206, 23)
@@ -1089,8 +1087,8 @@ Partial Class Editor_Form
         ' 
         ButtonGrowMask.Anchor = AnchorStyles.Top Or AnchorStyles.Right
         ButtonGrowMask.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        ButtonGrowMask.ImageIndex = 16
-        ButtonGrowMask.ImageList = ImageList1
+        ButtonGrowMask.ImageKey = "DbAdd"
+        ButtonGrowMask.ImageList = IconsSmall
         ButtonGrowMask.Location = New Point(216, 353)
         ButtonGrowMask.Name = "ButtonGrowMask"
         ButtonGrowMask.Size = New Size(211, 23)
@@ -1244,8 +1242,8 @@ Partial Class Editor_Form
         ' 
         ZapCreate.Anchor = AnchorStyles.Top Or AnchorStyles.Right
         ZapCreate.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        ZapCreate.ImageIndex = 3
-        ZapCreate.ImageList = ImageList1
+        ZapCreate.ImageKey = "FileSave"
+        ZapCreate.ImageList = IconsSmall
         ZapCreate.Location = New Point(4, 353)
         ZapCreate.Name = "ZapCreate"
         ZapCreate.Size = New Size(206, 23)
@@ -1259,8 +1257,8 @@ Partial Class Editor_Form
         ' 
         ZapExclude.Anchor = AnchorStyles.Top Or AnchorStyles.Right
         ZapExclude.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        ZapExclude.ImageKey = "edit_remove.ico"
-        ZapExclude.ImageList = ImageList1
+        ZapExclude.ImageKey = "EditRemove"
+        ZapExclude.ImageList = IconsSmall
         ZapExclude.Location = New Point(216, 320)
         ZapExclude.Name = "ZapExclude"
         ZapExclude.Size = New Size(211, 23)
@@ -1274,8 +1272,8 @@ Partial Class Editor_Form
         ' 
         ZapInclude.Anchor = AnchorStyles.Top Or AnchorStyles.Right
         ZapInclude.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        ZapInclude.ImageIndex = 10
-        ZapInclude.ImageList = ImageList1
+        ZapInclude.ImageKey = "EditAdd"
+        ZapInclude.ImageList = IconsSmall
         ZapInclude.Location = New Point(216, 291)
         ZapInclude.Name = "ZapInclude"
         ZapInclude.Size = New Size(211, 23)
@@ -1289,8 +1287,8 @@ Partial Class Editor_Form
         ' 
         ZapLoad.Anchor = AnchorStyles.Top Or AnchorStyles.Right
         ZapLoad.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        ZapLoad.ImageKey = "compfile.ico"
-        ZapLoad.ImageList = ImageList1
+        ZapLoad.ImageKey = "CompFile"
+        ZapLoad.ImageList = IconsSmall
         ZapLoad.Location = New Point(216, 228)
         ZapLoad.Name = "ZapLoad"
         ZapLoad.Size = New Size(211, 23)
@@ -1342,8 +1340,8 @@ Partial Class Editor_Form
         ' 
         ButtonClickAll.Anchor = AnchorStyles.Top Or AnchorStyles.Right
         ButtonClickAll.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        ButtonClickAll.ImageIndex = 13
-        ButtonClickAll.ImageList = ImageList1
+        ButtonClickAll.ImageKey = "ConnectNo"
+        ButtonClickAll.ImageList = IconsSmall
         ButtonClickAll.Location = New Point(246, 43)
         ButtonClickAll.Name = "ButtonClickAll"
         ButtonClickAll.Size = New Size(96, 23)
@@ -1394,8 +1392,8 @@ Partial Class Editor_Form
         ' 
         ButtonInvertMask.Anchor = AnchorStyles.Top Or AnchorStyles.Right
         ButtonInvertMask.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        ButtonInvertMask.ImageIndex = 6
-        ButtonInvertMask.ImageList = ImageList1
+        ButtonInvertMask.ImageKey = "AgtReload"
+        ButtonInvertMask.ImageList = IconsSmall
         ButtonInvertMask.Location = New Point(304, 15)
         ButtonInvertMask.Name = "ButtonInvertMask"
         ButtonInvertMask.Size = New Size(128, 23)
@@ -1409,8 +1407,8 @@ Partial Class Editor_Form
         ' 
         ButtonUnmaskAll.Anchor = AnchorStyles.Top Or AnchorStyles.Right
         ButtonUnmaskAll.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        ButtonUnmaskAll.ImageIndex = 12
-        ButtonUnmaskAll.ImageList = ImageList1
+        ButtonUnmaskAll.ImageKey = "ConnectCreating"
+        ButtonUnmaskAll.ImageList = IconsSmall
         ButtonUnmaskAll.Location = New Point(155, 15)
         ButtonUnmaskAll.Name = "ButtonUnmaskAll"
         ButtonUnmaskAll.Size = New Size(128, 23)
@@ -1424,8 +1422,8 @@ Partial Class Editor_Form
         ' 
         ButtonMaskAll.Anchor = AnchorStyles.Top Or AnchorStyles.Right
         ButtonMaskAll.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        ButtonMaskAll.ImageIndex = 13
-        ButtonMaskAll.ImageList = ImageList1
+        ButtonMaskAll.ImageKey = "ConnectNo"
+        ButtonMaskAll.ImageList = IconsSmall
         ButtonMaskAll.Location = New Point(4, 15)
         ButtonMaskAll.Name = "ButtonMaskAll"
         ButtonMaskAll.Size = New Size(130, 23)
@@ -1477,8 +1475,8 @@ Partial Class Editor_Form
         ' 
         ButtonUnmaskByBones.Anchor = AnchorStyles.Top Or AnchorStyles.Right
         ButtonUnmaskByBones.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        ButtonUnmaskByBones.ImageIndex = 12
-        ButtonUnmaskByBones.ImageList = ImageList1
+        ButtonUnmaskByBones.ImageKey = "ConnectCreating"
+        ButtonUnmaskByBones.ImageList = IconsSmall
         ButtonUnmaskByBones.Location = New Point(350, 22)
         ButtonUnmaskByBones.Name = "ButtonUnmaskByBones"
         ButtonUnmaskByBones.Size = New Size(83, 23)
@@ -1492,8 +1490,8 @@ Partial Class Editor_Form
         ' 
         ButtonMaskByBones.Anchor = AnchorStyles.Top Or AnchorStyles.Right
         ButtonMaskByBones.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        ButtonMaskByBones.ImageIndex = 13
-        ButtonMaskByBones.ImageList = ImageList1
+        ButtonMaskByBones.ImageKey = "ConnectNo"
+        ButtonMaskByBones.ImageList = IconsSmall
         ButtonMaskByBones.Location = New Point(261, 22)
         ButtonMaskByBones.Name = "ButtonMaskByBones"
         ButtonMaskByBones.Size = New Size(83, 23)
@@ -1551,7 +1549,7 @@ Partial Class Editor_Form
         ' 
         TabPage3.BackColor = SystemColors.Control
         TabPage3.Controls.Add(SplitContainer1)
-        TabPage3.ImageKey = "runprog.ico"
+        TabPage3.ImageKey = "RunProg"
         TabPage3.Location = New Point(4, 24)
         TabPage3.Name = "TabPage3"
         TabPage3.Padding = New Padding(3)
@@ -1659,8 +1657,8 @@ Partial Class Editor_Form
         ' 
         ButtonCancelPreset.Dock = DockStyle.Fill
         ButtonCancelPreset.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        ButtonCancelPreset.ImageIndex = 5
-        ButtonCancelPreset.ImageList = ImageList1
+        ButtonCancelPreset.ImageKey = "AgtActionFail"
+        ButtonCancelPreset.ImageList = IconsSmall
         ButtonCancelPreset.Location = New Point(357, 27)
         ButtonCancelPreset.Name = "ButtonCancelPreset"
         ButtonCancelPreset.Size = New Size(171, 25)
@@ -1674,8 +1672,8 @@ Partial Class Editor_Form
         ' 
         ButtonSaveAsPreset.Dock = DockStyle.Fill
         ButtonSaveAsPreset.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        ButtonSaveAsPreset.ImageIndex = 4
-        ButtonSaveAsPreset.ImageList = ImageList1
+        ButtonSaveAsPreset.ImageKey = "FileSaveAs"
+        ButtonSaveAsPreset.ImageList = IconsSmall
         ButtonSaveAsPreset.Location = New Point(180, 27)
         ButtonSaveAsPreset.Name = "ButtonSaveAsPreset"
         ButtonSaveAsPreset.Size = New Size(171, 25)
@@ -1689,8 +1687,8 @@ Partial Class Editor_Form
         ' 
         ButtonSavePreset.Dock = DockStyle.Fill
         ButtonSavePreset.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        ButtonSavePreset.ImageIndex = 3
-        ButtonSavePreset.ImageList = ImageList1
+        ButtonSavePreset.ImageKey = "FileSave"
+        ButtonSavePreset.ImageList = IconsSmall
         ButtonSavePreset.Location = New Point(3, 27)
         ButtonSavePreset.Name = "ButtonSavePreset"
         ButtonSavePreset.Size = New Size(171, 25)
@@ -1718,8 +1716,8 @@ Partial Class Editor_Form
         ' 
         ButtondelPreset.Dock = DockStyle.Fill
         ButtondelPreset.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        ButtondelPreset.ImageIndex = 14
-        ButtondelPreset.ImageList = ImageList1
+        ButtondelPreset.ImageKey = "ButtonCancel"
+        ButtondelPreset.ImageList = IconsSmall
         ButtondelPreset.Location = New Point(534, 27)
         ButtondelPreset.Name = "ButtondelPreset"
         ButtondelPreset.Size = New Size(172, 25)
@@ -1733,7 +1731,7 @@ Partial Class Editor_Form
         ' 
         TabPage4.BackColor = SystemColors.Control
         TabPage4.Controls.Add(GroupBox9)
-        TabPage4.ImageKey = "agt_virussafe.ico"
+        TabPage4.ImageKey = "AgtVirusSafe"
         TabPage4.Location = New Point(4, 24)
         TabPage4.Name = "TabPage4"
         TabPage4.Size = New Size(715, 576)
@@ -1760,8 +1758,8 @@ Partial Class Editor_Form
         ' ButtonReloadBonePose
         ' 
         ButtonReloadBonePose.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        ButtonReloadBonePose.ImageIndex = 9
-        ButtonReloadBonePose.ImageList = ImageList1
+        ButtonReloadBonePose.ImageKey = "CompFile"
+        ButtonReloadBonePose.ImageList = IconsSmall
         ButtonReloadBonePose.Location = New Point(264, 295)
         ButtonReloadBonePose.Name = "ButtonReloadBonePose"
         ButtonReloadBonePose.Size = New Size(237, 25)
@@ -1775,8 +1773,8 @@ Partial Class Editor_Form
         ' ButtonClearPoseTransforms
         ' 
         ButtonClearPoseTransforms.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        ButtonClearPoseTransforms.ImageIndex = 5
-        ButtonClearPoseTransforms.ImageList = ImageList1
+        ButtonClearPoseTransforms.ImageKey = "AgtActionFail"
+        ButtonClearPoseTransforms.ImageList = IconsSmall
         ButtonClearPoseTransforms.Location = New Point(265, 326)
         ButtonClearPoseTransforms.Name = "ButtonClearPoseTransforms"
         ButtonClearPoseTransforms.Size = New Size(236, 25)
@@ -1790,8 +1788,8 @@ Partial Class Editor_Form
         ' ButtonClearBoneTransform
         ' 
         ButtonClearBoneTransform.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        ButtonClearBoneTransform.ImageIndex = 11
-        ButtonClearBoneTransform.ImageList = ImageList1
+        ButtonClearBoneTransform.ImageKey = "EditRemove"
+        ButtonClearBoneTransform.ImageList = IconsSmall
         ButtonClearBoneTransform.Location = New Point(265, 357)
         ButtonClearBoneTransform.Name = "ButtonClearBoneTransform"
         ButtonClearBoneTransform.Size = New Size(236, 25)
@@ -1805,8 +1803,8 @@ Partial Class Editor_Form
         ' ButtonReloadPose
         ' 
         ButtonReloadPose.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        ButtonReloadPose.ImageIndex = 7
-        ButtonReloadPose.ImageList = ImageList1
+        ButtonReloadPose.ImageKey = "AgtUpdateDrivers"
+        ButtonReloadPose.ImageList = IconsSmall
         ButtonReloadPose.Location = New Point(265, 264)
         ButtonReloadPose.Name = "ButtonReloadPose"
         ButtonReloadPose.Size = New Size(237, 25)
@@ -1846,8 +1844,8 @@ Partial Class Editor_Form
         ' 
         PoseUnBakeShapeButton.Dock = DockStyle.Fill
         PoseUnBakeShapeButton.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        PoseUnBakeShapeButton.ImageIndex = 6
-        PoseUnBakeShapeButton.ImageList = ImageList1
+        PoseUnBakeShapeButton.ImageKey = "AgtReload"
+        PoseUnBakeShapeButton.ImageList = IconsSmall
         PoseUnBakeShapeButton.Location = New Point(525, 34)
         PoseUnBakeShapeButton.Name = "PoseUnBakeShapeButton"
         PoseUnBakeShapeButton.Size = New Size(170, 28)
@@ -1862,8 +1860,8 @@ Partial Class Editor_Form
         ' 
         PoseBakeShapeButton.Dock = DockStyle.Fill
         PoseBakeShapeButton.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        PoseBakeShapeButton.ImageIndex = 8
-        PoseBakeShapeButton.ImageList = ImageList1
+        PoseBakeShapeButton.ImageKey = "AgtVirusSafe"
+        PoseBakeShapeButton.ImageList = IconsSmall
         PoseBakeShapeButton.Location = New Point(351, 34)
         PoseBakeShapeButton.Name = "PoseBakeShapeButton"
         PoseBakeShapeButton.Size = New Size(168, 28)
@@ -1891,8 +1889,8 @@ Partial Class Editor_Form
         ' 
         PoseUnBakeButton.Dock = DockStyle.Fill
         PoseUnBakeButton.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        PoseUnBakeButton.ImageIndex = 6
-        PoseUnBakeButton.ImageList = ImageList1
+        PoseUnBakeButton.ImageKey = "AgtReload"
+        PoseUnBakeButton.ImageList = IconsSmall
         PoseUnBakeButton.Location = New Point(177, 34)
         PoseUnBakeButton.Name = "PoseUnBakeButton"
         PoseUnBakeButton.Size = New Size(168, 28)
@@ -1907,8 +1905,8 @@ Partial Class Editor_Form
         ' 
         PoseBakeButton.Dock = DockStyle.Fill
         PoseBakeButton.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        PoseBakeButton.ImageIndex = 8
-        PoseBakeButton.ImageList = ImageList1
+        PoseBakeButton.ImageKey = "AgtVirusSafe"
+        PoseBakeButton.ImageList = IconsSmall
         PoseBakeButton.Location = New Point(3, 34)
         PoseBakeButton.Name = "PoseBakeButton"
         PoseBakeButton.Size = New Size(168, 28)
@@ -1922,8 +1920,8 @@ Partial Class Editor_Form
         ' 
         PoseSaveAsButton.Dock = DockStyle.Fill
         PoseSaveAsButton.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        PoseSaveAsButton.ImageIndex = 4
-        PoseSaveAsButton.ImageList = ImageList1
+        PoseSaveAsButton.ImageKey = "FileSaveAs"
+        PoseSaveAsButton.ImageList = IconsSmall
         PoseSaveAsButton.Location = New Point(177, 3)
         PoseSaveAsButton.Name = "PoseSaveAsButton"
         PoseSaveAsButton.Size = New Size(168, 25)
@@ -1937,8 +1935,8 @@ Partial Class Editor_Form
         ' 
         PoseSaveButton.Dock = DockStyle.Fill
         PoseSaveButton.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        PoseSaveButton.ImageIndex = 3
-        PoseSaveButton.ImageList = ImageList1
+        PoseSaveButton.ImageKey = "FileSave"
+        PoseSaveButton.ImageList = IconsSmall
         PoseSaveButton.Location = New Point(3, 3)
         PoseSaveButton.Name = "PoseSaveButton"
         PoseSaveButton.Size = New Size(168, 25)
@@ -1952,8 +1950,8 @@ Partial Class Editor_Form
         ' 
         PoseDeleteButton.Dock = DockStyle.Fill
         PoseDeleteButton.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        PoseDeleteButton.ImageIndex = 14
-        PoseDeleteButton.ImageList = ImageList1
+        PoseDeleteButton.ImageKey = "ButtonCancel"
+        PoseDeleteButton.ImageList = IconsSmall
         PoseDeleteButton.Location = New Point(351, 3)
         PoseDeleteButton.Name = "PoseDeleteButton"
         PoseDeleteButton.Size = New Size(168, 25)
@@ -2211,17 +2209,43 @@ Partial Class Editor_Form
         TabPage5.Controls.Add(ButtonConform)
         TabPage5.Controls.Add(ButtonSplitShape)
         TabPage5.Controls.Add(ButtonMergeShapes)
-        TabPage5.ImageKey = "applications-development.ico"
+        TabPage5.ImageKey = "ApplicationsDevelopment"
         TabPage5.Location = New Point(4, 24)
         TabPage5.Name = "TabPage5"
         TabPage5.Size = New Size(715, 576)
         TabPage5.TabIndex = 4
         TabPage5.Text = "Tools"
         ' 
+        ' btnMakeHelper
+        ' 
+        btnMakeHelper.ImageKey = "LayerVisibleOff"
+        btnMakeHelper.ImageList = IconsSmall
+        btnMakeHelper.Location = New Point(14, 184)
+        btnMakeHelper.Name = "btnMakeHelper"
+        btnMakeHelper.Size = New Size(220, 26)
+        btnMakeHelper.TabIndex = 5
+        btnMakeHelper.Text = "Make shape hidden"
+        btnMakeHelper.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(btnMakeHelper, resources.GetString("btnMakeHelper.ToolTip"))
+        btnMakeHelper.UseVisualStyleBackColor = True
+        ' 
+        ' btnConvertToRenderable
+        ' 
+        btnConvertToRenderable.ImageKey = "LayerVisibleOn"
+        btnConvertToRenderable.ImageList = IconsSmall
+        btnConvertToRenderable.Location = New Point(14, 150)
+        btnConvertToRenderable.Name = "btnConvertToRenderable"
+        btnConvertToRenderable.Size = New Size(220, 26)
+        btnConvertToRenderable.TabIndex = 4
+        btnConvertToRenderable.Text = "Make shape renderable"
+        btnConvertToRenderable.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(btnConvertToRenderable, resources.GetString("btnConvertToRenderable.ToolTip"))
+        btnConvertToRenderable.UseVisualStyleBackColor = True
+        ' 
         ' ButtonMaskOccluded
         ' 
-        ButtonMaskOccluded.ImageIndex = 21
-        ButtonMaskOccluded.ImageList = ImageList1
+        ButtonMaskOccluded.ImageKey = "Filter"
+        ButtonMaskOccluded.ImageList = IconsSmall
         ButtonMaskOccluded.Location = New Point(14, 14)
         ButtonMaskOccluded.Name = "ButtonMaskOccluded"
         ButtonMaskOccluded.Size = New Size(220, 26)
@@ -2233,8 +2257,8 @@ Partial Class Editor_Form
         ' 
         ' ButtonConform
         ' 
-        ButtonConform.ImageIndex = 22
-        ButtonConform.ImageList = ImageList1
+        ButtonConform.ImageKey = "TabDuplicate"
+        ButtonConform.ImageList = IconsSmall
         ButtonConform.Location = New Point(14, 48)
         ButtonConform.Name = "ButtonConform"
         ButtonConform.Size = New Size(220, 26)
@@ -2246,8 +2270,8 @@ Partial Class Editor_Form
         ' 
         ' ButtonSplitShape
         ' 
-        ButtonSplitShape.ImageIndex = 19
-        ButtonSplitShape.ImageList = ImageList1
+        ButtonSplitShape.ImageKey = "EditCut"
+        ButtonSplitShape.ImageList = IconsSmall
         ButtonSplitShape.Location = New Point(14, 82)
         ButtonSplitShape.Name = "ButtonSplitShape"
         ButtonSplitShape.Size = New Size(220, 26)
@@ -2259,8 +2283,8 @@ Partial Class Editor_Form
         ' 
         ' ButtonMergeShapes
         ' 
-        ButtonMergeShapes.ImageIndex = 20
-        ButtonMergeShapes.ImageList = ImageList1
+        ButtonMergeShapes.ImageKey = "EditCopy"
+        ButtonMergeShapes.ImageList = IconsSmall
         ButtonMergeShapes.Location = New Point(14, 116)
         ButtonMergeShapes.Name = "ButtonMergeShapes"
         ButtonMergeShapes.Size = New Size(220, 26)
@@ -2269,28 +2293,6 @@ Partial Class Editor_Form
         ButtonMergeShapes.TextImageRelation = TextImageRelation.ImageBeforeText
         ToolTip1.SetToolTip(ButtonMergeShapes, "Merge the selected shape with one or more other shapes. The target shape defines the name and shader. OSD morphs are combined.")
         ButtonMergeShapes.UseVisualStyleBackColor = True
-        ' 
-        ' btnConvertToRenderable
-        ' 
-        btnConvertToRenderable.Location = New Point(14, 150)
-        btnConvertToRenderable.Name = "btnConvertToRenderable"
-        btnConvertToRenderable.Size = New Size(220, 26)
-        btnConvertToRenderable.TabIndex = 4
-        btnConvertToRenderable.Text = "Make shape renderable"
-        btnConvertToRenderable.TextImageRelation = TextImageRelation.ImageBeforeText
-        ToolTip1.SetToolTip(btnConvertToRenderable, "Give this shape a shader property (empty material) and clear the hidden flag, so the engine draws it. Disabled unless the shape is currently hidden, is of the BSTriShape family, and the material has no unsaved changes.")
-        btnConvertToRenderable.UseVisualStyleBackColor = True
-        ' 
-        ' btnMakeHelper
-        ' 
-        btnMakeHelper.Location = New Point(14, 184)
-        btnMakeHelper.Name = "btnMakeHelper"
-        btnMakeHelper.Size = New Size(220, 26)
-        btnMakeHelper.TabIndex = 5
-        btnMakeHelper.Text = "Make shape hidden"
-        btnMakeHelper.TextImageRelation = TextImageRelation.ImageBeforeText
-        ToolTip1.SetToolTip(btnMakeHelper, "Remove the shader property (and its texture set / controllers, if unused) and set the hidden flag, so the engine stops drawing this shape. The assigned material is lost. Disabled unless the shape is of the BSTriShape family and the material has no unsaved changes.")
-        btnMakeHelper.UseVisualStyleBackColor = True
         ' 
         ' SingleBoneCheck
         ' 
@@ -2442,8 +2444,8 @@ Partial Class Editor_Form
         ' 
         ButtonRenderScreenshot.Anchor = AnchorStyles.Top Or AnchorStyles.Right
         ButtonRenderScreenshot.ImageAlign = ContentAlignment.MiddleLeft
-        ButtonRenderScreenshot.ImageIndex = 7
-        ButtonRenderScreenshot.ImageList = ImageList1
+        ButtonRenderScreenshot.ImageKey = "AgtUpdateDrivers"
+        ButtonRenderScreenshot.ImageList = IconsSmall
         ButtonRenderScreenshot.Location = New Point(773, 49)
         ButtonRenderScreenshot.Name = "ButtonRenderScreenshot"
         ButtonRenderScreenshot.Size = New Size(98, 29)
@@ -2580,7 +2582,6 @@ Partial Class Editor_Form
     Friend WithEvents TabControl1 As TabControl
     Friend WithEvents TabPage1 As TabPage
     Friend WithEvents TabPage2 As TabPage
-    Friend WithEvents ImageList1 As ImageList
     Friend WithEvents GroupBox3 As GroupBox
     Friend WithEvents ListView1 As ListView
     Friend WithEvents Bone As ColumnHeader

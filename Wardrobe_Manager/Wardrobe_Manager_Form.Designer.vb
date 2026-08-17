@@ -1,7 +1,13 @@
 ﻿' Version Uploaded of Wardrobe 3.2.0
 <Global.Microsoft.VisualBasic.CompilerServices.DesignerGenerated()>
 Partial Class Wardrobe_Manager_Form
-    Inherits System.Windows.Forms.Form
+    ' Hereda de FO4_Base_Library.IconFormBase, que aporta los ImageList compartidos IconsSmall
+    ' (16x16) e IconsLarge (24x24): los iconos viven UNA sola vez, en el resx de ese formulario
+    ' base, y no en el de este. El formulario base no tiene controles ni fija Size/Text/AutoScale,
+    ' asi que heredar de el no cambia el aspecto de nada. Ver el remarks de IconFormBase.vb.
+    ' ⛔ Todo va por ImageKey y NUNCA por ImageIndex: el orden del ImageList compartido no es el
+    ' que tenia el ImageList1 de este formulario, y ademas cambia al agregar iconos.
+    Inherits FO4_Base_Library.IconFormBase
 
     'Form overrides dispose to clean up the component list.
     <System.Diagnostics.DebuggerNonUserCode()>
@@ -29,7 +35,6 @@ Partial Class Wardrobe_Manager_Form
         Label1 = New Label()
         Label2 = New Label()
         TextBox_SourceName = New TextBox()
-        ImageList1 = New ImageList(components)
         ListView2 = New ListView()
         Shapecol = New ColumnHeader()
         ShapeTypeCol = New ColumnHeader()
@@ -213,13 +218,6 @@ Partial Class Wardrobe_Manager_Form
         TextBox_SourceName.TabIndex = 0
         ToolTip1.SetToolTip(TextBox_SourceName, "Filter source projects by name, description, or file.")
         ' 
-        ' ImageList1
-        ' 
-        ImageList1.ColorDepth = ColorDepth.Depth32Bit
-        ImageList1.TransparentColor = Color.Transparent
-        ' Las imagenes y sus keys las carga FormImageLists.FillMainForm desde el constructor.
-        ' No volver a poner el ImageStream aca: ver el remarks de FormImageLists.vb (MSB3821).
-        ' 
         ' ListView2
         ' 
         ListView2.Columns.AddRange(New ColumnHeader() {Shapecol, ShapeTypeCol, Local, Datasources})
@@ -323,8 +321,8 @@ Partial Class Wardrobe_Manager_Form
         EditTargetButton.Enabled = False
         EditTargetButton.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
         EditTargetButton.ImageAlign = ContentAlignment.MiddleLeft
-        EditTargetButton.ImageIndex = 9
-        EditTargetButton.ImageList = ImageList1
+        EditTargetButton.ImageKey = "Attach"
+        EditTargetButton.ImageList = IconsSmall
         EditTargetButton.Location = New Point(3, 71)
         EditTargetButton.Name = "EditTargetButton"
         EditTargetButton.Size = New Size(160, 29)
@@ -534,8 +532,8 @@ Partial Class Wardrobe_Manager_Form
         ButtonOpenConfig.Dock = DockStyle.Fill
         ButtonOpenConfig.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
         ButtonOpenConfig.ImageAlign = ContentAlignment.MiddleLeft
-        ButtonOpenConfig.ImageIndex = 12
-        ButtonOpenConfig.ImageList = ImageList1
+        ButtonOpenConfig.ImageKey = "Gear"
+        ButtonOpenConfig.ImageList = IconsSmall
         ButtonOpenConfig.Location = New Point(3, 71)
         ButtonOpenConfig.Name = "ButtonOpenConfig"
         ButtonOpenConfig.Size = New Size(145, 29)
@@ -648,8 +646,8 @@ Partial Class Wardrobe_Manager_Form
         ButtonBuildFullPack.Dock = DockStyle.Fill
         ButtonBuildFullPack.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
         ButtonBuildFullPack.ImageAlign = ContentAlignment.MiddleLeft
-        ButtonBuildFullPack.ImageIndex = 11
-        ButtonBuildFullPack.ImageList = ImageList1
+        ButtonBuildFullPack.ImageKey = "FolderSentMail"
+        ButtonBuildFullPack.ImageList = IconsSmall
         ButtonBuildFullPack.Location = New Point(335, 71)
         ButtonBuildFullPack.Name = "ButtonBuildFullPack"
         ButtonBuildFullPack.Size = New Size(162, 29)
@@ -665,8 +663,8 @@ Partial Class Wardrobe_Manager_Form
         ButtonEditInternally.Enabled = False
         ButtonEditInternally.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
         ButtonEditInternally.ImageAlign = ContentAlignment.MiddleLeft
-        ButtonEditInternally.ImageIndex = 10
-        ButtonEditInternally.ImageList = ImageList1
+        ButtonEditInternally.ImageKey = "Appearance"
+        ButtonEditInternally.ImageList = IconsSmall
         ButtonEditInternally.Location = New Point(169, 71)
         ButtonEditInternally.Name = "ButtonEditInternally"
         ButtonEditInternally.Size = New Size(160, 29)
@@ -681,8 +679,8 @@ Partial Class Wardrobe_Manager_Form
         ButtonBuildSingles.Dock = DockStyle.Fill
         ButtonBuildSingles.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
         ButtonBuildSingles.ImageAlign = ContentAlignment.MiddleLeft
-        ButtonBuildSingles.ImageIndex = 11
-        ButtonBuildSingles.ImageList = ImageList1
+        ButtonBuildSingles.ImageKey = "FolderSentMail"
+        ButtonBuildSingles.ImageList = IconsSmall
         ButtonBuildSingles.Location = New Point(335, 3)
         ButtonBuildSingles.Name = "ButtonBuildSingles"
         ButtonBuildSingles.Size = New Size(162, 28)
@@ -698,8 +696,8 @@ Partial Class Wardrobe_Manager_Form
         ButtonDelete.Enabled = False
         ButtonDelete.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
         ButtonDelete.ImageAlign = ContentAlignment.MiddleLeft
-        ButtonDelete.ImageKey = "agt_action_fail.ico"
-        ButtonDelete.ImageList = ImageList1
+        ButtonDelete.ImageKey = "AgtActionFail"
+        ButtonDelete.ImageList = IconsSmall
         ButtonDelete.Location = New Point(3, 3)
         ButtonDelete.Name = "ButtonDelete"
         ButtonDelete.Size = New Size(160, 28)
@@ -715,8 +713,8 @@ Partial Class Wardrobe_Manager_Form
         CloneButton.Enabled = False
         CloneButton.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
         CloneButton.ImageAlign = ContentAlignment.MiddleLeft
-        CloneButton.ImageIndex = 8
-        CloneButton.ImageList = ImageList1
+        CloneButton.ImageKey = "DownArrow"
+        CloneButton.ImageList = IconsSmall
         CloneButton.Location = New Point(335, 37)
         CloneButton.Name = "CloneButton"
         CloneButton.Size = New Size(162, 28)
@@ -732,8 +730,8 @@ Partial Class Wardrobe_Manager_Form
         RenameButton.Enabled = False
         RenameButton.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
         RenameButton.ImageAlign = ContentAlignment.MiddleLeft
-        RenameButton.ImageIndex = 3
-        RenameButton.ImageList = ImageList1
+        RenameButton.ImageKey = "Edit"
+        RenameButton.ImageList = IconsSmall
         RenameButton.Location = New Point(169, 3)
         RenameButton.Name = "RenameButton"
         RenameButton.Size = New Size(160, 28)
@@ -749,8 +747,8 @@ Partial Class Wardrobe_Manager_Form
         MergeIntoTargetButton.Enabled = False
         MergeIntoTargetButton.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
         MergeIntoTargetButton.ImageAlign = ContentAlignment.MiddleLeft
-        MergeIntoTargetButton.ImageIndex = 7
-        MergeIntoTargetButton.ImageList = ImageList1
+        MergeIntoTargetButton.ImageKey = "RightArrowDouble"
+        MergeIntoTargetButton.ImageList = IconsSmall
         MergeIntoTargetButton.Location = New Point(169, 37)
         MergeIntoTargetButton.Name = "MergeIntoTargetButton"
         MergeIntoTargetButton.Size = New Size(160, 28)
@@ -766,8 +764,8 @@ Partial Class Wardrobe_Manager_Form
         ExtractSingleButton.Enabled = False
         ExtractSingleButton.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
         ExtractSingleButton.ImageAlign = ContentAlignment.MiddleLeft
-        ExtractSingleButton.ImageIndex = 4
-        ExtractSingleButton.ImageList = ImageList1
+        ExtractSingleButton.ImageKey = "LeftArrow"
+        ExtractSingleButton.ImageList = IconsSmall
         ExtractSingleButton.Location = New Point(3, 37)
         ExtractSingleButton.Name = "ExtractSingleButton"
         ExtractSingleButton.Size = New Size(160, 28)
@@ -1050,8 +1048,8 @@ Partial Class Wardrobe_Manager_Form
         ButtonCreateFromNif.Dock = DockStyle.Fill
         ButtonCreateFromNif.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
         ButtonCreateFromNif.ImageAlign = ContentAlignment.MiddleLeft
-        ButtonCreateFromNif.ImageIndex = 8
-        ButtonCreateFromNif.ImageList = ImageList1
+        ButtonCreateFromNif.ImageKey = "DownArrow"
+        ButtonCreateFromNif.ImageList = IconsSmall
         ButtonCreateFromNif.Location = New Point(333, 71)
         ButtonCreateFromNif.Name = "ButtonCreateFromNif"
         ButtonCreateFromNif.Size = New Size(159, 29)
@@ -1067,8 +1065,8 @@ Partial Class Wardrobe_Manager_Form
         ButtonDeleteSource.Enabled = False
         ButtonDeleteSource.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
         ButtonDeleteSource.ImageAlign = ContentAlignment.MiddleLeft
-        ButtonDeleteSource.ImageKey = "agt_action_fail.ico"
-        ButtonDeleteSource.ImageList = ImageList1
+        ButtonDeleteSource.ImageKey = "AgtActionFail"
+        ButtonDeleteSource.ImageList = IconsSmall
         ButtonDeleteSource.Location = New Point(333, 37)
         ButtonDeleteSource.Name = "ButtonDeleteSource"
         ButtonDeleteSource.Size = New Size(159, 28)
@@ -1084,8 +1082,8 @@ Partial Class Wardrobe_Manager_Form
         MergeInSelectedButton.Enabled = False
         MergeInSelectedButton.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
         MergeInSelectedButton.ImageAlign = ContentAlignment.MiddleLeft
-        MergeInSelectedButton.ImageIndex = 7
-        MergeInSelectedButton.ImageList = ImageList1
+        MergeInSelectedButton.ImageKey = "RightArrowDouble"
+        MergeInSelectedButton.ImageList = IconsSmall
         MergeInSelectedButton.Location = New Point(333, 3)
         MergeInSelectedButton.Name = "MergeInSelectedButton"
         MergeInSelectedButton.Size = New Size(159, 28)
@@ -1101,8 +1099,8 @@ Partial Class Wardrobe_Manager_Form
         CopytoPackButton.Enabled = False
         CopytoPackButton.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
         CopytoPackButton.ImageAlign = ContentAlignment.MiddleLeft
-        CopytoPackButton.ImageIndex = 5
-        CopytoPackButton.ImageList = ImageList1
+        CopytoPackButton.ImageKey = "RightArrow"
+        CopytoPackButton.ImageList = IconsSmall
         CopytoPackButton.Location = New Point(3, 3)
         CopytoPackButton.Name = "CopytoPackButton"
         CopytoPackButton.Size = New Size(159, 28)
@@ -1118,8 +1116,8 @@ Partial Class Wardrobe_Manager_Form
         EditButton.Enabled = False
         EditButton.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
         EditButton.ImageAlign = ContentAlignment.MiddleLeft
-        EditButton.ImageIndex = 9
-        EditButton.ImageList = ImageList1
+        EditButton.ImageKey = "Attach"
+        EditButton.ImageList = IconsSmall
         EditButton.Location = New Point(3, 71)
         EditButton.Name = "EditButton"
         EditButton.Size = New Size(159, 29)
@@ -1136,8 +1134,8 @@ Partial Class Wardrobe_Manager_Form
         MovetoDiscardedButton.Enabled = False
         MovetoDiscardedButton.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
         MovetoDiscardedButton.ImageAlign = ContentAlignment.MiddleLeft
-        MovetoDiscardedButton.ImageIndex = 0
-        MovetoDiscardedButton.ImageList = ImageList1
+        MovetoDiscardedButton.ImageKey = "AgtActionFail"
+        MovetoDiscardedButton.ImageList = IconsSmall
         MovetoDiscardedButton.Location = New Point(168, 37)
         MovetoDiscardedButton.Name = "MovetoDiscardedButton"
         MovetoDiscardedButton.Size = New Size(159, 28)
@@ -1154,8 +1152,8 @@ Partial Class Wardrobe_Manager_Form
         MoveToProcessedButton.Enabled = False
         MoveToProcessedButton.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
         MoveToProcessedButton.ImageAlign = ContentAlignment.MiddleLeft
-        MoveToProcessedButton.ImageIndex = 0
-        MoveToProcessedButton.ImageList = ImageList1
+        MoveToProcessedButton.ImageKey = "AgtActionFail"
+        MoveToProcessedButton.ImageList = IconsSmall
         MoveToProcessedButton.Location = New Point(3, 37)
         MoveToProcessedButton.Name = "MoveToProcessedButton"
         MoveToProcessedButton.Size = New Size(159, 28)
@@ -1171,8 +1169,8 @@ Partial Class Wardrobe_Manager_Form
         MergeButton.Enabled = False
         MergeButton.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
         MergeButton.ImageAlign = ContentAlignment.MiddleLeft
-        MergeButton.ImageIndex = 7
-        MergeButton.ImageList = ImageList1
+        MergeButton.ImageKey = "RightArrowDouble"
+        MergeButton.ImageList = IconsSmall
         MergeButton.Location = New Point(168, 3)
         MergeButton.Name = "MergeButton"
         MergeButton.Size = New Size(159, 28)
@@ -1188,8 +1186,8 @@ Partial Class Wardrobe_Manager_Form
         ButtonSourceInternalEdit.Enabled = False
         ButtonSourceInternalEdit.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
         ButtonSourceInternalEdit.ImageAlign = ContentAlignment.MiddleLeft
-        ButtonSourceInternalEdit.ImageIndex = 10
-        ButtonSourceInternalEdit.ImageList = ImageList1
+        ButtonSourceInternalEdit.ImageKey = "Appearance"
+        ButtonSourceInternalEdit.ImageList = IconsSmall
         ButtonSourceInternalEdit.Location = New Point(168, 71)
         ButtonSourceInternalEdit.Name = "ButtonSourceInternalEdit"
         ButtonSourceInternalEdit.Size = New Size(159, 29)
@@ -1317,8 +1315,8 @@ Partial Class Wardrobe_Manager_Form
         ButtonLightRigSettings.Dock = DockStyle.Fill
         ButtonLightRigSettings.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
         ButtonLightRigSettings.ImageAlign = ContentAlignment.MiddleLeft
-        ButtonLightRigSettings.ImageIndex = 16
-        ButtonLightRigSettings.ImageList = ImageList1
+        ButtonLightRigSettings.ImageKey = "HelpHint"
+        ButtonLightRigSettings.ImageList = IconsSmall
         ButtonLightRigSettings.Location = New Point(157, 3)
         ButtonLightRigSettings.Name = "ButtonLightRigSettings"
         ButtonLightRigSettings.Size = New Size(148, 28)
@@ -1334,8 +1332,8 @@ Partial Class Wardrobe_Manager_Form
         ButtonLeftPanel.Dock = DockStyle.Fill
         ButtonLeftPanel.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
         ButtonLeftPanel.ImageAlign = ContentAlignment.MiddleLeft
-        ButtonLeftPanel.ImageIndex = 15
-        ButtonLeftPanel.ImageList = ImageList1
+        ButtonLeftPanel.ImageKey = "LayerVisibleOn"
+        ButtonLeftPanel.ImageList = IconsSmall
         ButtonLeftPanel.Location = New Point(3, 3)
         ButtonLeftPanel.Name = "ButtonLeftPanel"
         ButtonLeftPanel.Size = New Size(148, 28)
@@ -1351,8 +1349,8 @@ Partial Class Wardrobe_Manager_Form
         ButtonRightPanel.Dock = DockStyle.Fill
         ButtonRightPanel.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
         ButtonRightPanel.ImageAlign = ContentAlignment.MiddleLeft
-        ButtonRightPanel.ImageIndex = 15
-        ButtonRightPanel.ImageList = ImageList1
+        ButtonRightPanel.ImageKey = "LayerVisibleOn"
+        ButtonRightPanel.ImageList = IconsSmall
         ButtonRightPanel.Location = New Point(311, 3)
         ButtonRightPanel.Name = "ButtonRightPanel"
         ButtonRightPanel.Size = New Size(148, 28)
@@ -1386,8 +1384,8 @@ Partial Class Wardrobe_Manager_Form
         ButtonSkeleton.Anchor = AnchorStyles.Top Or AnchorStyles.Right
         ButtonSkeleton.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold)
         ButtonSkeleton.ImageAlign = ContentAlignment.MiddleLeft
-        ButtonSkeleton.ImageIndex = 13
-        ButtonSkeleton.ImageList = ImageList1
+        ButtonSkeleton.ImageKey = "Personal"
+        ButtonSkeleton.ImageList = IconsSmall
         ButtonSkeleton.Location = New Point(360, 67)
         ButtonSkeleton.Name = "ButtonSkeleton"
         ButtonSkeleton.Size = New Size(99, 29)
@@ -1401,8 +1399,8 @@ Partial Class Wardrobe_Manager_Form
         ' 
         ButtonLoadHkxPose.Anchor = AnchorStyles.Top Or AnchorStyles.Right
         ButtonLoadHkxPose.Font = New Font("Segoe UI", 9F, FontStyle.Bold)
-        ButtonLoadHkxPose.ImageIndex = 17
-        ButtonLoadHkxPose.ImageList = ImageList1
+        ButtonLoadHkxPose.ImageKey = "VideoGeneric"
+        ButtonLoadHkxPose.ImageList = IconsSmall
         ButtonLoadHkxPose.Location = New Point(276, 67)
         ButtonLoadHkxPose.Name = "ButtonLoadHkxPose"
         ButtonLoadHkxPose.Size = New Size(78, 29)
@@ -1501,8 +1499,7 @@ Partial Class Wardrobe_Manager_Form
         AutoScroll = True
         ClientSize = New Size(1491, 701)
         Controls.Add(SplitPrincipal_1)
-        ' El Icon lo pone FormImageLists.MainFormIcon desde el constructor: serializado en el resx
-        ' era un <data mimetype="..."> y disparaba MSB3821. Ver el remarks de FormImageLists.vb.
+        Icon = CType(resources.GetObject("$this.Icon"), Icon)
         KeyPreview = True
         MinimumSize = New Size(1024, 714)
         Name = "Wardrobe_Manager_Form"
@@ -1567,7 +1564,6 @@ Partial Class Wardrobe_Manager_Form
     Friend WithEvents Label1 As Label
     Friend WithEvents Label2 As Label
     Friend WithEvents TextBox_SourceName As TextBox
-    Friend WithEvents ImageList1 As ImageList
     Friend WithEvents ListView2 As ListView
     Friend WithEvents Shapecol As ColumnHeader
     Friend WithEvents Datasources As ColumnHeader

@@ -8,7 +8,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <MyType>WindowsForms</MyType>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Configurations>Debug;Release</Configurations>
+    <Configurations>Debug;Release;Publish</Configurations>
     <ApplicationIcon>Tif-Image.ICO</ApplicationIcon>
   </PropertyGroup>
 	
@@ -103,21 +103,25 @@
     <Folder Include="Resources\" />
   </ItemGroup>
 
-  <!-- ⛔ Los iconos de los ImageList van como recursos SUELTOS, no dentro de los .resx: un nodo
-       <data mimetype="..."> hace que GenerateResource marque el resx como peligroso y, con el arbol
-       bajo el sync root de OneDrive (zona 4), el build muere con MSB3821. Por el mismo motivo NO
-       pueden ir en Resources.resx, que los serializaria como ResXFileRef (tambien en la lista negra).
-       LogicalName explicito porque el naming por defecto de VB ignora las carpetas y colisionaria.
-       Los lee FormImageLists.vb. -->
-  <ItemGroup>
-    <None Remove="Resources\FormIcons\**" />
-    <EmbeddedResource Include="Resources\FormIcons\*.png">
-      <LogicalName>WMIcons.%(Filename)%(Extension)</LogicalName>
-    </EmbeddedResource>
-    <EmbeddedResource Include="Resources\FormIcons\*.ico">
-      <LogicalName>WMIcons.%(Filename)%(Extension)</LogicalName>
-    </EmbeddedResource>
-  </ItemGroup>
+  <!-- Los iconos volvieron a vivir DENTRO de los .resx, que es el camino nativo del disenador:
+       el ImageList se ve en el lienzo y el selector de ImageKey muestra las miniaturas.
+
+       Estuvieron un tiempo como PNG sueltos + FormImageLists.vb porque el build moria con MSB3821
+       (GenerateResource marca como peligroso cualquier resx con un nodo mimetype, si ademas la zona
+       de seguridad del archivo es >= Internet; el arbol bajo el sync root de OneDrive daba zona 4).
+       ⚠️ REMEDIDO 2026-08-17: la zona del arbol volvio a 0 y MSB3821 ya no salta — control positivo
+       con Ba2_Bsa_Manager, que conserva su nodo mimetype y compila. La zona es del ENTORNO y cambia
+       sola, asi que si el error vuelve, medirla antes de rediseniar nada:
+           [System.Security.Policy.Zone]::CreateFromUrl("file:///C:/.../x.resx").SecurityZone
+
+       El MSB3825 se apaga a proposito. Dice que el recurso "se deserializara a traves de
+       BinaryFormatter, que se quito de .NET 9", y es FALSO: Bitmap e ImageListStreamer estan en la
+       lista blanca de tipos que WinForms lee sin BinaryFormatter. Medido con el blob real del
+       disenador en .NET 8.0.30, 9.0.19 y 10.0.9: carga identico en los tres. Microsoft ya esta
+       sacando el warning para .NET 9+. Ver la doc de migracion de BinaryFormatter para WinForms. -->
+  <PropertyGroup>
+    <GenerateResourceWarnOnBinaryFormatterUse>false</GenerateResourceWarnOnBinaryFormatterUse>
+  </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\FO4_Base_Library\FO4_Base_Library.vbproj" />
@@ -133,4 +137,10 @@
   <!-- Fija la plataforma del wrapper NATIVO. Va en LOS SEIS proyectos, no solo en los dos que lo
        referencian de verdad: el SDK inyecta el ProjectReference transitivo sin la metadata. Ver el .targets. -->
   <Import Project="..\..\..\DirectXTextWrapper\DirectXTexWrapper.targets" />
+  <!-- Avisa si un formulario quedo con COPIA PROPIA de los iconos compartidos. Solo lee; no
+       modifica nada. Warning en Debug, error en Release. Ver el comentario del .targets. -->
+  <Import Project="..\..\FO4_Base_Library\IconosCompartidos.targets" />
+  <!-- La configuracion Publish: es Release con carpeta propia. Sin esto compilaria SIN
+       OPTIMIZAR, en verde. Ver el comentario del .targets. -->
+  <Import Project="..\..\FO4_Base_Library\ConfiguracionPublish.targets" />
 </Project>

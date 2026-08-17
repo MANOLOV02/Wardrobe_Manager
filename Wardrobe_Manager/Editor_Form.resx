@@ -118,12 +118,12 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <metadata name="ToolTip1.TrayLocation" type="System.Drawing.Point, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
-    <value>128, 17</value>
+    <value>239, 17</value>
   </metadata>
-  <metadata name="ImageList1.TrayLocation" type="System.Drawing.Point, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
-    <value>17, 17</value>
-  </metadata>
-  <metadata name="ToolTip1.TrayLocation" type="System.Drawing.Point, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
-    <value>128, 17</value>
-  </metadata>
+  <data name="btnMakeHelper.ToolTip" xml:space="preserve">
+    <value>Remove the shader property (and its texture set / controllers, if unused) and set the hidden flag, so the engine stops drawing this shape. The assigned material is lost. Disabled unless the shape is of the BSTriShape family and the material has no unsaved changes.</value>
+  </data>
+  <data name="btnConvertToRenderable.ToolTip" xml:space="preserve">
+    <value>Give this shape a shader property (empty material) and clear the hidden flag, so the engine draws it. Disabled unless the shape is currently hidden, is of the BSTriShape family, and the material has no unsaved changes.</value>
+  </data>
 </root>

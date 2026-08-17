@@ -2685,10 +2685,6 @@ Public Class Editor_Form
         ' Esta llamada es exigida por el dise?ador.
         InitializeComponent()
 
-        ' Los iconos del ImageList ya no viven en el .resx (MSB3821): ver FormImageLists.vb. Va
-        ' aca y no en InitializeComponent para que el diseñador no lo pise al regenerar el archivo.
-        ' Los ImageIndex/ImageKey que el Designer ya asigno se resuelven al pintar, no ahora.
-        FormImageLists.FillEditorForm(ImageList1)
 
         ' SAM (ScreenArcher Menu) is a Fallout 4 mod, so "Save for screen archer" only makes sense for
         ' FO4; on Skyrim SSE force the toggle off and disable it (Enabled set before Checked so the

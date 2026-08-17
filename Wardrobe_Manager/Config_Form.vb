@@ -12,10 +12,6 @@ Public Class Config_Form
         ' Esta llamada es exigida por el diseñador.
         InitializeComponent()
 
-        ' Los iconos del ImageList ya no viven en el .resx (MSB3821): ver FormImageLists.vb. Va
-        ' aca y no en InitializeComponent para que el diseñador no lo pise al regenerar el archivo.
-        ' Los ImageIndex/ImageKey que el Designer ya asigno se resuelven al pintar, no ahora.
-        FormImageLists.FillConfigForm(ImageList1)
 
         ' Enable double-buffering on the two labels that get hammered by progress updates during
         ' Pack/Unpack — without this the Text-per-tick assignments cause visible flicker. Done
@@ -401,11 +397,23 @@ Public Class Config_Form
         If e.TabPage IsNot TabPagePack Then e.Cancel = True
     End Sub
 
+    ''' <summary>
+    ''' Tilde o cruz en la etiqueta de estado, contra el ImageList compartido <c>IconsSmall</c> que
+    ''' viene de <see cref="FO4_Base_Library.IconFormBase"/>.
+    ''' </summary>
+    ''' <remarks>⛔ Por CLAVE y no por indice. Antes esto era <c>ImageIndex = 1</c> contra el
+    ''' ImageList propio del formulario, donde 0 era el tilde y 1 la cruz. En la lista compartida ese
+    ''' orden es otro —y ademas se corre solo con agregar un PNG a Resources\Icons— asi que un indice
+    ''' hardcodeado pintaria el icono equivocado sin que nada falle.</remarks>
+    Private Shared Sub Tick(etiqueta As Label, ok As Boolean)
+        etiqueta.ImageKey = If(ok, "AgtActionSuccess", "Cancel")
+    End Sub
+
     Private Function Check_Folders() As Boolean
-        If Config_App.Check_FOFolder = False Then Label1.ImageIndex = 1 Else Label1.ImageIndex = 0
-        If WM_Config.Check_BSFolder = False Then Label2.ImageIndex = 1 Else Label2.ImageIndex = 0
-        If WM_Config.Check_OsFolder = False Then Label3.ImageIndex = 1 Else Label3.ImageIndex = 0
-        If Config_App.Check_Skeleton = False Then Label6.ImageIndex = 1 Else Label6.ImageIndex = 0
+        Tick(Label1, Config_App.Check_FOFolder)
+        Tick(Label2, WM_Config.Check_BSFolder)
+        Tick(Label3, WM_Config.Check_OsFolder)
+        Tick(Label6, Config_App.Check_Skeleton)
 
         Dim folderschek As Boolean = Config_App.Check_FOFolder And WM_Config.Check_BSFolder And WM_Config.Check_OsFolder
         If folderschek Then
@@ -656,10 +664,10 @@ Public Class Config_Form
         ButtonAutoPluginsTxt.Enabled = overridden
 
         ' El estado va en el ICONO de la etiqueta, igual que las otras cuatro filas de esta pantalla
-        ' (ver Check_Folders): ImageIndex 0 = tilde, 1 = cruz. Se hace acá y no en Check_Folders porque
-        ' esto no depende de una carpeta sino del resolver, y se repinta en más momentos (cambio de juego,
-        ' Browse, Auto). El detalle —de dónde salió la ruta, o por qué falta— va al tooltip.
-        LabelPluginsTxt.ImageIndex = If(r.HasPluginsTxt, 0, 1)
+        ' (ver Tick). Se hace acá y no en Check_Folders porque esto no depende de una carpeta sino del
+        ' resolver, y se repinta en más momentos (cambio de juego, Browse, Auto). El detalle —de dónde
+        ' salió la ruta, o por qué falta— va al tooltip.
+        Tick(LabelPluginsTxt, r.HasPluginsTxt)
         ToolTip1.SetToolTip(TextBoxPluginsTxt, r.StatusLine)
     End Sub
 
