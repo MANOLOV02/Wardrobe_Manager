@@ -2276,9 +2276,9 @@ Partial Class Editor_Form
         btnConvertToRenderable.Name = "btnConvertToRenderable"
         btnConvertToRenderable.Size = New Size(220, 26)
         btnConvertToRenderable.TabIndex = 4
-        btnConvertToRenderable.Text = "Convert to renderable shape"
+        btnConvertToRenderable.Text = "Make shape renderable"
         btnConvertToRenderable.TextImageRelation = TextImageRelation.ImageBeforeText
-        ToolTip1.SetToolTip(btnConvertToRenderable, "Give this helper shape a shader property (empty material) and clear the hidden flag, so the engine draws it. Disabled unless the shape is a helper, is of the BSTriShape family, and the material has no unsaved changes.")
+        ToolTip1.SetToolTip(btnConvertToRenderable, "Give this shape a shader property (empty material) and clear the hidden flag, so the engine draws it. Disabled unless the shape is currently hidden, is of the BSTriShape family, and the material has no unsaved changes.")
         btnConvertToRenderable.UseVisualStyleBackColor = True
         ' 
         ' btnMakeHelper
@@ -2287,7 +2287,7 @@ Partial Class Editor_Form
         btnMakeHelper.Name = "btnMakeHelper"
         btnMakeHelper.Size = New Size(220, 26)
         btnMakeHelper.TabIndex = 5
-        btnMakeHelper.Text = "Make helper shape"
+        btnMakeHelper.Text = "Make shape hidden"
         btnMakeHelper.TextImageRelation = TextImageRelation.ImageBeforeText
         ToolTip1.SetToolTip(btnMakeHelper, "Remove the shader property (and its texture set / controllers, if unused) and set the hidden flag, so the engine stops drawing this shape. The assigned material is lost. Disabled unless the shape is of the BSTriShape family and the material has no unsaved changes.")
         btnMakeHelper.UseVisualStyleBackColor = True

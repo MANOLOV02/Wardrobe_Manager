@@ -159,7 +159,7 @@ Public Class Editor_Form
         ' la otra afirmaria algo que no ocurre.
         Dim msg As String
         If sinShader Then
-            msg = "This shape has no shader property: it is helper geometry (collision, marker) that the engine never draws." & vbCrLf & vbCrLf &
+            msg = "This shape has no shader property: it is auxiliary geometry (collision, marker) that the engine never draws." & vbCrLf & vbCrLf &
                   "An empty material will be created and the shape will become VISIBLE in-game." & vbCrLf & vbCrLf & "Continue?"
         Else
             msg = "This shape already has a material, but it is flagged as hidden (NiAVObject flags bit 0)." & vbCrLf & vbCrLf &
@@ -167,7 +167,7 @@ Public Class Editor_Form
         End If
         ' ⛔ El aviso va ANTES de tocar nada: un MsgBox en el medio de la secuencia bombea mensajes y
         ' dejaria ver el NIF a mitad de camino.
-        If MsgBox(msg, vbYesNo + vbQuestion, "Convert to renderable shape") <> vbYes Then Exit Sub
+        If MsgBox(msg, vbYesNo + vbQuestion, "Make shape renderable") <> vbYes Then Exit Sub
 
         Dim shaderAntes = Selected_Shape.RelatedNifShader
         Try
@@ -176,7 +176,7 @@ Public Class Editor_Form
             ' salvo por el bit.
             Selected_Shape.ParentSliderSet.NIFContent.ClearShapeHidden(Selected_Shape.RelatedNifShape)
         Catch ex As Exception
-            MsgBox("Could not convert the shape: " & ex.Message, vbOKOnly + vbCritical, "Convert to renderable shape")
+            MsgBox("Could not convert the shape: " & ex.Message, vbOKOnly + vbCritical, "Make shape renderable")
             Exit Sub
         End Try
         EpilogoHelper(shaderAntes)
@@ -187,14 +187,14 @@ Public Class Editor_Form
         If MsgBox("The engine will stop drawing this shape: its shader property (and its texture set and" & vbCrLf &
                   "controllers, if they end up unused) will be removed, and NiAVObject flags bit 0 will be set." & vbCrLf & vbCrLf &
                   "The assigned material is lost." & vbCrLf & vbCrLf & "Continue?",
-                  vbYesNo + vbExclamation, "Make helper shape") <> vbYes Then Exit Sub
+                  vbYesNo + vbExclamation, "Make shape hidden") <> vbYes Then Exit Sub
 
         Dim shaderAntes = Selected_Shape.RelatedNifShader
         Try
             QuitarShaderYClausura(Selected_Shape)
             Selected_Shape.ParentSliderSet.NIFContent.SetShapeHidden(Selected_Shape.RelatedNifShape)
         Catch ex As Exception
-            MsgBox("Could not convert the shape: " & ex.Message, vbOKOnly + vbCritical, "Make helper shape")
+            MsgBox("Could not convert the shape: " & ex.Message, vbOKOnly + vbCritical, "Make shape hidden")
             Exit Sub
         End Try
         EpilogoHelper(shaderAntes)
