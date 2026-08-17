@@ -200,69 +200,11 @@ Public Class Editor_Form
         EpilogoHelper(shaderAntes)
     End Sub
 
-    ''' <summary>Quita el shader de la shape y borra su CLAUSURA huerfana.
-    ''' <para>⛔ NO se usa <c>RemoveUnreferencedBlocks</c>: es un barrido de ARCHIVO ENTERO que se lleva
-    ''' puestos los huerfanos PREEXISTENTES del NIF del usuario (un NiStringExtraData suelto, un alpha
-    ''' property desenganchado, controladores muertos — habituales en meshes editadas a mano). Esto es
-    ''' el mismo barrido, acotado al subarbol del shader.</para>
-    ''' <para>⛔ TODO POR OBJETO, nunca por indice: <c>RemoveBlock</c> hace <c>Blocks.RemoveAt</c> ANTES
-    ''' del fixup, y en el fixup decrementa todo <c>Index &gt; index</c>; un indice capturado a traves de
-    ''' un RemoveBlock apunta a OTRO bloque. Las sobrecargas por objeto re-resuelven el indice.</para>
-    ''' <para>⛔ Se usa <c>shader.References</c> como fuente en vez de enumerar campos a mano: ya trae
-    ''' texture set + controller + extraData + extraDataList, y el controlador ademas ENCADENA
-    ''' (NextController -&gt; interpolador -&gt; NiFloatData). Una lista escrita a mano envejece mal.</para>
-    ''' <para>⚠️ Un CICLO no se borra (cada miembro se ve referenciado). Mismo comportamiento que
-    ''' RemoveUnreferencedBlocks, o sea sin regresion.</para></summary>
+    ''' <summary>Thin caller: la cirugia sobre el grafo de bloques vive en la LIBRERIA
+    ''' (<see cref="Nifcontent_Class_Manolo.RemoveShaderAndOrphanClosure"/>), no en un Form. Asi el
+    ''' probe de byte-diff ejercita el CODIGO REAL en vez de una copia.</summary>
     Private Sub QuitarShaderYClausura(shape As Shape_class)
-        Dim bs = TryCast(shape.RelatedNifShape, NiflySharp.Blocks.BSTriShape)
-        If bs Is Nothing Then Throw New NotSupportedException("Make helper requires BSTriShape family shape.")
-        Dim nif = shape.ParentSliderSet.NIFContent
-        Dim shader = TryCast(shape.RelatedNifShader, NiObject)
-
-        ' 1) resolver a OBJETOS todo lo que el shader referencia, ANTES de borrar nada: despues no hay
-        '    como navegar del shape al shader ni del shader a su clausura.
-        Dim pendientes As New List(Of NiObject)
-        If shader IsNot Nothing Then
-            For Each r In shader.References
-                If r Is Nothing OrElse r.IsEmpty() Then Continue For
-                Dim b = nif.GetBlock(Of NiObject)(r)
-                If b IsNot Nothing Then pendientes.Add(b)
-            Next
-        End If
-
-        ' 2) soltar el ref del shape. .Clear() deja Index = -1, que es EXACTAMENTE el estado que produce
-        '    leer del disco un NIF con -1; con Nothing el ref sale de References y el Clone de la shape
-        '    copia null, un estado que ningun NIF leido produce.
-        bs.ShaderPropertyRef.Clear()
-
-        ' 3) el shader, y despues su clausura
-        If shader IsNot Nothing AndAlso Not nif.IsBlockReferenced(shader) Then nif.RemoveBlock(shader)
-        BorrarClausuraHuerfana(nif, pendientes)
-    End Sub
-
-    ''' <summary>Worklist del borrado de clausura. ⛔ DEDUPE POR REFERENCIA: un bloque puede estar
-    ''' encolado dos veces (un ExtraDataList que liste el mismo NiExtraData dos veces es legal). En la
-    ''' segunda visita ya no esta en el archivo, <c>IsBlockReferenced</c> devuelve False, y leer sus
-    ''' <c>References</c> resolveria INDICES PODRIDOS al bloque que hoy ocupa esa ranura — la misma
-    ''' corrupcion que evita el "todo por objeto". Termina siempre: solo se encola tras un RemoveBlock
-    ''' exitoso, y los borrados estan acotados por el Blocks.Count inicial.</summary>
-    Private Shared Sub BorrarClausuraHuerfana(nif As Nifcontent_Class_Manolo, pendientes As List(Of NiObject))
-        Dim vistos As New HashSet(Of NiObject)(System.Collections.Generic.ReferenceEqualityComparer.Instance)
-        Dim i As Integer = 0
-        While i < pendientes.Count
-            Dim b = pendientes(i)
-            i += 1
-            If b Is Nothing OrElse Not vistos.Add(b) Then Continue While
-            Dim idx As Integer
-            If Not nif.GetBlockIndex(b, idx) Then Continue While      ' ya no esta en el archivo
-            If nif.IsBlockReferenced(b) Then Continue While
-            For Each r In b.References                                 ' capturar ANTES de borrar
-                If r Is Nothing OrElse r.IsEmpty() Then Continue For
-                Dim hijo = nif.GetBlock(Of NiObject)(r)
-                If hijo IsNot Nothing Then pendientes.Add(hijo)
-            Next
-            nif.RemoveBlock(b)
-        End While
+        shape.ParentSliderSet.NIFContent.RemoveShaderAndOrphanClosure(shape.RelatedNifShape)
     End Sub
 
     ''' <summary>Enablement de Convert / Make helper. Se llama al cambiar de shape y en el epilogo de
