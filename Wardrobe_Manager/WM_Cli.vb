@@ -176,6 +176,8 @@ Friend Module WM_Cli
         ' configuracion del usuario: la misma build desde la UI y desde el CLI podian dar distinto
         ' (suavizado de costura, epsilons, welding, normalizacion), y ningun barrido de opciones
         ' sobre el CLI medía nada porque los cambios del config no llegaban.
+        ' WM es un EDITOR: muestra todo, como OutfitStudio. Ver Config_App.DefaultShowHelperShapes.
+        Config_App.DefaultShowHelperShapes = True
         Config_App.LoadConfig()
         WM_Config.LoadConfig()
 

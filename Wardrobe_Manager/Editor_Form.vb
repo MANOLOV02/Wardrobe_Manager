@@ -26,6 +26,21 @@ Public Class Editor_Form
     Public Grabable As Boolean = True
     Private _Editando As Boolean = False
     Private _SuppressTrackbarEvent As Boolean = False
+    ''' <summary>Material sin cambios pendientes. UNA sola sede: la leen <see cref="Iniciado_Edit"/> y el
+    ''' enablement de los botones Convert / Make helper de la pestana Tools.
+    ''' <para>⛔ NO duplicar la expresion en cada sitio: es el predicado que gobierna Save/SaveAs del
+    ''' material y el candado de ComboBoxShapes; tres copias envejecen distinto.</para>
+    ''' <para>⛔ Con Selected_Shape nulo devuelve <b>False</b>, no True: autoriza operaciones
+    ''' DESTRUCTIVAS, asi que la polaridad segura es negar. Y NO absorbe el nulo de Iniciado_Edit, donde
+    ''' el desreferenciado sin guard es intencional y debe seguir fallando ruidoso.</para></summary>
+    Private ReadOnly Property MaterialLimpio As Boolean
+        Get
+            If Selected_Shape Is Nothing Then Return False
+            Dim rm = Selected_Shape.RelatedMaterial
+            Return rm Is Nothing OrElse rm.material Is Nothing OrElse Not rm.material.IsMaterialFileDirty()
+        End Get
+    End Property
+
     Private Sub Iniciado_Edit()
         If _Editando = False Then
             _Editando = True
@@ -60,6 +75,210 @@ Public Class Editor_Form
         ButtonSave.Enabled = Not ButtonMatSave.Enabled And _Editando
         ButtonCancel.Enabled = Not ButtonMatSave.Enabled And _Editando
         ComboBoxShapes.Enabled = equalmaterial
+        ' ⛔ HELPER SHAPES: sin BSShaderProperty no hay material que editar, y el camino automatico
+        ' fabricaba uno (ver el gate de Lee_Comboselected_Material). Deshabilitar el GRUPO apaga tambien
+        ' los cuatro botones de material, que viven en TableLayoutPanel3 adentro de el; ComboBoxShapes
+        ' esta en GroupBox6, asi que la navegacion entre shapes NO se congela.
+        ' Se pregunta por el SHADER (mitad estructural), no por IsHelperShape: una shape con bit0 y
+        ' material valido es perfectamente editable.
+        GroupBox1.Enabled = Selected_Shape Is Nothing OrElse Selected_Shape.RelatedNifShader IsNot Nothing
+        ActualizarBotonesHelper()
+    End Sub
+
+    ''' + '''<summary>Enablement de Convert / Make helper. Se llama al cambiar de shape y en el epilogo de
+    ''' + '''los dos botones (invierten el estado). ⛔ `esBs` va PRIMERO y con AndAlso: corta el nulo y ademas
+    ''' + '''la familia — el setter escribible de ShaderPropertyRef vive SOLO en BSTriShape (en INiShape es
+    ''' + '''get-only), asi que sobre un NiTriShape / NiTriStrips / BSLODTriShape los dos botones tiraban
+    ''' + '''NotSupportedException desde un handler de click. Y `MaterialLimpio` los mete bajo el mismo candado
+    ''' + '''que ya protege a ComboBoxShapes de perder ediciones sin guardar.</summary>
+    ''' <summary>Crea el <c>BSLightingShaderProperty</c> vacio + su <c>BSShaderTextureSet</c> y los
+    ''' engancha a la shape. ⛔ UNICO camino por el que una shape puede recibir un shader, y solo desde
+    ''' el boton "Convert to renderable shape". Antes vivia en <c>Lee_Comboselected_Material</c> y corria
+    ''' SOLO al abrir el editor: eso le metia shader a los proxies de colision de HDT-SMP, que pasaban a
+    ''' verse in-game.
+    ''' <para>El assert se conserva: <c>GetShader</c> devuelve Nothing tambien cuando el ref apunta fuera
+    ''' de rango o a un bloque que no es <c>INiShader</c> (o sea con Index &lt;&gt; -1). Sin el, ese caso
+    ''' pasaria de fallar ruidoso a orfanar el bloque referenciado en silencio.</para></summary>
+    Private Sub CrearShaderVacio(shape As Shape_class)
+        Dim bs = TryCast(shape.RelatedNifShape, NiflySharp.Blocks.BSTriShape)
+        If bs Is Nothing Then Throw New NotSupportedException("Shader creation from editor requires BSTriShape family shape.")
+        If Not bs.ShaderPropertyRef.IsEmpty() Then
+            Throw New InvalidOperationException(
+                $"'{shape.Nombre}' resolves no shader but ShaderPropertyRef={bs.ShaderPropertyRef.Index}: " &
+                "the ref points to a missing block or to one that is not an INiShader.")
+        End If
+        Dim nif = shape.ParentSliderSet.NIFContent
+        Dim shad = New BSLightingShaderProperty
+        ' ⛔ Name VACIO, no Nothing: GetRelatedMaterial lee `typed.Name.String` sin guard, y el epilogo
+        ' del boton lo llama justo despues de crear el shader. Antes no explotaba porque el shader se
+        ' fabricaba DESPUES de que GetRelatedMaterial ya habia corrido. String vacio = material EMBEBIDO,
+        ' que es lo que corresponde a un shader recien creado sin .bgsm en disco (misma convencion que
+        ' usa el bake al dejar `Name.String = ""`).
+        shad.Name = New NiStringRef("")
+        bs.ShaderPropertyRef = New NiBlockRef(Of BSShaderProperty) With {.Index = nif.AddBlock(shad)}
+        Dim texset = New BSShaderTextureSet
+        shad.TextureSetRef = New NiBlockRef(Of BSShaderTextureSet) With {.Index = nif.AddBlock(texset)}
+        texset.Textures = New List(Of NiString4)
+        While texset.Textures.Count < 8
+            texset.Textures.Add(New NiString4 With {.Content = ""})
+        End While
+    End Sub
+
+    ''' <summary>Epilogo COMUN de Convert / Make helper.
+    ''' <para>⛔ REGLA: adentro del If va SOLO lo que depende de que haya cambiado el BINDING DEL SHADER;
+    ''' todo lo que depende de que EL NIF SE MUTO va afuera, incondicional. Las dos de afuera son
+    ''' load-bearing: <c>Iniciado_Edit</c> es el UNICO que habilita el Save del proyecto (sin el, el
+    ''' usuario ve el cambio en el viewport y al cerrar se descarta el clon EN SILENCIO), y
+    ''' <c>RequestPreviewRebucketAndRedraw</c> repinta —la rama que solo apaga el bit0 es justamente la
+    ''' unica cuyo efecto es visual— y ademas re-bucketea: el bucket sale de
+    ''' HasAlphaBlend/HasAlphaTest/Decal, o sea del MATERIAL, y el detector de staleness no puede verlo
+    ''' porque la cantidad de meshes no cambia. Y el orden OPAQUE/CUTOUT decide empates de profundidad
+    ''' con DepthFunc=Lequal, que es EL MISMO mecanismo del bug que este trabajo vino a arreglar.</para>
+    ''' <para>El refresco se decide MIDIENDO si el shader resuelto cambio, no por boton: <c>GetShader</c>
+    ''' tiene un fallback por la lista <c>Properties</c>, asi que existe un estado donde Make helper no
+    ''' cambia el binding y refrescar seria destructivo (reemplaza el objeto material al que esta
+    ''' bindeado el PropertyGrid).</para></summary>
+    Private Sub EpilogoHelper(shaderAntes As INiShader)
+        If Not Object.ReferenceEquals(shaderAntes, Selected_Shape.RelatedNifShader) Then
+            ' ⛔ La clave es la MISMA expresion que usa el lector (Shape_class.RelatedMaterial):
+            ' BaseMaterials no tiene comparer, o sea case-SENSITIVE, mientras los caches de shape son
+            ' OrdinalIgnoreCase. Usar Nombre compilaria y dejaria el refresco en un no-op mudo.
+            Dim nif = Selected_Shape.ParentSliderSet.NIFContent
+            nif.BaseMaterials(Selected_Shape.RelatedNifShape.Name.String) = nif.GetRelatedMaterial(Selected_Shape.RelatedNifShape)
+            Lee_Materials()
+        End If
+        Iniciado_Edit()
+        RequestPreviewRebucketAndRedraw()
+        ActualizarBotonesHelper()
+    End Sub
+
+    Private Sub btnConvertToRenderable_Click(sender As Object, e As EventArgs) Handles btnConvertToRenderable.Click
+        If Selected_Shape Is Nothing Then Exit Sub
+        Dim sinShader As Boolean = IsNothing(Selected_Shape.RelatedNifShader)
+        ' Dos avisos, uno por rama: en la rama del bit0 NO se le da ningun material, asi que el texto de
+        ' la otra afirmaria algo que no ocurre.
+        Dim msg As String
+        If sinShader Then
+            msg = "This shape has no shader property: it is helper geometry (collision, marker) that the engine never draws." & vbCrLf & vbCrLf &
+                  "An empty material will be created and the shape will become VISIBLE in-game." & vbCrLf & vbCrLf & "Continue?"
+        Else
+            msg = "This shape already has a material, but it is flagged as hidden (NiAVObject flags bit 0)." & vbCrLf & vbCrLf &
+                  "That flag will be cleared and the shape will become VISIBLE in-game. The material is not touched." & vbCrLf & vbCrLf & "Continue?"
+        End If
+        ' ⛔ El aviso va ANTES de tocar nada: un MsgBox en el medio de la secuencia bombea mensajes y
+        ' dejaria ver el NIF a mitad de camino.
+        If MsgBox(msg, vbYesNo + vbQuestion, "Convert to renderable shape") <> vbYes Then Exit Sub
+
+        Dim shaderAntes = Selected_Shape.RelatedNifShader
+        Try
+            If sinShader Then CrearShaderVacio(Selected_Shape)
+            ' SIEMPRE: es la otra mitad del predicado. Una shape con bit0 y shader ya es renderizable
+            ' salvo por el bit.
+            Selected_Shape.ParentSliderSet.NIFContent.ClearShapeHidden(Selected_Shape.RelatedNifShape)
+        Catch ex As Exception
+            MsgBox("Could not convert the shape: " & ex.Message, vbOKOnly + vbCritical, "Convert to renderable shape")
+            Exit Sub
+        End Try
+        EpilogoHelper(shaderAntes)
+    End Sub
+
+    Private Sub btnMakeHelper_Click(sender As Object, e As EventArgs) Handles btnMakeHelper.Click
+        If Selected_Shape Is Nothing Then Exit Sub
+        If MsgBox("The engine will stop drawing this shape: its shader property (and its texture set and" & vbCrLf &
+                  "controllers, if they end up unused) will be removed, and NiAVObject flags bit 0 will be set." & vbCrLf & vbCrLf &
+                  "The assigned material is lost." & vbCrLf & vbCrLf & "Continue?",
+                  vbYesNo + vbExclamation, "Make helper shape") <> vbYes Then Exit Sub
+
+        Dim shaderAntes = Selected_Shape.RelatedNifShader
+        Try
+            QuitarShaderYClausura(Selected_Shape)
+            Selected_Shape.ParentSliderSet.NIFContent.SetShapeHidden(Selected_Shape.RelatedNifShape)
+        Catch ex As Exception
+            MsgBox("Could not convert the shape: " & ex.Message, vbOKOnly + vbCritical, "Make helper shape")
+            Exit Sub
+        End Try
+        EpilogoHelper(shaderAntes)
+    End Sub
+
+    ''' <summary>Quita el shader de la shape y borra su CLAUSURA huerfana.
+    ''' <para>⛔ NO se usa <c>RemoveUnreferencedBlocks</c>: es un barrido de ARCHIVO ENTERO que se lleva
+    ''' puestos los huerfanos PREEXISTENTES del NIF del usuario (un NiStringExtraData suelto, un alpha
+    ''' property desenganchado, controladores muertos — habituales en meshes editadas a mano). Esto es
+    ''' el mismo barrido, acotado al subarbol del shader.</para>
+    ''' <para>⛔ TODO POR OBJETO, nunca por indice: <c>RemoveBlock</c> hace <c>Blocks.RemoveAt</c> ANTES
+    ''' del fixup, y en el fixup decrementa todo <c>Index &gt; index</c>; un indice capturado a traves de
+    ''' un RemoveBlock apunta a OTRO bloque. Las sobrecargas por objeto re-resuelven el indice.</para>
+    ''' <para>⛔ Se usa <c>shader.References</c> como fuente en vez de enumerar campos a mano: ya trae
+    ''' texture set + controller + extraData + extraDataList, y el controlador ademas ENCADENA
+    ''' (NextController -&gt; interpolador -&gt; NiFloatData). Una lista escrita a mano envejece mal.</para>
+    ''' <para>⚠️ Un CICLO no se borra (cada miembro se ve referenciado). Mismo comportamiento que
+    ''' RemoveUnreferencedBlocks, o sea sin regresion.</para></summary>
+    Private Sub QuitarShaderYClausura(shape As Shape_class)
+        Dim bs = TryCast(shape.RelatedNifShape, NiflySharp.Blocks.BSTriShape)
+        If bs Is Nothing Then Throw New NotSupportedException("Make helper requires BSTriShape family shape.")
+        Dim nif = shape.ParentSliderSet.NIFContent
+        Dim shader = TryCast(shape.RelatedNifShader, NiObject)
+
+        ' 1) resolver a OBJETOS todo lo que el shader referencia, ANTES de borrar nada: despues no hay
+        '    como navegar del shape al shader ni del shader a su clausura.
+        Dim pendientes As New List(Of NiObject)
+        If shader IsNot Nothing Then
+            For Each r In shader.References
+                If r Is Nothing OrElse r.IsEmpty() Then Continue For
+                Dim b = nif.GetBlock(Of NiObject)(r)
+                If b IsNot Nothing Then pendientes.Add(b)
+            Next
+        End If
+
+        ' 2) soltar el ref del shape. .Clear() deja Index = -1, que es EXACTAMENTE el estado que produce
+        '    leer del disco un NIF con -1; con Nothing el ref sale de References y el Clone de la shape
+        '    copia null, un estado que ningun NIF leido produce.
+        bs.ShaderPropertyRef.Clear()
+
+        ' 3) el shader, y despues su clausura
+        If shader IsNot Nothing AndAlso Not nif.IsBlockReferenced(shader) Then nif.RemoveBlock(shader)
+        BorrarClausuraHuerfana(nif, pendientes)
+    End Sub
+
+    ''' <summary>Worklist del borrado de clausura. ⛔ DEDUPE POR REFERENCIA: un bloque puede estar
+    ''' encolado dos veces (un ExtraDataList que liste el mismo NiExtraData dos veces es legal). En la
+    ''' segunda visita ya no esta en el archivo, <c>IsBlockReferenced</c> devuelve False, y leer sus
+    ''' <c>References</c> resolveria INDICES PODRIDOS al bloque que hoy ocupa esa ranura — la misma
+    ''' corrupcion que evita el "todo por objeto". Termina siempre: solo se encola tras un RemoveBlock
+    ''' exitoso, y los borrados estan acotados por el Blocks.Count inicial.</summary>
+    Private Shared Sub BorrarClausuraHuerfana(nif As Nifcontent_Class_Manolo, pendientes As List(Of NiObject))
+        Dim vistos As New HashSet(Of NiObject)(System.Collections.Generic.ReferenceEqualityComparer.Instance)
+        Dim i As Integer = 0
+        While i < pendientes.Count
+            Dim b = pendientes(i)
+            i += 1
+            If b Is Nothing OrElse Not vistos.Add(b) Then Continue While
+            Dim idx As Integer
+            If Not nif.GetBlockIndex(b, idx) Then Continue While      ' ya no esta en el archivo
+            If nif.IsBlockReferenced(b) Then Continue While
+            For Each r In b.References                                 ' capturar ANTES de borrar
+                If r Is Nothing OrElse r.IsEmpty() Then Continue For
+                Dim hijo = nif.GetBlock(Of NiObject)(r)
+                If hijo IsNot Nothing Then pendientes.Add(hijo)
+            Next
+            nif.RemoveBlock(b)
+        End While
+    End Sub
+
+    ''' <summary>Enablement de Convert / Make helper. Se llama al cambiar de shape y en el epilogo de
+    ''' los dos botones (invierten el estado).
+    ''' <para>⛔ `esBs` va PRIMERO y con AndAlso: corta el nulo y ademas la FAMILIA. El setter escribible
+    ''' de ShaderPropertyRef vive SOLO en BSTriShape (en INiShape es get-only), asi que sobre un
+    ''' NiTriShape / NiTriStrips / BSLODTriShape los dos botones tirarian NotSupportedException desde un
+    ''' handler de click, o sea un crash. Esa familia existe de verdad en el corpus (los *_col.nif y los
+    ''' EditorMarker de SSE).</para>
+    ''' <para>⛔ `MaterialLimpio` los mete bajo el MISMO candado que ya protege a ComboBoxShapes de
+    ''' perder ediciones de material sin guardar.</para></summary>
+    Private Sub ActualizarBotonesHelper()
+        Dim s = Selected_Shape
+        Dim esBs As Boolean = s IsNot Nothing AndAlso TypeOf s.RelatedNifShape Is NiflySharp.Blocks.BSTriShape
+        btnConvertToRenderable.Enabled = esBs AndAlso s.IR_IsHelperShape AndAlso MaterialLimpio
+        btnMakeHelper.Enabled = esBs AndAlso Not s.IR_IsHelperShape AndAlso MaterialLimpio
     End Sub
     Private Sub Finalizado_Edit()
         _Editando = False
@@ -795,7 +1014,7 @@ Public Class Editor_Form
         RenderCheckVertexColors.Enabled = hasVtxColors
         RenderCheckVertexColors.Checked = Selected_Shape.ShowVertexColor
         ColorComboBox1.SelectedColor = Selected_Shape.Wirecolor
-        TrackBar1.Value = Math.Max(0R, Math.Min(1R, CDbl(Selected_Shape.WireAlpha)))
+        TrackBar1.Value = Math.Max(0R, Math.Min(1.0R, CDbl(Selected_Shape.WireAlpha)))
         ButtonRemoveSHape.Enabled = ComboBoxShapes.Items.Count > 1
         Habilita_Mask_Buttons()
         Lee_Materials()
@@ -947,33 +1166,20 @@ Public Class Editor_Form
             relativePath = fullpath.StripPrefix(prefix)
         End If
         If IsNothing(Selected_Shape.RelatedNifShader) Then
-            If Selected_Shape.RelatedNifShape.ShaderPropertyRef.Index <> -1 Then
-#If DEBUG Then
-                Debugger.Break()
-#End If
-                Throw New Exception
-            End If
-            Dim nif = Selected_Shape.ParentSliderSet.NIFContent
-            Dim shad = New BSLightingShaderProperty
-            ' ShaderPropertyRef on INiShape is read-only.  The writable setter lives on the
-            ' concrete BSTriShape.  SSE outfits use BSTriShape too — this setter exists for
-            ' all supported editor shapes.  NiTriShape family would use the Properties
-            ' legacy list instead (out of scope; editor creation of shader materials is
-            ' FO4/SSE modern pipeline only).
-            Dim bsShapeForShader = TryCast(Selected_Shape.RelatedNifShape, NiflySharp.Blocks.BSTriShape)
-            If bsShapeForShader Is Nothing Then
-                Throw New NotSupportedException("Shader creation from editor requires BSTriShape family shape.")
-            End If
-            bsShapeForShader.ShaderPropertyRef = New NiBlockRef(Of BSShaderProperty) With {.Index = nif.AddBlock(shad)}
-            Dim texset1 = New BSShaderTextureSet
-            shad.TextureSetRef = New NiBlockRef(Of BSShaderTextureSet) With {.Index = nif.AddBlock(texset1)}
-            texset1.Textures = New List(Of NiString4)
-            While texset1.Textures.Count < 8
-                texset1.Textures.Add(New NiString4 With {.Content = ""})
-            End While
-#If DEBUG Then
-            Debugger.Break()
-#End If
+            ' ⛔⛔ HELPER SHAPE: NO se le fabrica shader. Este camino es AUTOMATICO —abrir el editor
+            ' auto-selecciona la shape 0, que encadena hasta aca sin que el usuario toque nada—, y
+            ' fabricar aca dejaba el NIF del usuario con un shader que el motor SI dibuja: un proxy de
+            ' colision de HDT-SMP pasaba a verse in-game. La unica via a un shader es el boton
+            ' "Convert to renderable shape", a pedido explicito.
+            ' ⛔ Exit Sub, NO seguir: dos lineas mas abajo se desreferencia RelatedNifShader sin guard.
+            ' ⛔ ACOPLADO con Iniciado_Edit: esto deja Selected_Material en el New descartable de arriba,
+            ' medio inicializado, y eso es seguro SOLO porque Iniciado_Edit deshabilita GroupBox1 a
+            ' continuacion. Las dos mitades entran juntas o ninguna.
+            ' De paso cubre RelatedNifShape Is Nothing: GetShader(null) devuelve null, y la linea de
+            ' abajo lo desreferenciaba.
+            PropertyGrid1.SelectedObject = Nothing
+            Iniciado_Edit()
+            Exit Sub
         End If
         Select Case Selected_Shape.RelatedNifShader.GetType
             Case GetType(BSLightingShaderProperty)
@@ -1315,6 +1521,15 @@ Public Class Editor_Form
         Dim prefix = MaterialsPrefix
         Dim TestChanges As New FO4UnifiedMaterial_Class
         For Each shap In Selected_Slider.Shapes
+            ' ⛔ Sin BSShaderProperty no hay material que revisar ni que escribir: mas abajo se
+            ' desreferencia RelatedNifShader, y SetRelatedMaterial TIRA sobre una shape sin shader.
+            ' Se saltea CON LOG, nunca en silencio.
+            If IsNothing(shap.RelatedNifShader) Then
+                Dim nHelper = shap.Nombre
+                Logger.LogLazy(Function() $"[HELPER] Revisa_Material saltea '{nHelper}': sin shader property (helper shape).")
+                Continue For
+            End If
+            If IsNothing(shap.RelatedMaterial) Then Continue For
             Dim orig = FO4UnifiedMaterial_Class.CorrectMaterialPath(shap.RelatedMaterial.path).StripPrefix(prefix)
             Select Case Path.GetExtension(orig).ToLower
                 Case ".bgem"
@@ -1558,7 +1773,7 @@ Public Class Editor_Form
 
         Dim ext = Path.GetExtension(fil)
         Dim filtro As String = " files (*" + ".bgsm" + ")|*.bgsm"
-        If ext = "" AndAlso Selected_Shape.RelatedNifShader.GetType Is GetType(BSEffectShaderProperty) Then filtro = " files (*" + ".bgem" + ")|*.bgem"
+        If ext = "" AndAlso Selected_Shape.RelatedNifShader IsNot Nothing AndAlso Selected_Shape.RelatedNifShader.GetType Is GetType(BSEffectShaderProperty) Then filtro = " files (*" + ".bgem" + ")|*.bgem"
         If ext <> "" Then filtro = ext.Remove(0, 1).ToUpper + " files (*" + ext + ")|*" + ext
         Dim sd As New SaveFileDialog With {.AddExtension = True, .OverwritePrompt = True, .AddToRecent = False, .DefaultExt = ext, .Filter = filtro, .InitialDirectory = Path.Combine(Wardrobe_Manager_Form.Directorios.Fallout4data, Path.GetDirectoryName(fil)), .Title = "Save material file"}
         If sd.ShowDialog = DialogResult.OK Then
@@ -1587,7 +1802,7 @@ Public Class Editor_Form
         If fil = "" Then fil = prefix
 
         Dim dict_used As FilesDictionary_class.DictionaryFilePickerConfig = FilesDictionary_class.MaterialsDictionary_BGSM_Filter
-        If Selected_Shape.RelatedNifShader.GetType Is GetType(BSEffectShaderProperty) Then
+        If Selected_Shape.RelatedNifShader IsNot Nothing AndAlso Selected_Shape.RelatedNifShader.GetType Is GetType(BSEffectShaderProperty) Then
             dict_used = FilesDictionary_class.MaterialsDictionary_BGEM_Filter
         End If
 
@@ -3023,6 +3238,7 @@ Public Class Editor_Form
         Dim occluders = EditPreviewControl.Model.meshes.
             Where(Function(m) m.MeshData.Shape IsNot Selected_Shape AndAlso
                                Not m.MeshData.Shape.RenderHide AndAlso
+                               Not m.MeshData.Shape.IsHelperShape AndAlso
                                m.MeshData.Meshgeometry.Vertices IsNot Nothing)
 
         Using frm As New OcclusionMask_Form(targetMesh, occluders)

@@ -4804,6 +4804,18 @@ Public Class Shape_class
             Return RelatedMaterial
         End Get
     End Property
+    ''' <summary>Ver <see cref="IRenderableShape.IsHelperShape"/> para la ley y las fuentes canónicas.
+    ''' ⛔ NO reemplaza a los guards de <c>IsNothing(shap.RelatedNifShader)</c> del plan de clonado:
+    ''' ésos preguntan "¿puedo LEER el shader?" y una shape con bit0 y material válido SÍ tiene que
+    ''' entrar al plan, o el mod construido queda apuntando al material de la BA2 vanilla.</summary>
+    Public ReadOnly Property IR_IsHelperShape As Boolean Implements IRenderableShape.IsHelperShape
+        Get
+            If IsNothing(RelatedNifShape) Then Return False
+            If IsNothing(RelatedNifShader) Then Return True
+            Dim avo = TryCast(RelatedNifShape, NiAVObject)
+            Return avo IsNot Nothing AndAlso (avo.Flags_ui And 1UI) <> 0UI
+        End Get
+    End Property
     ' --- End IRenderableShape Implementation ---
 
     Public ReadOnly Property HasPhysics As Boolean Implements IRenderableShape.HasPhysics
@@ -4890,11 +4902,18 @@ Public Class Shape_class
     Public Property TintColor As Color = Color.White Implements IRenderableShape.TintColor ' TINTE
     Public Property MaskedVertices As New HashSet(Of Integer)() Implements IRenderableShape.MaskedVertices
 
+    ''' <summary>⛔ <c>TryGetValue</c>, no el indexador: <c>BaseMaterials</c> es un diccionario y el
+    ''' indexador tira <c>KeyNotFoundException</c> si la clave falta — caso real, una shape del .osp
+    ''' cuyo bloque del NIF no quedó en el diccionario tras un rename que <c>Optimize</c> no reconstruyó.
+    ''' Ningún caller tiene Catch, y este lo consume el RENDER por frame vía <c>ShapeMaterial</c>, donde
+    ''' <c>MaterialData.MaterialBase</c> YA maneja el Nothing devolviendo un material vacío. Con el
+    ''' indexador, esa clave faltante propagaba una excepción desde adentro del bucle de dibujo.</summary>
     Public ReadOnly Property RelatedMaterial As Nifcontent_Class_Manolo.RelatedMaterial_Class
         Get
             If IsNothing(RelatedNifShape) Then Return Nothing
-            Return Me.ParentSliderSet.NIFContent.BaseMaterials(RelatedNifShape.Name.String)
-
+            Dim rel As Nifcontent_Class_Manolo.RelatedMaterial_Class = Nothing
+            Me.ParentSliderSet.NIFContent.BaseMaterials.TryGetValue(RelatedNifShape.Name.String, rel)
+            Return rel
         End Get
     End Property
 

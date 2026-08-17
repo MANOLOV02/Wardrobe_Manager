@@ -176,6 +176,8 @@ Partial Class Editor_Form
         ButtonConform = New Button()
         ButtonSplitShape = New Button()
         ButtonMergeShapes = New Button()
+        btnConvertToRenderable = New Button()
+        btnMakeHelper = New Button()
         SingleBoneCheck = New CheckBox()
         NumericMaskRadius = New NumericUpDown()
         Label17 = New Label()
@@ -2203,6 +2205,8 @@ Partial Class Editor_Form
         ' TabPage5
         ' 
         TabPage5.BackColor = SystemColors.Control
+        TabPage5.Controls.Add(btnMakeHelper)
+        TabPage5.Controls.Add(btnConvertToRenderable)
         TabPage5.Controls.Add(ButtonMaskOccluded)
         TabPage5.Controls.Add(ButtonConform)
         TabPage5.Controls.Add(ButtonSplitShape)
@@ -2265,6 +2269,28 @@ Partial Class Editor_Form
         ButtonMergeShapes.TextImageRelation = TextImageRelation.ImageBeforeText
         ToolTip1.SetToolTip(ButtonMergeShapes, "Merge the selected shape with one or more other shapes. The target shape defines the name and shader. OSD morphs are combined.")
         ButtonMergeShapes.UseVisualStyleBackColor = True
+        ' 
+        ' btnConvertToRenderable
+        ' 
+        btnConvertToRenderable.Location = New Point(14, 150)
+        btnConvertToRenderable.Name = "btnConvertToRenderable"
+        btnConvertToRenderable.Size = New Size(220, 26)
+        btnConvertToRenderable.TabIndex = 4
+        btnConvertToRenderable.Text = "Convert to renderable shape"
+        btnConvertToRenderable.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(btnConvertToRenderable, "Give this helper shape a shader property (empty material) and clear the hidden flag, so the engine draws it. Disabled unless the shape is a helper, is of the BSTriShape family, and the material has no unsaved changes.")
+        btnConvertToRenderable.UseVisualStyleBackColor = True
+        ' 
+        ' btnMakeHelper
+        ' 
+        btnMakeHelper.Location = New Point(14, 184)
+        btnMakeHelper.Name = "btnMakeHelper"
+        btnMakeHelper.Size = New Size(220, 26)
+        btnMakeHelper.TabIndex = 5
+        btnMakeHelper.Text = "Make helper shape"
+        btnMakeHelper.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(btnMakeHelper, "Remove the shader property (and its texture set / controllers, if unused) and set the hidden flag, so the engine stops drawing this shape. The assigned material is lost. Disabled unless the shape is of the BSTriShape family and the material has no unsaved changes.")
+        btnMakeHelper.UseVisualStyleBackColor = True
         ' 
         ' SingleBoneCheck
         ' 
@@ -2627,6 +2653,8 @@ Partial Class Editor_Form
     Friend WithEvents ButtonConform As Button
     Friend WithEvents ButtonSplitShape As Button
     Friend WithEvents ButtonMergeShapes As Button
+    Friend WithEvents btnConvertToRenderable As Button
+    Friend WithEvents btnMakeHelper As Button
     Friend WithEvents GroupBox9 As GroupBox
     Friend WithEvents TableLayoutPanel6 As TableLayoutPanel
     Friend WithEvents PoseBakeButton As Button
