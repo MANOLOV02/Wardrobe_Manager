@@ -661,12 +661,25 @@ Public Class Clone_Materials_class
         Public ReadOnly MaterialJobs As New Dictionary(Of String, MaterialJob)(StringComparer.OrdinalIgnoreCase)
         Public ReadOnly TextureJobs As New Dictionary(Of String, TextureJob)(StringComparer.OrdinalIgnoreCase)
         Public ReadOnly Bindings As New List(Of ShapeMaterialBinding)
+        ''' <summary>Ranuras de textura que viven DENTRO del NIF (shapes sin archivo de material).</summary>
+        Public ReadOnly InlineSlots As New List(Of InlineTextureSlot)
+        ''' <summary>Índices de BSShaderTextureSet ya enumerados: varias shapes pueden COMPARTIR el bloque.</summary>
+        Public ReadOnly SeenInlineTexsets As New HashSet(Of Integer)
     End Class
 
     Private Class ShapeMaterialBinding
         Public Property Shader As INiShader
         Public Property MaterialSourceKey As String = ""
         Public Property FallbackShaderMaterialName As String = ""
+    End Class
+
+    ''' <summary>Una ranura de textura que vive DENTRO del NIF (shader sin archivo de material).
+    ''' <paramref name="Original"/> son los bytes tal cual están; <paramref name="Write"/> los reemplaza en
+    ''' el bloque. NO hay MaterialJob asociado: el material ficticio no existe y no se inventa.</summary>
+    Private Class InlineTextureSlot
+        Public Property Original As String = ""
+        Public Property SourceKey As String = ""
+        Public Property Write As Action(Of String)
     End Class
 
     Private Class MaterialJob
@@ -683,6 +696,8 @@ Public Class Clone_Materials_class
         Public Property Succeeded As Boolean = False
         Public Property NeedsWrite As Boolean = False
         Public Property OverwriteApproved As Boolean = False
+        ''' <summary>La clave está en el diccionario pero el archivo no tiene bytes. Ver ScanMaterialJob.</summary>
+        Public Property Unreadable As Boolean = False
 
         Public Property FinalReference As String = ""
 
@@ -750,6 +765,17 @@ Public Class Clone_Materials_class
             ResolveMaterialJob(plan, job, overwrite)
         Next
 
+        ' ⭐ Las texturas inline NO cuelgan de ningún MaterialJob, así que el bucle de arriba no las toca:
+        ' se resuelven acá, y ANTES de PromoteNewerSkippedFiles, que es quien lee los .NeedsWrite ya
+        ' calculados. ResolveTextureJob es idempotente (guard `If job.Resolved Then Exit Sub`), así que un
+        ' SourceKey compartido entre una ranura inline y una textura de material no se re-resuelve ni diverge.
+        For Each slot In plan.InlineSlots
+            Dim inlineTextureJob As TextureJob = Nothing
+            If plan.TextureJobs.TryGetValue(slot.SourceKey, inlineTextureJob) Then
+                ResolveTextureJob(inlineTextureJob, overwrite)
+            End If
+        Next
+
         If Not overwrite Then
             PromoteNewerSkippedFiles(plan)
         End If
@@ -757,6 +783,7 @@ Public Class Clone_Materials_class
         CommitTextureJobs(plan, overwrite)
         CommitMaterialJobs(plan, overwrite)
         ApplyShapeBindings(plan)
+        ApplyInlineTextureBindings(plan)
 
         project.InvalidateAllLookupCaches()
         ' ⛔ SI NO SE ESCRIBIO LA SHAPEDATA, NO SE TOCA EL .osp. `RepointLocalDatasTo` vive DENTRO del
@@ -783,11 +810,38 @@ Public Class Clone_Materials_class
     End Sub
 
     Private Shared Sub CollectClonePlan(project As SliderSet_Class, plan As ClonePlan)
+        Dim nif = project.NIFContent
         For Each shap In project.Shapes
             If IsNothing(shap.RelatedNifShader) Then Continue For
 
             Dim shad = shap.RelatedNifShader
-            Dim originalMaterialName As String = GetShaderMaterialName(shad)
+
+            ' ⛔ LA GUARDA VA ACÁ, que es donde el agujero existe. GetShaderMaterialName TIRA para
+            ' cualquier shader que no sea BSLightingShaderProperty/BSEffectShaderProperty, y desde este
+            ' llamador nadie lo atrapa: un shader exótico volteaba el clone ENTERO del proyecto. Se
+            ' saltea la shape y se DICE — saltear en silencio sería peor que tirar. (El detector
+            ' GetShapesMissingCloneMaterial ya tenía su propio Try.)
+            Dim originalMaterialName As String
+            Try
+                originalMaterialName = GetShaderMaterialName(shad)
+            Catch
+                Logger.LogLazy(Function() $"[WM] CollectClonePlan: shader no soportado en shape '{shap.Nombre}' ({shad.GetType.Name}); se saltea del clone")
+                Continue For
+            End Try
+
+            ' ⭐ SIN ARCHIVO DE MATERIAL ⇒ SÓLO TEXTURAS. No se fabrica un .bgsm/.bgem que no existe: las
+            ' referencias viven en el NIF y se reapuntan ahí mismo. Es el caso normal en SSE. Antes esta
+            ' shape caía en el camino de material con clave "" y no se clonaba NADA.
+            If IsInlineMaterialBinding(originalMaterialName) Then
+                For Each slot In EnumerateInlineTextureSlots(nif, shad, plan.SeenInlineTexsets)
+                    Dim inlineJob = GetOrCreateTextureJob(plan, ResolveTextureCloneRepairReference(slot.Original))
+                    If IsNothing(inlineJob) Then Continue For
+                    slot.SourceKey = inlineJob.SourceKey
+                    plan.InlineSlots.Add(slot)
+                Next
+                Continue For
+            End If
+
             Dim materialSourceKey As String = ResolveCloneRepairSourceKey(originalMaterialName)
 
             plan.Bindings.Add(New ShapeMaterialBinding With {
@@ -801,6 +855,160 @@ Public Class Clone_Materials_class
             End If
         Next
     End Sub
+
+    ''' <summary>¿Esta shape va por el camino de SÓLO TEXTURAS?
+    '''
+    ''' UN SOLO EJE: ¿existe un archivo de material? Se responde con el diccionario, no con la forma del
+    ''' nombre — un Name que no es un path ("Skin", un nombre de bloque de SSE) y uno que apunta a un
+    ''' .bgsm borrado dan el MISMO resultado y merecen la misma rama.
+    '''
+    '''  a. Sin nombre ⇒ inline. Es EXACTAMENTE el predicado del lector canónico
+    '''     (Nifcontent_Class_Manolo.GetRelatedMaterial: `fullpath = ""` ⇒ Create_From_Shader).
+    '''  b. Con nombre pero SIN entrada en el diccionario ⇒ inline de facto. "Ya tiene material" significa
+    '''     que el material EXISTE; si no está, las únicas texturas reales de esa shape son las del NIF.
+    '''     Sin esta ley, en SSE una shape con Name a un .bgsm ausente no se clona NI se reporta.
+    '''
+    ''' ⛔ NO HAY TERCERA LEY PARA EL CLON ROTO SIN ORIGINAL, y la tentación es fuerte porque parece que
+    ''' mandarlo a inline lo sacaría del reporte CloneMaterialSourceMissing. NO lo saca:
+    ''' BuildCloneMaterialMissingOriginalIssue decide con IsBrokenCloneMissingOriginal directo, sin
+    ''' consultar este predicado. Lo único que haría esa ley es mandar la shape al camino de material sin
+    ''' job, o sea a que ApplyShapeBindings le reescriba el Name. Y sería redundante:
+    ''' IsBrokenCloneMissingOriginal = True exige `directKey ∉ diccionario`, que ES la ley b.
+    '''
+    ''' ⚠️ ContainsKey y NO "se puede leer": este predicado corre por shape en CADA carga con Deep Analize
+    ''' y leer bytes acá costaría descomprimir BA2. La defensa contra la entrada rancia vive en el sitio de
+    ''' LECTURA (ver el guard de ScanMaterialJob), no acá.</summary>
+    Private Shared Function IsInlineMaterialBinding(materialName As String) As Boolean
+        If NormalizeMaterialReference(materialName) = "" Then Return True
+        Dim key As String = ResolveCloneRepairSourceKey(materialName)
+        If key = "" Then Return True
+        Return FilesDictionary_class.Dictionary.ContainsKey(key) = False
+    End Function
+
+    ''' <summary>Ranuras de textura de un shader SIN archivo de material.
+    ''' ⛔ DEDUPE POR BLOQUE: varias shapes pueden COMPARTIR el mismo BSShaderTextureSet — es intencional
+    ''' en el motor y hay código nuestro que lo explota (FaceGenBuilder). `seenTexsets` es del PLAN. Los
+    ''' consumidores de DIAGNÓSTICO pasan Nothing: son por shape, y compartir estado ahí haría que la
+    ''' segunda shape de un texset compartido saliera "sin nada pendiente".</summary>
+    Private Shared Function EnumerateInlineTextureSlots(nif As Nifcontent_Class_Manolo,
+                                                        shad As INiShader,
+                                                        seenTexsets As HashSet(Of Integer)) As List(Of InlineTextureSlot)
+        Dim slots As New List(Of InlineTextureSlot)
+        If IsNothing(nif) OrElse IsNothing(shad) Then Return slots
+
+        Dim bslsp = TryCast(shad, BSLightingShaderProperty)
+        If bslsp IsNot Nothing Then
+            If IsNothing(bslsp.TextureSetRef) OrElse bslsp.TextureSetRef.Index = -1 Then Return slots
+            If seenTexsets IsNot Nothing AndAlso seenTexsets.Add(bslsp.TextureSetRef.Index) = False Then Return slots
+            Dim texset = TryCast(nif.Blocks(bslsp.TextureSetRef.Index), BSShaderTextureSet)
+            If IsNothing(texset) OrElse IsNothing(texset.Textures) Then Return slots
+            ' ⛔ SÓLO las ranuras QUE YA EXISTEN. El conteo es POR JUEGO (SSE 9, FO4 10) y Sync recalcula
+            ' _numTextures desde .Count: rellenar a 8 como hace EnsureShaderTextureSetSlots movería bytes
+            ' que nadie pidió. Recorrer .Count es agnóstico al juego.
+            For i As Integer = 0 To texset.Textures.Count - 1
+                AddInlineTexsetSlot(slots, texset, i)
+            Next
+            Return slots
+        End If
+
+        Dim bsesp = TryCast(shad, BSEffectShaderProperty)
+        If bsesp Is Nothing Then Return slots
+        ' Los ocho NiString4 del effect shader — el MISMO juego que lee/escribe
+        ' FO4UnifiedMaterial_Class.Create_From_Shader / Save_To_Shader. No hay bloque compartido que
+        ' dedupear: viven dentro del propio shader.
+        AddInlineStringSlot(slots, bsesp.SourceTexture)
+        AddInlineStringSlot(slots, bsesp.NormalTexture)
+        AddInlineStringSlot(slots, bsesp.GreyscaleTexture)
+        AddInlineStringSlot(slots, bsesp.EnvMapTexture)
+        AddInlineStringSlot(slots, bsesp.EnvMaskTexture)
+        AddInlineStringSlot(slots, bsesp.LightingTexture)
+        AddInlineStringSlot(slots, bsesp.ReflectanceTexture)
+        AddInlineStringSlot(slots, bsesp.EmitGradientTexture)
+        Return slots
+    End Function
+
+    ''' <summary>⛔ El lambda captura el PARÁMETRO, no la variable del For: en VB la vida de un local
+    ''' declarado dentro de un bucle no es por iteración. Pasar (texset, index) como argumentos hace el
+    ''' capture por invocación. NiString4 es CLASE y Textures es List(Of NiString4), así que mutar
+    ''' .Content toca el bloque real del NIF.</summary>
+    Private Shared Sub AddInlineTexsetSlot(slots As List(Of InlineTextureSlot),
+                                           texset As BSShaderTextureSet, index As Integer)
+        Dim entry = texset.Textures(index)
+        If IsNothing(entry) OrElse String.IsNullOrWhiteSpace(entry.Content) Then Exit Sub
+        slots.Add(New InlineTextureSlot With {
+            .Original = entry.Content,
+            .Write = Sub(v) texset.Textures(index).Content = v
+        })
+    End Sub
+
+    Private Shared Sub AddInlineStringSlot(slots As List(Of InlineTextureSlot), target As NiString4)
+        If IsNothing(target) OrElse String.IsNullOrWhiteSpace(target.Content) Then Exit Sub
+        slots.Add(New InlineTextureSlot With {
+            .Original = target.Content,
+            .Write = Sub(v) target.Content = v
+        })
+    End Sub
+
+    ''' <summary>Qué archivo hay que LEER para materializar esta referencia. Normalmente la referencia
+    ''' misma; pero si dice "ManoloCloned\x" y ese archivo NO está, el original "x" queda ADENTRO del
+    ''' propio nombre del clon y se reconstruye sin más información. Análogo exacto de
+    ''' TryResolveBrokenCloneOriginalSourceKey para materiales.
+    '''
+    ''' ⛔ StartsWith(CLONED_PREFIX) y NO el Contains de dos tokens de BuildClonedTextureRelativePath:
+    ''' sólo se puede desarmar el prefijo que pusimos NOSOTROS, y sólo al principio.
+    ''' Caso "ManoloCloned\ManoloMods\foo\x.dds" con el clon ausente y "ManoloMods\foo\x.dds" presente:
+    ''' entra acá, devuelve el original, y como BuildClonedTextureRelativePath es no-op sobre un path que
+    ''' contiene "ManoloMods", el job queda Target == Original ⇒ NO se re-clona archivo y
+    ''' ApplyInlineTextureBindings SÍ reapunta la ranura al archivo real que existe. Ésa es la reparación
+    ''' correcta, y converge en una pasada.</summary>
+    Private Shared Function ResolveTextureCloneRepairReference(textureName As String) As String
+        Dim normalized As String = NormalizeTextureReference(textureName)
+        If normalized = "" Then Return ""
+        If FilesDictionary_class.Dictionary.ContainsKey(BuildTextureDictionaryKey(normalized)) Then Return normalized
+
+        If Not normalized.StartsWith(WM_PackUnpack.CLONED_PREFIX, StringComparison.OrdinalIgnoreCase) Then Return normalized
+        Dim original As String = normalized.Substring(WM_PackUnpack.CLONED_PREFIX.Length)
+        If original = "" Then Return normalized
+        If FilesDictionary_class.Dictionary.ContainsKey(BuildTextureDictionaryKey(original)) Then Return original
+        Return normalized
+    End Function
+
+    ''' <summary>Reapunta las ranuras del NIF a la textura clonada.
+    ''' ⛔ LA CONDICIÓN SE COMPARA CONTRA LA RANURA, NO CONTRA EL JOB. Comparar contra job.OriginalRelative
+    ''' rompe dos casos:
+    '''   · job no clonable (BA2 no habilitado, original ausente) ⇒ FinalRelative vuelve a OriginalRelative,
+    '''     que está en minúsculas y sin prefijo: escribirlo movería bytes sin haber clonado nada;
+    '''   · clon ROTO reparado ⇒ el job sale del ORIGINAL, así que FinalRelative ≠ OriginalRelative y
+    '''     parecería un cambio, pero la ranura YA decía ManoloCloned\… : el archivo se re-clona y el NIF
+    '''     no se toca.</summary>
+    Private Shared Sub ApplyInlineTextureBindings(plan As ClonePlan)
+        For Each slot In plan.InlineSlots
+            Dim job As TextureJob = Nothing
+            If plan.TextureJobs.TryGetValue(slot.SourceKey, job) = False Then Continue For
+            If IsNothing(job) OrElse Not job.Succeeded Then Continue For
+
+            If NormalizeTextureReference(slot.Original).Equals(job.FinalRelative, StringComparison.OrdinalIgnoreCase) Then Continue For
+
+            Dim final As String = job.FinalRelative
+            If HasTexturesAnchor(slot.Original) Then final = TexturesPrefix & final
+            ' ⛔ .Invoke EXPLÍCITO. En VB la invocación implícita de un delegado vale para VARIABLES y
+            ' CAMPOS, no para PROPIEDADES: `slot.Write(x)` se parsea como acceso a propiedad parametrizada
+            ' y da BC30057 "Demasiados argumentos", con Option Strict On Y Off.
+            slot.Write.Invoke(final.Correct_Path_Separator)
+        Next
+    End Sub
+
+    ''' <summary>¿La referencia lleva el ancla `Textures\`? Se busca EN CUALQUIER POSICIÓN, igual que
+    ''' NormalizeGameRelativePath. ⛔ Una ranura puede venir ABSOLUTA ("C:\Games\Data\Textures\armor\x.dds"
+    ''' — Nifcontent_Class_Manolo.EnsureMaterialPrefixForGame documenta que existen): ahí la forma original
+    ''' NO se puede conservar, porque lo que vamos a escribir es relativo. Con ancla ⇒ se escribe con
+    ''' `Textures\`, que es lo que resuelve el motor; relativa pelada sin ancla ⇒ se escribe pelada.</summary>
+    Private Shared Function HasTexturesAnchor(reference As String) As Boolean
+        If String.IsNullOrWhiteSpace(reference) Then Return False
+        Dim normalized As String = reference.Correct_Path_Separator.TrimStart("\"c)
+        If normalized.StartsWith(TexturesPrefix, StringComparison.OrdinalIgnoreCase) Then Return True
+        Return normalized.IndexOf("\" & TexturesPrefix, StringComparison.OrdinalIgnoreCase) >= 0
+    End Function
 
     Private Shared Function GetShaderMaterialName(shad As INiShader) As String
         Select Case shad.GetType
@@ -990,10 +1198,23 @@ Public Class Clone_Materials_class
     Private Shared Sub ScanMaterialJob(plan As ClonePlan, job As MaterialJob)
         If job.Scanned Then Exit Sub
 
+        ' ⛔ EL EJE DEL PREDICADO ES "HAY CLAVE"; EL DEL LECTOR ES "HAY BYTES". Una entrada del diccionario
+        ' puede apuntar a un suelto que ya no está (borrado con WM abierto, cambio de perfil de MO2): nadie
+        ' saca la entrada, y GetBytes devuelve Array.Empty — tanto en la rama de suelto como en la de
+        ' archive. Sin esto, Deserialize sobre 0 bytes tira y voltea Clone_Materials_For_Project ENTERO,
+        ' y TryRepairCloneIssue lo traga como "threw": el MsgBox de fallo salía en cada carga, sin salida.
+        Dim payload As Byte() = FilesDictionary_class.GetBytes(job.Source)
+        If IsNothing(payload) OrElse payload.Length = 0 Then
+            Logger.LogLazy(Function() $"[WM] ScanMaterialJob: '{job.Source}' está en el diccionario pero no tiene bytes; el material se saltea del clone")
+            job.Unreadable = True
+            job.Scanned = True
+            Exit Sub
+        End If
+
         Select Case job.Extension
             Case ".bgsm"
                 Dim material As New BGSM
-                Using ms As New MemoryStream(FilesDictionary_class.GetBytes(job.Source))
+                Using ms As New MemoryStream(payload)
                     Using reader As New BinaryReader(ms)
                         material.Deserialize(reader)
                     End Using
@@ -1033,7 +1254,7 @@ Public Class Clone_Materials_class
 
             Case ".bgem"
                 Dim material As New BGEM
-                Using ms As New MemoryStream(FilesDictionary_class.GetBytes(job.Source))
+                Using ms As New MemoryStream(payload)
                     Using reader As New BinaryReader(ms)
                         material.Deserialize(reader)
                     End Using
@@ -1107,6 +1328,13 @@ Public Class Clone_Materials_class
         End If
 
         If IO.File.Exists(job.TargetFullPath) AndAlso overwrite = False Then
+            ' ⛔ EL CLON EXISTE EN DISCO PERO PUEDE NO ESTAR EN EL DICCIONARIO (árbol ManoloCloned copiado
+            ' desde un backup con WM abierto). Sin registrarlo acá, CommitTextureJobs lo filtra por
+            ' NeedsWrite=False, nadie lo indexa nunca, y el detector lo marca pendiente EN CADA CARGA,
+            ' indefinidamente: "reparar" no cambia nada y el aviso de "still pending" no tiene salida.
+            ' TryAddDictionaryEntry usa TryAdd, así que el FileDate fabricado no puede pisar una fecha real,
+            ' y un PromoteNewerSkippedFiles posterior que registre de nuevo es un TryAdd fallido tolerado.
+            RegisterGeneratedDictionaryFile(TexturesPrefix & job.TargetRelative)
             job.Succeeded = True
             job.NeedsWrite = False
             job.FinalRelative = job.TargetRelative
@@ -1129,6 +1357,20 @@ Public Class Clone_Materials_class
         Try
             If job.Scanned = False Then
                 ScanMaterialJob(plan, job)
+            End If
+
+            ' El material está en el diccionario pero no tiene bytes (ver el guard de ScanMaterialJob).
+            ' Se lo deja como NO exitoso para que CommitMaterialJobs —que filtra por NeedsWrite AndAlso
+            ' Succeeded— no lo re-lea y vuelva a tirar. FinalReference queda en la forma normalizada, que
+            ' es EL MISMO string que ApplyShapeBindings escribiría por el camino del fallback: para esa
+            ' shape el comportamiento es idéntico al de siempre.
+            ' `Exit Try` corre el Finally (restaura Resolving) y sigue después del End Try.
+            If job.Unreadable Then
+                job.Succeeded = False
+                job.NeedsWrite = False
+                job.FinalReference = NormalizeMaterialReference(job.Source)
+                job.Resolved = True
+                Exit Try
             End If
 
             Dim baseSucceeded As Boolean = True
@@ -1465,13 +1707,83 @@ Public Class Clone_Materials_class
         Return False
     End Function
 
-    Private Shared Function IsMaterialCloneEligibleSourceKey(key As String) As Boolean
+    ''' <summary>Sirve igual para materiales y para texturas: el criterio es el mismo (suelto, o dentro de
+    ''' un BA2 que el usuario habilitó a clonar). Tener dos copias sincronizadas de esto es exactamente la
+    ''' clase de duplicación que después diverge.</summary>
+    Private Shared Function IsCloneEligibleSourceKey(key As String) As Boolean
         If key = "" Then Return False
         Dim location As FilesDictionary_class.File_Location = Nothing
         If FilesDictionary_class.Dictionary.TryGetValue(key, location) = False Then Return False
         If IsNothing(location) Then Return False
 
         Return location.IsLosseFile OrElse WM_Config.Allowed_To_Clone(location.BA2File)
+    End Function
+
+    ''' <summary>Una ranura ya clonada: su path normalizado no cambia al pasarlo por
+    ''' BuildClonedTextureRelativePath, que es no-op cuando ya contiene ManoloCloned/ManoloMods.</summary>
+    Private Shared Function IsTextureAlreadyClonedReference(textureName As String) As Boolean
+        Dim normalized = NormalizeTextureReference(textureName)
+        If String.IsNullOrWhiteSpace(normalized) Then Return True
+        Return normalized.Equals(BuildClonedTextureRelativePath(textureName), StringComparison.OrdinalIgnoreCase)
+    End Function
+
+    ''' <summary>Ranuras inline que todavía necesitan clone. Incluye el clon ROTO REPARABLE (apunta a
+    ''' ManoloCloned, el archivo no está, pero el original sí). El clon roto IRRECUPERABLE NO entra acá a
+    ''' propósito: sale por IsCloneEligibleSourceKey y lo levanta GetUnrecoverableInlineTextures, que es
+    ''' donde se le avisa al usuario.
+    ''' `stopAtFirst` existe porque GetShapesMissingCloneMaterial sólo necesita un booleano y corre en la
+    ''' carga de TODOS los proyectos con Deep Analize.</summary>
+    Private Shared Function GetPendingInlineTextureKeys(nif As Nifcontent_Class_Manolo, shad As INiShader,
+                                                        Optional stopAtFirst As Boolean = False) As List(Of String)
+        Dim pending As New List(Of String)
+        Dim seen As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+        For Each slot In EnumerateInlineTextureSlots(nif, shad, Nothing)
+            Dim sourceRef As String = ResolveTextureCloneRepairReference(slot.Original)
+            Dim sourceKey As String = BuildTextureDictionaryKey(sourceRef)
+            If Not IsCloneEligibleSourceKey(sourceKey) Then Continue For
+
+            ' Ya clonada Y el archivo está ⇒ nada que hacer. Si el archivo NO está,
+            ' ResolveTextureCloneRepairReference devolvió el ORIGINAL, o sea que sourceRef difiere de la
+            ' normalizada de la ranura: ése es justamente el caso reparable.
+            If IsTextureAlreadyClonedReference(slot.Original) AndAlso
+               sourceRef.Equals(NormalizeTextureReference(slot.Original), StringComparison.OrdinalIgnoreCase) Then
+                Continue For
+            End If
+
+            If seen.Add(sourceKey) Then pending.Add(sourceKey)
+            If stopAtFirst Then Return pending
+        Next
+        Return pending
+    End Function
+
+    ''' <summary>Ranuras inline IRRECUPERABLES: apuntan a un clon NUESTRO que no está y cuyo original
+    ''' tampoco. Gemelo exacto de IsBrokenCloneMissingOriginal para texturas, incluida la distinción entre
+    ''' "original ausente" y "original no resoluble".
+    ''' ⛔ Gateado por StartsWith(ManoloCloned\), igual que el gemelo: una textura simplemente NO INSTALADA
+    ''' (mod desactivado) no es un clon roto, y reportarla llenaría el diálogo de ruido ajeno a esto.
+    ''' Sin esto el usuario ve el outfit sin textura in-game y WM no le dice NADA, mientras que el MISMO
+    ''' caso con un .bgsm sí se reporta. Esa asimetría era el agujero.</summary>
+    Private Shared Function GetUnrecoverableInlineTextures(nif As Nifcontent_Class_Manolo,
+                                                           shad As INiShader) As List(Of String)
+        Dim broken As New List(Of String)
+        For Each slot In EnumerateInlineTextureSlots(nif, shad, Nothing)
+            Dim normalized As String = NormalizeTextureReference(slot.Original)
+            If normalized = "" Then Continue For
+            If Not normalized.StartsWith(WM_PackUnpack.CLONED_PREFIX, StringComparison.OrdinalIgnoreCase) Then Continue For
+            If FilesDictionary_class.Dictionary.ContainsKey(BuildTextureDictionaryKey(normalized)) Then Continue For
+            ' Si el original SÍ está es reparable ⇒ lo agarra GetPendingInlineTextureKeys, no va acá.
+            If Not ResolveTextureCloneRepairReference(slot.Original).Equals(normalized, StringComparison.OrdinalIgnoreCase) Then Continue For
+
+            Dim originalKey As String = BuildTextureDictionaryKey(normalized.Substring(WM_PackUnpack.CLONED_PREFIX.Length))
+            Dim detail As String = BuildTextureDictionaryKey(normalized)
+            If String.IsNullOrWhiteSpace(originalKey) Then
+                detail &= " -> original source could not be resolved"
+            Else
+                detail &= " -> original missing: " & originalKey
+            End If
+            If Not broken.Contains(detail, StringComparer.OrdinalIgnoreCase) Then broken.Add(detail)
+        Next
+        Return broken
     End Function
 
     ''' <summary>
@@ -1495,8 +1807,23 @@ Public Class Clone_Materials_class
                 Continue For
             End Try
 
-            Dim missingOriginalSourceKey As String = ""
-            If IsBrokenCloneMissingOriginal(materialName, missingOriginalSourceKey) Then Continue For
+            ' ⭐ SIN ARCHIVO DE MATERIAL ⇒ lo pendiente son sus TEXTURAS. Antes esta shape salía por el
+            ' `If repairSourceKey = "" Then Continue For` de más abajo y "fix un-cloned" no la veía nunca.
+            '
+            ' ⛔ Acá se ELIMINÓ un `If IsBrokenCloneMissingOriginal(...) Then Continue For` que estaba
+            ' justo en este punto: con el predicado de IsInlineMaterialBinding esa condición implica
+            ' inline por construcción (exige `directKey ∉ diccionario`, que ES su segunda ley), así que la
+            ' rama quedaba INALCANZABLE — y un chequeo que no puede disparar es peor que nada. La
+            ' población que excluía ahora se evalúa por sus texturas, que es lo único recuperable que le
+            ' queda, y converge: si son clonables se reparan y sale; si no, IsCloneEligibleSourceKey da
+            ' False y pending = 0. Su material ausente lo sigue reportando
+            ' BuildCloneMaterialMissingOriginalIssue, que decide por su cuenta sin consultar el predicado.
+            If IsInlineMaterialBinding(materialName) Then
+                If GetPendingInlineTextureKeys(project.NIFContent, shap.RelatedNifShader, True).Count > 0 Then
+                    result.Add(shap)
+                End If
+                Continue For
+            End If
 
             Dim directKey As String = NormalizeMaterialSourceKey(materialName)
             Dim repairSourceKey As String = ResolveCloneRepairSourceKey(materialName)
@@ -1507,7 +1834,7 @@ Public Class Clone_Materials_class
                 Continue For
             End If
 
-            If Not IsMaterialCloneEligibleSourceKey(repairSourceKey) Then Continue For
+            If Not IsCloneEligibleSourceKey(repairSourceKey) Then Continue For
 
             result.Add(shap)
         Next
@@ -1533,29 +1860,46 @@ Public Class Clone_Materials_class
                 Continue For
             End Try
 
+            Dim details As New List(Of String)
+
+            ' ⛔ ESTA RAMA ACUMULA Y NO CORTA, A PROPÓSITO. Si terminara en `Continue For`, la rama de
+            ' material de abajo quedaría inalcanzable POR CULPA DE ESTA — IsBrokenCloneMissingOriginal
+            ' implica inline por construcción — y una shape con el clon de .bgsm roto y las texturas sanas
+            ' perdería su única señal accionable. Los dos motivos coexisten y se reportan juntos; los
+            ' guards de duplicados de más abajo se encargan de que el nombre de la shape entre una vez.
+            If IsInlineMaterialBinding(materialName) Then
+                details.AddRange(GetUnrecoverableInlineTextures(project.NIFContent, shap.RelatedNifShader))
+            End If
+
             Dim originalSourceKey As String = ""
-            If IsBrokenCloneMissingOriginal(materialName, originalSourceKey) = False Then Continue For
+            If IsBrokenCloneMissingOriginal(materialName, originalSourceKey) Then
+                Dim brokenCloneKey = NormalizeMaterialSourceKey(materialName)
+                Dim detail = brokenCloneKey
+                If String.IsNullOrWhiteSpace(detail) Then
+                    detail = NormalizeMaterialReference(materialName)
+                End If
+
+                If String.IsNullOrWhiteSpace(originalSourceKey) = False Then
+                    detail &= " -> original missing: " & originalSourceKey
+                Else
+                    detail &= " -> original source could not be resolved"
+                End If
+
+                details.Add(detail)
+            End If
+
+            If details.Count = 0 Then Continue For
 
             If String.IsNullOrWhiteSpace(shap.Nombre) = False AndAlso
                Not shapeNames.Contains(shap.Nombre, StringComparer.OrdinalIgnoreCase) Then
                 shapeNames.Add(shap.Nombre)
             End If
 
-            Dim brokenCloneKey = NormalizeMaterialSourceKey(materialName)
-            Dim detail = brokenCloneKey
-            If String.IsNullOrWhiteSpace(detail) Then
-                detail = NormalizeMaterialReference(materialName)
-            End If
-
-            If String.IsNullOrWhiteSpace(originalSourceKey) = False Then
-                detail &= " -> original missing: " & originalSourceKey
-            Else
-                detail &= " -> original source could not be resolved"
-            End If
-
-            If Not materialPaths.Contains(detail, StringComparer.OrdinalIgnoreCase) Then
-                materialPaths.Add(detail)
-            End If
+            For Each detail In details
+                If Not materialPaths.Contains(detail, StringComparer.OrdinalIgnoreCase) Then
+                    materialPaths.Add(detail)
+                End If
+            Next
         Next
 
         If shapeNames.Count = 0 Then Return Nothing
@@ -1568,7 +1912,7 @@ Public Class Clone_Materials_class
             .OspFile = If(osp?.Filename, "").Correct_Path_Separator,
             .PackName = If(osp?.Nombre, ""),
             .ProjectName = If(project.Nombre, ""),
-            .Message = $"{shapeNames.Count} shape(s) point to missing ManoloCloned materials and the original source is not available, so clone repair was skipped.",
+            .Message = $"{shapeNames.Count} shape(s) point to missing ManoloCloned materials or textures and the original source is not available, so clone repair was skipped.",
             .ShapeNames = shapeNames,
             .MaterialPaths = materialPaths,
             .SourceSlider = project,
@@ -1599,6 +1943,15 @@ Public Class Clone_Materials_class
             Catch
                 Continue For
             End Try
+            ' Sin archivo de material lo que hay para listar son las TEXTURAS: ResolveCloneRepairSourceKey
+            ' devolvería "" y la shape aparecía en el diálogo sin ninguna ruta al lado.
+            If IsInlineMaterialBinding(materialName) Then
+                For Each key In GetPendingInlineTextureKeys(project.NIFContent, shap.RelatedNifShader)
+                    If Not materialPaths.Contains(key, StringComparer.OrdinalIgnoreCase) Then materialPaths.Add(key)
+                Next
+                Continue For
+            End If
+
             Dim normalized = ResolveCloneRepairSourceKey(materialName)
             If String.IsNullOrWhiteSpace(normalized) Then Continue For
             If Not materialPaths.Contains(normalized, StringComparer.OrdinalIgnoreCase) Then materialPaths.Add(normalized)
