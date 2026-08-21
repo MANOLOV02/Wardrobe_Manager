@@ -2,12 +2,14 @@
 '  Nombre del programa:  Wardrobe Manager – FO4 / SSE Wardrobe Manager
 '  Copyright (C) 2025  ManoloV02 (https://github.com/MANOLOV02)
 '
-'  Créditos:
-'   - Ousnius: NiflySharp – Licensed under the GPL-3.0 License (https://github.com/ousnius/NiflySharp)
-'   - Ousnius: Material Editor – Licensed under the MIT License (https://github.com/ousnius/Material-Editor)
-'   - OpenTK (GLControl) – Licensed under the MIT License (https://github.com/opentk/opentk)
-'   - ICSharpCode.SharpZipLib.dll – Licensed under the GPL-3.0 with linking exception (https://github.com/icsharpcode/SharpZipLib)
-'   - K4os.Compression.LZ4.Streams – Licensed under the MIT License (https://github.com/MiloszKrajewski/K4os.Compression.LZ4)
+'  Créditos de terceros: LICENSE_CREDITS.txt y THIRD-PARTY-NOTICES.md, en la raíz del
+'  repositorio, que son los que VIAJAN en el paquete. Acá NO va la lista.
+'
+'  ⛔ Acá había una copia de la lista y se desincronizó: declaraba
+'     "ICSharpCode.SharpZipLib.dll – GPL-3.0 with linking exception", que era la licencia
+'     del paquete 0.85.x. Lo que se distribuye es SharpZipLib 1.4.2, que es MIT. Una ley en
+'     dos lugares diverge sola; quien reciba el fuente por GPL-3 §6 leía dos licencias
+'     distintas para la misma dependencia. Por eso queda un puntero y no una copia.
 '
 '  This program is free software: you can redistribute it and/or modify
 '  it under the terms of the GNU General Public License as published by
