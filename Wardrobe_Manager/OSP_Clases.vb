@@ -132,6 +132,7 @@ Public Class SliderPresetCollection
                         Tr.X = Single.Parse(Bonepose.Attribute("transX").Value, CultureInfo.InvariantCulture)
                         Tr.Y = Single.Parse(Bonepose.Attribute("transY").Value, CultureInfo.InvariantCulture)
                         Tr.Z = Single.Parse(Bonepose.Attribute("transZ").Value, CultureInfo.InvariantCulture)
+                        Tr.LeerPerEje(Bonepose)
                         Dim bon = Bonepose.Attribute("name").Value.ToString
                         pos.Transforms.Add(bon, Tr)
                     Next
@@ -2401,7 +2402,7 @@ Public Class OSP_Project_Class
             ' detectaba mods como KS Hairdos (XML en subcarpeta) y HasPhysics daba False de más.
             If Config_App.Current.Game = Config_App.Game_Enum.Skyrim Then
                 Dim sidecar = IO.Path.ChangeExtension(Sliderset_Target.SourceFileFullPath, ".xml")
-                Sliderset_Target.PhysicsXmlContent = SliderSet_Class.ResolveSmpPhysicsXml(Sliderset_Target.NIFContent, sidecar)
+                Sliderset_Target.PhysicsXmlContent = SmpPhysicsXml.ResolverXmlDeFisica(Sliderset_Target.NIFContent, sidecar, Directorios.Fallout4data)
             End If
 
             Sliderset_Target.ReadhighHeel()
@@ -4486,51 +4487,6 @@ Public Class SliderSet_Class
         Shapes.Remove(Shape)
         InvalidateAllLookupCaches()
     End Sub
-    ''' <summary>
-    ''' Returns True if the string is well-formed XML whose root element is a known
-    ''' HDT-SMP physics config root: &lt;system&gt; (classic SMP) or &lt;hdt-smp&gt; (SMP 3.x).
-    ''' </summary>
-    Public Shared Function IsValidSmpXml(content As String) As Boolean
-        If String.IsNullOrWhiteSpace(content) Then Return False
-        Try
-            Dim doc As New XmlDocument()
-            doc.LoadXml(content)
-            Dim root = doc.DocumentElement
-            If root Is Nothing Then Return False
-            Return root.LocalName.Equals("system", StringComparison.OrdinalIgnoreCase) OrElse
-                   root.LocalName.Equals("hdt-smp", StringComparison.OrdinalIgnoreCase)
-        Catch ex As XmlException
-            Return False
-        End Try
-    End Function
-
-    ''' <summary>Resuelve el contenido del XML de física HDT-SMP (SSE) de forma AUTORITATIVA: primero el
-    ''' path declarado por el NiStringExtraData "HDT Skinned Mesh Physics Object" del NIF (resuelto vía
-    ''' FilesDictionary y luego disco → cubre loose+BA2 en cualquier carpeta de Data), y como fallback la
-    ''' convención sidecar same-basename en disco. El link in-NIF es la fuente de verdad del motor (igual que
-    ''' HH_OFFSET para tacones); el sidecar same-basename es solo una convención que no todos los mods siguen
-    ''' (KS Hairdos apunta a HDT\XML\). Nothing si no hay física SMP o el juego no es Skyrim.</summary>
-    Public Shared Function ResolveSmpPhysicsXml(nif As Nifcontent_Class_Manolo, sidecarDiskPath As String) As String
-        If Config_App.Current Is Nothing OrElse Config_App.Current.Game <> Config_App.Game_Enum.Skyrim Then Return Nothing
-
-        ' 1) Fuente AUTORITATIVA: el path declarado por el NiStringExtraData in-NIF.
-        If nif IsNot Nothing Then
-            Dim inNifPath = nif.TryGetSmpPhysicsXmlPath()
-            If Not String.IsNullOrWhiteSpace(inNifPath) Then
-                Dim raw = ReadSmpXmlByRelPath(StripDataPrefix(inNifPath))
-                If raw IsNot Nothing AndAlso IsValidSmpXml(raw) Then Return raw
-            End If
-        End If
-
-        ' 2) Fallback: sidecar same-basename en disco (convención OutfitStudio).
-        If Not String.IsNullOrEmpty(sidecarDiskPath) AndAlso IO.File.Exists(sidecarDiskPath) Then
-            Dim raw = IO.File.ReadAllText(sidecarDiskPath, System.Text.Encoding.UTF8)
-            If IsValidSmpXml(raw) Then Return raw
-        End If
-
-        Return Nothing
-    End Function
-
     ''' <summary>Path Data-relative con prefijo "Data\" para el NiStringExtraData SMP, desde un path de disco
     ''' del XML (convención KS Hairdos = "Data\meshes\...\x.xml"). Usado al grabar/buildear para ajustar el
     ''' link in-NIF a dónde queda el sidecar.</summary>
@@ -4538,35 +4494,6 @@ Public Class SliderSet_Class
         If String.IsNullOrWhiteSpace(xmlDiskPath) Then Return Nothing
         Dim rel = IO.Path.GetRelativePath(Directorios.Fallout4data, xmlDiskPath).Correct_Path_Separator
         Return "Data\" & rel
-    End Function
-
-    ' Quita un prefijo "Data\" (case-insensitive) y normaliza separadores → key Data-relative.
-    Private Shared Function StripDataPrefix(p As String) As String
-        Dim s = p.Trim().Correct_Path_Separator
-        If s.StartsWith("Data\", StringComparison.OrdinalIgnoreCase) Then s = s.Substring("Data\".Length)
-        Return s
-    End Function
-
-    ' Lee el XML por path Data-relative: primero FilesDictionary (loose+BA2), luego disco absoluto.
-    Private Shared Function ReadSmpXmlByRelPath(rel As String) As String
-        If String.IsNullOrWhiteSpace(rel) Then Return Nothing
-        Try
-            Dim bytes = FilesDictionary_class.GetBytes(rel)
-            If bytes IsNot Nothing AndAlso bytes.Length > 0 Then
-                Using ms As New IO.MemoryStream(bytes)
-                    Using sr As New IO.StreamReader(ms, System.Text.Encoding.UTF8, detectEncodingFromByteOrderMarks:=True)
-                        Return sr.ReadToEnd()
-                    End Using
-                End Using
-            End If
-        Catch
-        End Try
-        Try
-            Dim abs = IO.Path.Combine(Directorios.Fallout4data, rel)
-            If IO.File.Exists(abs) Then Return IO.File.ReadAllText(abs, System.Text.Encoding.UTF8)
-        Catch
-        End Try
-        Return Nothing
     End Function
 
     ''' <summary>Escribe los cuatro archivos hermanos del proyecto (.osd, .nif, .hht y el .xml de SMP).

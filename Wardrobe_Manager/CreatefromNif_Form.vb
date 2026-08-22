@@ -214,7 +214,7 @@ Public Class Create_from_Nif_Form
             ' SSE: detectar física HDT-SMP desde el link in-NIF autoritativo (mismo resolver que la carga
             ' normal). Sin esto, HasPhysics queda en False aunque el NIF traiga SMP.
             If Config_App.Current.Game = Config_App.Game_Enum.Skyrim Then
-                selected_slider.PhysicsXmlContent = SliderSet_Class.ResolveSmpPhysicsXml(selected_slider.NIFContent, Nothing)
+                selected_slider.PhysicsXmlContent = SmpPhysicsXml.ResolverXmlDeFisica(selected_slider.NIFContent, Nothing, Wardrobe_Manager_Form.Directorios.Fallout4data)
             End If
 
             For Each shap In selected_slider.NIFContent.GetShapes

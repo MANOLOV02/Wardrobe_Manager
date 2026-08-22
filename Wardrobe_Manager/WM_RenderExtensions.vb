@@ -279,13 +279,44 @@ Public Module WM_RenderExtensions
                 .Transforms = New Dictionary(Of String, PoseTransformData),
                 .Name = name
             }
+            ' ⛔ SAM (ScreenArcher) es un formato AJENO y su escala es UN SOLO float. Verificado en el
+            ' fuente canonico: BodySlide/OutfitStudio guarda `float poseScale` (Anim.h) y lee
+            ' `FloatAttribute("scale", 1.0f)` (PoseData.cpp) — no hay per-eje en ninguno de los dos.
+            ' Asi que aca se PROYECTA a escalar, y se proyecta con `EscalaComoEscalar`, que devuelve
+            ' scale_eff.X (NO un promedio) y AVISA por su parametro cuando la proyeccion perdio algo.
+            ' Antes esto leia `tr.Scale` a secas: con body-weight aplicado el morph trae escala per-eje,
+            ' `ComposeTransforms` caia en su rama no uniforme y `Scale` quedaba en 1.0 ⇒ el .json salia
+            ' con scale:1 para TODOS los huesos escalados por peso, en silencio.
+            ' ⛔ SE PROYECTA A ESCALAR Y NO SE COPIA EL PER-EJE. Cargar `Scale` Y `ScaleVector` a la vez
+            ' viola la convencion de Transform_Class ("quien escribe ScaleVector deja Scale = 1") y el
+            ' consumidor MULTIPLICA: con eff=(1.2,1,1) se re-aplicaba (1.44,1.2,1.2), la escala al CUADRADO.
+            ' Medido contra la DLL. Y el caso uniforme era peor porque `exacto` daba True y ni siquiera
+            ' avisaba.
+            ' ⛔ Y TAMPOCO se conserva el per-eje 'para no perder fidelidad': `ScaleX/Y/Z` son <JsonIgnore>,
+            ' asi que al reabrir la app vuelven en 1 y la pose CAMBIARIA SOLA. Un dato derivado que
+            ' sobrevive a su fuente es un dato podrido. Dejandolos en 1 el objeto en memoria dice lo MISMO
+            ' que su .json, y de yapa `EscalaEsUniforme` da True siempre ⇒ `AtributosPerEje()` sale vacio
+            ' ⇒ ningun per-eje puede colarse por aca al XML compartido con BodySlide, sin guard extra.
+            Dim perdidos = 0
+            Dim peorPerdida As Single = 0
             For Each sk In SkeletonInstance.Default.SkeletonDictionary
                 Dim tr = sk.Value.LocaLTransform
+                Dim exacto As Boolean = True
+                Dim escalar = tr.EscalaComoEscalar(exacto)
+                If Not exacto Then
+                    perdidos += 1
+                    ' CUANTO se perdio, no solo cuantos. `EscalaComoEscalar` devuelve eff.X, asi que un
+                    ' hueso con per-eje (1, k, k) -escala solo en Y/Z, la forma que arma el NNAM del
+                    ' cuello- proyecta a 1.0: se pierde la escala ENTERA, no un 2 %. Con un contador de
+                    ' bultos los dos casos se ven igual.
+                    Dim ef = tr.EffectiveScale
+                    peorPerdida = Math.Max(peorPerdida, Math.Max(Math.Abs(ef.Y - escalar), Math.Abs(ef.Z - escalar)))
+                End If
                 Dim nuevo As New PoseTransformData With {
                     .X = tr.Translation.X,
                     .Y = tr.Translation.Y,
                     .Z = tr.Translation.Z,
-                    .Scale = tr.Scale
+                    .Scale = escalar
                 }
                 Dim degs = Transform_Class.Matrix33ToEulerXYZ(tr.Rotation)
                 nuevo.Yaw = degs.X
@@ -295,10 +326,39 @@ Public Module WM_RenderExtensions
             Next
 
             ' Append portability bones the live skeleton lacks (HKX-defined). Live skeleton wins on collision.
+            ' ⛔ LOS EXTRA TAMBIEN SE PROYECTAN. Entraban VERBATIM, esquivando la proyeccion que este
+            ' mismo bloque instala tres lineas arriba: con escala per-eje su `Scale` vale 1.0 y el .json
+            ' salia con `scale: 1` para esos huesos — la escala ENTERA perdida, que es el mismo defecto
+            ' que se acaba de arreglar, entrando por la otra puerta.
             If extraBones IsNot Nothing Then
                 For Each kv In extraBones
-                    If Not Export.Transforms.ContainsKey(kv.Key) Then Export.Transforms.Add(kv.Key, kv.Value)
+                    If Export.Transforms.ContainsKey(kv.Key) Then Continue For
+                    Dim src = kv.Value
+                    Dim ef As Single = src.Scale * src.ScaleX
+                    ' La uniformidad la decide la ley de la clase, no un umbral escrito aca: tener
+                    ' dos respuestas posibles a la misma pregunta, con tolerancias distintas, es drift.
+                    If Not Transform_Class.EsUniformeExacta(New System.Numerics.Vector3(src.ScaleX, src.ScaleY, src.ScaleZ)) Then
+                        perdidos += 1
+                        peorPerdida = Math.Max(peorPerdida, Math.Max(Math.Abs(src.Scale * src.ScaleY - ef),
+                                                                     Math.Abs(src.Scale * src.ScaleZ - ef)))
+                    End If
+                    Export.Transforms.Add(kv.Key, New PoseTransformData With {
+                        .X = src.X, .Y = src.Y, .Z = src.Z,
+                        .Yaw = src.Yaw, .Pitch = src.Pitch, .Roll = src.Roll,
+                        .Scale = ef})
                 Next
+            End If
+
+            ' ⛔ EL LOG VA ACA, DESPUES de los extraBones. Estaba ARRIBA del bucle, o sea que
+            ' `perdidos` y `peorPerdida` se incrementaban en huesos extra que nadie llegaba a leer:
+            ' escrituras sin lector. Si la perdida ocurria SOLO en huesos extra, no se logueaba nada --
+            ' el fallo mudo se reintroducia en el mismo cambio que vino a sacarlo.
+            If perdidos > 0 Then
+                Dim peorL = peorPerdida
+                Logger.LogLazy(Function() $"[SAM-EXPORT] peor desvio contra la proyeccion: {peorL:F4}")
+                Logger.LogLazy(Function() $"[SAM-EXPORT] {perdidos} hueso(s) tenian escala PER-EJE y el " &
+                                          "formato SAM solo admite un escalar: se exporto scale_eff.X. " &
+                                          "El per-eje completo si viaja en el XML propio de WM.")
             End If
 
             If IO.Directory.Exists(Wardrobe_Manager_Form.Directorios.PosesSAMRoot) = False Then

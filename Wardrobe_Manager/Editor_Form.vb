@@ -1405,8 +1405,10 @@ Public Class Editor_Form
             ' y con un comentario que afirmaba lo contrario. Se elimino el bucle: la regla queda escrita
             ' en vez de emerger de un accidente. (Si alguna vez se quiere lo otro, es un cambio de BYTES
             ' del NIF y lo decide el usuario.)
-            ' ⚠️ El `IsNothing` boxeado tambien esta en la linea 879, pero ALLI es inofensivo: la
-            ' polaridad es la contraria y el guard real es el `Vertices IsNot Nothing` que le sigue.
+            ' ⚠️ Hay otro `IsNothing` boxeado en el guard de `mesh.MeshData.Meshgeometry` (el que sigue
+            ' con `AndAlso ....Vertices IsNot Nothing`), pero ALLI es inofensivo: la polaridad es la
+            ' contraria y el guard real es ese `Vertices IsNot Nothing`. Se cita por el CODIGO y no por
+            ' numero de linea a proposito: la cita anterior decia "linea 879" y ya apuntaba a otra cosa.
 
             ' Save_Shapedatas ya persiste el sidecar de tacones en el path canónico; la escritura
             ' extra que había acá apuntaba al mismo archivo con otra expresión (dos dueños del
@@ -2395,7 +2397,7 @@ Public Class Editor_Form
                                                   New XAttribute("transX", tr.Value.X.ToString(CultureInfo.InvariantCulture)),
                                                   New XAttribute("transY", tr.Value.Y.ToString(CultureInfo.InvariantCulture)),
                                                   New XAttribute("transZ", tr.Value.Z.ToString(CultureInfo.InvariantCulture)),
-                                                  New XAttribute("scale", tr.Value.Scale.ToString(CultureInfo.InvariantCulture))
+                                                  New XAttribute("scale", tr.Value.Scale.ToString(CultureInfo.InvariantCulture)), tr.Value.AtributosPerEje()
                                                    )
                         sel.Add(nuevo)
                     Next
@@ -2753,6 +2755,14 @@ Public Class Editor_Form
             Selected_Pose_Transform.Y = 0
             Selected_Pose_Transform.Z = 0
             Selected_Pose_Transform.Scale = 1
+            ' ⛔ EL PER-EJE TAMBIEN. `Isidentity` mira ScaleX/Y/Z (PoseClasses), asi que sin esto
+            ' "Clear bone transform" dejaba el hueso escalado, el boton habilitado, la pose contando
+            ' como NO identidad para Save/Bake, y el XML compartido con BodySlide re-escrito con el
+            ' scaleX viejo. Antes no se notaba porque nada en WM llenaba esos campos; hoy los llenan
+            ' `LeerPerEje` (lector del XML) y `Poses_class.Clone`.
+            Selected_Pose_Transform.ScaleX = 1
+            Selected_Pose_Transform.ScaleY = 1
+            Selected_Pose_Transform.ScaleZ = 1
             Render_Pose_Change(True)
         End If
 
@@ -2873,6 +2883,11 @@ Public Class Editor_Form
                     Selected_Pose_Transform.Y = TR.Translation.Y
                     Selected_Pose_Transform.Z = TR.Translation.Z
                     Selected_Pose_Transform.Scale = TR.Scale
+                    ' Idem el clear: sin estas tres, "Reload bone pose" restauraba todo MENOS la
+                    ' escala per-eje y dejaba la del hueso anterior.
+                    Selected_Pose_Transform.ScaleX = TR.ScaleVector.X
+                    Selected_Pose_Transform.ScaleY = TR.ScaleVector.Y
+                    Selected_Pose_Transform.ScaleZ = TR.ScaleVector.Z
                     Render_Pose_Change(True)
                 End If
             End If
