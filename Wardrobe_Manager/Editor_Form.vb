@@ -85,12 +85,6 @@ Public Class Editor_Form
         ActualizarBotonesHelper()
     End Sub
 
-    ''' + '''<summary>Enablement de Convert / Make helper. Se llama al cambiar de shape y en el epilogo de
-    ''' + '''los dos botones (invierten el estado). ⛔ `esBs` va PRIMERO y con AndAlso: corta el nulo y ademas
-    ''' + '''la familia — el setter escribible de ShaderPropertyRef vive SOLO en BSTriShape (en INiShape es
-    ''' + '''get-only), asi que sobre un NiTriShape / NiTriStrips / BSLODTriShape los dos botones tiraban
-    ''' + '''NotSupportedException desde un handler de click. Y `MaterialLimpio` los mete bajo el mismo candado
-    ''' + '''que ya protege a ComboBoxShapes de perder ediciones sin guardar.</summary>
     ''' <summary>Crea el <c>BSLightingShaderProperty</c> vacio + su <c>BSShaderTextureSet</c> y los
     ''' engancha a la shape. ⛔ UNICO camino por el que una shape puede recibir un shader, y solo desde
     ''' el boton "Convert to renderable shape". Antes vivia en <c>Lee_Comboselected_Material</c> y corria
@@ -350,8 +344,7 @@ Public Class Editor_Form
     ''' otros sliderSets que usen ese preset. De ahi las tres reglas:
     ''' <list type="bullet">
     ''' <item><b>Un ZAP va a los tres pesos.</b> No es por peso: el handler del checkbox de BodySlide
-    ''' escribe los dos (BodySlideApp.cpp:5713-5714 y :5729-5730) y el build decide los zaps SIEMPRE
-    ''' con el valor BIG (:4382-4386).</item>
+    ''' escribe los dos, y el build decide los zaps SIEMPRE con el valor BIG (BodySlideApp.cpp).</item>
     ''' <item><b>Set sin salida por peso</b> (<c>Multisize()</c> False — SIEMPRE en FO4, que esta
     ''' hard-gateado, y en SSE sin <c>GenWeights</c>): el peso no existe para este set, el build
     ''' resuelve por <c>Default</c>/<c>Big</c>. Se escriben esos dos.</item>
@@ -362,10 +355,10 @@ Public Class Editor_Form
     '''
     ''' ⛔ ACA NO SE REIMPLEMENTA EL PRE-PASE DE zapToggles. Ese vive en
     ''' <see cref="SliderSet_Class.ApplyZapToggles"/>, es la replica fiel de la fase 0
-    ''' (BodySlideApp.cpp:4285-4320) y corre en el MISMO <c>SetPreset</c> que alimenta al preview y al
+    ''' (BodySlideApp.cpp) y corre en el MISMO <c>SetPreset</c> que alimenta al preview y al
     ''' build ⇒ el editor y el .nif no pueden divergir. Que el preset del editor tenga una entrada para
     ''' cada slider hace que el default volteado no aflore: eso es CANONICO —
-    ''' <c>GetBigPresetValue(preset, name, def/100)</c> (:4294, :4349) usa el default solo como
+    ''' <c>GetBigPresetValue(preset, name, def/100)</c> (BodySlideApp.cpp) usa el default solo como
     ''' fallback, y el comentario del propio canonico lo dice: "Toggled zap default values are read in
     ''' later code <b>if no preset overwrites it</b>". Con un preset escaso (uno de disco) el toggle si
     ''' actua, por los dos caminos igual.
@@ -389,7 +382,7 @@ Public Class Editor_Form
             Function(x) String.Equals(x.Nombre, sliderName, StringComparison.OrdinalIgnoreCase))
         If movido Is Nothing Then Exit Sub
 
-        ' `bZap && !bUV` — la guarda de la FASE 1 (BodySlideApp.cpp:4373), que es la que decide con
+        ' `bZap && !bUV` — la guarda de la FASE 1 (BodySlideApp.cpp), que es la que decide con
         ' que peso se lee el slider. ⛔ NO lleva `Not IsClamp`: ese `continue` es de la fase 0
         ' (:4288), que sirve para otra cosa (a quien se le mira el zapToggles). Un slider
         ' zap+clamp SI lo zapea el build, y WM tambien (ResolveSlider y Zap_Setting_Big usan
@@ -584,8 +577,8 @@ Public Class Editor_Form
             Selected_Preset.SetName = Selected_Combo_Preset.SetName
             ' ⭐ LA LEY ES POR SLIDER, NO POR ARCHIVO.
             ' El canonico resuelve cada talla de cada slider por separado: `GetBigPreset`/`GetSmallPreset`
-            ' (SliderPresets.cpp:83-107) devuelven FALSE cuando ese campo vale el centinela -10000, y
-            ' `SliderManager.cpp:232-246` hace `ps = defVal` — el default del PROPIO slider. Nunca toma
+            ' (SliderPresets.cpp) devuelven FALSE cuando ese campo vale el centinela -10000, y
+            ' `SliderManager.cpp` hace `ps = defVal` — el default del PROPIO slider. Nunca toma
             ' el valor de otra talla.
             '
             ' ⛔ Antes esto miraba tres flags calculados sobre el PRESET ENTERO
@@ -602,10 +595,10 @@ Public Class Editor_Form
             ' ⚠️ `Size = Default` es una invencion de WM (el canonico solo conoce small/big/both). Se
             ' trata como el `both` canonico: alimenta las tres ranuras cuando la especifica falta. Y la
             ' ranura Default —que es la que `ResolvePresetValue` lee PRIMERO en FO4— cae al `big` del
-            ' preset, porque en FO4 el canonico resuelve por `GetBigPreset` (BodySlideApp.cpp:4349).
+            ' preset, porque en FO4 el canonico resuelve por `GetBigPreset` (BodySlideApp.cpp).
             For Each grupo In Selected_Combo_Preset.Sliders.GroupBy(Function(pf) pf.Name, StringComparer.OrdinalIgnoreCase)
                 ' Pliegue EN ORDEN DE DOCUMENTO, que es el modelo del canonico: `SetSliderPreset`
-                ' (SliderPresets.cpp:65-70) mantiene DOS campos por slider (`b` y `s`) con centinela
+                ' (SliderPresets.cpp) mantiene DOS campos por slider (`b` y `s`) con centinela
                 ' -10000, y cada <SetSlider> PISA el que le toca ⇒ gana el ULTIMO del archivo.
                 ' ⛔ Agrupar y tomar el primero de cada talla perdia eso, y no solo contra el canonico:
                 ' el codigo anterior a este bloque asignaba secuencialmente y tambien era last-wins.
@@ -631,10 +624,10 @@ Public Class Editor_Form
                 Dim matches As List(Of PresetSlider_Class) = Nothing
                 If presetLookup.TryGetValue(grupo.Key, matches) Then
                     ' La ranura Default de WM se alimenta del campo BIG: en FO4 el canonico resuelve por
-                    ' `GetBigPresetValue` (BodySlideApp.cpp:4349) y `ResolvePresetValue` lee esa ranura
+                    ' `GetBigPresetValue` (BodySlideApp.cpp) y `ResolvePresetValue` lee esa ranura
                     ' primero. Si el campo no quedo escrito, la ranura conserva el default ya sembrado
                     ' del sliderset — que es lo que hace `GetBigPreset` devolviendo false y
-                    ' `SliderManager.cpp:232-246` cayendo a `defVal`.
+                    ' `SliderManager.cpp` cayendo a `defVal`.
                     If hayBig Then
                         Dim sli0 = matches.FirstOrDefault(Function(x) x.Size = WM_Config.SliderSize.Default)
                         If Not IsNothing(sli0) Then sli0.Value = valBig
@@ -1248,11 +1241,10 @@ Public Class Editor_Form
                 Dim report As String = ""
                 If MsgBox("do you want to try to reweight vertices with physics to base skeleton", vbYesNo, "Remove Physics") = MsgBoxResult.Yes Then
                     ' ⛔ EL DESBORDE DE PALETA SALE POR `report`, NO COMO EXCEPCIÓN NO ATRAPADA.
-                    ' `BoneInfluencePacker.PackPaletteIndex` pasó de enmascarar en silencio (bindeo al hueso
-                    ' EQUIVOCADO) a tirar `InvalidOperationException` — la dirección correcta. Pero esta
-                    ' cadena no tenía Try/Catch, así que con una malla de más de 256 huesos el botón pasaba
-                    ' de "build OK con binding mal" a reventar la app, esquivando el canal de error que este
-                    ' mismo bloque ya tiene dos líneas abajo.
+                    ' `BoneInfluencePacker.PackPaletteIndex` tira `InvalidOperationException` en desborde
+                    ' (malla de más de 256 huesos); sin este Try/Catch el botón pasa de "build OK con
+                    ' binding mal" a reventar la app, esquivando el canal de error que este mismo bloque
+                    ' ya tiene dos líneas abajo.
                     Dim okCollapse As Boolean
                     Try
                         okCollapse = PhysicsWeightCollapseHelper.TryCollapseInjectedWeightsAndExpandPaletteBeforeRemovingPhysics(Selected_Slider, report)
@@ -1274,14 +1266,14 @@ Public Class Editor_Form
                         ' `UpdateBounds` y `UpdateSkinPartitions`. Si falla en la shape 2 de 3 —sea por
                         ' excepción o por el `Return False`— la shape 1 ya quedó colapsada, la 2 con la
                         ' paleta expandida y el skinning viejo, la 3 intacta, y la física todavía puesta.
-                        ' Antes eso reventaba a la vista; ahora el usuario aprieta OK y sigue trabajando
-                        ' sobre ese Frankenstein, y un Save posterior lo graba.
+                        ' Sin descartar este estado, el usuario aprieta OK y sigue trabajando sobre ese
+                        ' Frankenstein, y un Save posterior lo graba.
                         ' No hay rollback en el helper, así que se usa el mecanismo que YA existe: marcar
                         ' la shapedata como no cargada fuerza que el próximo acceso la relea del disco y
                         ' descarte lo mutado. Es lo mismo que hace `Save_Shapedatas` en su epílogo.
                         ' ⛔ MARCAR NO ALCANZA: HAY QUE SOLTARLO ACÁ. `Load_and_Check_Shapedata` sí relee
-                        ' con el flag en False, pero este formulario sólo entra por ahí al SELECCIONAR
-                        ' (Editor_Form:715/721), así que hasta entonces seguiría apuntando al NIFContent
+                        ' con el flag en False, pero este formulario sólo entra por ahí al SELECCIONAR, en
+                        ' `Lee_Edit`, así que hasta entonces seguiría apuntando al NIFContent
                         ' MUTADO y un Save inmediato lo grabaría. `UnloadShapeData` hace el `Clear()` del
                         ' NIF y suelta la referencia YA; el próximo acceso lo relee del disco.
                         ' ⛔⛔ SE DESCARTA **Y SE CIERRA EL EDITOR**. Descartar solo no alcanzaba y era peor:
@@ -1301,10 +1293,10 @@ Public Class Editor_Form
                         ' apaga `AllowMask`/`Enabled` ANTES de limpiar, y `RememberLoadedShapeDataSlot` se
                         ' niega a evictar un sliderset `PinnedForPreview` justo porque sus VBOs dependen de
                         ' que la shapedata siga viva. Este camino la descargaba a mano, salteando esa red.
-                        ' ⛔ `BeginTeardown()`, NO `Enabled = False`. Mi primer intento fue apagar
-                        ' AllowMask/Enabled copiando lo que hace `EditorControl_Closing`, y NO SIRVE:
-                        ' `OnPaint` (Render.vb:1441) está gateado por `_isTearingDown OrElse IsDisposed
-                        ' OrElse Disposing` — ni `Enabled` ni `AllowMask` lo tocan, y en WinForms un control
+                        ' ⛔ `BeginTeardown()`, NO `Enabled = False` NI `AllowMask` (copiando lo que hace
+                        ' `EditorControl_Closing` no alcanza): `OnPaint` (Render.vb) está gateado por
+                        ' `_isTearingDown OrElse IsDisposed OrElse Disposing` — ni `Enabled` ni `AllowMask`
+                        ' lo tocan, y en WinForms un control
                         ' deshabilitado SIGUE recibiendo WM_PAINT. `BeginTeardown` levanta ese flag y ademas
                         ' para el RenderTimer; su propio doc describe justo este caso ("paints queued by the
                         ' safety-repaint heartbeat cannot drain mid-teardown"). Es idempotente, asi que el
@@ -1401,14 +1393,14 @@ Public Class Editor_Form
             ' Las normales/tangentes recalculadas son para el BUILD, no para el editor: el editor guarda
             ' el proyecto, pero las N/T/B del NIF quedan COMO ESTABAN. (Alcance de lo que verifique: N/T/B.
             ' No estoy afirmando nada del resto de la geometria que escribe Save_As_Manolo.)
-            ' `RecalcTBN` (linea 883 de este
-            ' archivo) recalcula la copia de RENDER —los arrays del `SkinnedGeometry`— y ahi se queda;
-            ' el unico write-back al NIF es `InjectNormalsToTrishape`, y sus llamadores legitimos son
-            ' `SkinningHelper.InjectToTrishape` (:1506), `BuildingForm` y `MorphingHelper`: TODOS del
+            ' `RecalcTBN`, llamado desde `PropertyGrid1_PropertyValueChanged`, recalcula la copia de
+            ' RENDER —los arrays del `SkinnedGeometry`— y ahi se queda; el unico write-back al NIF es
+            ' `InjectNormalsToTrishape`, y sus llamadores legitimos son
+            ' `SkinningHelper.InjectToTrishape`, `BuildingForm` y `MorphingHelper`: TODOS del
             ' camino de build. Desde aca no se llama, a proposito.
             ' ⛔ ACA HABIA UN BUCLE QUE DECIA INYECTARLAS Y NO LO HACIA: su guard era
             ' `Not IsNothing(mesh.MeshData.Meshgeometry)`, y como `SkinnedGeometry` es una Structure
-            ' (SkinningHelper.vb:18) `IsNothing` la BOXEA y da siempre False ⇒ `Continue For` salteaba
+            ' (SkinningHelper.vb) `IsNothing` la BOXEA y da siempre False ⇒ `Continue For` salteaba
             ' TODAS las mallas. O sea que el comportamiento correcto ya se venia dando, pero POR UN BUG
             ' y con un comentario que afirmaba lo contrario. Se elimino el bucle: la regla queda escrita
             ' en vez de emerger de un accidente. (Si alguna vez se quiere lo otro, es un cambio de BYTES
@@ -2234,7 +2226,7 @@ Public Class Editor_Form
                 ' `SavePreset` del canónico recorre los DOS campos del slider y emite un
                 ' <SetSlider size="big"> y otro size="small" — nunca `both`, nunca `default`, y jamás
                 ' dos entradas con el mismo (name,size). BodySlide sólo RECONOCE small/big/both
-                ' (SliderPresets.cpp:216-232): con cualquier otro token los dos campos le quedan en el
+                ' (SliderPresets.cpp): con cualquier otro token los dos campos le quedan en el
                 ' centinela -10000 y la entrada le queda INERTE. Por eso ya no se emite `default`, que
                 ' es lo que WM escribía: medido sobre el preset `Manolo`, sus 85 entradas así movían
                 ' 14.168 de 22.708 vértices según con qué herramienta construyeras.

@@ -22,14 +22,14 @@ Public Class MorphingHelper
     ''' (<see cref="ApplyMorph_CPU"/>) y el RENDER (<see cref="SliderMorphResolver"/>), así que
     ''' RENDER == BAKE queda garantizado por construcción y no por dos copias que hay que mantener.
     '''
-    ''' Ley tomada de BodySlideApp::BuildListBodies (el BATCH build, :4342-4400), que es el camino que
+    ''' Ley tomada de BodySlideApp::BuildListBodies (el BATCH build), que es el camino que
     ''' arma un pack. ⚠️ BodySlide es internamente inconsistente: su otro camino
-    ''' (BuildBodies → ApplySliders:1327) NO invierte los zaps. Manda el batch.
-    '''   1. `invert` se aplica SIEMPRE, antes de decidir el tipo (:4367-4371).
-    '''   2. zap sólo si `bZap &amp;&amp; !bUV` (:4373); si es zap+uv, es un morph UV.
-    '''   3. `bClamp` NO saca al slider del loop — sigue por ApplyDiff (:4392) y el clamp se aplica
-    '''      después, en un segundo pase (:4402-4413).
-    '''   4. El peso NO se clampea a [0,1]: `GetBigPresetValue` (SliderManager.cpp:232-238) devuelve el
+    ''' (BuildBodies → ApplySliders) NO invierte los zaps. Manda el batch.
+    '''   1. `invert` se aplica SIEMPRE, antes de decidir el tipo.
+    '''   2. zap sólo si `bZap &amp;&amp; !bUV`; si es zap+uv, es un morph UV.
+    '''   3. `bClamp` NO saca al slider del loop — sigue por ApplyDiff y el clamp se aplica
+    '''      después, en un segundo pase.
+    '''   4. El peso NO se clampea a [0,1]: `GetBigPresetValue` (SliderManager.cpp) devuelve el
     '''      valor verbatim y el editor de WM habilita valores extremos a propósito
     '''      (Editor_Form: AllowExtremeValues = True). Sólo se normaliza NaN.
     ''' </summary>
@@ -98,8 +98,8 @@ Public Class MorphingHelper
     ''' <param name="buildSize">
     ''' Peso que se está construyendo. Sólo lo usa el gate del segundo pase de CLAMP, que en BodySlide
     ''' va contra el DEFAULT crudo del slider para ese peso (`defBigValue`/`defSmallValue`,
-    ''' BodySlideApp.cpp:4406/:4410), NO contra el valor vivo — un preset puede pisar el valor de un
-    ''' clamp (GetBigPresetValue:4349 corre para todos), pero el clamp se aplica igual según su default.
+    ''' BodySlideApp.cpp), NO contra el valor vivo — un preset puede pisar el valor de un
+    ''' clamp (GetBigPresetValue corre para todos), pero el clamp se aplica igual según su default.
     ''' Default Big: es lo que emite BodySlide cuando no hay GenWeights.
     ''' </param>
     Public Shared Sub ApplyMorph_CPU(shape As Shape_class, ByRef Geometry As SkinnedGeometry, RecalculateNormals As Boolean, AllowMask As Boolean,
@@ -148,7 +148,7 @@ Public Class MorphingHelper
                     If t > 0.0F Then
                         For Each morph In deltas
                             ' GetDiffIndices usa `fabs(componente) > threshold` con threshold=0 por
-                            ' default (DiffData.h:84): un vértice con delta todo-cero NO se zapea.
+                            ' default (DiffData.h): un vértice con delta todo-cero NO se zapea.
                             Dim d = morph.PosDiff
                             If d.X = 0.0F AndAlso d.Y = 0.0F AndAlso d.Z = 0.0F Then Continue For
                             Dim i = CInt(morph.index)
@@ -160,14 +160,14 @@ Public Class MorphingHelper
 
                 Case SliderKind.UvMorph
                     ' Un slider UV mueve UVs, NUNCA vértices. DiffDataSets::ApplyUVDiff
-                    ' (DiffData.cpp:458-487) ACUMULA sobre el array de uvs:
+                    ' (DiffData.cpp) ACUMULA sobre el array de uvs:
                     '     uvs[i].u += diff.x * percent ; uvs[i].v += diff.y * percent
                     ' con `percent == 0` como único early-out. Uvs_Weight empaqueta (U, V, peso del
                     ' primer hueso): la Z NO se toca. InjectToTrishape escribe las UVs desde este
-                    ' mismo array (SkinningHelper.vb:779), así que morphearlo acá sale al NIF.
-                    ' Antes WM no tenía canal UV en el build: sus deltas se sumaban a POSICIONES
-                    ' (deformando la malla) y las UVs salían sin morphear.
-                    ' Medido: 165 sliders uv en 41 proyectos, incluido CBBE.osp.
+                    ' mismo array (SkinningHelper.vb), así que morphearlo acá sale al NIF.
+                    ' Sin este canal los deltas UV se sumarían a POSICIONES (deformando la malla) y
+                    ' las UVs saldrían sin morphear. Medido: 165 sliders uv en 41 proyectos, incluido
+                    ' CBBE.osp.
                     If t <> 0.0F AndAlso Geometry.Uvs_Weight IsNot Nothing Then
                         Dim uvCount = Geometry.Uvs_Weight.Length
                         For Each morph In deltas
@@ -183,7 +183,7 @@ Public Class MorphingHelper
                     End If
 
                 Case Else
-                    ' Morph normal. SIN umbral de magnitud: DiffDataSets::ApplyDiff (DiffData.cpp:489)
+                    ' Morph normal. SIN umbral de magnitud: DiffDataSets::ApplyDiff (DiffData.cpp)
                     ' suma cada entrada sin mirar el tamaño; su único early-out es `percent == 0`.
                     If t <> 0.0F Then
                         For Each morph In deltas
@@ -194,13 +194,13 @@ Public Class MorphingHelper
             End Select
         Next
 
-        ' SEGUNDO PASE — CLAMP, después de TODOS los morphs (BodySlideApp.cpp:4402-4413).
-        ' ApplyClamp hace ASIGNACIÓN ABSOLUTA (DiffData.cpp:533-535): `verts[i] = diff`, sin sumar y sin
+        ' SEGUNDO PASE — CLAMP, después de TODOS los morphs (BodySlideApp.cpp).
+        ' ApplyClamp hace ASIGNACIÓN ABSOLUTA (DiffData.cpp): `verts[i] = diff`, sin sumar y sin
         ' escalar por el valor del slider.
         '
         ' El gate va contra el DEFAULT del slider para este peso, ya pasado por el pre-pase de
         ' zapToggles (EffectiveDefault: el canonico compara el defSmallValue MUTADO) (`defBigValue > 0` /
-        ' `defSmallValue > 0`, :4406/:4410), NO contra el valor vivo: un preset puede pisar el valor de
+        ' `defSmallValue > 0`), NO contra el valor vivo: un preset puede pisar el valor de
         ' un clamp, pero el pase de clamp corre igual según su default.
         For Each s In sliders
             If Not s.IsClamp Then Continue For
@@ -249,8 +249,8 @@ Public Class MorphingHelper
         ' solo vertice, con lo que dirtyVertexIndices queda vacio y el recalculo de abajo no corria
         ' NUNCA: se tiraba el cache y no habia quien lo reconstruyera.
         ' Canonico: CalcTangentsForShape corre INCONDICIONAL en la fase 3 del build
-        ' (BodySlideApp.cpp:4501 y :4529), fuera de todo gate de vertices; lo unico gateado ahi son
-        ' las NORMALES (por lockNormals, :4494). Por eso, cuando el unico cambio son UVs, se fuerza
+        ' (BodySlideApp.cpp), fuera de todo gate de vertices; lo unico gateado ahi son
+        ' las NORMALES (por lockNormals). Por eso, cuando el unico cambio son UVs, se fuerza
         ' el recalculo y despues se RESTAURAN las normales: el efecto neto es "solo tangentes",
         ' que es exactamente lo que hace el canonico.
         ' Contrato de SkinnedGeometry.UvsMorphed: lo lee MorphEngine.ApplyMorphPlan para saber si tiene
@@ -270,7 +270,7 @@ Public Class MorphingHelper
         ' ⭐ `soloTangentes` NO se decide por el ajuste de recalcular normales, sino por si SE MOVIERON
         ' VERTICES. Las normales se derivan de POSICIONES; las UVs no entran en su calculo. El
         ' canonico lo separa igual: `CalcNormalsForShape` (posiciones, gateada por lockNormals) y
-        ' `CalcTangentsForShape` (UVs) son dos pases distintos (BodySlideApp.cpp:4494-4501).
+        ' `CalcTangentsForShape` (UVs) son dos pases distintos (BodySlideApp.cpp).
         ' ⛔ MEDIDO en un build real (UBE brows, slider uv `Thin` a 100): con el ajuste en True esto
         ' daba False, corria el recalculo COMPLETO y las 501 normales pasaban de AUTORADAS (las del
         ' NIF fuente, que es lo que queda cuando nada esta sucio) a CALCULADAS — un salto de hasta
@@ -285,7 +285,7 @@ Public Class MorphingHelper
         ' Las normales se recomputan si y solo si el usuario lo pidio Y se movio geometria; las UVs
         ' nunca las tocan. Es la separacion del canonico: `if (!lockNormals) CalcNormalsForShape`
         ' (posiciones) y `CalcTangentsForShape` (UVs) son dos pases independientes
-        ' (BodySlideApp.cpp:4494-4501).
+        ' (BodySlideApp.cpp).
         Dim soloTangentes As Boolean = Not (RecalculateNormals AndAlso huboCambioDePosicion)
         If movioUVs Then
             ' ⭐ SOLO los vertices cuyas UV se movieron. RecalculateNormalsTangentsBitangents hace la
@@ -307,7 +307,7 @@ Public Class MorphingHelper
         If ((RecalculateNormals AndAlso huboCambioDePosicion) OrElse movioUVs) AndAlso Geometry.dirtyVertexIndices.Count > 0 Then
             Dim opt As RecalcTBN.TBNOptions = Config_App.Current.Setting_TBN
             opt.KeepExistingNormals = soloTangentes
-            ' ⚠️ MEDIDO y DESCARTADO (2026-08-03): forzar acá el recálculo de la malla ENTERA en vez de
+            ' ⚠️ MEDIDO y DESCARTADO: forzar acá el recálculo de la malla ENTERA en vez de
             ' la clausura de lo sucio NO cambia un solo byte de la salida — con un preset real la
             ' clausura ya cubre 22.658 de 22.708 vértices. Se probó porque parecía explicar la
             ' divergencia de tangentes contra BodySlide, y no la explica. No re-intentarlo: es costo
@@ -365,7 +365,7 @@ Public Class MorphingHelper
 
         If Not haszapped Then Return Nothing
 
-        ' BodySlideApp.cpp:3618 — si la shape quedaria COMPLETAMENTE zapeada y el proyecto pide
+        ' BodySlideApp.cpp — si la shape quedaria COMPLETAMENTE zapeada y el proyecto pide
         ' conservarla, BodySlide NO le borra un solo vertice: deja la geometria intacta y prende el
         ' flag hidden. WM la vaciaba, dejando una BSTriShape de 0 vertices (malformada). Se sale
         ' antes de tocar nada y el caller estampa el flag.
@@ -652,7 +652,7 @@ Public Class SliderMorphResolver
             Dim deltas As List(Of MorphData) = Nothing
             If wmShape.MorphDiffs.TryGetValue(s.Nombre, deltas) Then
                 ' El CLAMP se emite ANTES del early-out de UV: el loop de clamps de BodySlide
-                ' (BuildListBodies:4402-4413) NO tiene guard de `bUV`, asi que un slider uv+clamp
+                ' (BuildListBodies) NO tiene guard de `bUV`, asi que un slider uv+clamp
                 ' recibe ApplyUVDiff en la fase 1 Y ApplyClamp sobre POSICIONES en el 2do pase.
                 ' El bake ya lo hacia (su 2do pase no filtra UV); el render lo salteaba.
                 ' El `IsClamp` va PRIMERO: EffectiveDefault termina en SliderSet_Class.GenWeights, y
@@ -668,7 +668,7 @@ Public Class SliderMorphResolver
                 End If
 
                 ' Un slider UV no emite canal de POSICION: sus deltas van al array de UVs, no a los
-                ' vertices (BuildListBodies:4392 -> DiffDataSets::ApplyUVDiff). Emitirlo como canal
+                ' vertices (BuildListBodies -> DiffDataSets::ApplyUVDiff). Emitirlo como canal
                 ' de posicion deformaba la malla. Se emite marcado IsUvMorph, que el MorphEngine
                 ' saltea en el loop de posiciones y aplica en ApplyUvChannels — el MISMO resultado
                 ' que el bake, que morphea Geometry.Uvs_Weight.
@@ -733,7 +733,7 @@ Public Class ZapGeometryModifier
 
     ''' <summary>
     ''' True cuando la shape quedaba 100 % zapeada y el sliderset pide conservarla: la geometria NO
-    ''' se toco y el caller debe prender el flag hidden, como hace BodySlideApp.cpp:3618.
+    ''' se toco y el caller debe prender el flag hidden, como hace BodySlideApp.cpp.
     ''' </summary>
     Public Property FullyZappedKept As Boolean
 

@@ -21,7 +21,7 @@ Public Class BuildingForm
 
     ''' <summary>
     ''' True si el path existe y su header ES "PIRT" (body-tri de BodySlide). Equivale a
-    ''' IsBodyTriFile de BSOS (TriFile.cpp:11-27), que compara los 4 bytes del header contra
+    ''' IsBodyTriFile de BSOS (TriFile.cpp), que compara los 4 bytes del header contra
     ''' "TRIP"_mci — un uint32 que escrito little-endian da los bytes P,I,R,T.
     ''' </summary>
     Private Shared Function ExistingTriIsBodySlide(triPath As String) As Boolean
@@ -161,7 +161,7 @@ Public Class BuildingForm
                     ' procesaba, nadie la zapeaba, y el NIF recién recargado de disco la escribía
                     ' INTACTA. Resultado: `_0` y `_1` con TOPOLOGÍAS DISTINTAS y el `.tri` indexado
                     ' contra una sola de las dos.
-                    ' MEDIDO 2026-08-05 sobre el corpus de SSE: 4 sliderSets de CBBE (`Prisoner Bloody`
+                    ' MEDIDO sobre el corpus de SSE: 4 sliderSets de CBBE (`Prisoner Bloody`
                     ' y `Roughspun Tunic`, con y sin Physics) perdían la shape `Bra` en `_0` y la
                     ' conservaban en `_1`; el `_1` salía byte-idéntico a lo que emitía 1.4.0.
                     ' ⚠️ Re-clonar es lo mismo que ya se hace con la geometría: el estado del pase
@@ -209,7 +209,7 @@ Public Class BuildingForm
                     Application.DoEvents()
                     ' Multisize() == GenWeights(). BodySlide SIN GenWeights emite UN solo mesh y lo hace
                     ' con `vbig` / `defBigValue` — `vsmall` sólo existe dentro de
-                    ' `if (currentSet.GenWeights())` (BodySlideApp.cpp:4356-4364, :4394, :4409).
+                    ' `if (currentSet.GenWeights())` (BodySlideApp.cpp).
                     ' Mapear el pase único a Small hacía que un proyecto SSE no-multisize leyera
                     ' Default_Small_Value en vez de Default_Big_Value.
                     ' Ni esto ni Multisize() se gatean por juego. MEDIDO contra el binario de FO4:
@@ -233,7 +233,7 @@ Public Class BuildingForm
                     Dim zapMods As New System.Collections.Concurrent.ConcurrentDictionary(Of Shape_class, ZapGeometryModifier)
                     ' Shapes 100 % zapeadas que se conservan ocultas: BodySlide tampoco emite sus morphs
                     ' en el .tri (con la geometria intacta su erase de rangos deja todos los offsets en
-                    ' cero, BodySlideApp.cpp:1450-1460), asi que se las excluye explicitamente.
+                    ' cero, BodySlideApp.cpp), asi que se las excluye explicitamente.
                     Dim hiddenZappedShapes As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
                     ' Compartido por TODAS las shapes del size: un mismo bloque OSD alcanzado desde dos
                     ' shapes no se puede remapear dos veces (la segunda iria sobre indices ya movidos).
@@ -291,7 +291,7 @@ Public Class BuildingForm
                                     ProgressBar1.Value += 1
                                 Else
                                     ' Shape 100 % zapeada que se conserva: oculta con geometria intacta,
-                                    ' igual que BodySlideApp.cpp:3618-3620.
+                                    ' igual que BodySlideApp.cpp.
                                     If zapMod IsNot Nothing AndAlso zapMod.FullyZappedKept Then
                                         builder.NIFContent.SetShapeHidden(shap.RelatedNifShape)
                                         hiddenZappedShapes.Add(shap.RelatedNifShape.Name.String)
@@ -321,15 +321,15 @@ Public Class BuildingForm
                     ' de high-heels, que opera sobre este mismo NIFContent). Independiente del flag ForceClone.
                     builder.NIFContent.EnsureMaterialPrefixForGame()
 
-                    ' Grabo bloque tri si hace falta. GAME-AWARE, replicando OutfitStudio (BodySlideApp.cpp
-                    ' AddTriData / BuildBodies :4589-4608):
+                    ' Grabo bloque tri si hace falta. GAME-AWARE, replicando OutfitStudio (BodySlideApp.cpp,
+                    ' AddTriData / BuildBodies):
                     '   • FO4/FO4VR/FO76 → BODYTRI en el NODO RAÍZ (AddTriData toRoot=true).
                     '   • Skyrim/SSE     → BODYTRI en un NiShape: el PRIMER shape (en orden del sliderset) que
                     '     existe en el NIF y tiene >0 vértices; solo UNO (triEnd se apaga tras el primero).
                     ' skee64 (RaceMenu) lo lee con VisitObjects → lo encuentra en el shape; escribirlo a la raíz
                     ' en SSE no es fiel a OutfitStudio (y rompe lectores shape-only). El .tri en sí es idéntico
                     ' (PIRT/TRIP) en ambos juegos — solo cambia DÓNDE se marca en el NIF.
-                    ' `triKeep` de BodySlideApp.cpp:3653-3671 = PreventMorphFile (salvo IgnorePreventri,
+                    ' `triKeep` de BodySlideApp.cpp = PreventMorphFile (salvo IgnorePreventri,
                     ' extension de WM) O un .tri ajeno ya presente. El nombre del .tri sale del nombre del
                     ' NIF, asi que un proyecto que apunte a una malla de cabeza machacaria el FRTRI003 de
                     ' chargen del juego — un archivo ajeno que no se regenera.
@@ -362,7 +362,7 @@ Public Class BuildingForm
                         If Config_App.Current.Game = Config_App.Game_Enum.Skyrim Then
                             ' ⛔ ORDINAL POR NOMBRE, no orden del documento. El canónico recorre
                             ' `currentSet.ShapesBegin()`, que es un `std::map<std::string, SliderSetShape>`
-                            ' (SliderSet.h:56) — o sea ordenado por el nombre del shape, no por cómo estén
+                            ' (SliderSet.h) — o sea ordenado por el nombre del shape, no por cómo estén
                             ' los `<Shape>` en el .osp. WM recorría `Shapes`, que sale de un SelectNodes y
                             ' viene en orden de documento: en un .osp cuyos `<Shape>` no estén alfabéticos
                             ' el BODYTRI terminaba colgado de OTRO NiShape, y como sólo se estampa en uno,
@@ -428,7 +428,7 @@ Public Class BuildingForm
                             FilesDictionary_class.AddOrUpdateDictionaryEntry(triRelative, New FilesDictionary_class.File_Location With {
                                 .BA2File = "", .Index = -1, .FullPath = triRelative, .FileDate = Date.Now})
                         ElseIf Not WM_Config.Current.Settings_Build.SaveTri AndAlso Not triBlocked AndAlso (builder.PreventMorphFile = False OrElse WM_Config.Current.Settings_Build.IgnorePreventri) Then
-                            ' BodySlideApp.cpp:3716-3720: sin morphs, el .tri viejo queda huerfano — nadie lo
+                            ' BodySlideApp.cpp: sin morphs, el .tri viejo queda huerfano — nadie lo
                             ' referencia ya (el BODYTRI se quito arriba) pero se empaqueta igual en el FOMOD/BA2
                             ' con morphs de una geometria que ya cambio. Solo se borra si es un body-tri PIRT;
                             ' un FRTRI003 ajeno nunca se toca (ese caso ya lo ataja triBlocked).

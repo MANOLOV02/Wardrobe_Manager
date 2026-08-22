@@ -84,9 +84,8 @@ Public Class Create_from_Nif_Form
             ' ⛔ Si el .osd NO se escribió (el usuario dijo "No" al reemplazar uno preexistente), NO se
             ' puede grabar el .osp: sus <Data> ya nombran New_osd (arriba, línea del TargetOsd), así que
             ' el proyecto nuevo quedaría heredando en silencio los morphs del proyecto VIEJO que dejó
-            ' ese archivo ahí. Antes el retorno se descartaba y el Save_Pack_As de abajo corría igual.
-            ' Queda un .nif huérfano en ShapeData (se escribió unas líneas más arriba); es mucho menos
-            ' malo que un proyecto con morphs ajenos, y el usuario ve el error.
+            ' ese archivo ahí. Queda un .nif huérfano en ShapeData (se escribió unas líneas más arriba);
+            ' es mucho menos malo que un proyecto con morphs ajenos, y el usuario ve el error.
             If Not selected_slider.OSDContent_Local.Save_As(New_osd, False) Then
                 Throw New Exception("The osd file was not written, project not created: " & New_osd)
             End If
@@ -213,7 +212,7 @@ Public Class Create_from_Nif_Form
             End If
 
             ' SSE: detectar física HDT-SMP desde el link in-NIF autoritativo (mismo resolver que la carga
-            ' normal). Antes este form no lo detectaba → HasPhysics=False aunque el NIF trajera SMP.
+            ' normal). Sin esto, HasPhysics queda en False aunque el NIF traiga SMP.
             If Config_App.Current.Game = Config_App.Game_Enum.Skyrim Then
                 selected_slider.PhysicsXmlContent = SliderSet_Class.ResolveSmpPhysicsXml(selected_slider.NIFContent, Nothing)
             End If
@@ -241,12 +240,12 @@ Public Class Create_from_Nif_Form
                             ElseIf existente.IsUV <> esUv Then
                                 ' El .tri trae el MISMO nombre en las dos secciones (posicion Y uv). El motor de
                                 ' SSE si soporta el par — BodyMorphMap es unordered_map<nombre, pair<pos, uv>>
-                                ' (skee64 BodyMorphInterface.h:194) — pero el modelo del .osp NO: un slider es
+                                ' (skee64 BodyMorphInterface.h) — pero el modelo del .osp NO: un slider es
                                 ' posicion O uv (Slider_class.IsUV, y MorphingHelper.ResolveSlider devuelve UN
                                 ' SliderKind), y dos sliders con el mismo nombre revientan MorphDiffs, que se
                                 ' indexa por nombre (MorphingHelper.LoadMorphTargets: shape.MorphDiffs.Add).
-                                ' Antes el match era SOLO por nombre: la segunda entrada se colgaba del slider
-                                ' de la PRIMERA y sus deltas se aplicaban con el tipo equivocado — deltas de UV
+                                ' Si el match fuera SOLO por nombre, la segunda entrada se colgaría del slider
+                                ' de la PRIMERA y sus deltas se aplicarían con el tipo equivocado — deltas de UV
                                 ' sumados a POSICIONES, que es justo lo que deforma la malla.
                                 ' Se conserva la primera y se descarta la segunda, avisando: perder un canal es
                                 ' recuperable, aplicarlo como el otro tipo no.

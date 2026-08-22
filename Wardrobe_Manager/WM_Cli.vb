@@ -260,7 +260,7 @@ Friend Module WM_Cli
         ' ── Preset ───────────────────────────────────────────────────────────────────────────────
         Dim preset As SlidersPreset_Class = Nothing
         Dim nombrePreset = OptValue(args, "--preset")
-        ' ⛔ MEDIDO 2026-08-03: sin esto, un .xml con MAS DE UN preset adentro era inalcanzable. Se
+        ' ⛔ MEDIDO: sin esto, un .xml con MAS DE UN preset adentro era inalcanzable. Se
         ' cargaba el archivo, no se elegia ninguno (el atajo de abajo pide Count = 1) y despues el
         ' lookup por nombre buscaba LA RUTA como si fuera un nombre de preset ⇒ salia con 4.
         ' ManoloPresets.xml tiene 3 presets: ninguno se podia construir desde el CLI.

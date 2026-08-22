@@ -520,7 +520,7 @@ Public NotInheritable Class PhysicsWeightCollapseHelper
     ''' <summary>
     ''' Computes the SkinTransform for a bone being added to a shape's palette such that the
     ''' resulting matsBind (= bindT_skel ∘ stored_localT, the same formula the render uses in
-    ''' SkinningHelper.vb:229) lands in the SAME shape-coordinate frame as the existing palette
+    ''' SkinningHelper.vb) lands in the SAME shape-coordinate frame as the existing palette
     ''' bones — so the new bone composes with vertex_local consistently with the rest.
     '''
     ''' Math:

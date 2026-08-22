@@ -48,8 +48,7 @@ Namespace My
         ''' <para>⛔ <c>CrashReport</c> puede llamarse desde acá porque vive en <c>Shared\</c> y se compila
         ''' DENTRO de este ensamblado — no arrastra la librería. Ver el <c>.vbproj</c>.</para>
         ''' <para>Es el mismo contrato que <c>FO4_NPC_Manager\Program.vb</c>, donde está MEDIDO: sacando
-        ''' <c>FO4_Base_Library.dll</c> de la carpeta, la excepción sale con nombre y stack. WM lo tenía
-        ''' documentado y no aplicado, o sea que era justo la app donde el diagnóstico no funcionaba.</para></summary>
+        ''' <c>FO4_Base_Library.dll</c> de la carpeta, la excepción sale con nombre y stack.</para></summary>
         Private Sub MyApplication_Startup(sender As Object, e As Microsoft.VisualBasic.ApplicationServices.StartupEventArgs) Handles Me.Startup
             ' PRIMERO DE TODO: el handler de AppDomain cubre los hilos que NO son el de UI (el build corre en
             ' background), donde MyApplication.UnhandledException no llega. Ver Shared\CrashReport.vb.

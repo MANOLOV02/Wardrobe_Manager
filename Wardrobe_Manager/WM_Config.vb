@@ -43,7 +43,6 @@ Public Class WM_Config
         Public Property DeleteWithProject As Boolean
         Public Property AddAddintionalSliders As Boolean
         Public Property AdditionalSlidersGender As SliderGender
-        Public Property SkipFixMorphs As Boolean
         Public Property ResetSlidersEachBuild As Boolean
         Public Property IgnorePreventri As Boolean
         Public Property BuildInPose As Boolean
@@ -119,7 +118,7 @@ Public Class WM_Config
             .DeleteUnbuilt = True, .DeleteWithProject = True, .SaveHHS = True,
             .SaveTri = False, .OwnEngine = True, .AddAddintionalSliders = True,
             .AdditionalSlidersGender = SliderGender.Female,
-            .ResetSlidersEachBuild = False, .SkipFixMorphs = True,
+            .ResetSlidersEachBuild = False,
             .IgnorePreventri = False, .BuildInPose = False,
             .ForceWeights = True, .IgnoreWeightsFlags = False
         }

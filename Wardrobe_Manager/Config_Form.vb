@@ -53,11 +53,10 @@ Public Class Config_Form
             CheckBoxDeletewithProject.Checked = WM_Config.Current.Settings_Build.DeleteWithProject
             CheckBoxDeleteBefore.Checked = WM_Config.Current.Settings_Build.DeleteUnbuilt
             CheckBoxLMReseteachBuild.Checked = WM_Config.Current.Settings_Build.ResetSlidersEachBuild
-            CheckBoxLMASkipManoloFixes.Checked = WM_Config.Current.Settings_Build.SkipFixMorphs
             CheckBoxLMAddAditionals.Checked = WM_Config.Current.Settings_Build.AddAddintionalSliders
             ' Clamp obligatorio: SelectedIndex fuera de rango tira ArgumentOutOfRangeException, y el
-            ' Catch de este bloque esta vacio — un valor invalido en wm_config.json dejaba SIN cargar
-            ' todo lo que viene despues (IgnorePreventri, BuildInPose, flags de weights, GRID).
+            ' Catch de este bloque no reanuda la carga — un valor invalido en wm_config.json deja sin
+            ' cargar todo lo que viene despues (IgnorePreventri, BuildInPose, flags de weights, GRID).
             ComboBoxLMGender.SelectedIndex = Math.Clamp(CInt(WM_Config.Current.Settings_Build.AdditionalSlidersGender), 0, ComboBoxLMGender.Items.Count - 1)
             CheckBoxIgnorePrevent.Checked = WM_Config.Current.Settings_Build.IgnorePreventri
             CheckBoxBuildInPose.Checked = WM_Config.Current.Settings_Build.BuildInPose
@@ -82,12 +81,11 @@ Public Class Config_Form
     Private Sub Graba_Build_Options()
         ' ⛔ ACA NO HAY NADA DE RENDER, Y NO ES UN OLVIDO. Normales/TBN/welding, skinning, camara y grilla
         ' del piso viven en Config_App (la libreria) y los edita el dialogo COMPARTIDO
-        ' FO4_Base_Library.LightRigForm, pestana "Rendering", que tambien usa FO4_NPC_Manager. La pestana
-        ' "Rendering" de esta pantalla se elimino ENTERA, con sus 35 controles y sus tooltips (que se
-        ' mudaron al dialogo compartido). Las dos medias tintas eran peores: dejarla visible con la
-        ' escritura desactivada hacia que el usuario destildara algo, cerrara con OK y se descartara en
-        ' silencio; dejar la escritura viva pisaba al cerrar la config que el dialogo compartido acababa de
-        ' guardar, con los valores del Designer. Es el modo de falla que documenta _cargaCompleta arriba.
+        ' FO4_Base_Library.LightRigForm, pestana "Rendering", que tambien usa FO4_NPC_Manager. NO agregar
+        ' una pestana Rendering aca: dejarla visible con la escritura desactivada hace que el usuario
+        ' destilde algo y se descarte en silencio; dejar la escritura viva pisa al cerrar la config que el
+        ' dialogo compartido acaba de guardar, con los valores del Designer. Es el modo de falla que
+        ' documenta _cargaCompleta arriba.
 
         Dim buildSet = New WM_Config.BuildSettings With {
             .DeleteUnbuilt = CheckBoxDeleteBefore.Checked,
@@ -96,7 +94,6 @@ Public Class Config_Form
             .SaveHHS = CheckBoxBuildHH.Checked,
             .SaveTri = CheckBoxBuildTri.Checked,
             .ResetSlidersEachBuild = CheckBoxLMReseteachBuild.Checked,
-            .SkipFixMorphs = CheckBoxLMASkipManoloFixes.Checked,
             .AddAddintionalSliders = CheckBoxLMAddAditionals.Checked,
             .AdditionalSlidersGender = CType(Math.Max(0, ComboBoxLMGender.SelectedIndex), WM_Config.SliderGender),
             .IgnorePreventri = CheckBoxIgnorePrevent.Checked,

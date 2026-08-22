@@ -28,7 +28,7 @@ Public Class MorphdataTri
     <JsonPropertyName("interval")>
     Public Property Interval As Single = 0.01F
 
-    ''' <summary>0 = masculino, 1 = femenino (BodyMorphInterface.cpp:383 / ScaleformNatives.cpp:174).
+    ''' <summary>0 = masculino, 1 = femenino (BodyMorphInterface.cpp / ScaleformNatives.cpp).
     ''' Default 0 para empatar a jsoncpp: `entry["gender"].asInt()` sobre un miembro AUSENTE devuelve 0
     ''' (json_value.cpp, `case nullValue: return 0`). Con default 1 un sliders.json ajeno sin el campo
     ''' se leia como femenino, el de-dupe acertaba de casualidad y WM no emitia su propia entrada.
@@ -64,7 +64,7 @@ Public Module LooksMenuSliders
     ''' morphs de cualquier otro body (Fusion Girl, Atomic Beauty, BodyTalk) y le pisara su name
     ''' localizado y su min/max/interval.
     '''
-    ''' ⚠️ Esto NO es un espejo exacto de ForEachMod (Utilities.cpp:288), que itera los PLUGINS
+    ''' ⚠️ Esto NO es un espejo exacto de ForEachMod (Utilities.cpp), que itera los PLUGINS
     ''' CARGADOS, no el directorio. Estado de los dos huecos que tenia:
     '''   • De mas: una carpeta Sliders\&lt;plugin&gt;\ cuyo ESP ya no esta en el load order la vemos
     '''     nosotros y el motor no ⇒ suprimimos un morph que in-game falta. ⛔ ES DECISION DE DISEÑO,
@@ -86,7 +86,7 @@ Public Module LooksMenuSliders
 
     ''' <summary>Raiz de los sliders de f4ee, relativa a Data. Literal del motor:
     ''' <c>std::string sliderPath("F4SE\\Plugins\\F4EE\\Sliders\\")</c>
-    ''' (BodyMorphInterface.cpp:333).</summary>
+    ''' (BodyMorphInterface.cpp).</summary>
     Private Const F4eeSlidersRoot As String = "F4SE\Plugins\F4EE\Sliders"
 
     ''' <summary>
@@ -94,16 +94,16 @@ Public Module LooksMenuSliders
     ''' del motor es una ASIGNACION, asi que gana el ULTIMO en cargar y le pisa al mod ajeno su
     ''' <c>name</c> localizado, su <c>min/max/interval</c> y su <c>sort</c>:
     ''' <code>m_sliderMap[pBodySlider->gender][pBodySlider->morph] = pBodySlider;</code>
-    ''' (BodyMorphInterface.cpp:383). ⛔ No confundir con el <c>emplace</c> first-wins del lector de
-    ''' <c>.osd</c> (DiffData.cpp:181): otro archivo, contrato opuesto.
+    ''' (BodyMorphInterface.cpp). ⛔ No confundir con el <c>emplace</c> first-wins del lector de
+    ''' <c>.osd</c> (DiffData.cpp): otro archivo, contrato opuesto.
     '''
     ''' El motor los descubre por DOS caminos distintos, y no son intercambiables:
     ''' <list type="number">
-    ''' <item><b>Por mod</b> (<c>LoadBodyGenSliderMods</c>, :335-339): una carpeta por plugin, leida con
-    ''' <c>BSResourceNiBinaryStream</c> (:361) — o sea por el SISTEMA DE RECURSOS, que resuelve
+    ''' <item><b>Por mod</b> (<c>LoadBodyGenSliderMods</c>): una carpeta por plugin, leida con
+    ''' <c>BSResourceNiBinaryStream</c> — o sea por el SISTEMA DE RECURSOS, que resuelve
     ''' <b>suelto O dentro de un BA2</b>. Escanear solo el disco dejaba invisible a todo mod que
     ''' shippee su <c>sliders.json</c> empaquetado.</item>
-    ''' <item><b>Loose</b> (:341-352): <c>IDirectoryIterator</c> sobre <c>Data\...\Sliders\Loose\*.json</c>,
+    ''' <item><b>Loose</b>: <c>IDirectoryIterator</c> sobre <c>Data\...\Sliders\Loose\*.json</c>,
     ''' que es FILESYSTEM PURO. Un json de Loose metido en un BA2 el motor NO lo ve, asi que acá
     ''' tampoco se busca ahi.</item>
     ''' </list>
@@ -181,7 +181,7 @@ Public Module LooksMenuSliders
 
     ''' <summary>
     ''' Equivalente de <c>!v.IsZero(true)</c> de BSOS, el filtro de emision de offsets
-    ''' (TriFile.cpp:190 / Object3d.hpp:110-113): descarta el vertice solo si los TRES componentes
+    ''' (TriFile.cpp / Object3d.hpp): descarta el vertice solo si los TRES componentes
     ''' quedan por debajo de EPSILON. Comparar contra cero exacto dejaba en el .tri sumas residuales
     ''' (p. ej. 1.5e-4 + -1.0e-4) que BodySlide descarta.
     ''' </summary>
@@ -193,8 +193,8 @@ Public Module LooksMenuSliders
 
     ''' <summary>
     ''' Valores de "gender" que WM debe emitir, en la codificacion del motor: 0 = masculino,
-    ''' 1 = femenino (BodyMorphInterface.cpp:383 indexa m_sliderMap[gender][morph], y
-    ''' ScaleformNatives.cpp:174 pasa gender==1 como isFemale). CBBE emite 1 en sus 83 entradas.
+    ''' 1 = femenino (BodyMorphInterface.cpp indexa m_sliderMap[gender][morph], y
+    ''' ScaleformNatives.cpp pasa gender==1 como isFemale). CBBE emite 1 en sus 83 entradas.
     ''' </summary>
     Private Function EngineGenders() As Integer()
         Select Case WM_Config.Current.Settings_Build.AdditionalSlidersGender
@@ -223,7 +223,7 @@ Public Module LooksMenuSliders
     ''' puntos, y CUATRO caen del lado peligroso (damos por ocupado un nombre que el motor SI
     ''' registra ⇒ no emitimos el nuestro ⇒ le pisamos la metadata al mod ajeno, porque
     ''' <c>m_sliderMap[gender][morph] = pBodySlider</c> es asignacion y gana el ultimo). Se replica a
-    ''' mano lo que hace <c>BodySlider::Parse</c> (BodyMorphInterface.cpp:412-428) sobre los valores
+    ''' mano lo que hace <c>BodySlider::Parse</c> (BodyMorphInterface.cpp) sobre los valores
     ''' de jsoncpp:
     ''' <list type="bullet">
     ''' <item><c>name</c>/<c>morph</c>: <c>asCString()</c>. Sobre cualquier cosa que no sea string
@@ -231,7 +231,7 @@ Public Module LooksMenuSliders
     ''' registra. ⚠️ Un string VACIO explicito si lo registra el motor; aca se descarta igual, porque
     ''' una clave vacia no puede colisionar con ningun morph real nuestro.</item>
     ''' <item><c>gender</c>: <c>asInt()</c> — null ⇒ 0, bool ⇒ 0/1, real ⇒ trunca, <b>string ⇒ LANZA</b>.
-    ''' Y despues <c>if(gender == 0 || gender == 1)</c> (:382) sobre un <c>UInt8</c>
+    ''' Y despues <c>if(gender == 0 || gender == 1)</c> sobre un <c>UInt8</c>
     ''' (BodyMorphInterface.h), o sea con el valor TRUNCADO a 8 bits: 256 entra como masculino.</item>
     ''' <item><c>minimum</c>/<c>maximum</c>/<c>interval</c>: <c>asFloat()</c>, mismas reglas. No los
     ''' mira nadie para decidir el registro, pero un null en cualquiera de ellos hacia que
@@ -240,10 +240,10 @@ Public Module LooksMenuSliders
     ''' <c>allowComments_ = true</c>. <c>JsonDocument</c> los rechaza por default ⇒ se pasa
     ''' <c>CommentHandling.Skip</c>. Las comas colgando y NaN/Infinity los rechazan LOS DOS, asi que
     ''' ahi el default sirve.</item>
-    ''' <item>Root que es un OBJETO en vez de un array: <c>for(auto&amp; item : root)</c> (:378) itera
+    ''' <item>Root que es un OBJETO en vez de un array: <c>for(auto&amp; item : root)</c> itera
     ''' los MIEMBROS de un objeto igual que los elementos de un array. Se replica.</item>
     ''' </list>
-    ''' Un json que ni siquiera parsea devuelve lista vacia: el motor loguea y sale (:369-372).
+    ''' Un json que ni siquiera parsea devuelve lista vacia: el motor loguea y sale.
     ''' </summary>
     Public Function DeserializeLooksMenuSlidersJson(json As String) As List(Of MorphdataTri)
         Dim result As New List(Of MorphdataTri)
@@ -262,7 +262,7 @@ Public Module LooksMenuSliders
                 End Select
 
                 ' POR ENTRADA, no el array entero: el motor descarta UNA entrada, no el archivo
-                ' (BodyMorphInterface.cpp:377-384).
+                ' (BodyMorphInterface.cpp).
                 For Each item In items
                     Dim entry = ParseSliderEntry(item)
                     If entry IsNot Nothing Then result.Add(entry)
@@ -281,8 +281,8 @@ Public Module LooksMenuSliders
         .AllowTrailingCommas = False
     }
 
-    ''' <summary>Replica de <c>BodySlider::Parse</c> (BodyMorphInterface.cpp:412-428) + el gate de
-    ''' gender de :382. Devuelve Nothing cuando el motor NO registraria la entrada.
+    ''' <summary>Replica de <c>BodySlider::Parse</c> (BodyMorphInterface.cpp) + el gate de
+    ''' gender. Devuelve Nothing cuando el motor NO registraria la entrada.
     ''' ⛔ El <c>Try</c> envuelve TODO el cuerpo a proposito: en el canonico el <c>catch</c> es POR
     ''' ENTRADA y devolver false descarta esa entrada y nada mas. Sin el, una conversion estrecha de
     ''' VB (que lanza <c>OverflowException</c>, no satura) subia hasta el Try del ARCHIVO y nos
@@ -310,7 +310,7 @@ Public Module LooksMenuSliders
             If Not TryAsFloat(item, "interval", intervalo) Then Return Nothing
 
             ' `UInt8 gender` (BodyMorphInterface.h) cargado desde asInt(): trunca a 8 bits ANTES del
-            ' `if(gender == 0 || gender == 1)` de :382. Un 256 entra como masculino.
+            ' `if(gender == 0 || gender == 1)`. Un 256 entra como masculino.
             Dim g As Integer = gender And &HFF
             If g <> 0 AndAlso g <> 1 Then Return Nothing
 
@@ -413,23 +413,25 @@ Public Module LooksMenuSliders
     ''' <param name="skipShapes">
     ''' Shapes que no deben aportar morphs. Se usa para las 100 % zapeadas que se conservan ocultas:
     ''' BodySlide tampoco las emite (con la geometria intacta, su erase de rangos deja todos los
-    ''' offsets en cero y el morph no se agrega — BodySlideApp.cpp:1400-1464).
+    ''' offsets en cero y el morph no se agrega — BodySlideApp.cpp).
     ''' </param>
     Public Function WriteMorphTRI(triPath As String, sliderSet As SliderSet_Class,
                                   Optional skipShapes As HashSet(Of String) = Nothing) As Boolean
         Dim tri As New TriFile()
         ' Gate por juego, igual que la serializacion al cierre del batch: sliders.json es de LooksMenu,
         ' o sea FO4. RaceMenu no tiene registro equivalente — enumera los morphs del propio .tri con
-        ' NiOverride.GetMorphNames (PapyrusNiOverride.cpp:1416). Sin el gate, un batch de Skyrim
+        ' NiOverride.GetMorphNames (PapyrusNiOverride.cpp). Sin el gate, un batch de Skyrim
         ' acumulaba entradas en WMSliders que despues nadie escribia.
         Dim addAdditional = WM_Config.Current.Settings_Build.AddAddintionalSliders AndAlso
                             Config_App.Current.Game = Config_App.Game_Enum.Fallout4
-        Dim skipManoloFix = WM_Config.Current.Settings_Build.SkipFixMorphs
         Dim genders = EngineGenders()
 
-        ' Candidate sliders (not Clamp/Zap/ManoloFix) don't depend on the shape — build once.
+        ' Candidate sliders (not Clamp/Zap) don't depend on the shape — build once.
+        ' Los sliders Fix (IsManoloFix) SÍ se emiten: son morphs reales del canónico. Los fix-ZAP ya
+        ' quedan afuera por el predicado canónico de zap de abajo — no hace falta (ni debe haber)
+        ' una condición aparte para ellos.
         ' ⛔⛔ EL PREDICADO DEL ZAP ES `ResolveSlider(...).Kind`, NO `IsZap`. Acá decía `Not IsZap` a secas,
-        ' y la ley canónica —MorphingHelper, tomada de BodySlideApp::BuildListBodies:4373— es
+        ' y la ley canónica —MorphingHelper, tomada de BodySlideApp::BuildListBodies— es
         ' `bZap && !bUV`: un slider con IsZap=True Y IsUV=True NO es un zap, es un morph UV. O sea que ese
         ' slider se APLICABA como UvMorph en el render y en el bake, pero quedaba fuera de los candidatos
         ' del .tri ⇒ se perdía del archivo, en silencio. Que TriFiles sabe emitir morphs UV lo prueba el
@@ -437,8 +439,7 @@ Public Module LooksMenuSliders
         Dim candidateIndices As New List(Of Integer)
         For s = 0 To sliderSet.Sliders.Count - 1
             Dim esZap = MorphingHelper.ResolveSlider(sliderSet.Sliders(s)).Kind = SliderKind.Zap
-            If Not sliderSet.Sliders(s).IsClamp AndAlso Not esZap AndAlso
-               (Not sliderSet.Sliders(s).IsManoloFix OrElse skipManoloFix = False) Then
+            If Not sliderSet.Sliders(s).IsClamp AndAlso Not esZap Then
                 candidateIndices.Add(s)
             End If
         Next
@@ -529,9 +530,9 @@ Public Module LooksMenuSliders
                 If entry IsNot Nothing Then
                     tri.AddMorph(shapeName, entry)
                     ' Los morphs UV NO se registran como sliders: f4ee lee la seccion de posiciones del
-                    ' PIRT y retorna sin tocar la seccion UV (BodyMorphInterface.cpp:150-304), asi que un
+                    ' PIRT y retorna sin tocar la seccion UV (BodyMorphInterface.cpp), asi que un
                     ' slider UV en LooksMenu es un control muerto. El .tri SI la sigue llevando porque
-                    ' skee64 (RaceMenu) si la lee (BodyMorphInterface.cpp:953-1042).
+                    ' skee64 (RaceMenu) si la lee (BodyMorphInterface.cpp).
                     If addAdditional AndAlso Not morphIsUV(ci) Then
                         Dim mname = morphNames(ci)
                         For Each g In genders

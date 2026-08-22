@@ -215,7 +215,7 @@ Public Class OcclusionRaytracer
         r.UsaBlend = mat.HasAlphaBlend
 
         ' ⛔ `MaterialData.UseVertexAlpha` es Friend de la libreria, asi que el predicado se rearma aca
-        ' con la MISMA ley (Render.vb:2408-2431): hay alpha de vertice si la shape muestra color de
+        ' con la MISMA ley (Render.vb): hay alpha de vertice si la shape muestra color de
         ' vertice Y la geometria lo tiene, salvo en Tree/TreeAnim, que usan ese canal para otra cosa.
         Dim shp = mesh.MeshData.Shape
         Dim geo = mesh.MeshData.Meshgeometry.Geometry

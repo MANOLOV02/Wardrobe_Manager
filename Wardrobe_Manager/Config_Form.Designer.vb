@@ -65,7 +65,6 @@ Partial Class Config_Form
         Button8 = New Button()
         Button7 = New Button()
         GroupBoxLooksmenu = New GroupBox()
-        CheckBoxLMASkipManoloFixes = New CheckBox()
         CheckBoxLMReseteachBuild = New CheckBox()
         CheckBoxLMAddAditionals = New CheckBox()
         LabelLMGender = New Label()
@@ -541,7 +540,6 @@ Partial Class Config_Form
         ' 
         ' GroupBoxLooksmenu
         ' 
-        GroupBoxLooksmenu.Controls.Add(CheckBoxLMASkipManoloFixes)
         GroupBoxLooksmenu.Controls.Add(CheckBoxLMReseteachBuild)
         GroupBoxLooksmenu.Controls.Add(CheckBoxLMAddAditionals)
         GroupBoxLooksmenu.Controls.Add(LabelLMGender)
@@ -552,22 +550,9 @@ Partial Class Config_Form
         GroupBoxLooksmenu.TabIndex = 28
         GroupBoxLooksmenu.TabStop = False
         GroupBoxLooksmenu.Text = "Looks menu integration (Needs .esp instaled)"
-        ' 
-        ' CheckBoxLMASkipManoloFixes
-        ' 
-        CheckBoxLMASkipManoloFixes.AutoSize = True
-        CheckBoxLMASkipManoloFixes.Checked = True
-        CheckBoxLMASkipManoloFixes.CheckState = CheckState.Checked
-        CheckBoxLMASkipManoloFixes.Location = New Point(177, 22)
-        CheckBoxLMASkipManoloFixes.Name = "CheckBoxLMASkipManoloFixes"
-        CheckBoxLMASkipManoloFixes.Size = New Size(216, 19)
-        CheckBoxLMASkipManoloFixes.TabIndex = 31
-        CheckBoxLMASkipManoloFixes.Text = "Skip Wardrobe manager ""Fix"" sliders"
-        ToolTip1.SetToolTip(CheckBoxLMASkipManoloFixes, "Skip Wardrobe Manager Fix sliders when exporting additional LooksMenu sliders.")
-        CheckBoxLMASkipManoloFixes.UseVisualStyleBackColor = True
-        ' 
+        '
         ' CheckBoxLMReseteachBuild
-        ' 
+        '
         CheckBoxLMReseteachBuild.AutoSize = True
         CheckBoxLMReseteachBuild.Checked = True
         CheckBoxLMReseteachBuild.CheckState = CheckState.Checked
@@ -1151,7 +1136,6 @@ Partial Class Config_Form
     Friend WithEvents Button8 As Button
     Friend WithEvents Button7 As Button
     Friend WithEvents GroupBoxLooksmenu As GroupBox
-    Friend WithEvents CheckBoxLMASkipManoloFixes As CheckBox
     Friend WithEvents CheckBoxLMReseteachBuild As CheckBox
     Friend WithEvents CheckBoxLMAddAditionals As CheckBox
     Friend WithEvents LabelLMGender As Label

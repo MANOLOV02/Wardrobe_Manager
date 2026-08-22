@@ -119,7 +119,7 @@ Public Class SplitShapeHelper
         ' 6. Clone NIF shape while original still has full vertex data.  CloneShape_Original
         ' takes INiShape so it works for any supported family (BSTriShape, BSSubIndex,
         ' NiTriShape, BSSegmented, etc.).  NiflySharp's BSSubIndexTriShape copy constructor
-        ' (BSSubIndexTriShape.g.cs:84-92) deep-clones both _segment (ConvertAll +
+        ' (BSSubIndexTriShape.g.cs) deep-clones both _segment (ConvertAll +
         ' BSGeometrySegmentData.DeepClone) and _segmentData (BSGeometrySegmentSharedData
         ' .DeepClone) — split half ends up with structurally independent segmentation, no
         ' alias breaking required from app side.

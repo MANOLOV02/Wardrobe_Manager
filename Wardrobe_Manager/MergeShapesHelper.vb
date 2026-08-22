@@ -165,7 +165,7 @@ Public Class MergeShapesHelper
         ' arrays to mergedArrays.  Works for any shape family — BoneIndices is a flat
         ' byte array regardless of whether skin came from BSVertexData (BS) or
         ' NiSkinData/NiSkinPartition (NiTri).  The donor's inline indices reference the
-        ' DONOR palette; ShapeArrays.Append keeps the TARGET palette (SkinningHelper.vb:1302),
+        ' DONOR palette; ShapeArrays.Append keeps the TARGET palette (SkinningHelper.vb),
         ' so the indices MUST be remapped to the merged palette here, BEFORE Append, for both
         ' skin families.  FO4 uses donorBoneRemaps (step 1); SSE uses niDonorBoneRemaps (1b).
         ' The two are mutually exclusive per shape (BSSkin_Instance XOR NiSkinInstance), so the
@@ -403,7 +403,7 @@ Public Class MergeShapesHelper
     '''
     ''' Conservative semantic routing — superset of BS-OS CopyGeo with strict safety.
     ''' OS rejects merges whose source/target segmentation differs at all (CheckMerge at
-    ''' OutfitProject.cpp:3917-3943 requires identical SSFFile, identical segs.size,
+    ''' OutfitProject.cpp requires identical SSFFile, identical segs.size,
     ''' identical sub counts, identical userSlotID + material per (si, ssi) position).  When
     ''' OS accepts, every donor sub matches a target sub by structural equality, so
     ''' triParts copied verbatim from donor land in the equivalent target slot.  We
@@ -458,7 +458,7 @@ Public Class MergeShapesHelper
             If donorSnap.IsEmpty Then
                 ' Donor has no segmentation — its triangles already default to 0 in
                 ' merged.TriParts (init loop in GetSegmentation sets -1, SetSegmentation's
-                ' guard at BSTriShapeGeometry.vb:698 then leaves triParts[i] at 0).
+                ' guard in BSTriShapeGeometry.vb then leaves triParts[i] at 0).
                 triCursor += donorTriCount
                 Continue For
             End If

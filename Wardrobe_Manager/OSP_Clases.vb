@@ -256,7 +256,7 @@ Public Class SliderPresetCollection
                 For Each ss In xp.Elements("SetSlider")
                     Dim sliderName = ss.Attribute("name")?.Value
                     ' ⭐ El filtro de `size` va ANTES de validar `value`: el canonico descarta la entrada
-                    ' por size primero (SliderPresets.cpp:218-221) y ni mira el resto. Al reves, una
+                    ' por size primero (SliderPresets.cpp) y ni mira el resto. Al reves, una
                     ' entrada que el canonico saltea entera pero con `value` corrupto tiraba
                     ' InvalidDataException y el Catch de mas abajo se llevaba TODOS los presets del
                     ' archivo, donde BodySlide solo se saltea esa linea.
@@ -364,7 +364,7 @@ Public Class OSD_Class
                         For y As Int32 = 0 To DifDatas - 1
                             Dim idx = reader.ReadUInt16()
                             ' Clamp por componente igual que BodySlide, que lo hace al PARSEAR el .osd
-                            ' (DiffData.cpp:177 -> nifly Vector3::clampEpsilon, EPSILON = 1e-4f), no al
+                            ' (DiffData.cpp -> nifly Vector3::clampEpsilon, EPSILON = 1e-4f), no al
                             ' emitir. Por eso su geometria de build tambien esta clampeada, no solo el .tri.
                             ' Este es el UNICO lector de OSD del repo y llena aca DataDiff + los dos
                             ' arrays compactos, asi que no pueden desincronizarse.
@@ -503,7 +503,7 @@ Public Class OSD_Class
             Using Writer As New IO.BinaryWriter(stream)
 
                 ' BodySlide indexa los bloques del .osd con `outDataDiffs.emplace(dataName, ...)` sobre
-                ' un unordered_map (DiffData.cpp:181): emplace NO sobreescribe, asi que ante nombres
+                ' un unordered_map (DiffData.cpp): emplace NO sobreescribe, asi que ante nombres
                 ' repetidos se queda con el PRIMERO y descarta el resto. WM en cambio los SUMA
                 ' (LoadMorphTargets apila todos los RelatedOSDBlocks y ApplyMorph_CPU acumula), y
                 ' MaterializeEditableLocalBlocks los crea homonimos a proposito. Sin fusionar, un .osd
@@ -563,7 +563,7 @@ Public Class OSD_Class
     ''' ⛔ Es el gate de los .osd locales MÚLTIPLES. Un mismo nombre en dos archivos NO es
     ''' representable una vez que Save_Shapedatas colapsa todo a un solo archivo:
     '''   · <see cref="MergeBlocksByName"/> los SUMARÍA en uno solo, y
-    '''   · BodySlide, que indexa con <c>emplace</c> (DiffData.cpp:181), se queda con el PRIMERO y
+    '''   · BodySlide, que indexa con <c>emplace</c> (DiffData.cpp), se queda con el PRIMERO y
     '''     descarta el resto.
     ''' O sea que uno de los dos morphs se pierde por cualquiera de los dos caminos. Por eso se
     ''' rechaza al CARGAR y no al guardar: así el estado inconsistente nunca llega a existir en
@@ -2377,7 +2377,7 @@ Public Class OSP_Project_Class
 
             ' N .osd LOCALES: permitido. El canónico los soporta — SliderSet::LoadSetDiffData indexa
             ' por (archivo, bloque) y la ÚNICA diferencia entre local y externo es la carpeta donde
-            ' busca (SliderSet.cpp:337-341). El gate anterior rechazaba N>=2 de plano y por eso
+            ' busca (SliderSet.cpp). El gate anterior rechazaba N>=2 de plano y por eso
             ' "COR - CBBE Body Special" (CBBE Body.osd + CBBE Body Special.osd) no cargaba ni se
             ' construía, siendo el único de sus 9 proyectos que fallaba.
             '
@@ -3221,14 +3221,6 @@ Public Class SliderSet_Class
         Return 0
     End Function
 
-    ''' <summary>
-    ''' Fija el valor vivo de cada slider para el peso pedido, y ADEMAS deja resuelto
-    ''' <see cref="Slider_class.Zap_Setting_Big"/>: los ZAPS se deciden SIEMPRE con el valor BIG y
-    ''' el MISMO conjunto de vertices se borra de los dos pesos — `zapIdxAll` se llena unicamente en
-    ''' la rama `vbig` (BodySlideApp.cpp:4382-4386) y ese mismo `shapeZapIdx` se aplica a `nifBig` y
-    ''' a `nifSmall` (:3616-3624 y :3643-3649). Decidir el zap por size hacia que `_0` y `_1`
-    ''' tuvieran topologias distintas y que el .tri quedara indexado contra una sola de las dos.
-    ''' </summary>
     ''' <summary>Los DOS campos que el canónico mantiene por slider. <c>NaN</c> = el campo quedó en el
     ''' centinela, o sea que ningún <c>&lt;SetSlider&gt;</c> lo escribió y hay que caer al default del
     ''' propio slider.</summary>
@@ -3286,7 +3278,7 @@ Public Class SliderSet_Class
     ''' Qué campos hay que ESCRIBIR en el .xml de un preset, para este outfit. Devuelve
     ''' <c>nombre → (big, small)</c> con <c>NaN</c> en el campo que NO se emite.
     '''
-    ''' ⭐ Es la ley del canónico (<c>SliderManager::SavePreset</c>, SliderManager.h:50-65):
+    ''' ⭐ Es la ley del canónico (<c>SliderManager::SavePreset</c>, SliderManager.h):
     ''' <code>
     ''' for (s : slidersBig) {
     '''     if (SliderHasChanged(s.name, true))  SetSliderPreset(preset, s.name, s.value);
@@ -3361,6 +3353,14 @@ Public Class SliderSet_Class
         Return salida
     End Function
 
+    ''' <summary>
+    ''' Fija el valor vivo de cada slider para el peso pedido, y ADEMAS deja resuelto
+    ''' <see cref="Slider_class.Zap_Setting_Big"/>: los ZAPS se deciden SIEMPRE con el valor BIG y
+    ''' el MISMO conjunto de vertices se borra de los dos pesos — `zapIdxAll` se llena unicamente en
+    ''' la rama `vbig` (BodySlideApp.cpp) y ese mismo `shapeZapIdx` se aplica a `nifBig` y
+    ''' a `nifSmall`. Decidir el zap por size hacia que `_0` y `_1`
+    ''' tuvieran topologias distintas y que el .tri quedara indexado contra una sola de las dos.
+    ''' </summary>
     Public Sub SetPreset(Preset As SlidersPreset_Class, Weight As WM_Config.SliderSize)
         Dim plegado = PliegaPreset(Preset)
         ApplyZapToggles(plegado)
@@ -3373,7 +3373,7 @@ Public Class SliderSet_Class
     End Sub
 
     ''' <summary>
-    ''' Pre-pase de zapToggles, replica de BodySlideApp.cpp:4285-4320 (la fase 0 de BuildListBodies,
+    ''' Pre-pase de zapToggles, replica de BodySlideApp.cpp (la fase 0 de BuildListBodies,
     ''' ANTES de aplicar ningun slider):
     ''' <code>
     ''' for (s = 0; s &lt; currentSet.size(); s++) {
@@ -3399,7 +3399,7 @@ Public Class SliderSet_Class
     ''' <item>Dos zaps que apuntan al mismo destino lo voltean DOS veces = queda como estaba; de ahi
     '''       el <c>Not</c> en vez de un <c>True</c>.</item>
     ''' </list>
-    ''' El lookup del destino es <c>SliderSet::operator[](const std::string&amp;)</c> (SliderSet.h:362),
+    ''' El lookup del destino es <c>SliderSet::operator[](const std::string&amp;)</c> (SliderSet.h),
     ''' que compara con <c>==</c> de std::string: ORDINAL y sensible a mayusculas. Un nombre que no
     ''' existe devuelve un slider estatico <c>Empty</c> - mutarlo no hace nada - asi que aca un
     ''' destino desconocido simplemente se ignora.
@@ -3438,15 +3438,15 @@ Public Class SliderSet_Class
     ''' <summary>
     ''' Valor que le corresponde a un slider para un peso, con el preset aplicado.
     '''
-    ''' ⭐ MODELO CANÓNICO, replica de <c>PresetCollection</c> (SliderPresets.cpp:40-95). Un preset NO
+    ''' ⭐ MODELO CANÓNICO, replica de <c>PresetCollection</c> (SliderPresets.cpp). Un preset NO
     ''' es una lista de entradas: por slider son DOS CAMPOS, <c>big</c> y <c>small</c>, sembrados con
     ''' el centinela <c>-10000</c>. Cada <c>&lt;SetSlider&gt;</c> PISA el campo que le toca
-    ''' (<c>SetSliderPreset</c>:65-70) ⇒ gana la ÚLTIMA entrada del archivo, y
-    ''' <c>size="both"</c> pisa los DOS (<c>s = b = o</c>, :230). Al resolver,
+    ''' (<c>SetSliderPreset</c>) ⇒ gana la ÚLTIMA entrada del archivo, y
+    ''' <c>size="both"</c> pisa los DOS (<c>s = b = o</c>). Al resolver,
     ''' <c>GetBigPreset</c>/<c>GetSmallPreset</c> devuelven false si el campo quedó en el centinela, y
-    ''' el llamador cae al default del propio slider (:83-95).
+    ''' el llamador cae al default del propio slider.
     '''
-    ''' ⛔ Tres divergencias MEDIDAS el 2026-08-03 que esto corrige, todas preexistentes:
+    ''' ⛔ Tres divergencias MEDIDAS que esto corrige, todas preexistentes:
     ''' <list type="number">
     ''' <item>La rama de FO4 resolvía con <c>FirstOrDefault</c> ⇒ ganaba la PRIMERA entrada, y además
     '''   prefería <c>Default</c> sobre <c>Big</c>. Con el preset `Manolo` del usuario (53 sliders con
@@ -3469,7 +3469,7 @@ Public Class SliderSet_Class
 
         ' El pase de peso Small lee el campo small; todo lo demás (Big y Default) lee el big — que es
         ' lo que hace BodySlide cuando no hay GenWeights: usa `vbig`/`defBigValue` y `vsmall` sólo
-        ' existe dentro de `if (currentSet.GenWeights())` (BodySlideApp.cpp:4356-4364).
+        ' existe dentro de `if (currentSet.GenWeights())` (BodySlideApp.cpp).
         If Weight = WM_Config.SliderSize.Small Then
             If Not Single.IsNaN(vSmall) Then result = vSmall
         Else
@@ -3576,7 +3576,7 @@ Public Class SliderSet_Class
 
     ''' <summary>
     ''' Dos o más <c>&lt;Slider&gt;</c> con el MISMO <c>name</c> son UNO solo, con la unión de sus
-    ''' <c>&lt;Data&gt;</c>. Es la ley del canónico (SliderSet.cpp:263-283): al encontrar un homónimo
+    ''' <c>&lt;Data&gt;</c>. Es la ley del canónico (SliderSet.cpp): al encontrar un homónimo
     ''' fusiona sus dataFiles en el que ya estaba y NO agrega un segundo slider — sus atributos
     ''' (<c>default</c>, <c>zap</c>, <c>invert</c>…) se descartan, gana el primero.
     '''
@@ -3588,7 +3588,7 @@ Public Class SliderSet_Class
     '''
     ''' Del homónimo sólo se toman los <c>&lt;Data&gt;</c> cuyo <c>target</c> el primero todavía no
     ''' cubre. No es una simplificación: el canónico los apila todos, pero después resuelve con
-    ''' <c>TargetDataName</c> (SliderData.h:52-58), que devuelve el PRIMERO de ese target ⇒ los
+    ''' <c>TargetDataName</c> (SliderData.h), que devuelve el PRIMERO de ese target ⇒ los
     ''' repetidos le quedan muertos. Quedándonos con el mismo conjunto efectivo, la validación de
     ''' duplicados sigue sirviendo para los archivos de verdad rotos.
     ''' Comparación ordinal en los dos ejes: el canónico usa <c>==</c> de <c>std::string</c>.
@@ -3736,7 +3736,7 @@ Public Class SliderSet_Class
         Return best
     End Function
     ''' <summary>HH_OFFSET tal como lo resuelve el motor: el PRIMERO del recorrido (la raíz antes
-    ''' que los hijos), NO el máximo. Verificado en skee/RaceMenu: SkeletonExtender.cpp:162 usa
+    ''' que los hijos), NO el máximo. Verificado en skee/RaceMenu: SkeletonExtender.cpp usa
     ''' FindExtraData, que es VisitObjects cortando en el primer hit, y mete el float en la pos Z
     ''' del nodo "NPC". El máximo viejo mentía cuando un NIF traía dos HH_OFFSET distintos e
     ''' ignoraba el de la RAÍZ (sólo miraba shapes). Y `Dim maxhh = 0` inferÍa INTEGER — el proyecto
@@ -4087,7 +4087,8 @@ Public Class SliderSet_Class
     End Sub
 
     ' KeepZappedShapes / PreventMorphFile are BodySlide-format flags that belong on the <OutputFile>
-    ' element — that is where the constructor seeds them (2555-2558) and where BodySlide reads/writes
+    ' element — that is where the parameterless "New project" constructor (Sub New(OSP As
+    ' OSP_Project_Class), above) seeds them and where BodySlide reads/writes
     ' them, exactly like GenWeights. Some older WM builds wrote these two onto the <SliderSet> root
     ' (Nodo) by mistake, so an existing project may carry the user's value there. Read the legacy
     ' root placement FIRST (it must win: the constructor always seeds OutputFile with the "false"
@@ -4163,7 +4164,7 @@ Public Class SliderSet_Class
             ' para Multisize() como para qué atributo de default se lee (ver Default_Setting).
             ' WM siempre lo escribe explícito al crear un sliderset, y el corpus medido (4.510 sets)
             ' no tiene ninguno sin él, así que esto sólo gobierna archivos de terceros.
-            ' `<OutputFile>` ausente tambien => True: SliderSet.cpp:212 inicializa genWeights=true ANTES
+            ' `<OutputFile>` ausente tambien => True: SliderSet.cpp inicializa genWeights=true ANTES
             ' de comprobar si el nodo existe. Sin este guard esto tiraba NRE.
             Dim node = OutputFile
             If IsNothing(node) OrElse IsNothing(node.Attributes("GenWeights")) Then
@@ -4181,7 +4182,7 @@ Public Class SliderSet_Class
         End Get
         Set(value As Boolean)
             ' Un .osp de terceros puede no traer <OutputFile>. El getter lo tolera y devuelve True
-            ' (SliderSet.cpp:212 inicializa genWeights=true antes de mirar el nodo), pero el setter
+            ' (SliderSet.cpp inicializa genWeights=true antes de mirar el nodo), pero el setter
             ' desreferenciaba el owner y tiraba NRE. Salir en silencio tampoco sirve: quien llama es
             ' el checkbox del editor, que se quedaria destildado mientras GenWeights sigue en True y
             ' el build emite _0/_1 contra lo que muestra la UI. Se CREA el nodo, con la misma
@@ -4229,7 +4230,7 @@ Public Class SliderSet_Class
     ''' La ruta que se estampa en el <c>BODYTRI</c> del NIF de salida: relativa a <c>Meshes\</c>, que es
     ''' como la resuelven f4ee (FO4) y skee (SSE).
     '''
-    ''' Se calcula igual que el canónico (BodySlideApp.cpp:4578-4584), sobre el path RELATIVO del
+    ''' Se calcula igual que el canónico (BodySlideApp.cpp), sobre el path RELATIVO del
     ''' proyecto y con dos pasadas: colapsar corridas de separadores, y borrar todo hasta el ÚLTIMO
     ''' <c>meshes\</c> (el <c>.*</c> es greedy) sin distinguir mayúsculas.
     '''
@@ -4343,7 +4344,7 @@ Public Class SliderSet_Class
     ''' de <see cref="Slider_Data_class.TargetOsd"/> reconstruye el texto como
     ''' <c>valor &amp; "\" &amp; TargetSlider</c>, y <c>TargetSlider</c> es el SEGUNDO segmento
     ''' (<c>parts(1)</c>), no el último. El canónico en cambio normaliza '/'→'\' primero
-    ''' (StringStuff.cpp:47-53) y recién ahí parte por el ÚLTIMO separador (SliderSet.cpp:355-362).
+    ''' (StringStuff.cpp) y recién ahí parte por el ÚLTIMO separador (SliderSet.cpp).
     ''' O sea que con un texto de TRES segmentos (<c>sub\file.osd\bloque</c>) o de UNO
     ''' (<c>file.osd/bloque</c>, sin backslash) el setter BORRARÍA el nombre del bloque — en silencio, y
     ''' sin vuelta atrás una vez grabado el .osp.
@@ -4377,7 +4378,7 @@ Public Class SliderSet_Class
             For Each dat In slid.Datas
                 If Not dat.Islocal Then Continue For
                 ' <Data/> sin texto: FullText tiraría NullReference. El canónico lo descarta igual
-                ' (fileName vacío no llega a los 4 caracteres que exige SliderSet.cpp:326).
+                ' (fileName vacío no llega a los 4 caracteres que exige SliderSet.cpp).
                 If dat.Nodo Is Nothing OrElse dat.Nodo.FirstChild Is Nothing Then Continue For
                 If dat.FullText.Split("\"c).Length <> 2 Then Continue For
                 If dat.TargetOsd.Equals(destinoOsd, StringComparison.OrdinalIgnoreCase) Then Continue For
@@ -4654,7 +4655,7 @@ Public Class SliderSet_Class
         '     Chef.osd.
         '
         ' Es lo mismo que hace OutfitStudio al guardar: un solo .osd y el .osp reescrito para
-        ' apuntarle (OutfitProject.cpp:468-469 + :598).
+        ' apuntarle (OutfitProject.cpp).
         '
         ' ⛔ Sólo si Save_As escribió DE VERDAD. Si el usuario dijo "No" al reemplazar, re-apuntar los
         ' <Data> dejaría el .osp señalando un archivo que no existe.
@@ -5006,7 +5007,7 @@ Public Class Shape_class
         End Get
     End Property
     ''' <summary>Ausente ⇒ el TEXTO del <c>&lt;Shape&gt;</c>, como
-    ''' <c>if (shape.targetShape.empty()) shape.targetShape = shapeText;</c> (SliderSet.cpp:250-253).
+    ''' <c>if (shape.targetShape.empty()) shape.targetShape = shapeText;</c> (SliderSet.cpp).
     ''' Sin el guard esto tiraba NRE con un .osp que no lo trajera.</summary>
     Public Property Target As String
         Get
@@ -5089,24 +5090,6 @@ Public Class Slider_class
         End Set
     End Property
 
-''' <summary>
-''' Un atributo booleano del .osp, con la ley EXACTA del canonico
-''' (<c>StringsEqualNInsens(attr, "true", 4)</c>, SliderData.cpp + StringStuff.cpp:8-17):
-''' ausente ⇒ False, y presente ⇒ True solo si sus PRIMEROS 4 caracteres son "true" sin
-''' distinguir caja. O sea <c>"True"</c> y <c>"TRUExyz"</c> son True, y ⛔ <c>"1"</c> es
-''' <b>False</b>, igual que <c>"tru"</c> o <c>"yes"</c>.
-'''
-''' ⛔ Esto NO es lo que hacian los getters. <c>Return Nodo.Attributes("zap").Value</c> con
-''' Option Strict Off pasa por <c>Conversions.ToBoolean(String)</c>, que da True para
-''' <c>"1"</c> (el canonico da False) y <b>LANZA InvalidCastException</b> con cualquier
-''' valor que no sea numerico ni true/false — <c>"yes"</c> volteaba el proyecto entero a
-''' ilegible donde BodySlide simplemente lee False. Y <c>Islocal</c> comparaba
-''' <c>= "true"</c> con Option Compare Binary, o sea case-SENSITIVE: <c>local="True"</c>
-''' daba False y el .osd se buscaba en la carpeta equivocada.
-'''
-''' ⚠️ El corpus no puede exhibir nada de esto: los 4.710 sliderSets del disco escriben
-''' estos atributos solo en minusculas, y <c>clamp</c> no aparece NUNCA. El gate es sintetico.
-''' </summary>
     ''' <summary>
     ''' Un atributo numerico del .osp con la ley del canonico (<c>FloatAttribute</c> de tinyxml2):
     ''' ausente O NO PARSEABLE ⇒ <b>0</b>, nunca una excepcion.
@@ -5125,6 +5108,24 @@ Public Class Slider_class
         Return v
     End Function
 
+    ''' <summary>
+    ''' Un atributo booleano del .osp, con la ley EXACTA del canonico
+    ''' (<c>StringsEqualNInsens(attr, "true", 4)</c>, SliderData.cpp + StringStuff.cpp):
+    ''' ausente ⇒ False, y presente ⇒ True solo si sus PRIMEROS 4 caracteres son "true" sin
+    ''' distinguir caja. O sea <c>"True"</c> y <c>"TRUExyz"</c> son True, y ⛔ <c>"1"</c> es
+    ''' <b>False</b>, igual que <c>"tru"</c> o <c>"yes"</c>.
+    '''
+    ''' ⛔ Esto NO es lo que hacian los getters. <c>Return Nodo.Attributes("zap").Value</c> con
+    ''' Option Strict Off pasa por <c>Conversions.ToBoolean(String)</c>, que da True para
+    ''' <c>"1"</c> (el canonico da False) y <b>LANZA InvalidCastException</b> con cualquier
+    ''' valor que no sea numerico ni true/false — <c>"yes"</c> volteaba el proyecto entero a
+    ''' ilegible donde BodySlide simplemente lee False. Y <c>Islocal</c> comparaba
+    ''' <c>= "true"</c> con Option Compare Binary, o sea case-SENSITIVE: <c>local="True"</c>
+    ''' daba False y el .osd se buscaba en la carpeta equivocada.
+    '''
+    ''' ⚠️ El corpus no puede exhibir nada de esto: los 4.710 sliderSets del disco escriben
+    ''' estos atributos solo en minusculas, y <c>clamp</c> no aparece NUNCA. El gate es sintetico.
+    ''' </summary>
     Friend Shared Function AtributoBooleano(nodo As XmlNode, nombre As String) As Boolean
         Dim attr = nodo.Attributes(nombre)
         If IsNothing(attr) Then Return False
@@ -5154,10 +5155,10 @@ Public Class Slider_class
     ''' <summary>
     ''' Nombres de los zaps ENCADENADOS a este. Cuando este zap sale de su estado por defecto,
     ''' el default de cada uno de estos se INVIERTE (100 - x).
-    ''' Canonico <c>SliderData::LoadSliderData</c> (SliderData.cpp:70-74):
+    ''' Canonico <c>SliderData::LoadSliderData</c> (SliderData.cpp):
     ''' <code>if (bZap) { wxStringTokenizer tokenizer(element->Attribute("zaptoggles"), ";"); ... }</code>
     ''' Solo se lee si el slider es ZAP, y wxStringTokenizer en su modo por defecto DESCARTA los
-    ''' tokens vacios - por eso el <c>";"</c> final que escribe SliderSet.cpp:608-615 no produce
+    ''' tokens vacios - por eso el <c>";"</c> final que escribe SliderSet.cpp no produce
     ''' un nombre vacio. Medido en el disco: 159 sliders con <c>zaptoggles</c> en 59 sliderSets,
     ''' CBBE incluido ("Remove Top" -> "TopZap;" -> "Backpack Support;").
     ''' </summary>
@@ -5173,7 +5174,7 @@ Public Class Slider_class
     ''' <summary>
     ''' Estado EN MEMORIA del pre-pase de <see cref="ZapToggles"/>: True = el default de este slider
     ''' esta invertido para esta construccion. El canonico muta <c>defBigValue</c>/<c>defSmallValue</c>
-    ''' del slider (BodySlideApp.cpp:4311-4317), pero ahi <c>currentSet</c> es una COPIA que se tira al
+    ''' del slider (BodySlideApp.cpp), pero ahi <c>currentSet</c> es una COPIA que se tira al
     ''' terminar el build. Aca el default vive en el XML del .osp, asi que escribirlo persistiria el
     ''' flip en el archivo del usuario: se guarda aparte y lo lee <see cref="EffectiveDefault"/>.
     ''' </summary>
@@ -5400,7 +5401,7 @@ Public Class Slider_Data_class
     End Sub
 
     ''' <summary>Ausente ⇒ el nombre del SLIDER que lo contiene, como
-    ''' <c>else tmpDataFile.dataName = name;</c> (SliderData.cpp:87-90). Sin el guard tiraba NRE.</summary>
+    ''' <c>else tmpDataFile.dataName = name;</c> (SliderData.cpp). Sin el guard tiraba NRE.</summary>
     Public Property Nombre As String
         Get
             Dim attr = Nodo.Attributes("name")
@@ -5500,7 +5501,7 @@ Public Class Slider_Data_class
     End Property
     ''' <summary>
     ''' ⛔ DESEMPATA POR ARCHIVO. El texto de un <c>&lt;Data&gt;</c> es <c>&lt;archivo.osd&gt;\&lt;bloque&gt;</c>:
-    ''' el canónico abre ESE archivo y busca el bloque ahí (SliderSet.cpp:355-381), así que un homónimo
+    ''' el canónico abre ESE archivo y busca el bloque ahí (SliderSet.cpp), así que un homónimo
     ''' en otro <c>.osd</c> no existe para él. WM carga todos los <c>.osd</c> externos del sliderSet en
     ''' UNA lista y los indexaba SÓLO por nombre ⇒ se llevaba los dos y
     ''' <c>WriteMorphTRI</c>/<c>ApplyMorph_CPU</c> los SUMAN ⇒ el morph salía con el DOBLE de amplitud.
@@ -5581,22 +5582,18 @@ Public Class Slider_Data_class
     ''' Returns the OSD block that holds (or will hold) the diffs for <paramref name="targetShape"/>
     ''' under <paramref name="slider"/>, materializing externals to local first.
     '''
-    ''' Bug history: previous version looked up the block by the canonical synthetic name
-    ''' <c>targetShape.Target.Replace(":","_") &amp; slider.Nombre</c>.  When the actual block
-    ''' name on disk differed from that synthetic form (e.g. external .osd authored with
-    ''' a different naming convention, or shape renamed after the .osd was authored), the
-    ''' name lookup missed the just-materialized block and a NEW EMPTY block was created.
-    ''' Donor diffs were appended into that empty block while the real block with the
-    ''' target's pre-existing diffs sat orphaned.  Result: morph application reads from
-    ''' one block in some flows, the empty/donor-only block in others — outcome depends on
-    ''' source/target choice and shape names, exactly the symptom seen.
+    ''' Trusts the data-by-target-attribute filter as the single source of truth: the block
+    ''' returned is whatever <see cref="MaterializeEditableLocalBlocks"/> produced for the local
+    ''' target Data (or the existing local block if already materialized). Only falls back to
+    ''' creating a brand-new block when no Data entry exists for the target — in that path the
+    ''' synthetic name (<c>targetShape.Target.Replace(":","_") &amp; slider.Nombre</c>) is safe
+    ''' because there is no prior block to conflict with.
     '''
-    ''' Fix: trust the data-by-target-attribute filter as the single source of truth.  The
-    ''' block returned is whatever <see cref="MaterializeEditableLocalBlocks"/> produced
-    ''' for the local target Data (or the existing local block if already materialized).
-    ''' Only fall back to creating a brand-new block when no Data entry exists for the
-    ''' target — in that path the synthetic name is correct because no prior block exists
-    ''' to conflict with it.
+    ''' ⛔ Looking up by that synthetic name FIRST is wrong when the actual on-disk block name
+    ''' differs from it (external .osd with another naming convention, or a shape renamed after
+    ''' the .osd was authored): the lookup misses the just-materialized block, creates a NEW EMPTY
+    ''' one, and donor diffs land there while the real block with the target's pre-existing diffs
+    ''' sits orphaned.
     ''' </summary>
     Public Shared Function GetEditableTargetBlock(targetShape As Shape_class,
                                                 slider As Slider_class,
