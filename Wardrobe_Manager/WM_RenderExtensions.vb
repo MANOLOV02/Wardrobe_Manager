@@ -300,7 +300,12 @@ Public Module WM_RenderExtensions
             Dim perdidos = 0
             Dim peorPerdida As Single = 0
             For Each sk In SkeletonInstance.Default.SkeletonDictionary
-                Dim tr = sk.Value.LocaLTransform
+                ' ⛔ SIN la capa de física. Una pose exportada es un archivo PERSISTIDO que el usuario
+                ' publica: si se horneara el delta de física, el .json traería la tela del frame exacto
+                ' en que se exportó, y al reabrirlo la pose vendría con esa tela congelada encima.
+                ' La física es del render, no de la pose. (Este es el único serializador fuera de la
+                ' librería que lee la composición del hueso, así que es el único sitio que lo necesita.)
+                Dim tr = sk.Value.LocaLTransformWithoutPhysics
                 Dim exacto As Boolean = True
                 Dim escalar = tr.EscalaComoEscalar(exacto)
                 If Not exacto Then
