@@ -3,6 +3,15 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
     <Platforms>x86;x64</Platforms>
+    <!-- ⛔ NETSDK1047 INTERMITENTE. MISMA trampa que FO4_Base_Library.vbproj (ahi esta la explicacion
+         larga, medida el 2026-08-23): `obj\project.assets.json` es UN SOLO archivo y el
+         `RuntimeIdentifier` de abajo esta condicionado por $(Platform), asi que la restauracion escribe
+         solo el target de la plataforma con la que corrio y la ultima pisa a la anterior. Aca el .sln
+         protege de una de las dos fuentes —remapea `Debug|Any CPU` -> `Debug|x64` en vez de dejarlo en
+         AnyCPU como hace FO4_NPC_Manager.sln con la lib—, pero NO protege de un `dotnet restore` /
+         `msbuild -t:Restore` tipeado sin -p:Platform. `RuntimeIdentifiers` (PLURAL) emite los DOS targets
+         siempre y no cambia la salida: la plataforma la sigue eligiendo `RuntimeIdentifier`/`PlatformTarget`. -->
+    <RuntimeIdentifiers>win-x64;win-x86</RuntimeIdentifiers>
     <RootNamespace>Wardrobe_Manager</RootNamespace>
     <StartupObject>Sub Main</StartupObject>
     <UseWindowsForms>true</UseWindowsForms>
