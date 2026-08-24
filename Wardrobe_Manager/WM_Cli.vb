@@ -267,8 +267,28 @@ Friend Module WM_Cli
         Dim nombreDentro = OptValue(args, "--preset-name")
         If Not String.IsNullOrWhiteSpace(nombrePreset) Then
             If WM_SliderPresets Is Nothing Then WM_SliderPresets = New SliderPresetCollection
-            If nombrePreset.EndsWith(".xml", StringComparison.OrdinalIgnoreCase) AndAlso File.Exists(nombrePreset) Then
-                WM_SliderPresets.LoadFromXml(Path.GetFullPath(nombrePreset))
+            If Not nombrePreset.EndsWith(".xml", StringComparison.OrdinalIgnoreCase) Then
+                ' ⛔ LA RAMA POR NOMBRE ERA INALCANZABLE. `PrintUsage` documenta `--preset <nombre|.xml>`,
+                ' pero el UNICO sitio que puebla la coleccion desde disco es `Lee_Listbox` (que corre en
+                ' la ventana principal), y el modo consola cancela el arranque de la GUI
+                ' (ApplicationEvents.vb:68-71). Asi que la coleccion llegaba siempre vacia y `--preset
+                ' "CBBE Curvy"` salia con "No se encontro el preset" y "Disponibles:" en blanco.
+                ' `SliderPresetsRoot` es Shared y sale de WM_Config, asi que no necesita la ventana.
+                ' `silencioso:=True` NO es opcional: sin el, UN solo .xml malformado de la carpeta abre un
+                ' MsgBox que en headless no cierra nadie — o sea que enumerar la carpeta convertiria un
+                ' defecto latente en uno seguro.
+                Try
+                    If IO.Directory.Exists(Wardrobe_Manager_Form.Directorios.SliderPresetsRoot) Then
+                        For Each xm In IO.Directory.EnumerateFiles(
+                                Wardrobe_Manager_Form.Directorios.SliderPresetsRoot, "*.xml")
+                            WM_SliderPresets.LoadFromXml(xm, silencioso:=True)
+                        Next
+                    End If
+                Catch ex As Exception
+                    Console.Error.WriteLine("Error enumerando SliderPresets: " & ex.Message)
+                End Try
+            ElseIf File.Exists(nombrePreset) Then
+                WM_SliderPresets.LoadFromXml(Path.GetFullPath(nombrePreset), silencioso:=True)
                 ' El nombre del preset dentro del archivo puede no coincidir con el del archivo. Con
                 ' uno solo se toma ese; con varios manda --preset-name.
                 If Not String.IsNullOrWhiteSpace(nombreDentro) Then

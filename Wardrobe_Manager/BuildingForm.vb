@@ -285,6 +285,13 @@ Public Class BuildingForm
                                 Dim zapMod As ZapGeometryModifier = Nothing
                                 zapMods.TryGetValue(shap, zapMod)
                                 If zapMod IsNot Nothing Then MorphingHelper.ReindexMorphsAfterZap(shap, zapMod.VertexRemap, remappedBlocks)
+                                ' El LOCKEDNORM viaja en el MISMO espacio de índices que los morphs y hay
+                                ' que renumerarlo con el mismo mapa: el canónico lo hace dentro de
+                                ' `DeleteVertsForShape` (nifly NifFile.cpp:4328-4353) y acá no lo hacía
+                                ' nadie. Va al lado de la reindexación de morphs, en la fase SERIAL.
+                                If zapMod IsNot Nothing AndAlso zapMod.VertexRemap IsNot Nothing Then
+                                    shap.IR_Geometry?.RemapLockedNormalIndices(zapMod.VertexRemap)
+                                End If
                                 ProgressBar1.Value += 3 ' account for extract+morph+bake steps
                                 If builder.KeepZappedShapes = False AndAlso geom.Vertices.Length = 0 Then
                                     builder.RemoveShape(shap)
@@ -359,38 +366,30 @@ Public Class BuildingForm
                     End If
 
                     If WM_Config.Current.Settings_Build.SaveTri AndAlso triWritten AndAlso triAllowed Then
-                        If Config_App.Current.Game = Config_App.Game_Enum.Skyrim Then
-                            ' ⛔ ORDINAL POR NOMBRE, no orden del documento. El canónico recorre
-                            ' `currentSet.ShapesBegin()`, que es un `std::map<std::string, SliderSetShape>`
-                            ' (SliderSet.h) — o sea ordenado por el nombre del shape, no por cómo estén
-                            ' los `<Shape>` en el .osp. WM recorría `Shapes`, que sale de un SelectNodes y
-                            ' viene en orden de documento: en un .osp cuyos `<Shape>` no estén alfabéticos
-                            ' el BODYTRI terminaba colgado de OTRO NiShape, y como sólo se estampa en uno,
-                            ' skee lo encuentra igual pero el NIF no es el que emite BodySlide.
-                            Dim triShapeName As String = Nothing
-                            For Each shap In builder.Shapes.OrderBy(Function(s) s.Nombre, StringComparer.Ordinal)
-                                Dim ns = shap.RelatedNifShape
-                                If ns IsNot Nothing AndAlso ns.VertexCount > 0 Then
-                                    triShapeName = ns.Name.String
-                                    Exit For
-                                End If
-                            Next
-                            If triShapeName IsNot Nothing Then
-                                builder.NIFContent.AddTriData(triShapeName, Tridata, False)
-                            End If
-                        Else
-                            builder.NIFContent.AddTriData("", Tridata, True)
-                        End If
+                        ' Purgar + elegir anfitrión + estampar, los tres pasos en un solo sitio:
+                        ' `NifContent_Class.SetTriData`, transcripción de `BodySlideApp.cpp:5113-5151`.
+                        ' `toRoot` es lo único game-aware: FO4/FO4VR/FO76 leen el BODYTRI del NODO RAÍZ y
+                        ' Skyrim/SSE de una shape (el comentario de :325-327 lo explica).
+                        '
+                        ' ⛔ ACÁ HABÍA UNA ELECCIÓN DE ANFITRIÓN POR ORDEN ALFABÉTICO, y su comentario
+                        ' citaba el `std::map<std::string, SliderSetShape>` de `SliderSet.h`. Ese map
+                        ' ordena el bucle de shapes de `BuildBodies`, NO la elección del anfitrión del
+                        ' BODYTRI: `SetTriData` la hace con `for (auto& shape : nif.GetShapes())`
+                        ' (BodySlideApp.cpp:5136-5141), o sea la primera shape con vértices en ORDEN DE
+                        ' BLOQUE y sobre TODAS las del NIF, no sólo las que lista el .osp. MEDIDO: 697 de
+                        ' los 2.393 sliderSets de SSE cambian de anfitriona. Es cambio de BYTES, no de
+                        ' comportamiento — skee recorre el árbol entero con `VisitObjects`
+                        ' (BodyMorphInterface.cpp:689-701), así que da igual de qué shape cuelgue mientras
+                        ' haya UNO SOLO, que es lo que la purga garantiza.
+                        builder.NIFContent.SetTriData(Tridata, Config_App.Current.Game <> Config_App.Game_Enum.Skyrim)
                     Else
-                        ' Limpieza game-aware: en SSE un BODYTRI heredado del NIF fuente puede colgar de un shape,
-                        ' así que lo quitamos de la raíz y de cada shape; en FO4 solo puede estar en la raíz.
-                        builder.NIFContent.RemoveTriData("", True)
-                        If Config_App.Current.Game = Config_App.Game_Enum.Skyrim Then
-                            For Each shap In builder.Shapes
-                                Dim ns = shap.RelatedNifShape
-                                If ns IsNot Nothing Then builder.NIFContent.RemoveTriData(ns.Name.String, False)
-                            Next
-                        End If
+                        ' ⛔ DIVERGENCIA DELIBERADA CON EL CANÓNICO, decidida por el usuario (24-ago-2026).
+                        ' Sin .tri, `BodySlideApp.cpp:4867-4882` NO llama a `SetTriData`: deja el BODYTRI
+                        ' heredado del NIF fuente Y borra el .tri del disco, o sea que el NIF construido
+                        ' queda apuntando a un archivo que no existe. Acá lo quitamos, que es más sano.
+                        ' Antes esto era un `RemoveTriData` por raíz y por shape, que sólo sacaba UNO por
+                        ' objetivo y no veía los que colgaran de otro lado; la purga los saca todos.
+                        builder.NIFContent.PurgarTodosLosBodyTri()
                     End If
 
                     ' High Heels. El alta/baja en el diccionario ya la hace la emisión (antes vivía

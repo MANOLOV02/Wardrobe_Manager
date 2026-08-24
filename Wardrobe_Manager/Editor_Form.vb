@@ -663,8 +663,31 @@ Public Class Editor_Form
         Pone_SLiders()
     End Sub
 
+    ''' <summary>Habilita los botones de preset. <paramref name="Opcion"/> es "hay una edición en curso".
+    ''' <para>⛔ SON DOS EJES INDEPENDIENTES y antes salían del MISMO booleano, uno de ellos negado:
+    ''' Guardar/Guardar como/Cancelar dependen de si hay algo sin guardar, pero <b>Borrar depende de si
+    ''' hay un preset ELEGIDO</b>. Con `ButtondelPreset.Enabled = Not Opcion`, la llamada
+    ''' `Habilita_Preset_Botones(False)` del final de `Actualiza_Preset` dejaba Borrar HABILITADO — y si
+    ''' el combo estaba vacío, `Button10_Click` reventaba con NullReferenceException y se llevaba la
+    ''' aplicación.</para></summary>
+    ''' <summary>True si se puede seguir adelante con un gesto que va a RE-SEMBRAR el preset.
+    ''' <para>⛔ <see cref="Actualiza_Preset"/> arranca con <c>Selected_Preset.Sliders.Clear()</c> y
+    ''' termina apagando la señal de "sin guardar", o sea que DESCARTA cualquier edición pendiente y
+    ''' además borra el aviso que la habría salvado al cerrar. Eso es correcto cuando el usuario lo pidió
+    ''' —cambiar de preset, Cancelar, la siembra inicial de <c>MarcaBones</c>— pero NO cuando es efecto
+    ''' colateral de otro gesto: cambiar la talla, quitar una shape, crear un zap o borrar un zap. Esos
+    ''' cuatro preguntan primero.</para>
+    ''' <para>La señal de "hay algo pendiente" es <c>ButtonSavePreset.Enabled</c>, que sólo se prende
+    ''' cuando el usuario mueve de verdad un slider del preset (<c>DynamicPresetTrackBar_MouseUp</c> y
+    ''' <c>PresetscrollTimer_Tick</c>, los dos únicos <c>Habilita_Preset_Botones(True)</c>).</para></summary>
+    Private Function ConfirmarDescarteDePreset() As Boolean
+        If Not ButtonSavePreset.Enabled Then Return True
+        Return MsgBox("You have unsaved slider values. Discard them?",
+                      vbYesNo Or vbExclamation, "Unsaved slider values") = MsgBoxResult.Yes
+    End Function
+
     Private Sub Habilita_Preset_Botones(Opcion As Boolean)
-        ButtondelPreset.Enabled = Not Opcion
+        ButtondelPreset.Enabled = (ComboBoxPresets.SelectedIndex <> -1)
         ButtonSavePreset.Enabled = Opcion
         ButtonSaveAsPreset.Enabled = Opcion
         ButtonCancelPreset.Enabled = Opcion
@@ -1336,6 +1359,7 @@ Public Class Editor_Form
     End Sub
 
     Private Sub Button1_Click(sender As Object, e As EventArgs) Handles ButtonRemoveSHape.Click
+        If Not ConfirmarDescarteDePreset() Then Exit Sub
         Dim removedIndex As Integer = ComboBoxShapes.SelectedIndex
         Selected_Slider.RemoveShape(Selected_Shape)
         If removedIndex >= 0 AndAlso removedIndex < ComboBoxShapes.Items.Count Then
@@ -1573,7 +1597,23 @@ Public Class Editor_Form
     Private Sub EditorControl_Shown(sender As Object, e As EventArgs) Handles Me.Shown
         If ComboBoxShapes.Items.Count > 0 Then ComboBoxShapes.SelectedIndex = 0
         Application.DoEvents()
+        ' ⛔ EL DEL INICIALIZADOR DE CAMPO (:1572) VIENE CON SU TEMPORIZADOR DE 16 ms YA ARRANCADO por el
+        ' ctor de PreviewControl, y hasta acá nadie lo apagaba: quedaba uno huérfano por CADA apertura del
+        ' editor, invalidando para siempre un control que nunca tuvo contexto gráfico. MEDIDO: un Timer de
+        ' WinForms arrancado y sin referencias sobrevive a dos `GC.Collect` + `WaitForPendingFinalizers` y
+        ' sigue tickeando; lo que lo para es el Dispose del control, que al huérfano no le llegaba.
+        '
+        ' NO se puede declarar el campo `= Nothing` (que es lo que hacen CreatefromNif_Form y
+        ' HkxPoseImport_Form): hay CINCO accesos anteriores a este punto, y el primero es dentro del
+        ' propio constructor — `InitializeComponent` hace `RadioButton1.Checked = True`
+        ' (Editor_Form.Designer.vb:1381) y su handler (:2163) desreferencia el control. Los otros cuatro
+        ' son `CheckBoxRenderFloor` (ctor), `Lee_Edit:893` y los dos handlers de Open_Editor:2802-2803.
+        '
+        ' `BeginTeardown` para y dispone el Timer SIN emitir una sola llamada GL (Render.vb:2225-2233),
+        ' que es exactamente lo que hace falta sobre un control sin contexto.
+        Dim previoSinUsar = EditPreviewControl
         EditPreviewControl = New PreviewControl With {.Dock = DockStyle.Fill}
+        If previoSinUsar IsNot Nothing AndAlso Not previoSinUsar.IsDisposed Then previoSinUsar.BeginTeardown()
         Panel1.Controls.Add(EditPreviewControl)
         EditPreviewControl.Model.SingleBoneSkinning = Config_App.Current.Setting_SingleBoneSkinning
         EditPreviewControl.AllowMask = True
@@ -1847,6 +1887,7 @@ Public Class Editor_Form
     End Sub
 
     Private Sub ZapCreate_Click(sender As Object, e As EventArgs) Handles ZapCreate.Click
+        If Not ConfirmarDescarteDePreset() Then Exit Sub
         Dim nombre = InputBox("Zap name", "New Zap", "")
         If nombre = "" Then Exit Sub
         If ListView2.Items.Find(nombre, False).Length > 0 Then
@@ -2088,6 +2129,7 @@ Public Class Editor_Form
     End Sub
 
     Private Sub DeleteZap_Click(sender As Object, e As EventArgs) Handles DeleteZap.Click
+        If Not ConfirmarDescarteDePreset() Then Exit Sub
         If MsgBox("Are you sure you want to delete this slider?", vbYesNo, "Warning") = MsgBoxResult.Yes Then
             Iniciado_Edit()
 
@@ -2313,7 +2355,12 @@ Public Class Editor_Form
                 Else
                     ComboBoxPresets.Items.Add(Nombre)
                 End If
-                ComboBoxPresets.SelectedIndex = ComboBoxPresets.FindString(Nombre)
+                ' ⛔ `FindString` busca por PREFIJO: devuelve el primer ítem que EMPIEZA con el texto, así
+                ' que guardar "Body" seleccionaba "BodySlim" si venía antes — y como el cambio de selección
+                ' dispara la carga, los valores de ESE preset se cargaban encima. `FindStringExact` compara
+                ' el nombre entero; devuelve -1 si no está, y asignar -1 a SelectedIndex es legal (deja el
+                ' combo sin selección), así que no hace falta guard.
+                ComboBoxPresets.SelectedIndex = ComboBoxPresets.FindStringExact(Nombre)
             End If
 
             If delete AndAlso contar = 0 Then
@@ -2468,11 +2515,15 @@ Public Class Editor_Form
     End Sub
 
     Private Sub Button10_Click(sender As Object, e As EventArgs) Handles ButtondelPreset.Click
-        Dim nombre = ComboBoxPresets.SelectedItem.ToString
-        Dim filename = WM_SliderPresets.Presets(nombre).Filename
-        If nombre <> "" Then
-            SavePresetXml(filename, nombre, True)
-        End If
+        ' ⛔ EL GUARD QUE HABÍA ESTABA MUERTO: el `If nombre <> ""` venía DESPUÉS de usar `nombre` como
+        ' clave del diccionario, así que no podía salvar de nada. Y `SelectedItem` no se comprobaba,
+        ' que era el NullReferenceException que cerraba la aplicación.
+        If ComboBoxPresets.SelectedItem Is Nothing Then Exit Sub
+        Dim nombre = ComboBoxPresets.SelectedItem.ToString()
+        If nombre = "" Then Exit Sub
+        Dim entrada As SlidersPreset_Class = Nothing
+        If Not WM_SliderPresets.Presets.TryGetValue(nombre, entrada) OrElse entrada Is Nothing Then Exit Sub
+        SavePresetXml(entrada.Filename, nombre, True)
     End Sub
 
     Private Sub CheckBoxShowVColors_CheckedChanged(sender As Object, e As EventArgs) Handles RenderCheckVertexColors.CheckedChanged
@@ -2936,7 +2987,30 @@ Public Class Editor_Form
         End If
     End Sub
 
+    ''' <summary>Bandera de la REVERSIÓN de la talla, para que el <c>SelectedIndexChanged</c> que dispara
+    ''' restaurar el índice no se procese como un cambio del usuario. Y el índice anterior, que es lo que
+    ''' se restaura. Arranca en −1: el primer cambio (el que siembra el combo al abrir el editor) pasa sin
+    ''' preguntar, que es lo correcto — ahí todavía no hay nada editado.</summary>
+    Private _revirtiendoTalla As Boolean
+    Private _indiceTallaPrevio As Integer = -1
+
     Private Sub ComboBoxSize_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ComboBoxSize.SelectedIndexChanged
+        If _revirtiendoTalla Then Exit Sub
+        Dim previo = _indiceTallaPrevio
+        _indiceTallaPrevio = ComboBoxSize.SelectedIndex
+        ' Cambiar la talla RE-SIEMBRA el preset (ver `ConfirmarDescarteDePreset`), así que si hay valores
+        ' sin guardar se pregunta — y si el usuario dice que no, se vuelve a la talla anterior en vez de
+        ' dejar el combo mostrando una y el modelo en otra.
+        If previo >= 0 AndAlso previo <> ComboBoxSize.SelectedIndex AndAlso Not ConfirmarDescarteDePreset() Then
+            _revirtiendoTalla = True
+            Try
+                ComboBoxSize.SelectedIndex = previo
+                _indiceTallaPrevio = previo
+            Finally
+                _revirtiendoTalla = False
+            End Try
+            Exit Sub
+        End If
         Selected_size = EffectiveSize(ComboBoxSize.SelectedIndex)
         Actualiza_Preset()
         Process_render_Changes(False)
@@ -3211,6 +3285,10 @@ Public Class Editor_Form
         End Using
     End Sub
     Private Sub ApplyConform(frm As Conform_Form)
+        ' El conform MUTA la shape, así que es una edición como cualquier otra: sin esta marca el editor
+        ' se cerraba sin preguntar y el trabajo se perdía. Es la misma función que llaman los otros 30
+        ' sitios que mutan algo (`Iniciado_Edit`, :44-48: pone `_Editando` y levanta `Edit_Begun`).
+        Iniciado_Edit()
         Process_render_Changes(True)
     End Sub
 End Class

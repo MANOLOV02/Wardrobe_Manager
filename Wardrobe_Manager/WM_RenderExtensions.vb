@@ -146,6 +146,18 @@ Public Module WM_RenderExtensions
                             (prevSlidersVersion <> seleccionado.SlidersVersion)
         Dim skipPresetApply = sameSet AndAlso Not presetChanged
 
+        ' ⚠️ DIAGNÓSTICO TEMPORAL [OS-RETURN] — "el preset de morphs desaparece al volver de Outfit
+        ' Studio" (2026-08-24). Ésta es LA decisión: con `skipPresetApply=True` no corre `SetPreset` y los
+        ' sliders se quedan con lo que dejó el reload, que es 0. Los tres términos que la componen van
+        ' desglosados para saber cuál manda. ⛔ BORRAR al cerrar el defecto.
+        Logger.LogLazy(Function() $"[OS-RETURN] Update_Render. skipPresetApply={skipPresetApply}" &
+                                  $" | sameSet={sameSet} (mismoSliderSet={s.Last_rendered Is seleccionado}" &
+                                  $" modelLimpiado={ctrl.Model.Cleaned} force={Force})" &
+                                  $" | presetChanged={presetChanged} (mismoObjetoPreset={prevPreset Is Preset}" &
+                                  $" preset={If(Preset Is Nothing, "NOTHING", Preset.Name)}" &
+                                  $" tallaPrevia={prevSize} talla={weight}" &
+                                  $" slidersVersionPrevia={prevSlidersVersion} slidersVersion={seleccionado.SlidersVersion})")
+
         ' Apply slider weights from preset. During animation playback the pose changes every
         ' tick, but the slider preset usually does not, so avoid reapplying morph setup.
         If Not skipPresetApply Then

@@ -56,10 +56,23 @@ Public Class Create_from_Nif_Form
             If IsNothing(selected_slider) Then Exit Sub
             If selected_slider.Unreadable_NIF Then Throw New Exception("Unreadable NIF")
             If selected_slider.Unreadable_Project Then Throw New Exception("Unreadable Project")
-            Dim OSPFIle = Path.Combine(Wardrobe_Manager_Form.Directorios.SliderSetsRoot, TextBox1.Text) + ".osp"
+            ' ⛔ EL NOMBRE SE VALIDA ANTES DE ARMAR NINGUNA RUTA. Con el cuadro vacío, el segundo
+            ' argumento de `Path.Combine` quedaba como "\nombre.nif", que Windows considera una ruta
+            ' ENRAIZADA (`Path.IsPathRooted("\.nif")` = True), y `Combine` DESCARTA el primer argumento:
+            ' la malla terminaba en "\.nif", o sea la raíz de la unidad, y el proyecto en
+            ' "…\SliderSets.osp" — hermano de la carpeta, no adentro. Sin excepción y sin aviso: hasta
+            ' creaba el directorio en la raíz. Con espacios tampoco fallaba: creaba una carpeta "  ".
+            ' Mismo criterio que `Editor_Form.ButtonRenderScreenshot_Click`.
+            Dim nombreProyecto As String = TextBox1.Text.Trim()
+            If String.IsNullOrEmpty(nombreProyecto) Then Throw New Exception("Enter a project name.")
+            If nombreProyecto.IndexOfAny(IO.Path.GetInvalidFileNameChars()) >= 0 Then
+                Throw New Exception("The project name has characters that are not valid in a file name.")
+            End If
+
+            Dim OSPFIle = Path.Combine(Wardrobe_Manager_Form.Directorios.SliderSetsRoot, nombreProyecto) + ".osp"
             If IO.File.Exists(OSPFIle) Then Throw New Exception("OSP File already exist")
-            Dim New_Nif = Path.Combine(Wardrobe_Manager_Form.Directorios.ShapedataRoot, TextBox1.Text + "\" + TextBox1.Text + ".nif")
-            Dim New_osd = Path.Combine(Wardrobe_Manager_Form.Directorios.ShapedataRoot, TextBox1.Text + "\" + TextBox1.Text + ".osd")
+            Dim New_Nif = Path.Combine(Wardrobe_Manager_Form.Directorios.ShapedataRoot, nombreProyecto, nombreProyecto + ".nif")
+            Dim New_osd = Path.Combine(Wardrobe_Manager_Form.Directorios.ShapedataRoot, nombreProyecto, nombreProyecto + ".osd")
 
             If Directory.Exists(Path.GetDirectoryName(New_Nif)) = False Then
                 Directory.CreateDirectory(Path.GetDirectoryName(New_Nif))
@@ -89,9 +102,11 @@ Public Class Create_from_Nif_Form
             If Not selected_slider.OSDContent_Local.Save_As(New_osd, False) Then
                 Throw New Exception("The osd file was not written, project not created: " & New_osd)
             End If
-            selected_slider.Nombre = TextBox1.Text
-            selected_slider.DataFolderValue = TextBox1.Text
-            selected_slider.SourceFileValue = TextBox1.Text + ".nif"
+            ' El nombre YA VALIDADO, no el crudo del cuadro: estos tres viajan al .osp y una carpeta de
+            ' datos con espacios al borde o con caracteres inválidos no se resuelve después.
+            selected_slider.Nombre = nombreProyecto
+            selected_slider.DataFolderValue = nombreProyecto
+            selected_slider.SourceFileValue = nombreProyecto + ".nif"
             Selected_OSP.Save_Pack_As(OSPFIle, False)
             selected_slider.BypassDiskShapeDataLoad = False
             selected_slider.ShapeDataLoaded = False

@@ -231,7 +231,13 @@ Public Class SliderPresetCollection
 
     End Sub
 
-    Public Sub LoadFromXml(path As String)
+    ''' <summary>Carga los presets de un .xml.
+    ''' <para><paramref name="silencioso"/> existe para el modo consola: el Catch de abajo abria un
+    ''' MsgBox, y en un `--build` headless ese cartel BLOQUEA para siempre porque no hay nadie que lo
+    ''' cierre. El resto del camino headless si esta cuidado —BuildingForm gatea sus dos dialogos con
+    ''' `Not Headless` y el CLI carga los .osp en modo CollectIssues, que nunca abre carteles—: este
+    ''' lector era el unico que se habia quedado afuera de ese diseno.</para></summary>
+    Public Sub LoadFromXml(path As String, Optional silencioso As Boolean = False)
         Try
             Dim doc = XDocument.Load(path)
             For Each xp In doc.Root.Elements("Preset")
@@ -292,7 +298,11 @@ Public Class SliderPresetCollection
                 Presets.Add(Nombre, p)
             Next
         Catch ex As Exception
-            MsgBox("Error reading Preset file " + path, vbCritical, "Error")
+            If silencioso Then
+                Console.Error.WriteLine("Error reading Preset file " & path & ": " & ex.Message)
+            Else
+                MsgBox("Error reading Preset file " + path, vbCritical, "Error")
+            End If
         End Try
 
     End Sub
@@ -2412,7 +2422,41 @@ Public Class OSP_Project_Class
             Sliderset_Target.RebuildShapeDataLookupCache()
 
             If Sliderset_Target.Shapes.Any(Function(pf) pf.RelatedNifShape Is Nothing) Then Throw New Exception("Shape without Nif Shapes different")
-            If Sliderset_Target.Sliders.SelectMany(Function(pf) pf.Datas).Where(Function(pq) pq.RelatedOSDBlocks.Any).Count > Sliderset_Target.Sliders.SelectMany(Function(pf) pf.Datas).Count Then Throw New Exception("Datas and OSD blocks different")
+            ' ⛔ ESTE GATE NO PODÍA FALLAR. Comparaba `Count(datas CON bloques) > Count(datas)`, y el
+            ' primero es un subconjunto del segundo: la desigualdad es matemáticamente imposible. O sea
+            ' que el proyecto que perdía morphs en silencio (ver `OsdExternalFullPath`) pasaba por acá
+            ' sin que nadie lo mirara. La comparación que sí mide es la contraria: si algún `<Data>` se
+            ' quedó sin bloques, hubo un .osd que no se pudo resolver o un bloque que no está adentro.
+            Dim datasDelSet = Sliderset_Target.Sliders.SelectMany(Function(pf) pf.Datas).ToList()
+            Dim datasSinBloques = datasDelSet.Where(Function(pq) Not pq.RelatedOSDBlocks.Any).Count
+            If datasSinBloques > 0 Then
+                ' ⛔ NI TIRA NI ABRE UN CUADRO — sólo registra. Y las dos cosas están medidas:
+                '
+                '   • TIRAR marcaría `Unreadable_NIF` en el Catch de abajo y el proyecto dejaría de
+                '     abrirse. MEDIDO sobre los 638.518 `<Data>` de los dos corpus: 169 sliderSets
+                '     tienen al menos un `<Data>` cuyo bloque no está en el .osd resuelto — 108 en FO4 y
+                '     61 en SSE. Perder el acceso a 169 proyectos que el usuario usa es peor que el
+                '     defecto que se quería avisar.
+                '   • REPORTARLO COMO ISSUE tampoco sirve: `ProcessCollectedLoadIssues` corre sobre
+                '     TODOS los proyectos tras `Lee_Listbox` (Wardrobe_Manager_Form.vb:633 y :417) y con
+                '     "Deep Analize" tildado eso llenaría el cuadro modal con 108 o 61 entradas en cada
+                '     refresco del diccionario. Se probó y se sacó: la dosis no es usable.
+                '
+                ' Y no son falsos positivos: `Nezzar Collection` apunta a un `CBBE Body SMP (3BBB).osd`
+                ' que no está instalado, y `UBE SE 2.0 Release TNG Addon + SMP Collision` tiene el .osd
+                ' pero NINGUNO de sus 515 nombres de bloque coincide.
+                '
+                ' ⚠️ PENDIENTE: surfacearlo bien es una decisión de UI que no está tomada — una marca por
+                ' proyecto en la lista, o una sección aparte del reporte, NO un modal que enumera 169.
+                ' El gate viejo comparaba `Count(datas con bloques) > Count(datas)`, que es imposible:
+                ' el problema nunca se vio porque nunca pudo dispararse.
+                ' ⛔ VB no deja capturar un parametro `ByRef` en un lambda (BC36639): se copia a un
+                ' local primero, que es lo que hace el resto del repo con `LogLazy`.
+                Dim nomSet = Sliderset_Target.Nombre
+                Dim nSin = datasSinBloques, nTot = datasDelSet.Count
+                Logger.LogLazy(Function() $"[OSD-SIN-BLOQUES] {nomSet}: " &
+                                          $"{nSin} de {nTot} <Data> sin bloque en el .osd resuelto")
+            End If
             If Sliderset_Target.Sliders.SelectMany(Function(pf) pf.Datas).Select(Function(pf) (pf.Nombre.ToLower + pf.ParentSlider.Nombre.ToLower)).GroupBy(Function(key) key).Any(Function(g) g.Count() > 1) Then Throw New Exception("Duplicated Slider Data")
 
             Sliderset_Target.LastProjectFileSignature = currentProjectSignature
@@ -4408,11 +4452,60 @@ Public Class SliderSet_Class
             Return result
         End Get
     End Property
+    ''' <summary>Rutas de los .osd EXTERNOS que este sliderSet necesita.
+    ''' <para>⛔ EL <c>DataFolder</c> ES UNA LISTA DE LUGARES DONDE BUSCAR, no una carpeta. El canónico
+    ''' las prueba EN ORDEN y se queda con la PRIMERA donde el archivo existe, dejando la primera de
+    ''' todas como candidata de reserva (<c>SliderSet.cpp:60-71</c>, <c>ResolveSliderDataFile</c>). Acá
+    ''' se usaba <c>.Last</c> a secas, sin mirar si estaba, y <c>OSD_Class.Load</c> saltea el que falta
+    ''' con un <c>Continue For</c> mudo: ni el preview ni el build decían nada.</para>
+    ''' <para>MEDIDO: en el corpus hay UN caso multi-carpeta real, <c>Tera Collection.osp</c> /
+    ''' <c>Tera Deathshell SSE</c>, con <c>DataFolder="CBBE;References"</c> y <b>137</b> <c>&lt;Data&gt;</c>
+    ''' externos a <c>CBBE Body.osd</c>. El archivo está en <c>ShapeData\CBBE\</c> y NO está en
+    ''' <c>ShapeData\References\</c>, así que se perdían los 137. La misma clase ya usaba el orden
+    ''' correcto en <c>IsExternal</c> y en <c>IsSafeReference</c>: sólo esto quedó al revés.</para>
+    ''' <para>⛔ EL MEMO NO ES OPCIONAL. Esto agrega un <c>File.Exists</c> por <c>&lt;Data&gt;</c>, que en
+    ''' este repo cuesta 12-30 µs y ya fue la causa nº1 de una regresión de parseo medida. Y el
+    ''' <c>.Distinct</c> filtra DESPUÉS del <c>Select</c>, así que en ese proyecto serían 137 sondas para
+    ''' terminar en 1 ruta — y esta propiedad la consume también <c>GetShapeDataSignature</c>, el chequeo
+    ''' de validez de caché, que corre muchísimo más seguido. Con memo: 1 sonda.</para>
+    ''' <para>⛔ MEMO LOCAL A LA EVALUACIÓN, NUNCA DE INSTANCIA: cachearía el estado del filesystem, que
+    ''' cambia mientras el proceso vive. Mismo motivo por el que <c>PluginManager.IsLightSlot</c> lleva su
+    ''' "NO MEMOIZAR".</para></summary>
     Public ReadOnly Property OsdExternalFullPath As IEnumerable(Of String)
         Get
-            Return Sliders.SelectMany(Function(pf) pf.Datas.Where(Function(pq) pq.Islocal = False).Select(Function(pq) IO.Path.Combine(IO.Path.Combine(Directorios.ShapedataRoot, pq.RelatedShape.Datafolder.Last), IO.Path.GetFileName(pq.TargetOsd.ToString)))).Distinct
+            Dim memo As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase)
+            ' ⛔ `.ToList()` NO ES COSMÉTICO: sin él la cadena queda DIFERIDA y el `memo` —que cachea
+            ' resultados de `File.Exists`— sobrevive dentro del enumerable devuelto, así que se re-usaría
+            ' en cada enumeración posterior y en cualquier momento futuro en que el llamador lo recorra.
+            ' Eso es exactamente el "cachear estado del filesystem" que el remarks de arriba prohíbe.
+            ' Materializando acá, el memo muere con la llamada, que es lo que el remarks promete.
+            Return Sliders.SelectMany(Function(pf) pf.Datas.Where(Function(pq) pq.Islocal = False).
+                                                           Select(Function(pq) ResolverOsdExterno(pq, memo))).Distinct.ToList()
         End Get
     End Property
+
+    ''' <summary>Resuelve un <c>&lt;Data&gt;</c> externo a ruta con la ley del canónico: la primera carpeta
+    ''' del <c>DataFolder</c> donde el archivo EXISTE; si no está en ninguna, la primera de la lista.
+    ''' Ver el remarks de <see cref="OsdExternalFullPath"/> para el porqué del memo.</summary>
+    Private Shared Function ResolverOsdExterno(dat As Slider_Data_class, memo As Dictionary(Of String, String)) As String
+        Dim carpetas = dat.RelatedShape.Datafolder
+        Dim archivo = IO.Path.GetFileName(dat.TargetOsd.ToString)
+        Dim clave = String.Join(";", carpetas) & "|" & archivo
+        Dim hit As String = Nothing
+        If memo.TryGetValue(clave, hit) Then Return hit
+
+        Dim candidata As String = Nothing
+        For Each carpeta In carpetas
+            Dim ruta = IO.Path.Combine(IO.Path.Combine(Directorios.ShapedataRoot, carpeta), archivo)
+            If candidata Is Nothing Then candidata = ruta          ' reserva = la PRIMERA de la lista
+            If IO.File.Exists(ruta) Then
+                candidata = ruta
+                Exit For
+            End If
+        Next
+        memo(clave) = candidata
+        Return candidata
+    End Function
 
     Public Sub Remove_DataShapeFiles()
         Dim Legacy_Nif = SourceFileFullPath
@@ -4642,6 +4735,37 @@ Public Class SliderSet_Class
 End Class
 Public Class Shape_class
     Implements IRenderableShape
+
+    ''' <summary>Atributo booleano del <c>&lt;Shape&gt;</c> con la semántica de <c>BoolAttribute</c> de
+    ''' tinyxml2, que es el que usa <c>SliderSet.cpp:255-257</c>: ausente ⇒ el default; no parseable ⇒
+    ''' el default (no tira); y acepta <c>true/false</c> y también <c>1/0</c>.</summary>
+    Private Function AtributoBooleano(nombre As String, porDefecto As Boolean) As Boolean
+        If IsNothing(Nodo) OrElse IsNothing(Nodo.Attributes(nombre)) Then Return porDefecto
+        Dim v = Nodo.Attributes(nombre).Value
+        If String.IsNullOrWhiteSpace(v) Then Return porDefecto
+        Dim parsed As Boolean
+        If Boolean.TryParse(v, parsed) Then Return parsed
+        Select Case v.Trim()
+            Case "1" : Return True
+            Case "0" : Return False
+        End Select
+        Return porDefecto
+    End Function
+
+    ''' <summary>Ver <see cref="IRenderableShape.LockNormals"/>. Default false, el del canónico.</summary>
+    Public ReadOnly Property LockNormals As Boolean Implements IRenderableShape.LockNormals
+        Get
+            Return AtributoBooleano("LockNormals", False)
+        End Get
+    End Property
+
+    ''' <summary>Ver <see cref="IRenderableShape.SmoothSeamNormals"/>. Default true, el del canónico.</summary>
+    Public ReadOnly Property SmoothSeamNormals As Boolean Implements IRenderableShape.SmoothSeamNormals
+        Get
+            Return AtributoBooleano("SmoothSeamNormals", True)
+        End Get
+    End Property
+
     Public Property OwnSlotsMask As UInteger Implements IRenderableShape.OwnSlotsMask
     Public Property Nodo As XmlNode
     Public Property ParentSliderSet As SliderSet_Class

@@ -179,6 +179,21 @@ Public Class SplitShapeHelper
         Dim xml = sliderSet.ParentOSP.xml
         Dim splitShapeNode = CType(xml.CreateElement("Shape"), Xml.XmlElement)
         splitShapeNode.SetAttribute("target", splitName)
+        ' ⛔ LOS TRES ATRIBUTOS DE NORMALES VIAJAN CON LA MITAD NUEVA. El canónico los propaga por shape
+        ' al escribir el proyecto (`OutfitProject.cpp:486-488`: `SetSmoothSeamNormals` /
+        ' `SetSmoothSeamNormalsAngle` / `SetLockNormals`), y acá sólo se copiaban `target`, el texto y el
+        ' DataFolder.
+        ' Hasta que la app EMPEZÓ A RESPETARLOS (2026-08-24) esto era inocuo porque no los leía nadie.
+        ' Ahora no: sin esta copia, partir una prenda con `LockNormals="true"` deja una mitad con las
+        ' normales que autoró el autor y la otra con las normales recalculadas — o sea una costura de
+        ' iluminación EN LA MISMA PRENDA. Alcance: 41 shapes del corpus con `LockNormals` y 8 con
+        ' `SmoothSeamNormals="false"`.
+        ' Se copian VERBATIM y sólo si están: el default del canónico es "atributo ausente", y escribirlos
+        ' siempre agregaría atributos a un .osp que no los traía.
+        For Each atributo In {"LockNormals", "SmoothSeamNormals", "SmoothSeamNormalsAngle"}
+            Dim a = shape.Nodo?.Attributes(atributo)
+            If a IsNot Nothing Then splitShapeNode.SetAttribute(atributo, a.Value)
+        Next
         splitShapeNode.AppendChild(xml.CreateTextNode(splitName))
         sliderSet.Nodo.InsertAfter(splitShapeNode, shape.Nodo)
         Dim splitShape As New Shape_class(splitShapeNode, sliderSet) With {

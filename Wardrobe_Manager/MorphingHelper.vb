@@ -307,6 +307,10 @@ Public Class MorphingHelper
         If ((RecalculateNormals AndAlso huboCambioDePosicion) OrElse movioUVs) AndAlso Geometry.dirtyVertexIndices.Count > 0 Then
             Dim opt As RecalcTBN.TBNOptions = Config_App.Current.Setting_TBN
             opt.KeepExistingNormals = soloTangentes
+            ' ⛔ EL SEGUNDO SITIO QUE RECALCULA. `ExtractSkinnedGeometry` respeta lo que pidió el autor de
+            ' la prenda, pero acá se recalculaba por cuenta propia: un slider de POSICIÓN sobre una shape
+            ' con `LockNormals` le volvía a pisar las normales aunque la extracción las hubiera respetado.
+            RecalcTBN.AplicarRestriccionesDelAutor(opt, shape)
             ' ⚠️ MEDIDO y DESCARTADO: forzar acá el recálculo de la malla ENTERA en vez de
             ' la clausura de lo sucio NO cambia un solo byte de la salida — con un preset real la
             ' clausura ya cubre 22.658 de 22.708 vértices. Se probó porque parecía explicar la

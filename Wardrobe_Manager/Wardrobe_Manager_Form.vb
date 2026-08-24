@@ -837,6 +837,15 @@ Public Class Wardrobe_Manager_Form
         Dim Selected_Combo_Pose As Poses_class = Nothing
         If ComboBoxPresets.SelectedIndex <> -1 Then WM_SliderPresets.Presets.TryGetValue(ComboBoxPresets.Items(ComboBoxPresets.SelectedIndex), Selected_Combo_Preset)
         If ComboBoxPoses.SelectedIndex <> -1 Then WM_SliderPresets.Poses.TryGetValue(ComboBoxPoses.Items(ComboBoxPoses.SelectedIndex), Selected_Combo_Pose)
+        ' ⚠️ DIAGNÓSTICO TEMPORAL [OS-RETURN] — ver el bloque de `EndExternalEditSession`. Acá se ve si el
+        ' combo sigue mostrando el preset pero el objeto NO se resuelve, que es el síntoma reportado:
+        ' "el combo lo sigue mostrando y el cuerpo sale sin morfear". ⛔ BORRAR al cerrar el defecto.
+        Logger.LogLazy(Function() $"[OS-RETURN] Lee_Shapes. comboIndex={ComboBoxPresets.SelectedIndex} " &
+                                  $"comboItem={If(ComboBoxPresets.SelectedItem?.ToString(), "(nothing)")} " &
+                                  $"presetsEnMemoria={WM_SliderPresets.Presets.Count} " &
+                                  $"presetResuelto={If(Selected_Combo_Preset Is Nothing, "NOTHING <-- ACA ESTA EL PROBLEMA", Selected_Combo_Preset.Name)} " &
+                                  $"slidersDelPreset={If(Selected_Combo_Preset Is Nothing, -1, Selected_Combo_Preset.Sliders.Count)} " &
+                                  $"talla={ComboBoxSize.SelectedIndex} seleccionado={If(Seleccionado?.Nombre, "(nothing)")}")
 
         If IsNothing(Seleccionado) Then Exit Sub
         If Seleccionado.Unreadable_Project Then
@@ -1913,16 +1922,36 @@ Public Class Wardrobe_Manager_Form
         _ExternalEditSlider = Nothing
         _ExternalEditFromTarget = False
 
+        ' ⚠️ DIAGNÓSTICO TEMPORAL — "el preset de morphs desaparece al volver de Outfit Studio".
+        ' Reportado 2026-08-24. Descartadas por lectura: el memo de `Update_Render` SÍ se invalida (el
+        ' reload sube `SlidersVersion`), `WM_SliderPresets.Presets` NO se vacía en este camino, y
+        ' `UnloadShapeData(True)` SÍ limpia `LastShapeDataSignature` y `ShapeDataLoaded`. Falta saber por
+        ' qué rama se va el caso real, así que se traza. Sale sólo en Debug (`Logger.Enabled` descarta
+        ' cualquier True en Release) y con `LogLazy`, o sea que en Release no se interpola ni un string.
+        ' ⛔ BORRAR cuando el defecto esté cerrado — buscar la etiqueta [OS-RETURN].
+        Logger.LogLazy(Function() $"[OS-RETURN] fin de sesion. doFinalReload={doFinalReload} " &
+                                  $"slider={If(lockedSlider?.Nombre, "(nothing)")} " &
+                                  $"SlidersVersion(antes)={If(lockedSlider Is Nothing, -1, lockedSlider.SlidersVersion)} " &
+                                  $"esElRenderizado={preview_Control?.WM_Last_rendered() Is lockedSlider}")
         If doFinalReload AndAlso Not IsNothing(lockedSlider) Then
             Try
                 lockedSlider.Reload(DeepAnalize_check.Checked, CreateSingleReloadContext())
-                If GetLatestExternalEditWriteTime(lockedSlider) > _ExternalEditLastOspWrite Then
-                    If preview_Control.WM_Last_rendered() Is lockedSlider Then
+                Dim escrituraNueva = GetLatestExternalEditWriteTime(lockedSlider)
+                Dim mismoObjeto = preview_Control.WM_Last_rendered() Is lockedSlider
+                Dim limpio = escrituraNueva > _ExternalEditLastOspWrite AndAlso mismoObjeto
+                Logger.LogLazy(Function() $"[OS-RETURN] tras Reload. SlidersVersion(despues)={lockedSlider.SlidersVersion} " &
+                                          $"ShapeDataLoaded={lockedSlider.ShapeDataLoaded} " &
+                                          $"Unreadable_Project={lockedSlider.Unreadable_Project} Unreadable_NIF={lockedSlider.Unreadable_NIF} " &
+                                          $"escrituraNueva={escrituraNueva:HH:mm:ss.fff} escrituraPrevia={_ExternalEditLastOspWrite:HH:mm:ss.fff} " &
+                                          $"mismoObjetoQueElRenderizado={mismoObjeto} seLimpiaElModelo={limpio}")
+                If escrituraNueva > _ExternalEditLastOspWrite Then
+                    If mismoObjeto Then
                         preview_Control.Model.Clean(False)
                         preview_Control.Model.CleanTextures()
                     End If
                 End If
             Catch ex As Exception
+                Logger.LogLazy(Function() $"[OS-RETURN] el Reload TIRO: {ex.Message}")
                 MsgBox("Final external edit reload failed: " & ex.Message, MsgBoxStyle.Exclamation, "Error")
             End Try
             ProcessCollectedLoadIssues({lockedSlider.ParentOSP}, Ovewrite_DataFiles.Checked)
@@ -2315,7 +2344,24 @@ Public Class Wardrobe_Manager_Form
                 Else
                     nombre = Source.Nombre
                 End If
-                If nombre.StartsWith(Origin_Pack.Nombre) Then nombre = nombre.Substring(Origin_Pack.Nombre.Length + 1)
+                ' ⛔ ANTES ERA `If nombre.StartsWith(pre) Then nombre = nombre.Substring(pre.Length + 1)`,
+                ' y fallaba de dos maneras:
+                '   • con `nombre` IGUAL al del pack, `Substring(Length + 1)` se va de rango. Acá adentro
+                '     eso es una excepción no controlada en un `Async Sub`, o sea que la levanta
+                '     `MyApplication_UnhandledException` y CIERRA la aplicación (ApplicationEvents.vb:89,
+                '     `ExitApplication = True`, que es deliberado: seguir viva escribiendo NIF sería peor).
+                '   • `StartsWith` no garantiza que lo que sigue sea un separador: con el pack "Body" y la
+                '     prenda "Bodysuit" recortaba 5 y devolvía "uit", comiéndose una letra en silencio.
+                ' Se recorta sólo si hay algo que recortar Y detrás del prefijo hay un separador de
+                ' verdad; los aceptados son espacio, guion y guion bajo (decisión del usuario, 24-ago-2026).
+                Dim pre As String = Origin_Pack.Nombre
+                If Not String.IsNullOrEmpty(pre) AndAlso nombre.Length > pre.Length AndAlso
+                   nombre.StartsWith(pre, StringComparison.OrdinalIgnoreCase) AndAlso
+                   (nombre(pre.Length) = " "c OrElse nombre(pre.Length) = "-"c OrElse nombre(pre.Length) = "_"c) Then
+                    nombre = nombre.Substring(pre.Length + 1)
+                End If
+                ' Un `.osp` sin nombre no es un caso que valga la pena representar: se cae al de la fuente.
+                If String.IsNullOrWhiteSpace(nombre) Then nombre = Source.Nombre
                 Dim selected_pack = OSP_Project_Class.Create_New(Path.Combine(Directorios.SliderSetsRoot, nombre + ".osp"), False, False)
                 If Not IsNothing(selected_pack) Then
                     Extract_Target(Source, selected_pack, nombre)
@@ -2766,7 +2812,10 @@ Public Class Wardrobe_Manager_Form
 
     Private Sub Button4_Click(sender As Object, e As EventArgs) Handles ButtonSourceInternalEdit.Click
         Empieza_Procesos(1)
-        Dim Editor As New Editor_Form
+        ' ⛔ ACÁ HABÍA UN `Dim Editor As New Editor_Form` QUE NADIE USABA: `Open_Editor` construye el suyo
+        ' unas líneas más abajo. Cada clic armaba un formulario completo —con todos sus controles y su
+        ' PreviewControl, que arranca un temporizador de 16 ms en el ctor— que no se mostraba ni se
+        ' disponía nunca. Al no llegar a `Shown`, su temporizador tampoco lo paraba nadie.
         Dim sliderset_Source = Determina_Seleccionado_y_CambiaNombres(0)
         If IsNothing(sliderset_Source) Then
             Termina_Procesos()
@@ -3190,7 +3239,11 @@ Public Class Wardrobe_Manager_Form
     End Sub
 
     Private Sub ComboBox1_SelectedIndexChanged_1(sender As Object, e As EventArgs) Handles ComboBoxSize.SelectedIndexChanged
-        If ComboBoxPresets.SelectedIndex <> -1 Then
+        ' ⛔ EL GUARD MIRABA EL COMBO EQUIVOCADO: preguntaba por `ComboBoxPresets`, así que la talla sólo
+        ' se persistía si además había un preset elegido. Son dos ajustes sin relación. Sin preset, el
+        ' usuario cambiaba la talla, la veía aplicarse —el re-render de abajo corre igual, fuera del
+        ' `If`— y al reabrir la app volvía la anterior.
+        If ComboBoxSize.SelectedIndex <> -1 Then
             WM_Config.Current.Bodytipe = ComboBoxSize.SelectedIndex
         End If
         RequestLeeShapes()
