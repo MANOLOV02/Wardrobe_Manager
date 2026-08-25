@@ -660,33 +660,29 @@ Public NotInheritable Class PhysicsWeightCollapseHelper
         Dim result As New Dictionary(Of Integer, Dictionary(Of String, Single))
         If skin Is Nothing Then Return result
 
-        For Each block In skin.SkinBlocks
-            If block?.InfluenceBlock Is Nothing Then Continue For
-            For Each entry In block.VertexEntries
-                If entry Is Nothing Then Continue For
-                If entry.VertexIndex = UShort.MaxValue Then Continue For
-                If entry.SlotIndex < 0 OrElse entry.SlotIndex >= block.InfluenceBlock.VertexInfluences.Count Then Continue For
+        For Each entry In skin.Vertices
+            If entry Is Nothing Then Continue For
+            If entry.VertexIndex = UShort.MaxValue Then Continue For
 
-                Dim lane = block.InfluenceBlock.VertexInfluences(entry.SlotIndex)
-                Dim dist = BuildDistributionFromLane(skin, lane)
-                If dist.Count = 0 Then Continue For
+            Dim lane = entry
+            Dim dist = BuildDistributionFromLane(skin, lane)
+            If dist.Count = 0 Then Continue For
 
-                Dim vertexIndex = CInt(entry.VertexIndex)
+            Dim vertexIndex = CInt(entry.VertexIndex)
 
-                Dim value As Dictionary(Of String, Single) = Nothing
+            Dim value As Dictionary(Of String, Single) = Nothing
 
-                If result.TryGetValue(vertexIndex, value) Then
-                    result(vertexIndex) = MergeBoneDistributions(value, dist)
-                Else
-                    result(vertexIndex) = dist
-                End If
-            Next
+            If result.TryGetValue(vertexIndex, value) Then
+                result(vertexIndex) = MergeBoneDistributions(value, dist)
+            Else
+                result(vertexIndex) = dist
+            End If
         Next
 
         Return result
     End Function
 
-    Private Shared Function BuildDistributionFromLane(skin As HclObjectSpaceSkinPNOperatorGraph_Class, lane As HclObjectSpaceSkinVertexInfluenceGraph_Class) As Dictionary(Of String, Single)
+    Private Shared Function BuildDistributionFromLane(skin As HclObjectSpaceSkinPNOperatorGraph_Class, lane As HclSkinVertice_Class) As Dictionary(Of String, Single)
         Dim result As New Dictionary(Of String, Single)(StringComparer.OrdinalIgnoreCase)
         If skin Is Nothing OrElse lane Is Nothing Then Return result
 
