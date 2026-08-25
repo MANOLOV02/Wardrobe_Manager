@@ -149,6 +149,18 @@ Public Class MergeShapesHelper
             Next
         End If
 
+        ' ── 1c. RECONCILIAR EL SISTEMA DE COORDENADAS ─────────────────────────
+        ' ⛔ VA ANTES DEL SNAPSHOT, y esa es toda la gracia: el paso 2 concatena los vertices del donante
+        ' en el buffer del target TAL CUAL. Si los dos espacios no coinciden, lo que se concatena son
+        ' numeros de otro sistema de coordenadas y la prenda aparece 120 u para arriba.
+        ' SYNC: OutfitProject::PrepareCopyGeo (OutfitProject.cpp:5305-5311, commit cb77cf5b del 15-ago-2026).
+        ' El predicado y los cuatro pasos viven en EspacioDeShape — ver su doc para la medicion y el costo.
+        ' Con varios donantes el bucle es exacto: llevar el target a global es IDEMPOTENTE (despues de la
+        ' primera vez su shapeToGlobal ES identidad y LlevarAGlobal devuelve False sin tocar nada).
+        For Each donorEspacio In donorShapes
+            EspacioDeShape.ReconciliarSiDifieren(targetShape, donorEspacio, sliderSet)
+        Next
+
         ' ── 2. Snapshot target + donors polymorphically, compute donor vertex offsets ──
         Dim donorOffsets As New List(Of Integer)()
         Dim cumulative As Integer = targetGeom.VertexCount

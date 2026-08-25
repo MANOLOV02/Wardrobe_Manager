@@ -304,13 +304,22 @@ Public Class MorphingHelper
             Next
         End If
 
-        If ((RecalculateNormals AndAlso huboCambioDePosicion) OrElse movioUVs) AndAlso Geometry.dirtyVertexIndices.Count > 0 Then
+        ' ⭐ EL PASE DE TANGENTES ES INCONDICIONAL — ley del canonico, BodySlideApp.cpp:4494-4501:
+        '     if (!lockNormals) CalcNormalsForShape(shape, force, smoothSeamNormals);
+        '     CalcTangentsForShape(shape);                       <-- FUERA del if
+        ' Son dos pases independientes: la casilla del usuario y la ley del autor gobiernan el de
+        ' NORMALES (via opt.KeepExistingNormals = soloTangentes, mas AplicarRestriccionesDelAutor dentro
+        ' de la puerta), y el de TANGENTES corre siempre que se haya movido algo.
+        ' ⛔ Por eso la condicion de entrada es SOLO "hay vertices sucios": meter `RecalculateNormals` aca
+        ' hacia que apagar la casilla dejara de rehacer TAMBIEN las tangentes, que el canonico rehace igual.
+        ' El guard de sucios se queda: sin nada sucio el kernel devuelve lista vacia de todos modos, y
+        ' forzar malla entera esta MEDIDO y DESCARTADO (ver los dos comentarios de abajo).
+        If Geometry.dirtyVertexIndices.Count > 0 Then
             Dim opt As RecalcTBN.TBNOptions = Config_App.Current.Setting_TBN
             opt.KeepExistingNormals = soloTangentes
-            ' ⛔ EL SEGUNDO SITIO QUE RECALCULA. `ExtractSkinnedGeometry` respeta lo que pidió el autor de
-            ' la prenda, pero acá se recalculaba por cuenta propia: un slider de POSICIÓN sobre una shape
-            ' con `LockNormals` le volvía a pisar las normales aunque la extracción las hubiera respetado.
-            RecalcTBN.AplicarRestriccionesDelAutor(opt, shape)
+            ' ⛔ EL SEGUNDO SITIO QUE RECALCULA. La ley del autor ya no se aplica acá: la aplica
+            ' `RecalcularParaShape`, que es la única puerta y recibe la shape. Antes era una llamada
+            ' suelta que este sitio hacía y los dos del RENDER se olvidaban.
             ' ⚠️ MEDIDO y DESCARTADO: forzar acá el recálculo de la malla ENTERA en vez de
             ' la clausura de lo sucio NO cambia un solo byte de la salida — con un preset real la
             ' clausura ya cubre 22.658 de 22.708 vértices. Se probó porque parecía explicar la
@@ -318,7 +327,7 @@ Public Class MorphingHelper
             ' puro. Ver [[66-paridad-contra-bodyslide-real]].
             ' Devuelve una List, no un HashSet, y puede repetir vertices que ya estaban sucios: los
             ' dos Add de abajo son idempotentes, asi que el ExceptWith que habia aca era optimizacion.
-            Dim adicionales = RecalcTBN.RecalculateNormalsTangentsBitangents(Geometry, opt)
+            Dim adicionales = RecalcTBN.RecalcularParaShape(Geometry, shape, opt)
             For Each ad In adicionales
                 Geometry.dirtyVertexIndices.Add(ad)
                 Geometry.dirtyVertexFlags(ad) = True

@@ -107,6 +107,31 @@ Public Class SplitShapeHelper
             si += 1
         Next
 
+        ' 3b. Los MISMOS dos mapas, en la forma que pide el re-mapeo de LOCKEDNORM: un `Integer()`
+        ' dimensionado sobre el espacio VIEJO completo, todo en −1 y sólo los sobrevivientes con su
+        ' índice nuevo. Es el `indexCollapse` del canónico (nifly NifFile.cpp:4328-4353) y la misma forma
+        ' que produce `MorphingHelper.RemoveZaps` para el zap del build.
+        ' ⛔ POR QUÉ ESTÁ ACÁ: partir una shape COMPACTA el espacio de vértices igual que un zap, y la
+        ' lista LOCKEDNORM quedaba apuntando a los números viejos — o sea a OTROS vértices. Medido sobre
+        ' `FemaleHead` (11.498 vértices, 83 bloqueados): la mitad original quedaba con 21 de 83 índices
+        ' fuera de rango y 23 apuntando a otro vértice, y la mitad nueva —que es un CLON, así que se lleva
+        ' el extra data entero— con los 83 fuera de rango. Consumidor: skee64, que saltea esos vértices al
+        ' recalcular normales después de un body morph.
+        ' ALCANCE medido: 118 shapes en 114 NIF de SSE, 135 shapes en 105 sliderSets. 0 en FO4.
+        Dim viejoCount As Integer = origGeom.VertexCount
+        Dim origCollapse(viejoCount - 1) As Integer
+        Dim splitCollapse(viejoCount - 1) As Integer
+        For i = 0 To viejoCount - 1
+            origCollapse(i) = -1
+            splitCollapse(i) = -1
+        Next
+        For Each kv In origRemap
+            If kv.Key >= 0 AndAlso kv.Key < viejoCount Then origCollapse(kv.Key) = kv.Value
+        Next
+        For Each kv In splitRemap
+            If kv.Key >= 0 AndAlso kv.Key < viejoCount Then splitCollapse(kv.Key) = kv.Value
+        Next
+
         ' 4. Build remapped triangle lists.
         Dim origTris = origTrisRaw.Select(Function(t) New Triangle(
             CUShort(origRemap(t.V0)), CUShort(origRemap(t.V1)), CUShort(origRemap(t.V2)))).ToList()
@@ -149,6 +174,12 @@ Public Class SplitShapeHelper
         If splitGeom IsNot Nothing Then
             SkinningHelper.ApplyShapeGeometry(splitGeom, splitTris, splitArrays, splitProv)
         End If
+
+        ' 7b. LOCKEDNORM al espacio nuevo, en LAS DOS MITADES. Va acá —después de escribir la geometría—
+        ' por la misma razón que en el zap del build: el extra data pertenece al bloque de la shape, no a
+        ' los arrays, así que sobrevive intacto a `ApplyShapeGeometry` y hay que renumerarlo aparte.
+        origGeom.RemapLockedNormalIndices(origCollapse)
+        splitGeom?.RemapLockedNormalIndices(splitCollapse)
 
         origGeom.UpdateBounds()
         splitGeom?.UpdateBounds()

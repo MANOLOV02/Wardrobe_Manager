@@ -139,6 +139,17 @@ Public Class Conform_Form
                         Throw New InvalidOperationException("Target shape has no NIF data.")
                     End If
 
+                    ' ⛔ RECONCILIAR EL ESPACIO ANTES DE PROYECTAR. Mismo defecto que tenía el merge, por
+                    ' otra puerta: `ComputeConform` tira rayos desde el target hacia la superficie del
+                    ' source usando las coordenadas TAL CUAL. Si los dos espacios difieren, la superficie
+                    ' está 120 u más allá del radio de búsqueda, el rayo no encuentra nada y la función
+                    ' devuelve **0 deltas EN SILENCIO** — no falla, no avisa, simplemente no conforma.
+                    ' MEDIDO sobre los pares ordenados del corpus: FO4 120.460 pares, 29.812 con espacios
+                    ' distintos; hoy 18.738 tienen 0 deltas GARANTIZADOS por separación > 10 u, y con esto
+                    ' bajan a 14.408 ⇒ **5.596 pares rescatados en 187 sliderSets**. SSE: 36 en 14.
+                    ' Cambia los .osd de esos sliderSets — que es el punto: hoy salen vacíos.
+                    EspacioDeShape.ReconciliarSiDifieren(targetShape, sourceShape, sliderSet)
+
                     ' Polymorphic via adapter (works for BSTriShape and NiTriShape families).
                     Dim srcGeom = sourceShape.IR_Geometry
                     Dim srcPosRaw = srcGeom.GetVertexPositions()

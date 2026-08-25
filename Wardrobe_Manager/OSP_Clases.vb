@@ -289,13 +289,26 @@ Public Class SliderPresetCollection
                         .Value = valueFloat
                          })
                 Next
-                Dim Nombre As String = p.Name
-                Dim subs As Integer = 1
-                While Presets.ContainsKey(Nombre)
-                    Nombre = p.Name + "_" + subs.ToString
-                    subs += 1
-                End While
-                Presets.Add(Nombre, p)
+                ' ⛔ EL DUPLICADO SE DESCARTA, NO SE RENOMBRA. SYNC: `SliderPresets.cpp:213-216`
+                '     if (presetFileNames.find(presetName) != presetFileNames.end()) {
+                '         element = element->NextSiblingElement("Preset"); continue; }
+                ' o sea: gana el PRIMER archivo que lo trae y el resto se saltea.
+                '
+                ' Acá se renombraba a "<nombre>_1" y se quedaban los dos. Eso fabricaba un preset
+                ' FANTASMA: el combo mostraba "CustomPreset_1" pero ese nombre NO EXISTE en ningún XML,
+                ' así que "Delete" lo buscaba en el archivo, no lo encontraba y **no borraba nada** — el
+                ' preset volvía en el siguiente arranque y no había forma de sacarlo desde la app.
+                ' Caso real medido en FO4: `CustomPreset` está en `BigBewbz.xml` y en
+                ' `dianka's body_outfit.xml`.
+                '
+                ' El log NO es un cambio de comportamiento (el canónico saltea en silencio): es lo mínimo
+                ' para que un preset que no aparece en la lista tenga una explicación en algún lado.
+                If Presets.ContainsKey(p.Name) Then
+                    Dim nombreDup = p.Name, archivoDup = path
+                    Logger.LogLazy(Function() $"[PRESETS] '{nombreDup}' de '{archivoDup}' se DESCARTA: ya lo trajo otro archivo (ley de SliderPresets.cpp:213-216).")
+                    Continue For
+                End If
+                Presets.Add(p.Name, p)
             Next
         Catch ex As Exception
             If silencioso Then

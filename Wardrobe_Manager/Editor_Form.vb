@@ -1057,7 +1057,7 @@ Public Class Editor_Form
                     Dim vertCount = mesh.MeshData.Meshgeometry.Vertices.Length
                     mesh.MeshData.Meshgeometry.dirtyVertexIndices.MarcarTodos(vertCount)
                     Array.Fill(mesh.MeshData.Meshgeometry.dirtyVertexFlags, True)
-                    RecalcTBN.RecalculateNormalsTangentsBitangents(mesh.MeshData.Meshgeometry, Config_App.Current.Setting_TBN)
+                    RecalcTBN.RecalcularParaShape(mesh.MeshData.Meshgeometry, mesh.MeshData.Shape, Config_App.Current.Setting_TBN)
                     mesh.UpdateSkinBuffers_GL()
                 End If
             Next
@@ -2720,6 +2720,13 @@ Public Class Editor_Form
 
     Private Sub CheckBox1_CheckedChanged_1(sender As Object, e As EventArgs) Handles RecalculateNormalsCheck.CheckedChanged
         EditPreviewControl.Model.RecalculateNormals = RecalculateNormalsCheck.Checked
+        ' ⛔ ESTA LÍNEA FALTABA Y POR ESO LA CASILLA NO SE ACORDABA. La misma casilla tiene CUATRO
+        ' escritores —el form principal de WM (Wardrobe_Manager_Form:3065), el rig de luces compartido
+        ' (FO4_Base_Library\LightRigForm:801) y el de NPC Manager— y los otros tres persisten en
+        ' `Config_App.Setting_RecalculateNormals`. Éste sólo tocaba el modelo del preview, así que
+        ' apagarla desde el editor duraba hasta cerrar la ventana y encima dejaba el ajuste global
+        ' contradiciendo lo que mostraba la casilla.
+        Config_App.Current.Setting_RecalculateNormals = RecalculateNormalsCheck.Checked
         EditPreviewControl.ForceRerender(RenderDirtyFlags.Morphs)
     End Sub
     Private WithEvents ScrollTimer As New Timer() With {.Interval = 500, .Enabled = False}

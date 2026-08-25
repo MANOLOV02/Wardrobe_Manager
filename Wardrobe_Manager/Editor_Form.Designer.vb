@@ -2333,7 +2333,7 @@ Partial Class Editor_Form
         RecalculateNormalsCheck.Size = New Size(132, 19)
         RecalculateNormalsCheck.TabIndex = 45
         RecalculateNormalsCheck.Text = "Recalculate normals"
-        ToolTip1.SetToolTip(RecalculateNormalsCheck, "Recalculate normals in preview and baking using the current normal reconstruction settings.")
+        ToolTip1.SetToolTip(RecalculateNormalsCheck, "Recalculate vertex NORMALS when a slider moves geometry, in both preview and build. Tangents are always recalculated. Shapes whose author locked their normals are left untouched unless ""Ignore authored restrictions"" is on.")
         RecalculateNormalsCheck.UseVisualStyleBackColor = True
         ' 
         ' Label15
@@ -2381,7 +2381,7 @@ Partial Class Editor_Form
         CheckBoxRenderFloor.Size = New Size(91, 19)
         CheckBoxRenderFloor.TabIndex = 47
         CheckBoxRenderFloor.Text = "Render floor"
-        ToolTip1.SetToolTip(CheckBoxRenderFloor, "Recalculate normals in preview and baking using the current normal reconstruction settings.")
+        ToolTip1.SetToolTip(CheckBoxRenderFloor, "Show the reference floor plane in the preview. Does not affect the built mesh.")
         CheckBoxRenderFloor.UseVisualStyleBackColor = True
         ' 
         ' Button9
