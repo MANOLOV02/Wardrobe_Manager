@@ -3083,13 +3083,13 @@ Public Class Wardrobe_Manager_Form
     End Sub
 
 
+    ' ⛔ Calificado: este archivo importa VisualStyleElement, donde `Button` es otra cosa.
     ''' <summary>Ojo abierto o cerrado segun el panel este visible o plegado.</summary>
     ''' <remarks>⛔ Por CLAVE y no por indice. Antes era <c>ImageIndex = 14/15</c> contra el ImageList
     ''' propio de este formulario. Los iconos ahora salen del ImageList compartido
     ''' <c>IconsSmall</c> de <see cref="FO4_Base_Library.IconFormBase"/>, donde el orden es otro —y
     ''' encima se corre solo con agregar un PNG a Resources\Icons— asi que un indice hardcodeado
     ''' pintaria cualquier cosa sin que nada falle.</remarks>
-    ' ⛔ Calificado: este archivo importa VisualStyleElement, donde `Button` es otra cosa.
     Private Shared Sub Ojo(boton As System.Windows.Forms.Button, plegado As Boolean)
         boton.ImageKey = If(plegado, "LayerVisibleOff", "LayerVisibleOn")
     End Sub
