@@ -3071,13 +3071,24 @@ Public Class Wardrobe_Manager_Form
         RequestLeeShapes()
     End Sub
 
+    ''' <summary>Atajo de desarrollo para las vistas de depuracion del shader. Es el MISMO estado que el
+    ''' combo "Shader debug view" de la pestana Rendering del Light Rig, que es donde la funcion esta de
+    ''' verdad —con nombre, explicacion de que se ve, y en los dos juegos—: esto es solo la via rapida.
+    ''' <para>⛔ ESCRIBE LA PROPIEDAD COMPARTIDA, NO EL SHADER DEL JUEGO ACTIVO. Antes hacia
+    ''' <c>preview_Control.CurrentShader.Debugmode = N</c>, o sea sobre la INSTANCIA del programa del juego
+    ''' activo, y como FO4 y SSE son dos instancias distintas la vista se perdia al cambiar de juego. Hoy
+    ''' hay una sola propiedad y las dos vias —teclas y combo— escriben esa. Ver
+    ''' <see cref="Shader_Base_Class.DebugView"/>.</para>
+    ''' <para>Las teclas siguen la tabla <c>VistasDebug</c> de <c>LightRigForm</c> en orden: F1 = None,
+    ''' y de ahi a F6 = normal map crudo.</para></summary>
     Private Sub Wardrobe_Manager_Form_KeyDown(sender As Object, e As KeyEventArgs) Handles Me.KeyDown
 #If DEBUG Then
-        If e.KeyValue = Keys.F1 Then preview_Control.CurrentShader.Debugmode = 0
-        If e.KeyValue = Keys.F2 Then preview_Control.CurrentShader.Debugmode = 1
-        If e.KeyValue = Keys.F3 Then preview_Control.CurrentShader.Debugmode = 2
-        If e.KeyValue = Keys.F4 Then preview_Control.CurrentShader.Debugmode = 3
-        If e.KeyValue = Keys.F5 Then preview_Control.CurrentShader.Debugmode = 4
+        If e.KeyValue = Keys.F1 Then Shader_Base_Class.DebugView = ShaderDebugView.None
+        If e.KeyValue = Keys.F2 Then Shader_Base_Class.DebugView = ShaderDebugView.Normals
+        If e.KeyValue = Keys.F3 Then Shader_Base_Class.DebugView = ShaderDebugView.Tangents
+        If e.KeyValue = Keys.F4 Then Shader_Base_Class.DebugView = ShaderDebugView.Bitangents
+        If e.KeyValue = Keys.F5 Then Shader_Base_Class.DebugView = ShaderDebugView.TbnError
+        If e.KeyValue = Keys.F6 Then Shader_Base_Class.DebugView = ShaderDebugView.NormalMap
         preview_Control.updateRequired = True
 #End If
     End Sub
