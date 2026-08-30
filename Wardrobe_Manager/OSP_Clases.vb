@@ -2869,11 +2869,25 @@ Public Class OSP_Project_Class
     Public Overrides Function ToString() As String
         Return Nombre
     End Function
+    ''' <summary>Path del .osp en disco, o "Unknown" para un OSP que no vino de un archivo.
+    ''' ⛔ SIN EXCEPCIÓN EN EL CAMINO NORMAL. <c>xml.BaseURI</c> es "" para todo XmlDocument que no se
+    ''' cargó desde un archivo — el <c>DummyOSP</c> del build (BuildingForm) es exactamente ese caso —
+    ''' y <c>New Uri("")</c> TIRA <c>UriFormatException</c>. El Try la tapaba y devolvía "Unknown", así
+    ''' que el resultado era correcto pero CADA consulta pagaba una excepción. Y el build consulta este
+    ''' Filename del dummy ~5 veces por proyecto y por peso — <c>Lee_SlidersAndShapes</c> →
+    ''' <c>GetProjectFileSignature</c>, otra vez en <c>Load_and_Check_Shapedata</c>,
+    ''' <c>GetShapeDataSignature</c> → <c>HighHeelSidecarLegacyPath</c>, <c>ReadhighHeel</c> y
+    ''' <c>MarkShapeDataAsLoaded</c> —, o sea cientos de first-chance UriFormatException por batch.
+    ''' El valor devuelto NO cambia: "" y cualquier BaseURI no absoluto siguen dando "Unknown".</summary>
     Public ReadOnly Property Filename As String
         Get
             If IsNothing(xml) Then Return "Unknown"
+            Dim baseUri As String = xml.BaseURI
+            If String.IsNullOrEmpty(baseUri) Then Return "Unknown"
+            Dim parsed As Uri = Nothing
+            If Not Uri.TryCreate(baseUri, UriKind.Absolute, parsed) Then Return "Unknown"
             Try
-                Return New Uri(xml.BaseURI).LocalPath.Correct_Path_Separator
+                Return parsed.LocalPath.Correct_Path_Separator
             Catch ex As Exception
                 Return "Unknown"
             End Try
