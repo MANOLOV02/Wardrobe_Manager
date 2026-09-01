@@ -1885,18 +1885,46 @@ Public Class Wardrobe_Manager_Form
                 ' Organizer eso deja el destino adentro de SU mod (el borrado + move lo mandaba a
                 ' `overwrite`), y bajo Vortex no corta el hardlink.
                 If slidertomove.ParentOSP.SliderSets.Count = 1 OrElse ListViewSources.SelectedItems.Cast(Of ListViewItem).Where(Function(pf) CType(pf.Tag, SliderSet_Class).ParentOSP Is slidertomove.ParentOSP).Count = 1 Then
-                    IO.File.Copy(actual, Nuevo, True)
-                    ' ⛔ Si el origen no se puede borrar (BodySlide lo tiene abierto), el proyecto queda en
-                    ' las DOS carpetas: no se saca de la lista y se avisa, o el usuario termina con el mismo
-                    ' pack duplicado apuntando a la misma salida.
-                    Try
-                        IO.File.Delete(actual)
-                    Catch ex As Exception
-                        MsgBox("The project was copied to the new folder, but the original could not be " &
-                               "deleted: " & ex.Message, vbExclamation Or vbOKOnly, "Move project")
-                        Return
-                    End Try
-                    IO.File.SetLastWriteTime(Nuevo, DateTime.Now)
+                    ' ⛔ EL PROYECTO YA PUEDE ESTAR EN LA CARPETA DE DESTINO. Sin esta guarda,
+                    ' `File.Copy(a, a, True)` tira IOException ("being used by another process", medido), y
+                    ' como esto cuelga de `MovetoDiscardedButton_Click` / `MoveToProcessedButton_Click`
+                    ' —`Handles` SIN Try— la excepción salía del handler y se llevaba puesta la app entera;
+                    ' de paso `Termina_Procesos` nunca corría y el lote se cortaba en el primer ítem.
+                    ' La comparación es la que YA usa `CommitTextureJobs` para este mismo caso
+                    ' (OSP_Clases.vb:1537-1540): `GetFullPath` + `OrdinalIgnoreCase`. `Correct_Path_Separator`
+                    ' NO sirve acá: sólo cambia "/" por "\", no resuelve "..", ni el caso, ni una relativa.
+                    ' Ya estando en el destino no hay nada que copiar ni que borrar, pero la intención de la
+                    ' acción está cumplida: se sigue hasta el `Remove` del ítem, abajo.
+                    If Not IO.Path.GetFullPath(actual).Equals(IO.Path.GetFullPath(Nuevo), StringComparison.OrdinalIgnoreCase) Then
+                        ' ⛔ NO `IO.File.Copy(..., True)`: CREATE_ALWAYS sobre un destino con el atributo
+                        ' OCULTO da ACCESS_DENIED (medido en net8.0.30). Misma ley que el clone de texturas
+                        ' y que `EscrituraEnElLugar` (Ba2_Bsa_Library\EscrituraEnElLugar.vb:30-32): se
+                        ' sobrescribe EN EL LUGAR, que además es lo que deja el destino adentro de SU mod
+                        ' bajo Mod Organizer y no corta el hardlink bajo Vortex. Acá SÍ van los reintentos
+                        ' de fábrica: es un archivo por acción del usuario y el caso que cubren —BodySlide
+                        ' teniendo el .osp abierto— es el que anota el comentario de abajo.
+                        ' ⚠️ CAMBIO DE CONDUCTA declarado: con un origen VACÍO el `Copy` dejaba un destino de
+                        ' 0 bytes (medido); `VolcarEncima` se niega y deja el destino INTACTO — y acá eso
+                        ' además evita borrar el origen, que es lo que importa.
+                        Try
+                            BSA_BA2_Library_DLL.EscrituraEnElLugar.VolcarEncima(actual, Nuevo)
+                        Catch ex As Exception
+                            MsgBox("The project could not be copied to the new folder: " & ex.Message,
+                                   vbExclamation Or vbOKOnly, "Move project")
+                            Return
+                        End Try
+                        ' ⛔ Si el origen no se puede borrar (BodySlide lo tiene abierto), el proyecto queda en
+                        ' las DOS carpetas: no se saca de la lista y se avisa, o el usuario termina con el mismo
+                        ' pack duplicado apuntando a la misma salida.
+                        Try
+                            IO.File.Delete(actual)
+                        Catch ex As Exception
+                            MsgBox("The project was copied to the new folder, but the original could not be " &
+                                   "deleted: " & ex.Message, vbExclamation Or vbOKOnly, "Move project")
+                            Return
+                        End Try
+                        IO.File.SetLastWriteTime(Nuevo, DateTime.Now)
+                    End If
                 End If
             End If
             ListViewSources.Items.Remove(ind)

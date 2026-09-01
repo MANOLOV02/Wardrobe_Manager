@@ -1550,7 +1550,7 @@ Public Class Clone_Materials_class
             ' ⛔ Acá NO va un `IO.File.Delete(job.TargetFullPath)` antes de escribir: bajo Mod Organizer
             ' el borrado saca el archivo del árbol virtual y lo que se escriba después es un archivo
             ' NUEVO, que cae en la carpeta `overwrite` en vez de quedar en el mod. Se sobrescribe en el
-            ' lugar, que es lo que ya hacen el Copy con overwrite y el WriteAllBytes de abajo.
+            ' lugar, que es lo que hacen las dos ramas de abajo por `EscrituraEnElLugar`.
             If IO.File.Exists(job.TargetFullPath) Then
                 If overwrite = False AndAlso job.OverwriteApproved = False Then
                     RegisterGeneratedDictionaryFile(TexturesPrefix & job.TargetRelative)
@@ -1558,9 +1558,25 @@ Public Class Clone_Materials_class
                 End If
             End If
 
+            ' ⛔⛔ NI `IO.File.Copy(..., True)` NI `IO.File.WriteAllBytes`. Las dos primitivas piden
+            ' CREATE_ALWAYS, y CREATE_ALWAYS sobre un destino con FILE_ATTRIBUTE_HIDDEN devuelve
+            ' ERROR_ACCESS_DENIED — el atributo lo dejan los sincronizadores (OneDrive) y los
+            ' desempaquetadores. Medido en net8.0.30: las DOS tiran `UnauthorizedAccessException` (el
+            ' `WriteAllBytes` también, que parecía sano). Y `File.Copy` PROPAGA el atributo del origen al
+            ' destino nuevo, así que un solo suelto oculto envenena su clon y rompe la corrida siguiente.
+            ' La ley ya estaba escrita y no se inventa una segunda: `EscrituraEnElLugar` documenta esta
+            ' misma trampa en Ba2_Bsa_Library\EscrituraEnElLugar.vb:30-32 y la resuelve con OpenOrCreate +
+            ' SetLength(0), que escribe igual y CONSERVA el atributo (no le saca el oculto a un archivo
+            ' del usuario, que sería una ley nueva). `WriteMaterialJob` ya venía por esta puerta.
             If location.IsLosseFile Then
                 Dim sourceLooseFile As String = IO.Path.Combine(FilesDictionary_class.FO4Path, location.FullPath)
-                IO.File.Copy(sourceLooseFile, job.TargetFullPath, True)
+                ' `reintentos:=1` conserva el fallo INMEDIATO que tenía el `Copy`: acá son cientos de
+                ' archivos por corrida y el valor por defecto (10 x 200 ms) costaría ~1,9 s POR archivo
+                ' tomado. Medido: 0 ms con 1 reintento, 1861 ms con los de fábrica, 2 ms el `Copy` viejo.
+                ' ⚠️ CAMBIO DE CONDUCTA declarado: con un ORIGEN VACÍO el `Copy` dejaba un destino de 0
+                ' bytes (medido); `VolcarEncima` se niega y deja el destino INTACTO. Es la misma ley que
+                ' la rama de abajo ya aplica con su `Throw` cuando el origen no tiene bytes.
+                BSA_BA2_Library_DLL.EscrituraEnElLugar.VolcarEncima(sourceLooseFile, job.TargetFullPath, reintentos:=1)
             Else
                 Dim bytes As Byte() = Nothing
                 prefetchedPackedBytes.TryGetValue(job.SourceKey, bytes)
@@ -1573,7 +1589,8 @@ Public Class Clone_Materials_class
                     Throw New Exception("Cannot copy texture: " & job.SourceKey)
                 End If
 
-                IO.File.WriteAllBytes(job.TargetFullPath, bytes)
+                BSA_BA2_Library_DLL.EscrituraEnElLugar.Escribir(job.TargetFullPath,
+                                                                Sub(fs) fs.Write(bytes, 0, bytes.Length))
             End If
 
             Dim sourceDate = GetSourceFileDate(location)
