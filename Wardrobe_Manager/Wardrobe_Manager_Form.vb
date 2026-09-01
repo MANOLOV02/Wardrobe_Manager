@@ -1875,14 +1875,27 @@ Public Class Wardrobe_Manager_Form
             If IO.Directory.Exists(IO.Path.GetDirectoryName(Nuevo)) = False Then IO.Directory.CreateDirectory(IO.Path.GetDirectoryName(Nuevo))
             If IO.File.Exists(actual) Then
                 If IO.File.Exists(Nuevo) Then
-                    If MsgBox("Do you want to replace the saved file?", vbOKCancel, "Replace file") = MsgBoxResult.Ok Then
-                        IO.File.Delete(Nuevo)
-                    Else
+                    If MsgBox("Do you want to replace the saved file?", vbOKCancel, "Replace file") <> MsgBoxResult.Ok Then
                         Return
                     End If
                 End If
+                ' ⛔ El borrado del destino estaba ACÁ AFUERA, antes de este If: si la condición daba
+                ' False se borraba el destino y no se movía nada — el .osp de destino desaparecía.
+                ' Ahora se copia ENCIMA del destino y recién después se borra el origen: bajo Mod
+                ' Organizer eso deja el destino adentro de SU mod (el borrado + move lo mandaba a
+                ' `overwrite`), y bajo Vortex no corta el hardlink.
                 If slidertomove.ParentOSP.SliderSets.Count = 1 OrElse ListViewSources.SelectedItems.Cast(Of ListViewItem).Where(Function(pf) CType(pf.Tag, SliderSet_Class).ParentOSP Is slidertomove.ParentOSP).Count = 1 Then
-                    IO.File.Move(actual, Nuevo)
+                    IO.File.Copy(actual, Nuevo, True)
+                    ' ⛔ Si el origen no se puede borrar (BodySlide lo tiene abierto), el proyecto queda en
+                    ' las DOS carpetas: no se saca de la lista y se avisa, o el usuario termina con el mismo
+                    ' pack duplicado apuntando a la misma salida.
+                    Try
+                        IO.File.Delete(actual)
+                    Catch ex As Exception
+                        MsgBox("The project was copied to the new folder, but the original could not be " &
+                               "deleted: " & ex.Message, vbExclamation Or vbOKOnly, "Move project")
+                        Return
+                    End Try
                     IO.File.SetLastWriteTime(Nuevo, DateTime.Now)
                 End If
             End If
@@ -2641,51 +2654,115 @@ Public Class Wardrobe_Manager_Form
     End Sub
     Private Sub Build(que As SliderSet_Class())
 
-        ' Borra primero 
-        If WM_Config.Current.Settings_Build.DeleteUnbuilt = True Then
-            For Each projecto In que
-                Dim baseName = projecto.OutputFullPathBase
-                If baseName.EndsWith(".nif", StringComparison.OrdinalIgnoreCase) Then baseName = baseName.Substring(0, baseName.Length - 4)
-                Dim hhfile = baseName & ".txt"
-                Dim Trifile = baseName & ".tri"
-                ' Los NIF multisize salen como _0/_1 (ver BuildingForm): la limpieza vieja borraba
-                ' sólo "<base>.nif" y en SSE dejaba los dos pesos anteriores intactos.
-                If IO.File.Exists(baseName & ".nif") Then IO.File.Delete(baseName & ".nif")
-                If projecto.Multisize() Then
-                    For sizecount = 0 To 1
-                        Dim sized = baseName & "_" & sizecount.ToString & ".nif"
-                        If IO.File.Exists(sized) Then IO.File.Delete(sized)
-                    Next
-                End If
-                If IO.File.Exists(hhfile) Then IO.File.Delete(hhfile)
-                If IO.File.Exists(Trifile) Then IO.File.Delete(Trifile)
-            Next
-        End If
-
         ' Constuye por motor
+        Dim erroresHH As String = ""
+        Dim artefactos As HashSet(Of String) = Nothing
+        Dim bases As HashSet(Of String) = Nothing
         If WM_Config.Current.Settings_Build.OwnEngine Then
-            BuildInternally(que)
+            Dim salida = BuildInternally(que)
+            artefactos = salida.Artefactos
+            bases = salida.Bases
         Else
+            ' ⛔ Con el motor de BodySlide el barrido NO puede correr al final: los archivos los escribe un
+            ' proceso externo y no hay conjunto observable. Se conserva el borrado PREVIO, que es la
+            ' conducta de siempre de DeleteUnbuilt en este camino — sacarlo dejaba la opción (que viene
+            ' prendida por defecto) en no-op silencioso.
+            BorrarAntesDeConstruirConMotorExterno(que)
             Build_WithBS(que)
             For Each sliderset_target In que
-                sliderset_target.NIFContent.Load_Manolo(sliderset_target.SourceFileFullPath)
-                sliderset_target.ReadhighHeel()
-                sliderset_target.SaveHighHeelBuild()
+                ' Try por proyecto: SaveHighHeelBuild reescribe el NIF y ahora puede TIRAR (la escritura
+                ' en el lugar propaga). Sin esto, una prenda irrescribible cortaba el lote entero y
+                ' Termina_Procesos nunca corría: barras colgadas y el usuario sin saber qué quedó a medias.
+                Try
+                    sliderset_target.NIFContent.Load_Manolo(sliderset_target.SourceFileFullPath)
+                    sliderset_target.ReadhighHeel()
+                    sliderset_target.SaveHighHeelBuild()
+                Catch ex As Exception
+                    If erroresHH <> "" Then erroresHH += vbCrLf
+                    erroresHH += sliderset_target.Nombre & ": " & ex.Message
+                End Try
             Next
+            If erroresHH <> "" Then
+                MsgBox("Some projects could not be finished:" & vbCrLf & erroresHH,
+                       vbExclamation Or vbOKOnly, "Build")
+            End If
         End If
         ' Graba HH (Fallout)
 
+        BorrarNoConstruidos(bases, artefactos)
         Me.Activate()
     End Sub
-    Private Sub BuildInternally(que As SliderSet_Class())
+
+    ''' <summary>"Delete unbuilt": borra los artefactos que quedaron de la corrida ANTERIOR y que este
+    ''' build no escribió ni conservó a propósito.
+    ''' <para>⛔ Corre DESPUÉS de construir, no antes. El borrado previo sacaba los archivos del mod bajo
+    ''' Mod Organizer —borrar los saca del árbol virtual, y lo que el build escribe después es un archivo
+    ''' NUEVO, que cae en `overwrite`—, así que cada build se llevaba la prenda fuera de su mod.</para>
+    ''' <para>⛔ Y no se predice qué va a escribir el build: la ley del .tri tiene cuatro condiciones
+    ''' (triAllowed / triWritten / triBlocked / PreventMorphFile) y la del .txt de tacones vive en
+    ''' SaveHighHeelBuild. Se OBSERVA lo que el build escribió o conservó
+    ''' (<see cref="BuildingForm.ArtefactosDelBuild"/>).</para>
+    ''' <para>Con el motor de BodySlide no se barre: los archivos los escribe un proceso externo, así que
+    ''' no hay conjunto observable, y adivinarlo por fecha borraría un .nif bueno del mod del usuario.</para></summary>
+    ''' <summary>El borrado PREVIO, tal como estaba, para el único camino donde no se puede observar lo
+    ''' escrito: el motor de BodySlide. Bajo Mod Organizer esto sigue mandando la salida a `overwrite`
+    ''' —es la conducta que ese camino tuvo siempre— pero es preferible a apagar la opción en silencio.</summary>
+    Private Sub BorrarAntesDeConstruirConMotorExterno(que As SliderSet_Class())
+        If WM_Config.Current.Settings_Build.DeleteUnbuilt = False Then Return
+        For Each projecto In que
+            Dim baseName = projecto.OutputFullPathBase
+            If baseName.EndsWith(".nif", StringComparison.OrdinalIgnoreCase) Then baseName = baseName.Substring(0, baseName.Length - 4)
+            Dim candidatos As New List(Of String) From {
+                baseName & ".nif", baseName & "_0.nif", baseName & "_1.nif", baseName & ".txt", baseName & ".tri"}
+            For Each cand In candidatos
+                Try
+                    If IO.File.Exists(cand) Then IO.File.Delete(cand)
+                Catch
+                End Try
+            Next
+        Next
+    End Sub
+
+    Private Sub BorrarNoConstruidos(bases As HashSet(Of String), artefactos As HashSet(Of String))
+        If WM_Config.Current.Settings_Build.DeleteUnbuilt = False Then Return
+        If artefactos Is Nothing OrElse bases Is Nothing Then Return
+
+        ' Los candidatos salen del base que USÓ EL ESCRITOR, no del sliderset original: con
+        ' ForceClonedOnBuild el build escribe sobre un clon que apunta a meshes\ManoloCloned\<pack>\, y
+        ' calcularlos sobre el original haría que ningún candidato intersecara con lo escrito — el
+        ' barrido borraría los artefactos del mod original en cada build. Y un proyecto que falló no
+        ' aparece en `bases`, así que su salida de la corrida anterior no se toca.
+        For Each baseName In bases
+            Dim raiz = baseName
+            If raiz.EndsWith(".nif", StringComparison.OrdinalIgnoreCase) Then raiz = raiz.Substring(0, raiz.Length - 4)
+
+            ' Los NIF multisize salen como _0/_1 (ver BuildingForm): la limpieza vieja borraba sólo
+            ' "<base>.nif" y en SSE dejaba los dos pesos anteriores intactos. Se listan siempre los tres
+            ' nombres posibles: si este build escribió _0/_1, el "<base>.nif" suelto de una corrida
+            ' anterior (cuando el proyecto no era multisize) es justamente lo que hay que sacar.
+            Dim candidatos As New List(Of String) From {
+                raiz & ".nif", raiz & "_0.nif", raiz & "_1.nif", raiz & ".txt", raiz & ".tri"}
+
+            For Each cand In candidatos
+                If artefactos.Contains(cand) Then Continue For
+                Try
+                    If IO.File.Exists(cand) Then IO.File.Delete(cand)
+                Catch
+                    ' Best-effort: un artefacto que no se pudo borrar no invalida el build.
+                End Try
+            Next
+        Next
+    End Sub
+
+    Private Function BuildInternally(que As SliderSet_Class()) As (Artefactos As HashSet(Of String), Bases As HashSet(Of String))
         Dim Selected_Combo_Preset As SlidersPreset_Class = Nothing
         Dim Selected_Combo_Pose As Poses_class = Nothing
         If ComboBoxPresets.SelectedIndex <> -1 Then WM_SliderPresets.Presets.TryGetValue(ComboBoxPresets.Items(ComboBoxPresets.SelectedIndex), Selected_Combo_Preset)
         If ComboBoxPoses.SelectedIndex <> -1 Then WM_SliderPresets.Poses.TryGetValue(ComboBoxPoses.Items(ComboBoxPoses.SelectedIndex), Selected_Combo_Pose)
         Dim Builder As New BuildingForm(que, Selected_Combo_Preset, Selected_Combo_Pose)
         Builder.ShowDialog()
-
-    End Sub
+        Return (Builder.ArtefactosDelBuild, Builder.BasesDelBuild)
+    End Function
     Private Sub Build_WithBS(que As SliderSet_Class())
         Dim results = Create_Group_Build(que)
         Dim temposdfile = results(0)
@@ -2720,8 +2797,10 @@ Public Class Wardrobe_Manager_Form
         Dim TempOSDFile = IO.Path.Combine(Directorios.SliderSetsRoot, "Temp_WM_Builder.osp")
         Dim TempGroupFile As String = IO.Path.Combine(WM_Config.BsPath, "SliderGroups\Temp_WM_Builder.xml")
         Try
-            If IO.File.Exists(TempOSDFile) Then IO.File.Delete(TempOSDFile)
-            If IO.File.Exists(TempGroupFile) Then IO.File.Delete(TempGroupFile)
+            ' ⛔ Acá había un borrado de los dos temporales antes de escribirlos: bajo Mod Organizer eso
+            ' los sacaba del mod y los volvía a crear en `overwrite`. Se sobrescriben en el lugar — por
+            ' eso el Save_Pack_As de abajo va con Overwrite:=True: sin el borrado previo, con False
+            ' TIRARÍA "OSP File already exists" y el build saldría con el lote anterior, en silencio.
             If IO.Directory.Exists(IO.Path.GetDirectoryName(TempGroupFile)) = False Then IO.Directory.CreateDirectory(IO.Path.GetDirectoryName(TempGroupFile))
             For Each sliderset_target In que
                 idx += 1
@@ -2739,7 +2818,7 @@ Public Class Wardrobe_Manager_Form
 #End If
                 End Try
             Next
-            DummyOSP.Save_Pack_As(TempOSDFile, False)
+            DummyOSP.Save_Pack_As(TempOSDFile, True)
 
             Using writer = IO.File.CreateText(TempGroupFile)
                 writer.WriteLine("<?xml version=" + Chr(34) + "1.0" + Chr(34) + " encoding=" + Chr(34) + "UTF-8" + Chr(34) + "?>")

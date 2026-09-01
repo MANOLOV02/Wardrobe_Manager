@@ -5,6 +5,24 @@ Imports Wardrobe_Manager.Wardrobe_Manager_Form
 
 Public Class BuildingForm
 
+    ''' <summary>Rutas ABSOLUTAS de los artefactos que ESTE build escribió o conservó a propósito.
+    ''' Lo consume el barrido de "no construidos" de <c>Wardrobe_Manager_Form.Build</c>, que corre DESPUÉS
+    ''' del build y borra sólo lo que quedó de la corrida anterior.
+    ''' <para>⛔ Se anota donde se DECIDE cada artefacto (el NIF al grabarlo, el .tri también cuando se
+    ''' conserva, el .txt de tacones según lo que devuelva la emisión), no se predice desde las opciones:
+    ''' la ley del .tri tiene cuatro condiciones y la del .txt vive en SaveHighHeelBuild.</para>
+    ''' <para>Con el motor de BodySlide este conjunto queda VACÍO —lo escribe el proceso externo, no
+    ''' nosotros— y por eso ahí no se barre.</para></summary>
+    Public ReadOnly Property ArtefactosDelBuild As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+
+    ''' <summary>Los <c>OutputFullPathBase</c> que ESTE build usó de verdad, uno por proyecto construido.
+    ''' El barrido calcula sus candidatos a partir de ACÁ y no del sliderset original, por dos motivos
+    ''' medidos: con <c>ForceClonedOnBuild</c> el build escribe sobre un CLON cuyo output apunta a
+    ''' <c>meshes\ManoloCloned\&lt;pack&gt;\</c>, así que los candidatos del original no intersecarían nunca con
+    ''' lo escrito y el barrido borraría los artefactos del mod original; y un proyecto que falló no entra
+    ''' acá, así que el barrido no se lleva puesta su salida buena de la corrida anterior.</summary>
+    Public ReadOnly Property BasesDelBuild As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+
     Private ReadOnly _Lista() As SliderSet_Class
     Private ReadOnly _Preset As SlidersPreset_Class
     Private ReadOnly _Pose As Poses_class
@@ -394,7 +412,22 @@ Public Class BuildingForm
 
                     ' High Heels. El alta/baja en el diccionario ya la hace la emisión (antes vivía
                     ' acá, y por eso el build con el motor de BodySlide nunca lo actualizaba).
-                    builder.SaveHighHeelBuild(builder.NIFContent)
+                    Dim hhEscrito = builder.SaveHighHeelBuild(builder.NIFContent)
+                    ' Para el barrido: el .txt cuenta como artefacto de este build si se escribió (True) o
+                    ' si el build decidió NO gestionarlo (Nothing) — con SaveHHS apagado ese archivo es del
+                    ' mod, no nuestro, y borrarlo sería quedarnos con algo que no escribimos. Sólo cuando
+                    ' devuelve False (altura 0 ⇒ se dio de baja a propósito) queda fuera del conjunto.
+                    ' Sólo FO4: en Skyrim el alto de tacones viaja DENTRO del NIF y no existe ningún
+                    ' .txt que preservar (SaveHighHeelBuild va por SyncHHOffsetInNif).
+                    ' Y el caso "no lo gestiono" (Nothing) sólo protege el .txt cuando DeleteUnbuilt está
+                    ' APAGADO: con la opción prendida el usuario pidió limpiar lo no construido, y la ley
+                    ' de SaveHighHeelBuild ya dice que ahí el archivo se puede destruir. Si no, apagar
+                    ' SaveHHS dejaba un .txt rancio con la altura vieja y el tacón quedaba mal in-game.
+                    If Config_App.Current.Game = Config_App.Game_Enum.Fallout4 AndAlso
+                       (hhEscrito.GetValueOrDefault() OrElse
+                        (Not hhEscrito.HasValue AndAlso Not WM_Config.Current.Settings_Build.DeleteUnbuilt)) Then
+                        ArtefactosDelBuild.Add(builder.OutputFullPathBase & ".txt")
+                    End If
                     ProgressBar1.Value += 1
 
 
@@ -412,6 +445,7 @@ Public Class BuildingForm
 
                     ' Grabo nif
                     builder.NIFContent.Save_As_Manolo(fil, True)
+                    ArtefactosDelBuild.Add(fil)
                     Dim nifRelative As String = IO.Path.GetRelativePath(Directorios.Fallout4data, fil).Correct_Path_Separator
                     FilesDictionary_class.AddOrUpdateDictionaryEntry(nifRelative, New FilesDictionary_class.File_Location With {
                         .BA2File = "", .Index = -1, .FullPath = nifRelative, .FileDate = Date.Now})
@@ -423,6 +457,15 @@ Public Class BuildingForm
                     If Sizecount = 0 Then
                         ' Grabo archivo tri
                         Dim triRelative = IO.Path.GetRelativePath(Directorios.Fallout4data, tri).Correct_Path_Separator
+                        ' Para el barrido de "no construidos": el .tri cuenta como artefacto de este build
+                        ' tanto si se escribió como si se CONSERVÓ a propósito (triBlocked = .tri ajeno, o
+                        ' PreventMorphFile sin IgnorePreventri). Si sólo contara lo escrito, el barrido
+                        ' borraría justo el que el build decidió no tocar, y encima después de haberle dicho
+                        ' al usuario "kept the existing .tri".
+                        If triWritten OrElse triBlocked OrElse
+                           (builder.PreventMorphFile AndAlso Not WM_Config.Current.Settings_Build.IgnorePreventri) Then
+                            ArtefactosDelBuild.Add(tri)
+                        End If
                         If triWritten Then
                             FilesDictionary_class.AddOrUpdateDictionaryEntry(triRelative, New FilesDictionary_class.File_Location With {
                                 .BA2File = "", .Index = -1, .FullPath = triRelative, .FileDate = Date.Now})
@@ -446,6 +489,7 @@ Public Class BuildingForm
                             Dim xmlRelative = IO.Path.GetRelativePath(Directorios.Fallout4data, outXml).Correct_Path_Separator
                             If Not String.IsNullOrEmpty(builder.PhysicsXmlContent) Then
                                 IO.File.WriteAllText(outXml, builder.PhysicsXmlContent, System.Text.Encoding.UTF8)
+                                ArtefactosDelBuild.Add(outXml)
                                 FilesDictionary_class.AddOrUpdateDictionaryEntry(xmlRelative, New FilesDictionary_class.File_Location With {
                                     .BA2File = "", .Index = -1, .FullPath = xmlRelative, .FileDate = Date.Now})
                             ElseIf IO.File.Exists(outXml) Then
@@ -459,6 +503,12 @@ Public Class BuildingForm
                     Nombre = "Unknown"
                     ProgressBar2.Value += IIf(sliderset_target.Multisize, 1, 2)
                 Next
+                ' ⛔ La base se registra ACA, con el proyecto TERMINADO ENTERO, no apenas se graba el NIF:
+                ' despues del NIF todavia pueden tirar el .tri, el .xml de fisica o los registros del
+                ' diccionario, y si la base ya estuviera anotada el barrido daria por stale —y borraria—
+                ' el .tri o el .txt BUENOS de la corrida anterior, que este build no llego a rehacer.
+                ' Es el base REAL que uso el escritor: con ForceClonedOnBuild no es el del proyecto original.
+                BasesDelBuild.Add(builder.OutputFullPathBase)
                 'ComparadorTrip.CompararArchivos(tri, tri.Replace("_WM.tri", "_WM.tri2"))
             Catch ex As Exception
                 ' Sin el mensaje de la excepcion el dialog final solo listaba nombres de proyecto,

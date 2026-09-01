@@ -90,7 +90,8 @@ Public Class Create_from_Nif_Form
                 smpXmlPath = Path.ChangeExtension(New_Nif, ".xml")
                 selected_slider.NIFContent.SetSmpPhysicsXmlPath(SliderSet_Class.BuildSmpInNifPath(smpXmlPath))
             End If
-            selected_slider.NIFContent.Save_As_Manolo(New_Nif, False)
+            ' Con copia: alta de un proyecto nuevo desde el editor, dato del usuario.
+            selected_slider.NIFContent.Save_As_Manolo_ConCopia(New_Nif, False)
             If smpXmlPath IsNot Nothing Then
                 File.WriteAllText(smpXmlPath, selected_slider.PhysicsXmlContent, System.Text.Encoding.UTF8)
             End If

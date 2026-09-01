@@ -523,7 +523,11 @@ Public Class OSD_Class
         End If
 
         If IsNothing(Me.Header) Then Return False
-        Using stream = IO.File.Open(Filename, IO.FileMode.Create)
+        ' Se escribe ENCIMA del .osd que ya está, con copia previa. Los Throw que menciona el comentario
+        ' de arriba (nombre > 255 bytes, > 65535 diffs) salían DESPUÉS de truncar y dejaban el .osd
+        ' destruido en disco: ahora `GuardarConCopia` restaura solo el contenido anterior.
+        BSA_BA2_Library_DLL.EscrituraEnElLugar.GuardarConCopia(Filename,
+         Sub(stream)
             Using Writer As New IO.BinaryWriter(stream)
 
                 ' BodySlide indexa los bloques del .osd con `outDataDiffs.emplace(dataName, ...)` sobre
@@ -574,7 +578,7 @@ Public Class OSD_Class
                 Next
                 Writer.Flush()
             End Using
-        End Using
+         End Sub)
         Return True
     End Function
 
@@ -1543,18 +1547,20 @@ Public Class Clone_Materials_class
                 IO.Directory.CreateDirectory(IO.Path.GetDirectoryName(job.TargetFullPath))
             End If
 
+            ' ⛔ Acá NO va un `IO.File.Delete(job.TargetFullPath)` antes de escribir: bajo Mod Organizer
+            ' el borrado saca el archivo del árbol virtual y lo que se escriba después es un archivo
+            ' NUEVO, que cae en la carpeta `overwrite` en vez de quedar en el mod. Se sobrescribe en el
+            ' lugar, que es lo que ya hacen el Copy con overwrite y el WriteAllBytes de abajo.
             If IO.File.Exists(job.TargetFullPath) Then
                 If overwrite = False AndAlso job.OverwriteApproved = False Then
                     RegisterGeneratedDictionaryFile(TexturesPrefix & job.TargetRelative)
                     Continue For
-                Else
-                    IO.File.Delete(job.TargetFullPath)
                 End If
             End If
 
             If location.IsLosseFile Then
                 Dim sourceLooseFile As String = IO.Path.Combine(FilesDictionary_class.FO4Path, location.FullPath)
-                IO.File.Copy(sourceLooseFile, job.TargetFullPath, False)
+                IO.File.Copy(sourceLooseFile, job.TargetFullPath, True)
             Else
                 Dim bytes As Byte() = Nothing
                 prefetchedPackedBytes.TryGetValue(job.SourceKey, bytes)
@@ -1588,14 +1594,13 @@ Public Class Clone_Materials_class
             If overwrite = False AndAlso job.OverwriteApproved = False Then
                 RegisterGeneratedDictionaryFile(MaterialsPrefix & job.TargetReference)
                 Exit Sub
-            Else
-                IO.File.Delete(job.TargetFullPath)
             End If
+            ' ⛔ Sin `IO.File.Delete` acá: bajo Mod Organizer el borrado saca el archivo del mod y el
+            ' `FileMode.Create` de abajo escribiría uno nuevo en `overwrite`. Truncar en el lugar cae
+            ' sobre el archivo del mod, que es lo que se quiere.
         End If
 
-        Using writer As FileStream = IO.File.Open(job.TargetFullPath, FileMode.Create)
-            saveAction(writer)
-        End Using
+        BSA_BA2_Library_DLL.EscrituraEnElLugar.Escribir(job.TargetFullPath, Sub(fs) saveAction(fs))
 
         RegisterGeneratedDictionaryFile("Materials\" & job.TargetReference)
     End Sub
@@ -2316,7 +2321,16 @@ Public Class OSP_Project_Class
 
     Public Sub Save_Pack_As(NewFilename As String, Overwrite As Boolean)
         If IO.File.Exists(NewFilename) AndAlso Overwrite = False Then Throw New Exception("OSP File already exists")
-        Me.xml.Save(NewFilename)
+        ' ⛔ MEDIDO: `XmlDocument.Save(String)` TIRA sobre un documento sin raíz y deja el destino
+        ' intacto; `Save(Stream)` no valida nada, escribe CERO bytes y vuelve sin excepción. Un .osp que
+        ' no parseó deja `xml` vacío (Reload y el constructor se comen la excepción de Load), así que sin
+        ' esta guarda el guardado siguiente dejaba el proyecto del usuario en 0 bytes y reportaba éxito.
+        If Me.xml.DocumentElement Is Nothing Then
+            Throw New Xml.XmlException("The OSP document has no root element: refusing to write an empty project file.")
+        End If
+        ' Se escribe ENCIMA del .osp que ya está, con copia previa: es el proyecto del usuario y vive
+        ' adentro de un mod (Data\Tools\BodySlide\SliderSets\). Misma ley que SaveNpcEspWriter (Step 7).
+        BSA_BA2_Library_DLL.EscrituraEnElLugar.GuardarConCopia(NewFilename, Sub(fs) Me.xml.Save(fs))
         For Each slider In Me.SliderSets
             slider.LastProjectFileSignature = slider.GetProjectFileSignature()
         Next
@@ -3902,7 +3916,9 @@ Public Class SliderSet_Class
                     NIF.Load(fil)
                     Dim applied = SyncHHOffsetInNif(NIF, manage, mayDestroy)
                     If applied.HasValue Then
-                        NIF.Save_As_Manolo(fil, True)
+                        ' Con copia: este NIF lo construyo BODYSLIDE, no nuestro motor, asi que si la
+                        ' reescritura se corta no lo podemos regenerar.
+                        NIF.Save_As_Manolo_ConCopia(fil, True)
                         result = applied
                     End If
                 Next
@@ -4737,7 +4753,9 @@ Public Class SliderSet_Class
             End If
         End If
 
-        NIFContent.Save_As_Manolo(New_Nif, OverwriteShapeFiles)
+        ' Con copia: esto es el guardado del PROYECTO desde el editor, o sea dato del usuario. El NIF de
+        ' salida del build usa Save_As_Manolo a secas (son cientos por corrida y se regeneran).
+        NIFContent.Save_As_Manolo_ConCopia(New_Nif, OverwriteShapeFiles)
         ' Path canónico via ChangeExtension: el Replace(".nif", ...) reemplazaba TODAS las
         ' ocurrencias, así que una carpeta o un nombre que contuviera ".nif" corrompía el destino.
         SaveHighHeel(HighHeelSidecarPath, OverwriteShapeFiles)

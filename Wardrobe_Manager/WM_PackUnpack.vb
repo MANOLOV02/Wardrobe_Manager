@@ -353,8 +353,12 @@ Public Module WM_PackUnpack
         ' ⛔⛔ ACÁ DECÍA "Explicitly disposing the pool here makes the rewrite path race-free". ERA FALSO.
         ' Vaciar el pool no alcanza: un reader ALQUILADO ya salió del pool y su FileStream vive todo el
         ' ExtractToMemory, así que UnregisterArchive vuelve con ese handle abierto. Lo que hace que el
-        ' File.Move del packager funcione es que las lecturas de archive abren con FileShare.Delete
-        ' (FilesDictionary_class.AbrirArchiveParaLectura), no este loop.
+        ' packager funcione con un lector en vuelo era el FileShare.Delete de
+        ' FilesDictionary_class.AbrirArchiveParaLectura, no este loop.
+        ' ⛔ ESO YA NO ALCANZA: el packager dejo de renombrar y ahora VUELCA el archive nuevo ENCIMA del
+        ' original (para que no se salga del mod bajo Mod Organizer), y volcar pide ESCRITURA, que las
+        ' lecturas no comparten. Con un lease en vuelo el volcado reintenta y, si no puede, el pack falla
+        ' limpio con el archive viejo intacto. Ver EscrituraEnElLugar.VolcarEncima.
         Dim preSet = ArchivePackager.DiscoverArchiveSet(dataDir, MOD_BASE_NAME)
         For Each archivePath In preSet.Archives
             Try
