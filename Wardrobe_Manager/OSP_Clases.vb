@@ -898,10 +898,6 @@ Public Class Clone_Materials_class
         ' ⛔ Y ESTA PUERTA NO LA CUBRIA EL CABLEADO DE Agrega_Proyecto NI EL DEL EDITOR: el boton de
         ' REPARAR entra por acá sin pasar por ninguno de los dos, y en los otros dos call sites este metodo
         ' corre DESPUES de que aquel lote ya se confirmo. Medido en `Tools\LoteProyectoGate` (caso R).
-        ' ⛔ EL ESPACIO SE MIRA ANTES DE ABRIR EL LOTE. Quedarse sin disco a mitad es el peor momento:
-        ' hay etapas escritas y el rollback NECESITA ESCRIBIR para devolverlas. Fallar antes de tocar
-        ' nada deja el disco como estaba. Los destinos que no existen no cuentan (son creaciones).
-        BSA_BA2_Library_DLL.EscrituraEnElLugar.ExigirEspacioParaLote(New String() {project.LocalOsdFullPath, project.SourceFileFullPath, project.ParentOSP.Filename})
         Dim lote = BSA_BA2_Library_DLL.EscrituraEnElLugar.NuevoLote()
         Try
             If Not project.Save_Shapedatas(True, lote) Then
@@ -2816,10 +2812,6 @@ Public Class OSP_Project_Class
         ' El lote abarca las CINCO etapas: las cuatro de `Save_Shapedatas` y el `.osp` del `Save_Pack_As`
         ' de mas abajo, que es el que hace consistente el colapso de los `.osd`. Nace acá por eso.
         Dim escrito As Boolean
-        ' ⛔ EL ESPACIO SE MIRA ANTES DE ABRIR EL LOTE. Quedarse sin disco a mitad es el peor momento:
-        ' hay etapas escritas y el rollback NECESITA ESCRIBIR para devolverlas. Fallar antes de tocar
-        ' nada deja el disco como estaba. Los destinos que no existen no cuentan (son creaciones).
-        BSA_BA2_Library_DLL.EscrituraEnElLugar.ExigirEspacioParaLote(New String() {Sliderset_Target.LocalOsdFullPath, Sliderset_Target.SourceFileFullPath, Filename})
         Dim lote = BSA_BA2_Library_DLL.EscrituraEnElLugar.NuevoLote()
         Try
             Try
@@ -3065,10 +3057,6 @@ Public Class OSP_Project_Class
         ' tambien este merge.
         ' El lote abarca las cinco etapas: las cuatro de `Save_Shapedatas` y el `.osp` del
         ' `Save_Pack_As` de abajo. Nace acá porque el `.osp` se escribe en OTRO metodo.
-        ' ⛔ EL ESPACIO SE MIRA ANTES DE ABRIR EL LOTE. Quedarse sin disco a mitad es el peor momento:
-        ' hay etapas escritas y el rollback NECESITA ESCRIBIR para devolverlas. Fallar antes de tocar
-        ' nada deja el disco como estaba. Los destinos que no existen no cuentan (son creaciones).
-        BSA_BA2_Library_DLL.EscrituraEnElLugar.ExigirEspacioParaLote(New String() {Sliderset_Madre.LocalOsdFullPath, Sliderset_Madre.SourceFileFullPath, Sliderset_Madre.ParentOSP.Filename})
         Dim lote = BSA_BA2_Library_DLL.EscrituraEnElLugar.NuevoLote()
         Try
             If Not Sliderset_Madre.Save_Shapedatas(True, lote) Then Return Nothing

@@ -1446,10 +1446,6 @@ Public Class Editor_Form
             ' que es el unico que hace consistente el colapso de los `.osd`— lo escribe `Save_Pack`, que es
             ' otro metodo. Un lote que naciera adentro de `Save_Shapedatas` confirmaria ANTES del `.osp` y
             ' dejaria justo el estado que este arreglo existe para evitar.
-            ' ⛔ EL ESPACIO SE MIRA ANTES DE ABRIR EL LOTE. Quedarse sin disco a mitad es el peor momento:
-            ' hay etapas escritas y el rollback NECESITA ESCRIBIR para devolverlas. Fallar antes de tocar
-            ' nada deja el disco como estaba. Los destinos que no existen no cuentan (son creaciones).
-            BSA_BA2_Library_DLL.EscrituraEnElLugar.ExigirEspacioParaLote(New String() {Selected_Slider.LocalOsdFullPath, Selected_Slider.SourceFileFullPath, Selected_Slider.ParentOSP.Filename})
             Dim lote = BSA_BA2_Library_DLL.EscrituraEnElLugar.NuevoLote()
             Try
                 If Not Selected_Slider.Save_Shapedatas(True, lote) Then
