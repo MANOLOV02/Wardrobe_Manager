@@ -37,7 +37,13 @@ Friend Module WM_EscrituraTexto
     ''' <c>End Using</c> del StreamWriter CIERRA el FileStream que abrió <c>EscribirNucleo</c>, y el
     ''' <c>Flush(True)</c> posterior revienta con ObjectDisposedException. La guarda del contrato de
     ''' EscrituraEnElLugar lo detecta y falla diciendo qué se rompió, pero acá directamente no pasa.</para></summary>
-    Friend Sub EscribirTextoUtf8(destino As String, texto As String, conCopia As Boolean, conBom As Boolean)
+    ''' <param name="lote">OPCIONAL y sólo relevante con <paramref name="conCopia"/>: cuando este texto es
+    ''' una ETAPA del guardado de un proyecto (el <c>.hht</c> de tacones, el <c>.xml</c> de física SMP), su
+    ''' copia no se borra al terminar ESTE archivo sino al confirmarse el CONJUNTO — así un fallo en una
+    ''' etapa posterior puede devolver también a ésta. Con <c>Nothing</c> (el default) la conducta es
+    ''' EXACTAMENTE la de antes. Ver <c>EscrituraEnElLugar.NuevoLote</c>.</param>
+    Friend Sub EscribirTextoUtf8(destino As String, texto As String, conCopia As Boolean, conBom As Boolean,
+                                 Optional lote As BSA_BA2_Library_DLL.EscrituraEnElLugar.LoteConCopias = Nothing)
         Dim enc As New Text.UTF8Encoding(encoderShouldEmitUTF8Identifier:=conBom)
         Dim cuerpo As Action(Of IO.Stream) =
             Sub(fs)
@@ -48,7 +54,7 @@ Friend Module WM_EscrituraTexto
             End Sub
 
         If conCopia Then
-            BSA_BA2_Library_DLL.EscrituraEnElLugar.GuardarConCopia(destino, cuerpo)
+            BSA_BA2_Library_DLL.EscrituraEnElLugar.GuardarConCopia(destino, cuerpo, lote)
         Else
             BSA_BA2_Library_DLL.EscrituraEnElLugar.Escribir(destino, cuerpo)
         End If
@@ -96,30 +102,16 @@ Friend Module WM_EscrituraTexto
     ''' <para>⛔ Y NO pasa por <see cref="EscribirTextoUtf8"/>: ese escribe TEXTO con un encoding que elige
     ''' el llamador, y acá el encoding —y el BOM— los decide la declaración del documento. El cuerpo no
     ''' envuelve el stream en nada, así que la trampa del <c>leaveOpen</c> ni se presenta.</para></summary>
+    ''' <para>⛔⛔ LA DERIVACIÓN YA NO VIVE ACÁ: DELEGA EN <c>FO4_Base_Library.EscrituraXml</c>. Esta
+    ''' función tenía una copia privada e idéntica de las settings, y el 2026-09-02 apareció una SEGUNDA
+    ''' casa de la misma ley en la librería compartida porque NPC_Manager escribe el MISMO
+    ''' <c>WardrobeManagerPoses.xml</c>. Dos derivaciones del mismo archivo es exactamente la forma de que
+    ''' un día diverjan y los bytes del preset del usuario dependan de QUIÉN lo guardó. Se queda UNA, la de
+    ''' la librería; acá sobrevive el docstring porque es donde está escrito POR QUÉ las settings son las
+    ''' que son. El envoltorio se conserva —no se reemplazan los llamadores por la llamada directa— para
+    ''' que Wardrobe_Manager siga teniendo un solo punto de entrada de escritura de texto/XML.</para></summary>
     Friend Sub GuardarXDocumentConCopia(destino As String, doc As XDocument)
-        If doc Is Nothing Then Throw New ArgumentNullException(NameOf(doc))
-
-        ' La MISMA derivación que hace XDocument.Save(String) — ver el ⛔ de arriba.
-        Dim opciones As New Xml.XmlWriterSettings With {.Indent = True}
-        If doc.Declaration IsNot Nothing AndAlso Not String.IsNullOrEmpty(doc.Declaration.Encoding) Then
-            Try
-                opciones.Encoding = Text.Encoding.GetEncoding(doc.Declaration.Encoding)
-            Catch ex As ArgumentException
-                ' Un nombre de encoding que el framework no conoce: se queda el default (UTF-8), que es
-                ' exactamente lo que hace XDocument.Save(String) con el mismo Catch.
-            End Try
-        End If
-
-        Dim bytes As Byte()
-        Using ms As New IO.MemoryStream()
-            Using xw = Xml.XmlWriter.Create(ms, opciones)
-                doc.Save(xw)
-            End Using
-            bytes = ms.ToArray()
-        End Using
-
-        BSA_BA2_Library_DLL.EscrituraEnElLugar.GuardarConCopia(
-            destino, Sub(fs) fs.Write(bytes, 0, bytes.Length))
+        FO4_Base_Library.EscrituraXml.GuardarXDocumentConCopia(destino, doc)
     End Sub
 
 End Module

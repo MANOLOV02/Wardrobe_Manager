@@ -2930,11 +2930,25 @@ Public Class Wardrobe_Manager_Form
                     Dim NodoClone = DummyOSP.xml.ImportNode(sliderset_target.Nodo.Clone, True)
                     Dim builder As New SliderSet_Class(NodoClone, DummyOSP)
                     nombre = "Temporary_WM_Builder" + idx.ToString + builder.Nombre
-                    Otufits.Add(nombre)
                     builder.Nombre = nombre
                     DummyOSP.xml.DocumentElement.AppendChild(builder.Nodo)
+                    ' ⛔ EL `Add` VA DESPUES DEL `AppendChild`, Y NO ES ESTILO. `Otufits` es lo que se
+                    ' escribe en el group .xml, o sea la lista de miembros del lote; el `.osp` temporal es
+                    ' lo que sale del DOM. Con el `Add` ANTES, cualquier fallo del `ImportNode` /
+                    ' `AppendChild` dejaba el nombre ANUNCIADO en el group y el nodo AFUERA del `.osp`:
+                    ' BodySlide recibia un grupo que nombra un proyecto que su `.osp` no tiene. Poniendolo
+                    ' despues, la lista sólo nombra lo que de verdad entro al documento.
+                    Otufits.Add(nombre)
 
                 Catch ex As Exception
+                    ' ⛔ Y EL CATCH DEJA DE SER MUDO. Este metodo PROMETE el motivo: su resultado viaja en
+                    ' `errorTemporales` y el llamador lo muestra ("...rebuild the PREVIOUS batch"). Con el
+                    ' `Catch` vacio, un proyecto que no entraba al lote desaparecia sin una palabra y el
+                    ' usuario construia un lote incompleto creyendolo completo — el `Debugger.Break()` solo
+                    ' existe en DEBUG, asi que en Release no quedaba NADA.
+                    ' Se ACUMULA (no se pisa): si fallan varios, el mensaje los tiene que nombrar a todos.
+                    errorTemporales &= If(errorTemporales = "", "", vbCrLf) &
+                                       $"· '{sliderset_target.Nombre}': {ex.Message}"
 #If DEBUG Then
                     Debugger.Break()
 #End If
@@ -2962,7 +2976,10 @@ Public Class Wardrobe_Manager_Form
             ' ⛔ ESTE CATCH ERA MUDO (`#If DEBUG Then Debugger.Break()`), o sea que en Release no dejaba
             ' rastro y la función devolvía las dos rutas como si todo hubiera salido bien. El costo era
             ' un build del LOTE ANTERIOR, en silencio. Ahora el motivo sube y Build_WithBS no lanza nada.
-            errorTemporales = ex.Message
+            ' ⛔ ACUMULA, no pisa: si ademas hubo proyectos que no entraron al lote (el Catch por ítem de
+            ' arriba), ese motivo es TAN necesario como este y perderlo deja al usuario con medio
+            ' diagnostico.
+            errorTemporales &= If(errorTemporales = "", "", vbCrLf) & ex.Message
 #If DEBUG Then
             Debugger.Break()
 #End If

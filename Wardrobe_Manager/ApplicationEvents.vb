@@ -53,6 +53,11 @@ Namespace My
             ' PRIMERO DE TODO: el handler de AppDomain cubre los hilos que NO son el de UI (el build corre en
             ' background), donde MyApplication.UnhandledException no llega. Ver Shared\CrashReport.vb.
             CrashReport.Install()
+            ' ⛔ LA CARPETA DE DIARIOS, ANTES DE CUALQUIER GUARDADO. Un lote que empiece antes de esto
+            ' no escribe diario, y entonces una terminacion abrupta no deja rastro que el arranque
+            ' siguiente pueda ofrecer. Sin setearla, el lote sigue funcionando igual que siempre — es
+            ' opt-in a proposito, para que los arneses no ensucien el disco del usuario.
+            RecuperacionDeLotes.ConfigurarCarpeta("WardrobeManager")
             ArranqueReal(e)
         End Sub
 
@@ -69,6 +74,11 @@ Namespace My
                 e.Cancel = True
                 Return
             End If
+
+            ' ⛔ LA OFERTA DE RECUPERACION VA ACA: DESPUES del modo consola —un MessageBox colgaria un
+            ' `--build` headless para siempre— y ANTES de que la GUI abra ningun proyecto, porque un
+            ' proyecto afectado no se puede abrir hasta que el usuario decida que hacer con el.
+            RecuperacionDeLotes.OfrecerRecuperacion()
             ' Logger habilitado SOLO en Debug builds. En Release: Logger.Enabled queda en False y todos los
             ' Logger.Log/LogLazy retornan early sin allocar — y, mas importante, TODOS los bloques
             ' `If Logger.Enabled Then ...` de diagnostico no corren. ⭐ DOBLE CANDADO: ademas de este

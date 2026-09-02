@@ -527,7 +527,8 @@ Public Class OSD_Class
     ''' pasar esto: una copia de la ley que se quedó vieja y contradecía al código tres líneas
     ''' más abajo.</para>
     ''' </summary>
-    Public Function Save_As(Filename As String, Overwrite As Boolean) As Boolean
+    Public Function Save_As(Filename As String, Overwrite As Boolean,
+                            Optional lote As BSA_BA2_Library_DLL.EscrituraEnElLugar.LoteConCopias = Nothing) As Boolean
         If IO.File.Exists(Filename) AndAlso Overwrite = False Then
             If MsgBox("ODS File already exists, replace?", vbYesNo, "Warning") = MsgBoxResult.No Then
                 Return False
@@ -601,7 +602,8 @@ Public Class OSD_Class
                 Next
                 Writer.Flush()
             End Using
-         End Sub)
+         End Sub,
+         lote)
         Return True
     End Function
 
@@ -884,10 +886,40 @@ Public Class Clone_Materials_class
         ' `If osdEscrito Then`, y las dos salidas False de `Save_Shapedatas` estan ANTES: con False el DOM
         ' NO quedo colapsado, asi que el `Save_Pack` de abajo no tiene nada que sincronizar. (Es `Exit Sub`
         ' y no `Return False` porque esto es un Sub, no una Function.)
-        If Not project.Save_Shapedatas(True) Then
-            Logger.LogLazy(Function() "[WM] Clone_Materials_For_Project: no se pudo guardar la shapedata reparada; no se toca el .osp")
-            Exit Sub
-        End If
+        ' ⛔⛔ EL LOTE NACE ACA, Y NO ANTES. Todo lo de arriba (`CollectClonePlan`, `CommitMaterialJobs`,
+        ' `ApplyShapeBindings`) o no toca el disco o escribe la salida REGENERABLE de `ManoloCloned\` por
+        ' `EscrituraEnElLugar.Escribir` — que por ley no lleva copia y se rehace sola en la corrida
+        ' siguiente. Meterla al lote seria cambiarle la clase al artefacto y poner una copia por material.
+        '
+        ' Lo que SI es una unidad son las cinco etapas de abajo: los cuatro archivos que escribe
+        ' `Save_Shapedatas` y el `.osp` del `Save_Pack`. Sin lote, un fallo en la etapa del `.nif` dejaba el
+        ' `.osd` COLAPSADO en disco contra un `.osp` todavia REPARTIDO, y con eso
+        ' `FindCrossFileBlockNameClash` rechaza el proyecto al cargar: deja de abrir.
+        ' ⛔ Y ESTA PUERTA NO LA CUBRIA EL CABLEADO DE Agrega_Proyecto NI EL DEL EDITOR: el boton de
+        ' REPARAR entra por acá sin pasar por ninguno de los dos, y en los otros dos call sites este metodo
+        ' corre DESPUES de que aquel lote ya se confirmo. Medido en `Tools\LoteProyectoGate` (caso R).
+        ' ⛔ EL ESPACIO SE MIRA ANTES DE ABRIR EL LOTE. Quedarse sin disco a mitad es el peor momento:
+        ' hay etapas escritas y el rollback NECESITA ESCRIBIR para devolverlas. Fallar antes de tocar
+        ' nada deja el disco como estaba. Los destinos que no existen no cuentan (son creaciones).
+        BSA_BA2_Library_DLL.EscrituraEnElLugar.ExigirEspacioParaLote(New String() {project.LocalOsdFullPath, project.SourceFileFullPath, project.ParentOSP.Filename})
+        Dim lote = BSA_BA2_Library_DLL.EscrituraEnElLugar.NuevoLote()
+        Try
+            If Not project.Save_Shapedatas(True, lote) Then
+                Logger.LogLazy(Function() "[WM] Clone_Materials_For_Project: no se pudo guardar la shapedata reparada; no se toca el .osp")
+                ' ⛔⛔ ACA NO SE CONFIRMA — Y NO ES POR LAS DUDAS. Hoy este False implica CERO archivos
+                ' escritos, y esta RASTREADO, no supuesto: `Save_Shapedatas` tiene dos `Return False` (la
+                ' pregunta de overwrite, que no escribe nada, y `Not osdEscrito`), y `OSD_Class.Save_As`
+                ' tiene sus dos `Return False` ANTES de su `GuardarConCopia` — entre la escritura y su
+                ' `Return True` no hay ninguno; sus dos `Throw` salen como EXCEPCION, no como False. Y nada
+                ' muta el disco antes de esa primera llamada.
+                ' Pero eso es una propiedad FRAGIL: alcanza con que alguien agregue una validacion
+                ' post-escritura que devuelva False en vez de tirar, o una quinta etapa con esa forma, para
+                ' que confirmar acá pase a commitear un conjunto PARCIAL — el defecto exacto que este lote
+                ' existe para impedir— y nada se pondria rojo. Dejando caer al `Finally`, el resultado es
+                ' correcto en los dos mundos: hoy el lote no tiene ninguna etapa con copia y deshacer es un
+                ' no-op exacto (costo cero); si mañana alguien introduce ese camino, se restaura.
+                Exit Sub
+            End If
 
         ' ⛔ Save_Shapedatas COLAPSA los <Data> locales a un solo .osd, y para eso MUTA el XML del .osp.
         ' El camino expuesto es el botón de REPARAR materiales (TryRepairCloneIssue), que va de
@@ -903,8 +935,12 @@ Public Class Clone_Materials_class
         ' un pack que crece con cada ítem del lote. Ahora el llamador que puede PROBAR que ya guardó lo
         ' dice (ver el param), y los que no, no.
         ' El guard de File.Exists cubre el ParentOSP dummy (sin archivo), cuyo Filename da "Unknown".
-        Dim pack = project.ParentOSP
-        If pack Is Nothing OrElse Not IO.File.Exists(pack.Filename) Then Exit Sub
+            Dim pack = project.ParentOSP
+            ' Unidad COMPLETA: no hay `.osp` que mantener consistente con la shapedata recien escrita.
+            If pack Is Nothing OrElse Not IO.File.Exists(pack.Filename) Then
+                lote.Confirmar()
+                Exit Sub
+            End If
 
         ' ⛔ SE SALTEA SÓLO SI ESTÁ PROBADO, y la prueba es una implicación cerrada, no un juicio: el
         ' llamador afirma que ya escribió el .osp con el DOM de ese momento, y la huella dice que el DOM
@@ -913,9 +949,20 @@ Public Class Clone_Materials_class
         ' Si el DOM SÍ cambió, se guarda igual aunque el llamador haya dicho que guardó — un .osp
         ' repartido contra un .osd ya colapsado es el daño que este Save_Pack existe para evitar, y no
         ' se lo cambia por una afirmación.
-        If elLlamadorGuardaElPack AndAlso domAlEntrar <> "" AndAlso domAlEntrar = HuellaDelDom(project) Then Exit Sub
+            ' Unidad COMPLETA: la huella PRUEBA que el `.osp` en disco es byte-identico al que se
+            ' escribiria, asi que saltearlo equivale a haberlo escrito.
+            If elLlamadorGuardaElPack AndAlso domAlEntrar <> "" AndAlso domAlEntrar = HuellaDelDom(project) Then
+                lote.Confirmar()
+                Exit Sub
+            End If
 
-        pack.Save_Pack(True)
+            pack.Save_Pack(True, lote)
+            ' Recien acá las cinco etapas estan en disco: el proyecto es consistente.
+            lote.Confirmar()
+        Finally
+            ' Si no se confirmo, deshace en orden inverso y NUNCA tira (taparia la excepcion real).
+            lote.Dispose()
+        End Try
     End Sub
 
     Private Shared Sub CollectClonePlan(project As SliderSet_Class, plan As ClonePlan)
@@ -2433,12 +2480,17 @@ Public Class OSP_Project_Class
         Save_Pack_As(Filename, True)
 
     End Sub
-    Public Sub Save_Pack(Overwrite As Boolean)
+    ''' <summary><paramref name="lote"/> OPCIONAL: el `.osp` es la ULTIMA etapa del guardado del proyecto y
+    ''' la que hace consistente el colapso de los `.osd` que hizo <c>Save_Shapedatas</c>. Va en el MISMO
+    ''' lote que aquellas cuatro.</summary>
+    Public Sub Save_Pack(Overwrite As Boolean,
+                         Optional lote As BSA_BA2_Library_DLL.EscrituraEnElLugar.LoteConCopias = Nothing)
         If IO.File.Exists(Filename) AndAlso Overwrite = False Then Throw New Exception("OSP File already exists")
-        Save_Pack_As(Me.Filename, Overwrite)
+        Save_Pack_As(Me.Filename, Overwrite, lote)
     End Sub
 
-    Public Sub Save_Pack_As(NewFilename As String, Overwrite As Boolean)
+    Public Sub Save_Pack_As(NewFilename As String, Overwrite As Boolean,
+                            Optional lote As BSA_BA2_Library_DLL.EscrituraEnElLugar.LoteConCopias = Nothing)
         If IO.File.Exists(NewFilename) AndAlso Overwrite = False Then Throw New Exception("OSP File already exists")
         ' ⛔ MEDIDO: `XmlDocument.Save(String)` TIRA sobre un documento sin raíz y deja el destino
         ' intacto; `Save(Stream)` no valida nada, escribe CERO bytes y vuelve sin excepción. Un .osp que
@@ -2449,7 +2501,7 @@ Public Class OSP_Project_Class
         End If
         ' Se escribe ENCIMA del .osp que ya está, con copia previa: es el proyecto del usuario y vive
         ' adentro de un mod (Data\Tools\BodySlide\SliderSets\). Misma ley que SaveNpcEspWriter (Step 7).
-        BSA_BA2_Library_DLL.EscrituraEnElLugar.GuardarConCopia(NewFilename, Sub(fs) Me.xml.Save(fs))
+        BSA_BA2_Library_DLL.EscrituraEnElLugar.GuardarConCopia(NewFilename, Sub(fs) Me.xml.Save(fs), lote)
         For Each slider In Me.SliderSets
             slider.LastProjectFileSignature = slider.GetProjectFileSignature()
         Next
@@ -2752,7 +2804,32 @@ Public Class OSP_Project_Class
         ' perdía el original. Antes había una red por accidente (con un .hht existente `SaveHighHeel` tiraba
         ' y abortaba la cadena); al unificar la pregunta esa red desapareció, así que la señal tiene que ser
         ' explícita.
-        If Not Sliderset_Target.Save_Shapedatas(OverwriteShapeFiles) Then
+        ' ⛔⛔ EL UNDO TAMBIEN CUANDO `Save_Shapedatas` TIRA, no solo cuando devuelve False. El bloque de
+        ' limpieza de abajo colgaba UNICAMENTE del `If Not ... Then`, y este metodo no tiene un solo `Try`:
+        ' si la escritura de la shapedata sube una EXCEPCION —`GuardarConCopia` sin respaldo posible es el
+        ' disparador medido: destino tomado, disco lleno, permisos— el undo se salteaba entero y el
+        ' PROYECTO FANTASMA quedaba en el DOM y en `SliderSets`. El daño no se queda ahi: el item SIGUIENTE
+        ' del lote llama `Save_Pack_As`, que serializa el DOM CON el fantasma, y el `.osp` termina
+        ' declarando un proyecto cuyo `.nif` nunca se escribio ⇒ `Unreadable_NIF` para siempre. Y el cartel
+        ' del lote MIENTE: dice "left in place" sobre un proyecto que si se toco.
+        ' El `Throw` se conserva —el llamador tiene que enterarse— pero el DOM vuelve limpio primero.
+        ' El lote abarca las CINCO etapas: las cuatro de `Save_Shapedatas` y el `.osp` del `Save_Pack_As`
+        ' de mas abajo, que es el que hace consistente el colapso de los `.osd`. Nace acá por eso.
+        Dim escrito As Boolean
+        ' ⛔ EL ESPACIO SE MIRA ANTES DE ABRIR EL LOTE. Quedarse sin disco a mitad es el peor momento:
+        ' hay etapas escritas y el rollback NECESITA ESCRIBIR para devolverlas. Fallar antes de tocar
+        ' nada deja el disco como estaba. Los destinos que no existen no cuentan (son creaciones).
+        BSA_BA2_Library_DLL.EscrituraEnElLugar.ExigirEspacioParaLote(New String() {Sliderset_Target.LocalOsdFullPath, Sliderset_Target.SourceFileFullPath, Filename})
+        Dim lote = BSA_BA2_Library_DLL.EscrituraEnElLugar.NuevoLote()
+        Try
+            Try
+                escrito = Sliderset_Target.Save_Shapedatas(OverwriteShapeFiles, lote)
+            Catch
+                DeshacerProyectoFantasma(Sliderset_Target)
+                Throw
+            End Try
+
+        If Not escrito Then
             ' ⛔⛔ DESHACER EL AddProject. Cortar acá sin limpiar dejaba un PROYECTO FANTASMA: `AddProject`
             ' ya hizo `xml.DocumentElement.AppendChild(...)` Y `SliderSets.Add(...)`, y sólo limpia cuando
             ' falla ÉL. El fantasma aparecía en la lista (`Lee_Listbox_Targets` corre FUERA del chequeo de
@@ -2762,21 +2839,40 @@ Public Class OSP_Project_Class
             ' posterior serializaba el DOM con el fantasma adentro.
             ' ⛔ NO se usa `RemoveProject`: ese BORRA ARCHIVOS DEL DISCO, que es justo lo que hay que evitar.
             ' Esto es la misma limpieza quirúrgica que hace `AddProject` en su propio camino de fallo.
-            SliderSets.Remove(Sliderset_Target)
-            If Not IsNothing(Sliderset_Target.Nodo) AndAlso Not IsNothing(Sliderset_Target.Nodo.ParentNode) Then
-                Sliderset_Target.Nodo.ParentNode.RemoveChild(Sliderset_Target.Nodo)
-            End If
-            ' ⛔ Y del LRU estatico tambien. `Load_and_Check_Shapedata` lo anoto en `LoadedShapeDataSlots`;
-            ' con `Default_Memory_Pause = True` (batch, Merge) no hay eviccion, asi que cada rechazado
-            ' de la tanda quedaba retenido con su NIF y su OSD.
-            OSP_Project_Class.ForgetLoadedShapeDataSlot(Sliderset_Target)
+            DeshacerProyectoFantasma(Sliderset_Target)
             Return Nothing
         End If
 
-        ' Graba el proyecto
-        Save_Pack_As(Filename, True)
+            ' Graba el proyecto — ULTIMA etapa del lote.
+            Save_Pack_As(Filename, True, lote)
+            lote.Confirmar()
+        Finally
+            lote.Dispose()
+        End Try
         Return Sliderset_Target
     End Function
+
+    ''' <summary>Deshace el <c>AddProject</c> de un target que no llego a escribir su shapedata.
+    ''' <para>⛔ UNA SOLA LIMPIEZA, DOS CAMINOS DE FALLO. `AddProject` ya hizo `AppendChild` Y
+    ''' `SliderSets.Add`, y solo limpia cuando falla EL. Si el target no se escribe —porque el usuario dijo
+    ''' que no (False) o porque la escritura TIRO— hay que sacarlo de los tres lugares donde quedo anotado.
+    ''' Esto vivia inline en la rama del False; el camino de la excepcion no lo tenia, y esa es exactamente
+    ''' la diferencia que dejaba el PROYECTO FANTASMA en el DOM.</para>
+    ''' <para>⛔ NO se usa `RemoveProject`: ese BORRA ARCHIVOS DEL DISCO, que es justo lo que hay que
+    ''' evitar — el usuario acaba de negarse a pisarlos, o no se pudieron escribir.</para></summary>
+    Private Sub DeshacerProyectoFantasma(Sliderset_Target As SliderSet_Class)
+        If Sliderset_Target Is Nothing Then Return
+        ' De instancia y `SliderSets` a secas: es la MISMA coleccion que tocaba el bloque inline
+        ' (`Me.SliderSets`), la del OSP al que `AddProject` acaba de agregarlo.
+        SliderSets.Remove(Sliderset_Target)
+        If Not IsNothing(Sliderset_Target.Nodo) AndAlso Not IsNothing(Sliderset_Target.Nodo.ParentNode) Then
+            Sliderset_Target.Nodo.ParentNode.RemoveChild(Sliderset_Target.Nodo)
+        End If
+        ' ⛔ Y del LRU estatico tambien. `Load_and_Check_Shapedata` lo anoto en `LoadedShapeDataSlots`;
+        ' con `Default_Memory_Pause = True` (batch, Merge) no hay eviccion, asi que cada rechazado
+        ' de la tanda quedaba retenido con su NIF y su OSD.
+        OSP_Project_Class.ForgetLoadedShapeDataSlot(Sliderset_Target)
+    End Sub
 
     Public Shared Function Merge_Proyecto(Sliderset_Madre As SliderSet_Class, Sliderset_Source As SliderSet_Class, ExcludeReference As Boolean, Keep_Physics As Boolean, Optional context As ProjectLoadContext = Nothing) As SliderSet_Class
         ' Add project and update
@@ -2793,13 +2889,21 @@ Public Class OSP_Project_Class
             Return Nothing
         End If
 
+        ' ⛔⛔ LA INSTANTANEA VA ACA: EN EL BORDE, ANTES DE LA PRIMERA MUTACION DE LA MADRE. Todo lo que
+        ' sigue la toca —tacones, sliders, shapes, datas, bloques OSD, la geometria del NIF y los datas que
+        ' `Make_Sliders_Local` vuelve locales— y el guardado recien ocurre al final. Una sola puerta en el
+        ' borde, nunca un undo por item: ver `SliderSet_Class.TomarInstantanea` para el costo medido y para
+        ' por que el NIF no entra en la instantanea.
+        Dim instantaneaMadre = Sliderset_Madre.TomarInstantanea()
+        Dim mergeConfirmado As Boolean = False
+        ' ⛔ EL CUERPO ENTERO VA ADENTRO DEL Try. No se re-indentó a propósito: el diff tiene que dejar ver
+        ' que lo único que cambió es la puerta, no 150 líneas movidas.
+        Try
+
         ' Define HighHeels. El source ya trae su valor resuelto por el sidecar canónico (antes el clon
         ' se construía reparentado al pack DESTINO y su sidecar se buscaba en la carpeta equivocada,
         ' así que el merge no transfería los tacones). Decidir aquí es INTENCIÓN: se marca autorizado.
-        ' Estado previo de la MADRE: si el merge se rechaza mas abajo hay que devolverlo (ver el undo).
         Dim avisarTaconesDistintos As Boolean = False
-        Dim hhAlturaPrevia = Sliderset_Madre.HighHeelHeight
-        Dim hhAutoradaPrevia = Sliderset_Madre.HighHeelAuthored
         If Sliderset_Target.HighHeelHeight <> 0 Then
             If Sliderset_Madre.IsHighHeel = False OrElse Sliderset_Madre.HighHeelHeight = Sliderset_Target.HighHeelHeight Then
                 Sliderset_Madre.HighHeelHeight = Sliderset_Target.HighHeelHeight
@@ -2818,13 +2922,12 @@ Public Class OSP_Project_Class
 
         ' Procesa los cambios de nombre
         ' Mismo motivo que en Agrega_Proyecto: sin renombrar, lo de abajo escribe sobre el origen.
-        ' ⛔ Y ACA EL UNDO TIENE QUE DESHACER LO DE LA MADRE. A esta altura ya se le escribio
-        ' `HighHeelHeight` y `HighHeelAuthored = True` (arriba), que es el proyecto REAL del usuario y mata
-        ' la autodeteccion de tacones para siempre. `Merge_Part` saltea el item y sigue el bucle, asi que
-        ' sin esto la madre queda con una altura importada de un source que despues se rechazo.
+        ' ⛔ ACA VIVIA UN UNDO DIRIGIDO —devolvia a mano `HighHeelHeight` y `HighHeelAuthored`— y lo
+        ' reemplaza la instantanea del borde. Ese undo era correcto para lo unico que existia cuando se
+        ' escribio, y por eso mismo es el ejemplo del patron que no se repite: cubria los tacones y ninguna
+        ' de las otras seis clases de mutacion, asi que TODOS los Return de mas abajo salian sin deshacer
+        ' nada. Deshacer por item obliga a acordarse; la puerta del borde no.
         If Not Sliderset_Target.Update_Names(Sliderset_Madre.Nombre, Sliderset_Madre.ParentOSP.Nombre, context) Then
-            Sliderset_Madre.HighHeelHeight = hhAlturaPrevia
-            Sliderset_Madre.HighHeelAuthored = hhAutoradaPrevia
             OSP_Project_Class.ForgetLoadedShapeDataSlot(Sliderset_Target)
             Return Nothing
         End If
@@ -2960,10 +3063,25 @@ Public Class OSP_Project_Class
         ' NO se deshace es la madre EN MEMORIA: a esta altura ya tiene los shapes, los sliders, los bloques
         ' OSD y la geometria del source, sin rollback. Si el siguiente item del bucle guarda, commitea
         ' tambien este merge.
-        If Not Sliderset_Madre.Save_Shapedatas(True) Then Return Nothing
+        ' El lote abarca las cinco etapas: las cuatro de `Save_Shapedatas` y el `.osp` del
+        ' `Save_Pack_As` de abajo. Nace acá porque el `.osp` se escribe en OTRO metodo.
+        ' ⛔ EL ESPACIO SE MIRA ANTES DE ABRIR EL LOTE. Quedarse sin disco a mitad es el peor momento:
+        ' hay etapas escritas y el rollback NECESITA ESCRIBIR para devolverlas. Fallar antes de tocar
+        ' nada deja el disco como estaba. Los destinos que no existen no cuentan (son creaciones).
+        BSA_BA2_Library_DLL.EscrituraEnElLugar.ExigirEspacioParaLote(New String() {Sliderset_Madre.LocalOsdFullPath, Sliderset_Madre.SourceFileFullPath, Sliderset_Madre.ParentOSP.Filename})
+        Dim lote = BSA_BA2_Library_DLL.EscrituraEnElLugar.NuevoLote()
+        Try
+            If Not Sliderset_Madre.Save_Shapedatas(True, lote) Then Return Nothing
 
         ' Graba el proyecto
-        Sliderset_Madre.ParentOSP.Save_Pack_As(Sliderset_Madre.ParentOSP.Filename, True)
+            Sliderset_Madre.ParentOSP.Save_Pack_As(Sliderset_Madre.ParentOSP.Filename, True, lote)
+            lote.Confirmar()
+            ' ⛔ EL PUNTO DE NO RETORNO, Y VA ACA ADENTRO. Recien con el lote confirmado el merge esta en
+            ' disco; a partir de este instante el `Finally` de afuera NO tiene que revertir la memoria.
+            mergeConfirmado = True
+        Finally
+            lote.Dispose()
+        End Try
 
         ' ⛔ EL AVISO DE TACONES SE MUESTRA ACÁ, NO DONDE SE DECIDE. Se decide arriba (donde se toma la
         ' altura más alta) pero se DIFIERE hasta este punto porque hasta acá el merge todavía se puede
@@ -2974,6 +3092,14 @@ Public Class OSP_Project_Class
         If avisarTaconesDistintos Then MsgBox("Different High Heels setup. Higher assumed", vbInformation, "Warning")
 
         Return Sliderset_Madre
+        Finally
+            ' ⛔ SE RESTAURA POR TODAS LAS SALIDAS QUE NO CONFIRMARON: los `Return Nothing` de arriba y
+            ' cualquier excepcion. El orden con el lote es el que importa y ya ocurrio: el `Dispose` del
+            ' lote (adentro, mas arriba) devolvio el DISCO al estado previo, y recien entonces esto
+            ' devuelve la MEMORIA leyendo de ese disco. `RestaurarDesde` no tira, asi que la excepcion
+            ' ORIGINAL sube intacta — la causa nunca la pisa el rollback.
+            If Not mergeConfirmado Then Sliderset_Madre.RestaurarDesde(instantaneaMadre)
+        End Try
     End Function
 
     Private Shared Sub Make_Sliders_Local(Sliderset_Target As SliderSet_Class, Optional KeepSafeReferences As Boolean = True)
@@ -3826,6 +3952,118 @@ Public Class SliderSet_Class
         Return salida
     End Function
 
+    ''' <summary>Estado de un sliderSet ANTES de una operación que lo muta en memoria y recién al final
+    ''' guarda. Lo consume <see cref="RestaurarDesde"/>. Ver ahí por qué el NIF no está acá adentro.</summary>
+    Friend Class InstantaneaDeMerge
+        Friend NodoPrevio As XmlNode
+        Friend Altura As Double
+        Friend Autorada As Boolean
+        Friend Physics As String
+        Friend NifBytes As Byte()
+        Friend BloquesLocales As List(Of OSD_Block_Class)
+        Friend BloquesExternos As List(Of OSD_Block_Class)
+    End Class
+
+    ''' <summary>⛔⛔ LA PUERTA DE ENTRADA DEL ROLLBACK EN MEMORIA. Se toma en el BORDE de la operación —una
+    ''' sola vez, antes de la primera mutación— y no por ítem: un undo dirigido deja fuera en silencio a la
+    ''' mutación que alguien agregue mañana, que es justo como nació este defecto (el único undo que había
+    ''' cubría los tacones y nada más).
+    '''
+    ''' <para><b>TODO EL ESTADO ENTRA ACÁ, Y NO SE LEE NADA DEL DISCO PARA RESTAURAR.</b> Ese fue el
+    ''' segundo intento y lo tumbó una medición: la causa típica del fallo es justamente que el destino no
+    ''' se puede escribir —bloqueado por otro proceso—, y en ese estado tampoco se puede RELEER. MEDIDO con
+    ''' el <c>.osd</c> bloqueado: la recarga dejaba la madre con <c>NIF.shapes = 0</c> y
+    ''' <c>ShapeDataLoaded = False</c>, o sea que el rollback rompía al ítem siguiente del bucle en vez de
+    ''' salvarlo. Un mecanismo de recuperación no puede depender del recurso cuya falla lo disparó.</para>
+    '''
+    ''' <para><b>El costo, medido sobre el proyecto más pesado del corpus</b>
+    ''' (<c>UBE SE 2.0 Release Preview (Penis)</c>, NIF de 9.199.634 B): clonar el <c>Nodo</c> XML
+    ''' <b>0,92 ms</b>; serializar el NIF a memoria <b>607 ms</b>. La referencia justa NO es escribir esos
+    ''' bytes al disco (2,9 ms — eso es un memcpy al caché del SO, no reconstruye la estructura) sino
+    ''' <b>CARGAR</b> un NIF de ese tamaño: <b>486 ms</b>, y <c>Merge_Proyecto</c> carga el source en CADA
+    ''' iteración. La instantánea completa sale <b>x1,25</b> de esa operación que el merge ya paga — del
+    ''' orden del flujo, no un costo nuevo de otra magnitud.</para></summary>
+    Friend Function TomarInstantanea() As InstantaneaDeMerge
+        Dim inst As New InstantaneaDeMerge With {
+            .NodoPrevio = Nodo.CloneNode(True),
+            .Altura = HighHeelHeight,
+            .Autorada = HighHeelAuthored,
+            .Physics = PhysicsXmlContent}
+        ' Los bloques OSD se copian por REFERENCIA a una lista nueva: el merge AGREGA bloques
+        ' (`Clone_block`) y no modifica los que ya estaban, así que basta con recordar cuáles había.
+        If OSDContent_Local IsNot Nothing AndAlso OSDContent_Local.Blocks IsNot Nothing Then
+            inst.BloquesLocales = New List(Of OSD_Block_Class)(OSDContent_Local.Blocks)
+        End If
+        If OSDContent_External IsNot Nothing AndAlso OSDContent_External.Blocks IsNot Nothing Then
+            inst.BloquesExternos = New List(Of OSD_Block_Class)(OSDContent_External.Blocks)
+        End If
+        ' El NIF es lo caro y por eso está justificado arriba con la medición.
+        Try
+            If NIFContent IsNot Nothing AndAlso NIFContent.Blocks IsNot Nothing Then
+                inst.NifBytes = NIFContent.Save_To_Bytes_Manolo()
+            End If
+        Catch ex As Exception
+            ' Sin bytes del NIF la restauración deja la geometría como esté y lo DICE: es peor callarlo.
+            Dim m = ex.Message
+            Logger.LogLazy(Function() $"[MERGE] no pude fotografiar el NIF de la madre antes del merge: {m}")
+        End Try
+        Return inst
+    End Function
+
+    ''' <summary>Devuelve el sliderSet al estado de <paramref name="inst"/>, EN EL MISMO OBJETO — el
+    ''' llamador (<c>Merge_Part</c>) conserva su referencia entre iteraciones del bucle, así que crear uno
+    ''' nuevo no serviría de nada.
+    ''' <para>El XML vuelve del clon y <c>Lee_SlidersAndShapes</c> reconstruye <c>Shapes</c>,
+    ''' <c>Sliders</c> y sus <c>Datas</c> desde él: eso cubre de una vez los shapes y sliders agregados, los
+    ''' datas nuevos y las mutaciones que <c>Make_Sliders_Local</c> hace sobre los datas que ya estaban.
+    ''' El NIF y los bloques OSD se sueltan con <c>UnloadShapeData</c> para que la próxima carga los relea
+    ''' del disco ya restaurado.</para>
+    ''' <para>⛔ NO TIRA. Se la llama desde un <c>Finally</c> mientras puede haber una excepción original en
+    ''' vuelo, y una excepción acá la reemplazaría —el usuario perdería la causa real—. Misma ley que el
+    ''' <c>Dispose</c> del lote.</para></summary>
+    Friend Sub RestaurarDesde(inst As InstantaneaDeMerge)
+        If inst Is Nothing Then Return
+        Try
+            Dim padre = Nodo.ParentNode
+            If padre IsNot Nothing AndAlso inst.NodoPrevio IsNot Nothing Then
+                padre.ReplaceChild(inst.NodoPrevio, Nodo)
+                Nodo = inst.NodoPrevio
+            End If
+            Lee_SlidersAndShapes()
+            InvalidateAllLookupCaches()
+
+            ' Los bloques que el merge AGREGÓ salen; los que ya estaban quedan intactos (misma instancia).
+            If inst.BloquesLocales IsNot Nothing AndAlso OSDContent_Local IsNot Nothing Then
+                OSDContent_Local.Blocks = New List(Of OSD_Block_Class)(inst.BloquesLocales)
+            End If
+            If inst.BloquesExternos IsNot Nothing AndAlso OSDContent_External IsNot Nothing Then
+                OSDContent_External.Blocks = New List(Of OSD_Block_Class)(inst.BloquesExternos)
+            End If
+
+            ' ⛔ LA GEOMETRIA VUELVE DE LOS BYTES, NO DEL DISCO. Ver el porqué en `TomarInstantanea`: con el
+            ' destino bloqueado —la causa típica del fallo— releer del disco no funciona y dejaba la madre
+            ' con el NIF vacío, rompiendo al ítem siguiente del bucle.
+            If inst.NifBytes IsNot Nothing Then
+                Dim nuevo As New Nifcontent_Class_Manolo()
+                nuevo.Load_Manolo(inst.NifBytes)
+                NIFContent = nuevo
+            End If
+
+            ' ⛔ VAN DESPUES de tocar el NIF: `UnloadShapeData` —que este camino ya no llama, justamente por
+            ' esto— pisaba `HighHeelHeight`, `HighHeelAuthored` y `PhysicsXmlContent`. El orden importa.
+            HighHeelHeight = inst.Altura
+            HighHeelAuthored = inst.Autorada
+            PhysicsXmlContent = inst.Physics
+            InvalidateAllLookupCaches()
+            ' La madre sigue CARGADA: no se la descarga en ningún momento, así que el próximo
+            ' `Merge_Proyecto` del bucle la encuentra usable.
+            ShapeDataLoaded = True
+        Catch ex As Exception
+            Dim m = ex.Message
+            Logger.LogLazy(Function() $"[MERGE] no pude restaurar la madre en memoria tras un merge fallido: {m}")
+        End Try
+    End Sub
+
     Public Sub Lee_SlidersAndShapes()
         _slidersVersion += 1
         ' Invalidar ANTES de leer: `Reload(el As XmlNode)` reapunta Nodo a un XmlDocument recien
@@ -4142,10 +4380,13 @@ Public Class SliderSet_Class
     ''' del .txt del build en FO4 y del HH_OFFSET del NIF fuente en SSE). Sin autorizar se borra el
     ''' sidecar y vuelve a mandar la detección. Consolida en el path canónico: si quedaba uno en el
     ''' path histórico se elimina, para no tener dos verdades.</summary>
-    Public Sub SaveHighHeel(filename As String, Overwrite As Boolean)
+    Public Sub SaveHighHeel(filename As String, Overwrite As Boolean,
+                            Optional lote As BSA_BA2_Library_DLL.EscrituraEnElLugar.LoteConCopias = Nothing)
         If IO.File.Exists(filename) AndAlso Overwrite = False Then Throw New Exception("High heels sidecar already exists: " & filename)
         If HighHeelAuthored = False Then
-            If IO.File.Exists(filename) Then IO.File.Delete(filename)
+            ' ⛔ Etapa del lote: ver BorrarDelLote. Este borrado es el que corre cuando el proyecto
+            ' dejo de tener tacones, y sin respaldo no habia forma de volver atras.
+            BSA_BA2_Library_DLL.EscrituraEnElLugar.BorrarDelLote(filename, lote)
         Else
             ' ⛔ CON COPIA: el .hht es DATO DEL USUARIO — es la INTENCIÓN que este mismo docstring dice
             ' que hay que persistir, y no se regenera (si se pierde, la carga siguiente vuelve a
@@ -4153,11 +4394,13 @@ Public Class SliderSet_Class
             ' CREATE_ALWAYS sobre un destino OCULTO da ACCESS_DENIED. Ver
             ' Ba2_Bsa_Library\EscrituraEnElLugar.vb.
             ' conBom:=False = lo que emitía File.CreateText (UTF8NoBOM). Lo lee el propio WM.
-            EscribirTextoUtf8(filename, "Height=" + HighHeelHeight.ToString(System.Globalization.CultureInfo.InvariantCulture) & vbCrLf, conCopia:=True, conBom:=False)
+            EscribirTextoUtf8(filename, "Height=" + HighHeelHeight.ToString(System.Globalization.CultureInfo.InvariantCulture) & vbCrLf, conCopia:=True, conBom:=False, lote:=lote)
         End If
 
         Dim legacy As String = HighHeelSidecarLegacyPath
-        If legacy.Length > 0 AndAlso legacy.Equals(filename, StringComparison.OrdinalIgnoreCase) = False AndAlso IO.File.Exists(legacy) Then IO.File.Delete(legacy)
+        ' ⛔ El `.hht` LEGACY tambien es un borrado con vuelta: es un archivo del usuario que la app no
+        ' produjo y no puede rehacer.
+        If legacy.Length > 0 AndAlso legacy.Equals(filename, StringComparison.OrdinalIgnoreCase) = False Then BSA_BA2_Library_DLL.EscrituraEnElLugar.BorrarDelLote(legacy, lote)
     End Sub
 
     ''' <returns>False si no pudo renombrar. ⛔ EL LLAMADOR TIENE QUE MIRARLO: si esto sale sin renombrar,
@@ -4774,7 +5017,13 @@ Public Class SliderSet_Class
     ''' <c>NifContent_Class.Save_As_Manolo</c> y en <c>OSD_Class.Save_As</c>, y otros llamadores
     ''' (p.ej. <c>CreatefromNif_Form</c>) los siguen disparando. Lo unificado es ESTE camino, no la
     ''' política del proyecto entero: siguen conviviendo dos, y ninguna sabe de la otra.</para></summary>
-    Public Function Save_Shapedatas(OverwriteShapeFiles As Boolean) As Boolean
+    ''' <summary><paramref name="lote"/> OPCIONAL: los CUATRO archivos que escribe este metodo, mas el
+    ''' `.osp` que escribe <c>Save_Pack</c> DESPUES, son UNA unidad para el usuario. Con lote, un fallo en
+    ''' cualquier etapa devuelve TODAS las anteriores; sin lote (el default) cada etapa es transaccional
+    ''' por su cuenta y un fallo en la etapa N deja 1..N-1 escritas y SIN copia — el proyecto queda
+    ''' mezclando archivos nuevos y viejos. Ver <c>EscrituraEnElLugar.NuevoLote</c>.</summary>
+    Public Function Save_Shapedatas(OverwriteShapeFiles As Boolean,
+                                    Optional lote As BSA_BA2_Library_DLL.EscrituraEnElLugar.LoteConCopias = Nothing) As Boolean
         Dim New_Nif = SourceFileFullPath
         Dim New_Osd = LocalOsdFullPath
 
@@ -4853,7 +5102,7 @@ Public Class SliderSet_Class
         ' True o TIRA. Se conserva por contrato —si mañana alguien saca el forzado, esto ya esta— pero
         ' NO es la red del borrado del original: esa la abre el `Throw` posterior a `FileMode.Create`,
         ' que trunca el destino y sube sin Try por Agrega_Proyecto ni Rename_Clone_Target. Sigue abierto.
-        Dim osdEscrito As Boolean = OSDContent_Local.Save_As(New_Osd, OverwriteShapeFiles)
+        Dim osdEscrito As Boolean = OSDContent_Local.Save_As(New_Osd, OverwriteShapeFiles, lote)
         If Not osdEscrito Then Return False
         If osdEscrito Then
             ' ⛔ SIN invalidar caches, a propósito. Los lookup caches se indexan por NOMBRE de bloque
@@ -4879,10 +5128,10 @@ Public Class SliderSet_Class
 
         ' Con copia: esto es el guardado del PROYECTO desde el editor, o sea dato del usuario. El NIF de
         ' salida del build usa Save_As_Manolo a secas (son cientos por corrida y se regeneran).
-        NIFContent.Save_As_Manolo_ConCopia(New_Nif, OverwriteShapeFiles)
+        NIFContent.Save_As_Manolo_ConCopia(New_Nif, OverwriteShapeFiles, lote)
         ' Path canónico via ChangeExtension: el Replace(".nif", ...) reemplazaba TODAS las
         ' ocurrencias, así que una carpeta o un nombre que contuviera ".nif" corrompía el destino.
-        SaveHighHeel(HighHeelSidecarPath, OverwriteShapeFiles)
+        SaveHighHeel(HighHeelSidecarPath, OverwriteShapeFiles, lote)
 
         ' SSE: save or delete HDT-SMP XML physics sidecar alongside NIF (path ya ajustado in-NIF arriba)
         If Config_App.Current.Game = Config_App.Game_Enum.Skyrim Then
@@ -4895,10 +5144,14 @@ Public Class SliderSet_Class
                     ' conBom:=True = lo que emitía `WriteAllText(..., Encoding.UTF8)`, que SÍ escribe BOM
                     ' (Encoding.UTF8 tiene encoderShouldEmitUTF8Identifier = True). Los bytes de un
                     ' artefacto que lee un tercero (HDT-SMP) no se cambian de paso en un fix de otra cosa.
-                    EscribirTextoUtf8(smpXmlPath, PhysicsXmlContent, conCopia:=True, conBom:=True)
+                    EscribirTextoUtf8(smpXmlPath, PhysicsXmlContent, conCopia:=True, conBom:=True, lote:=lote)
                 End If
             ElseIf IO.File.Exists(smpXmlPath) Then
-                IO.File.Delete(smpXmlPath)
+                ' ⛔ BORRADO COMO ETAPA DEL LOTE. Era un `IO.File.Delete` crudo en medio de la cadena:
+                ' si una etapa POSTERIOR fallaba, el lote devolvia los archivos que habia reemplazado y
+                ' este sidecar quedaba borrado igual — el proyecto volvia a su version anterior PERO sin
+                ' su fisica. Ahora se respalda antes de borrar y el rollback lo recrea con sus atributos.
+                BSA_BA2_Library_DLL.EscrituraEnElLugar.BorrarDelLote(smpXmlPath, lote)
             End If
         End If
 

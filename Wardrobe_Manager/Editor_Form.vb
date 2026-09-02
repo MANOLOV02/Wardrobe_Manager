@@ -1387,7 +1387,8 @@ Public Class Editor_Form
         Close()
     End Sub
     Private Sub Button3_Click(sender As Object, e As EventArgs) Handles ButtonSave.Click
-        If Revisa_Material() Then
+        Try
+            If Revisa_Material() Then
             ' Check if ModelSpaceNormals changed for any shape — warn user before saving
             Dim msnChangedShapes As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
             If _OriginalSlider IsNot Nothing Then
@@ -1440,10 +1441,21 @@ Public Class Editor_Form
             ' ⛔ SI NO SE ESCRIBIO LA SHAPEDATA, NO SE GRABA EL .osp NI SE MARCA COMO GUARDADO.
             ' `RepointLocalDatasTo` vive dentro del `If osdEscrito`, o sea que con False el DOM no quedó
             ' colapsado y el Save_Pack de abajo escribiría un .osp que no corresponde a lo que hay en disco.
-            If Not Selected_Slider.Save_Shapedatas(True) Then
-                MsgBox("The project shapedata could not be written. Nothing was saved.", vbExclamation, "Save")
-                Exit Sub
-            End If
+            ' ⛔⛔ EL LOTE ABARCA LAS CINCO ETAPAS, Y POR ESO NACE ACA Y NO ADENTRO DE `Save_Shapedatas`:
+            ' ese metodo escribe CUATRO archivos (.osd, .nif, .hht, .xml de SMP) pero el quinto —el `.osp`,
+            ' que es el unico que hace consistente el colapso de los `.osd`— lo escribe `Save_Pack`, que es
+            ' otro metodo. Un lote que naciera adentro de `Save_Shapedatas` confirmaria ANTES del `.osp` y
+            ' dejaria justo el estado que este arreglo existe para evitar.
+            ' ⛔ EL ESPACIO SE MIRA ANTES DE ABRIR EL LOTE. Quedarse sin disco a mitad es el peor momento:
+            ' hay etapas escritas y el rollback NECESITA ESCRIBIR para devolverlas. Fallar antes de tocar
+            ' nada deja el disco como estaba. Los destinos que no existen no cuentan (son creaciones).
+            BSA_BA2_Library_DLL.EscrituraEnElLugar.ExigirEspacioParaLote(New String() {Selected_Slider.LocalOsdFullPath, Selected_Slider.SourceFileFullPath, Selected_Slider.ParentOSP.Filename})
+            Dim lote = BSA_BA2_Library_DLL.EscrituraEnElLugar.NuevoLote()
+            Try
+                If Not Selected_Slider.Save_Shapedatas(True, lote) Then
+                    MsgBox("The project shapedata could not be written. Nothing was saved.", vbExclamation, "Save")
+                    Exit Sub
+                End If
 
             ' Promote the clone's node into the OSP document tree so Save_Pack persists XML changes
             ' ⛔ VA DESPUÉS DEL GUARDADO, NO ANTES. Estaba arriba de todo, y con el `Exit Sub` de recién
@@ -1470,11 +1482,44 @@ Public Class Editor_Form
                 _OriginalSlider.Nodo.ParentNode.ReplaceChild(Selected_Slider.Nodo, _OriginalSlider.Nodo)
             End If
 
-            Selected_Slider.ParentOSP.Save_Pack(True)
+                Selected_Slider.ParentOSP.Save_Pack(True, lote)
+                ' ⛔ RECIEN ACA se confirman las cinco: el `.osp` ya esta en disco, asi que el proyecto es
+                ' consistente. Hasta esta linea, cualquier fallo devuelve TODO.
+                lote.Confirmar()
+            Finally
+                ' Si no se confirmo, deshace en orden inverso y NUNCA tira (taparia la excepcion real).
+                lote.Dispose()
+            End Try
             Finalizado_Edit()
             SavedTargetProject = True
             Close()
         End If
+        ' ⛔⛔ ESTE `Catch` EXISTE PORQUE EL HANDLER PUEDE RECIBIR UNA EXCEPCION, y el comentario de mas
+        ' arriba en este mismo metodo ya lo dice con todas las letras: «desde este llamador
+        ' `Save_Shapedatas` devuelve True o TIRA (los fallos de IO del .nif/.hht/.xml de SMP suben como
+        ' excepcion, no como False)». Un `Handles ButtonSave.Click` SIN `Try` deja salir esa excepcion del
+        ' handler: la app se CIERRA a mitad del guardado, y el usuario pierde la sesion de edicion entera
+        ' ademas del proyecto.
+        '
+        ' ⚠️ Y ESTO NO ES LA CURA COMPLETA, SE DICE EN VEZ DE SOBREVENDERLO. El guardado del editor va por
+        ' ETAPAS: `Save_Shapedatas` colapsa los N `.osd` locales a UNO y RE-APUNTA el `.osp` en memoria
+        ' ANTES de escribir el `.nif`, el `.hht` y el `.xml` de SMP; y el `.osp` —lo unico que hace
+        ' consistente ese colapso— se escribe DESPUES, en `Save_Pack`, que es OTRO metodo. Un fallo en el
+        ' medio deja el `.osd` UNIDO en disco y el `.osp` REPARTIDO, y con eso `FindCrossFileBlockNameClash`
+        ' tira al cargar: el proyecto NO ABRE MAS. Caso real del corpus: "COR - CBBE Body Special" (SSE, 2
+        ' `.osd` locales). Atrapar acá evita el cierre, no el estado mezclado.
+        ' Lo que arregla el estado es el LOTE (`EscrituraEnElLugar.NuevoLote`): las escrituras del guardado
+        ' como UNA unidad, y un fallo en cualquier etapa las devuelve TODAS. Cablear
+        ' `Save_Shapedatas`+`Save_Pack` al lote exige un parametro `lote` atravesando `OSD_Class.Save_As`,
+        ' `NifContent_Class.Save_As_Manolo_ConCopia` (FO4_Base_Library, COMPARTIDA), `SaveHighHeel` y
+        ' `EscribirTextoUtf8` — cambio de dos repos, declarado en el reporte para secuenciar.
+        Catch ex As Exception
+            MsgBox("The project could not be saved: " & ex.Message & vbCrLf & vbCrLf &
+                   "Some of the project's files may have been written and others not. " &
+                   "If a previous version was kept next to them, its name ends in '" &
+                   BSA_BA2_Library_DLL.EscrituraEnElLugar.SufijoCopia & "'.",
+                   vbExclamation Or vbOKOnly, "Save")
+        End Try
     End Sub
     Private Function Revisa_Material() As Boolean
         ' Define material
