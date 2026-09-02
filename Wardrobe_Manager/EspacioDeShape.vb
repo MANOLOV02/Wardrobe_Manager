@@ -205,19 +205,28 @@ Public NotInheritable Class EspacioDeShape
     ''' cancelación catastrófica de <c>1 - cos</c> para ángulos chicos, que es justo el régimen de la
     ''' mediana (todos los huesos casi coinciden).
     '''
-    ''' <para>⛔⛔ ESTE PAR —<see cref="RotVecAMatriz"/> y <see cref="RotMatrizAVec"/>— ES UNA TRANSCRIPCIÓN
-    ''' LITERAL EN EL ESPACIO DE ETIQUETAS CRUDAS, Y ASÍ TIENE QUE QUEDAR. Los dos leen y escriben
-    ''' <c>Mij</c> como si fuera <c>nifly.rows[i-1][j-1]</c>, o sea los dos trabajan sobre la traspuesta de
-    ''' lo que el valor representa. <b>Eso los deja mutuamente consistentes</b>: el vector que sale de
-    ''' <c>RotMatrizAVec</c> es el opuesto del eje-ángulo verdadero, y <c>RotVecAMatriz</c> lo vuelve a dar
-    ''' vuelta. En <see cref="MedianaDeRotaciones"/> la doble negación se cancela paso por paso —la mediana
-    ''' por componente es impar, así que sobrevive al cambio de signo— y el resultado representa
-    ''' exactamente el <c>CalcMedianRotation</c> del canónico. Verificado midiendo, no razonando: es lo que
-    ''' hace coincidir las 12 entradas con el censo independiente (ver <see cref="Mult"/>).</para>
+    ''' <para>⛔⛔ ESTE PAR TAMBIÉN VA TRASPUESTO — SON 6 DE 6, NO 4 DE 6. <c>Mij</c> significa
+    ''' <c>nifly.rows[j-1][i-1]</c> en TODO este archivo (ver <see cref="Mult"/>), y estos dos son parte de
+    ''' esa ley, no una excepción: <c>M21</c> lleva el <c>+z·sin</c> que nifly pone en <c>rows[0][1]</c>, y
+    ''' el eje sale de <c>(M32-M23, M13-M31, M21-M12)</c>.</para>
     '''
-    ''' <para>⛔ Por eso <b>arreglar UNO SOLO de los dos rompe la clase</b>, y arreglar los dos no cambia
-    ''' nada salvo el costo de tocarlos. Lo que SÍ estaba roto era <see cref="Mult"/>, que se metía en el
-    ''' medio de ese ida y vuelta con la convención del otro lado.</para></summary>
+    ''' <para>⛔⛔⛔ ACÁ ESTUVO ESCRITO LO CONTRARIO, Y ERA FALSO. El comentario anterior declaraba que los
+    ''' dos podían quedar en el etiquetado crudo porque la doble negación se cancelaba, y hasta PROHIBÍA
+    ''' arreglarlos. La cancelación NO es total: vale para las dos ramas genéricas de
+    ''' <see cref="RotMatrizAVec"/>, que salen de diferencias antisimétricas, pero <b>NO para la rama de
+    ''' 180° exactos</b>. Ahí el eje sale de la diagonal —invariante a la traspuesta— y el signo lo deciden
+    ''' comparaciones <c>&lt;</c> ESTRICTAS entre pares fuera de la diagonal; en una rotación de 180° exacta
+    ''' la matriz es simétrica, los dos lados son exactamente iguales, ninguna comparación dispara, y el
+    ''' resultado sale con <b>+</b> en vez de <b>−</b>. Una lista que mezcle un 180° exacto con rotaciones
+    ''' normales queda entonces con vectores de signo mezclado, y la mediana por componente los promedia
+    ''' como si fueran comparables.</para>
+    '''
+    ''' <para>MEDIDO el 2026-09-02 contra <c>CalcMedianRotation</c> portado aparte (bloques D y Dp del
+    ''' arnés del auditor): con sólo los otros cuatro arreglados el peor error de la mediana llegaba a
+    ''' <b>3,135e-1</b> —<c>Rz(180°)</c> exacta + dos rotaciones chicas—; con los seis traspuestos baja a
+    ''' <b>1,192e-7</b>. En las listas SIN 180° exactos las dos variantes dan idéntico (5,96e-8), así que
+    ''' esto no es una preferencia de estilo: es el único camino que también cubre la mezcla. El testigo
+    ''' vive en <c>Tools\WmEscrituraGate</c> (A12).</para></summary>
     Private Shared Function RotVecAMatriz(v As Vector3) As Matrix33
         Dim angle As Double = Math.Sqrt(CDbl(v.X) * v.X + CDbl(v.Y) * v.Y + CDbl(v.Z) * v.Z)
         Dim cosang As Double = Math.Cos(angle)
@@ -234,28 +243,32 @@ Public NotInheritable Class EspacioDeShape
         m.M11 = CSng(n.X * n.X * onemcosang + cosang)
         m.M22 = CSng(n.Y * n.Y * onemcosang + cosang)
         m.M33 = CSng(n.Z * n.Z * onemcosang + cosang)
-        m.M12 = CSng(n.X * n.Y * onemcosang + n.Z * sinang)
-        m.M21 = CSng(n.X * n.Y * onemcosang - n.Z * sinang)
-        m.M23 = CSng(n.Y * n.Z * onemcosang + n.X * sinang)
-        m.M32 = CSng(n.Y * n.Z * onemcosang - n.X * sinang)
-        m.M31 = CSng(n.Z * n.X * onemcosang + n.Y * sinang)
-        m.M13 = CSng(n.Z * n.X * onemcosang - n.Y * sinang)
+        ' Traspuesto respecto de Object3d.cpp:33-38: el `+z·sin` que el canónico pone en rows[0][1] va acá
+        ' a M21, porque Mij == nifly.rows[j-1][i-1]. Idem los otros dos pares.
+        m.M21 = CSng(n.X * n.Y * onemcosang + n.Z * sinang)
+        m.M12 = CSng(n.X * n.Y * onemcosang - n.Z * sinang)
+        m.M32 = CSng(n.Y * n.Z * onemcosang + n.X * sinang)
+        m.M23 = CSng(n.Y * n.Z * onemcosang - n.X * sinang)
+        m.M13 = CSng(n.Z * n.X * onemcosang + n.Y * sinang)
+        m.M31 = CSng(n.Z * n.X * onemcosang - n.Y * sinang)
         Return m
     End Function
 
     ''' <summary>SYNC: <c>RotMatToVec</c> (<c>Object3d.cpp:46-86</c>). Matriz → vector eje-ángulo, con las
     ''' TRES ramas del canónico (ángulo chico por <c>asin</c>, medio por <c>acos</c>, y el caso degenerado
-    ''' de 180° que se resuelve por la diagonal con los clamps a 0 que evitan el NaN).</summary>
+    ''' de 180° que se resuelve por la diagonal con los clamps a 0 que evitan el NaN).
+    ''' <para>Traspuesto respecto del canónico, igual que <see cref="RotVecAMatriz"/> — ver ahí por qué la
+    ''' rama de 180° exactos hace que esto NO sea opcional.</para></summary>
     Private Shared Function RotMatrizAVec(m As Matrix33) As Vector3
         Dim cosang As Double = (CDbl(m.M11) + m.M22 + m.M33 - 1) * 0.5
         If cosang > 0.5 Then
-            Dim v As New Vector3(m.M23 - m.M32, m.M31 - m.M13, m.M12 - m.M21)
+            Dim v As New Vector3(m.M32 - m.M23, m.M13 - m.M31, m.M21 - m.M12)
             Dim sin2ang As Double = v.Length()
             If sin2ang = 0.0 Then Return New Vector3(0, 0, 0)
             Return v * CSng(Math.Asin(sin2ang * 0.5) / sin2ang)
         End If
         If cosang > -1 Then
-            Dim v As New Vector3(m.M23 - m.M32, m.M31 - m.M13, m.M12 - m.M21)
+            Dim v As New Vector3(m.M32 - m.M23, m.M13 - m.M31, m.M21 - m.M12)
             v = Vector3.Normalize(v)
             Return v * CSng(Math.Acos(cosang))
         End If
@@ -267,9 +280,13 @@ Public NotInheritable Class EspacioDeShape
         If z < 0.0 Then z = 0.0
         Dim w As New Vector3(CSng(Math.Sqrt(x)), CSng(Math.Sqrt(y)), CSng(Math.Sqrt(z)))
         w = Vector3.Normalize(w)
-        If m.M23 < m.M32 Then w.X = -w.X
-        If m.M31 < m.M13 Then w.Y = -w.Y
-        If m.M12 < m.M21 Then w.Z = -w.Z
+        ' ⛔ ÉSTA ES LA RAMA QUE ROMPÍA LA "CANCELACIÓN": el eje sale de la diagonal, que es invariante a la
+        ' traspuesta, y el signo lo deciden estas tres comparaciones ESTRICTAS. Con la matriz simétrica de
+        ' un 180° exacto los dos lados son iguales, ninguna dispara, y leer las etiquetas al revés ya no se
+        ' compensa. Por eso los índices tienen que ser los correctos también acá.
+        If m.M32 < m.M23 Then w.X = -w.X
+        If m.M13 < m.M31 Then w.Y = -w.Y
+        If m.M21 < m.M12 Then w.Z = -w.Z
         Return w * CSng(Math.PI)
     End Function
 
@@ -384,6 +401,21 @@ Public NotInheritable Class EspacioDeShape
     '
     ' Implementadores probados del árbol con esta misma convención, y contra los que se mide el gate:
     ' FO4_Base_Library\NifRenderTransformation.vb:546-649 y FastSkin.vb:464-467.
+    '
+    ' ⚠️ DIVERGENCIA LATENTE DECLARADA — ESCALA POR ENTRADA vs POR COLUMNA. Acá abajo la escala se aplica
+    ' al VECTOR, entrada por entrada (`p = (v.X*s.X, v.Y*s.Y, v.Z*s.Z)`), que es lo que hace el canónico
+    ' (`MatTransform::ApplyTransform`, Object3d.hpp:1099-1101, con su `scale` ESCALAR). Pero el productor
+    ' de estas transformadas, `ComposeTransforms` (NifRenderTransformation.vb:558-567), hornea la escala en
+    ' la MATRIZ por COLUMNA: `aRotEff[i,j] = R[i,j]·scale[j]`. Con escala uniforme las dos formas dan lo
+    ' mismo exacto; con `ScaleVector <> (1,1,1)` NO, porque una escala el vector antes de rotar y la otra
+    ' escala los ejes del espacio de destino.
+    '
+    ' NO ES ALCANZABLE HOY, y está MEDIDO, no supuesto: `MedianaDeTransformadas` construye un
+    ' `Transform_Class()` nuevo y sólo le escribe `Scale` (escalar), así que el camino SKINNED nunca produce
+    ' `ScaleVector <> (1,1,1)`; y el camino UNSKINNED —que sí pasa por `ComposeTransforms` y podría
+    ' producirla— da 0 casos en los dos corpus. `Tools\EspacioDeShapeGate` lo CUENTA en cada corrida y lo
+    ' imprime; el día que ese número deje de ser 0, esta divergencia deja de ser latente y hay que decidir
+    ' cuál de las dos formas es la canónica ANTES de que mueva geometría.
     ' ═══════════════════════════════════════════════════════════════════════════════════════════════
 
     Private Shared Function AplicarAPunto(t As Transform_Class, v As Vector3) As Vector3
