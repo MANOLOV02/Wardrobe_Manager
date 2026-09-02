@@ -395,7 +395,16 @@ Public Module LooksMenuSliders
                 Dim dir = IO.Path.GetDirectoryName(Wardrobe_Manager_Form.Directorios.LooksMenuWMSliders)
                 If Not IO.Directory.Exists(dir) Then IO.Directory.CreateDirectory(dir)
                 Dim jsonOut = JsonSerializer.Serialize(Of List(Of MorphdataTri))(WMSliders, Jsonopts)
-                IO.File.WriteAllText(Wardrobe_Manager_Form.Directorios.LooksMenuWMSliders, jsonOut)
+                ' ⛔ NO `IO.File.WriteAllText`: CREATE_ALWAYS sobre un destino OCULTO da ACCESS_DENIED, y
+                ' el borrado+alta implícito saca el archivo del árbol virtual de MO2 y corta el hardlink
+                ' de Vortex. Ver Ba2_Bsa_Library\EscrituraEnElLugar.vb.
+                ' ⛔ Y VA CON COPIA aunque WM lo reescriba en cada build. El archivo vive en el árbol de
+                ' un mod de TERCEROS (F4SE\Plugins\F4EE\Sliders\...\sliders.json) y WM no puede probar
+                ' autoría exclusiva de su contenido: si alguien lo editó a mano o lo aporta otro mod,
+                ' pisarlo sin red destruye el único ejemplar. El costo es UN archivo por build.
+                ' conBom:=False = lo que emitía WriteAllText sin encoding (UTF8NoBOM); el lector es
+                ' LooksMenu y sus bytes no se cambian acá.
+                EscribirTextoUtf8(Wardrobe_Manager_Form.Directorios.LooksMenuWMSliders, jsonOut, conCopia:=True, conBom:=False)
             Else
                 If IO.File.Exists(Wardrobe_Manager_Form.Directorios.LooksMenuWMSliders) Then
                     IO.File.Delete(Wardrobe_Manager_Form.Directorios.LooksMenuWMSliders)

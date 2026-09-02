@@ -382,9 +382,16 @@ Public Module WM_RenderExtensions
                 IO.Directory.CreateDirectory(Wardrobe_Manager_Form.Directorios.PosesSAMRoot)
             End If
             Dim jsonOut As String = JsonSerializer.Serialize(Of Poses_class)(Export, _samExportOpts)
-            IO.File.WriteAllText(Export.Filename, jsonOut)
+            ' ⛔ NO `IO.File.WriteAllText`: CREATE_ALWAYS sobre un destino OCULTO da ACCESS_DENIED y el
+            ' archivo sale de su mod bajo MO2/Vortex. Con copia: el export SAM va al árbol de F4SE
+            ' (SAF\Poses\Exports) y puede estar pisando una pose que el usuario exportó antes o que
+            ' aporta otro mod. Ver Ba2_Bsa_Library\EscrituraEnElLugar.vb.
+            ' conBom:=False = lo que emitía WriteAllText sin encoding (UTF8NoBOM).
+            EscribirTextoUtf8(Export.Filename, jsonOut, conCopia:=True, conBom:=False)
             Return Export
         Catch ex As Exception
+            ' ⚠️ CATCH MUDO PREEXISTENTE, y sigue mudo: sacarlo es cambiar la conducta del export SAM,
+            ' que está fuera del alcance de esta ronda. Queda anotado en el censo de catch mudos.
             Return Nothing
         End Try
     End Function

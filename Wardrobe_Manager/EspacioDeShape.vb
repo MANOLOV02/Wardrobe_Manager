@@ -203,7 +203,21 @@ Public NotInheritable Class EspacioDeShape
     ''' <summary>SYNC: <c>RotVecToMat</c> (<c>Object3d.cpp:21-44</c>). Vector eje-ángulo → matriz.
     ''' El <c>onemcosang</c> por la vía del seno cuando <c>cosang &gt; .5</c> es del canónico: evita la
     ''' cancelación catastrófica de <c>1 - cos</c> para ángulos chicos, que es justo el régimen de la
-    ''' mediana (todos los huesos casi coinciden).</summary>
+    ''' mediana (todos los huesos casi coinciden).
+    '''
+    ''' <para>⛔⛔ ESTE PAR —<see cref="RotVecAMatriz"/> y <see cref="RotMatrizAVec"/>— ES UNA TRANSCRIPCIÓN
+    ''' LITERAL EN EL ESPACIO DE ETIQUETAS CRUDAS, Y ASÍ TIENE QUE QUEDAR. Los dos leen y escriben
+    ''' <c>Mij</c> como si fuera <c>nifly.rows[i-1][j-1]</c>, o sea los dos trabajan sobre la traspuesta de
+    ''' lo que el valor representa. <b>Eso los deja mutuamente consistentes</b>: el vector que sale de
+    ''' <c>RotMatrizAVec</c> es el opuesto del eje-ángulo verdadero, y <c>RotVecAMatriz</c> lo vuelve a dar
+    ''' vuelta. En <see cref="MedianaDeRotaciones"/> la doble negación se cancela paso por paso —la mediana
+    ''' por componente es impar, así que sobrevive al cambio de signo— y el resultado representa
+    ''' exactamente el <c>CalcMedianRotation</c> del canónico. Verificado midiendo, no razonando: es lo que
+    ''' hace coincidir las 12 entradas con el censo independiente (ver <see cref="Mult"/>).</para>
+    '''
+    ''' <para>⛔ Por eso <b>arreglar UNO SOLO de los dos rompe la clase</b>, y arreglar los dos no cambia
+    ''' nada salvo el costo de tocarlos. Lo que SÍ estaba roto era <see cref="Mult"/>, que se metía en el
+    ''' medio de ese ida y vuelta con la convención del otro lado.</para></summary>
     Private Shared Function RotVecAMatriz(v As Vector3) As Matrix33
         Dim angle As Double = Math.Sqrt(CDbl(v.X) * v.X + CDbl(v.Y) * v.Y + CDbl(v.Z) * v.Z)
         Dim cosang As Double = Math.Cos(angle)
@@ -259,22 +273,57 @@ Public NotInheritable Class EspacioDeShape
         Return w * CSng(Math.PI)
     End Function
 
-    ''' <summary>Producto de matrices estándar <c>a · b</c>, fila de <paramref name="a"/> por columna de
-    ''' <paramref name="b"/>. SYNC: <c>Matrix3::operator*</c> (<c>Object3d.hpp:545-557</c>).</summary>
+    ''' <summary>Composición de rotaciones con la semántica de <c>Matrix3::operator*</c>
+    ''' (<c>Object3d.hpp:545-557</c>): el resultado es el nifly <c>a · b</c> — "aplicar <paramref name="b"/>
+    ''' primero, después <paramref name="a"/>".
+    '''
+    ''' <para>⛔⛔ EL ETIQUETADO DE <c>Matrix33</c> ESTÁ TRASPUESTO RESPECTO DE nifly, Y POR ESO ACÁ EL
+    ''' PRODUCTO VA AL REVÉS. Está medido en las dos fuentes: nifly guarda <c>Vector3 rows[3]</c> y su
+    ''' <c>Sync</c> es un <c>memcpy</c> crudo (<c>BasicTypes.hpp:295-298</c> + <c>Object3d.hpp:489</c>),
+    ''' así que los 9 floats del archivo caen POR FILAS; NiflySharp los lee
+    ''' <c>M11, M21, M31, M12, M22, M32, …</c> (<c>NiMain.Matrix33.g.cs:112-124</c>), o sea POR COLUMNAS.
+    ''' De ahí la identidad que gobierna todo este archivo:
+    ''' <b><c>NiflySharp.Mij == nifly.rows[j][i]</c></b> — el valor etiquetado ES la traspuesta.</para>
+    '''
+    ''' <para>Con <c>T(x) = xᵀ</c> la matriz nifly que representa un valor etiquetado <c>x</c>: para que
+    ''' <c>T(r) = T(a)·T(b)</c> hace falta <c>rᵀ = aᵀ·bᵀ = (b·a)ᵀ</c>, o sea <c>r = b · a</c>. Por eso el
+    ''' cuerpo multiplica <b>fila de <c>b</c> por columna de <c>a</c></b>. Antes hacía el producto
+    ''' etiquetado <c>a·b</c>, que representa <c>B·A</c>: la composición INVERTIDA.</para>
+    '''
+    ''' <para>⛔ EL COMENTARIO SYNC AHORA DICE LA SEMÁNTICA, NO SÓLO EL CÓDIGO, y ésa es la lección del
+    ''' defecto: el original citaba <c>Matrix3::operator*</c> y transcribía sus fórmulas al pie de la
+    ''' letra — pero comparaba NOMBRES de campo, no LAYOUT de memoria. Dos tipos con los mismos nombres y
+    ''' distinto orden de lectura no son el mismo objeto. Implementadores probados del árbol con esta
+    ''' misma convención: <c>FO4_Base_Library\NifRenderTransformation.vb:546-649</c> (compone <c>b·a</c> a
+    ''' propósito) y <c>FastSkin.vb:464-467</c> (aplica por columna). <c>ComposeTransforms</c> importa
+    ''' doble acá: es QUIEN FABRICA los <c>Transform_Class</c> que esta clase promedia, así que
+    ''' <c>Mult</c> tenía que hablar su mismo idioma y no lo hacía.</para>
+    '''
+    ''' <para>⛔ CORROBORADO CONTRA EL CENSO INDEPENDIENTE, no sólo derivado: <c>Tools\EspacioDeShapeCenso</c>
+    ''' resuelve el mismo etiquetado por el camino OPUESTO —traspone al leer (<c>Program.cs:153</c>) y
+    ''' entonces transcribe nifly literal— y el 2026-09-02 se compararon las dos sobre
+    ''' <c>51_RingSet_Full_Black_Silver2 :: RING RH3-B</c>: con este arreglo las 12 entradas del
+    ''' <c>shapeToGlobal</c> coinciden (peor diferencia <b>1,9e-5</b>); sin él fallaban <b>las 12</b>, con
+    ''' 4,66 u sólo en <c>T.Y</c>, y el vértice[0] caía a <b>60,68 u</b>. El testigo vive en
+    ''' <c>Tools\EspacioDeShapeGate</c>.</para></summary>
     Private Shared Function Mult(a As Matrix33, b As Matrix33) As Matrix33
         Dim r As New Matrix33
-        r.M11 = a.M11 * b.M11 + a.M12 * b.M21 + a.M13 * b.M31
-        r.M12 = a.M11 * b.M12 + a.M12 * b.M22 + a.M13 * b.M32
-        r.M13 = a.M11 * b.M13 + a.M12 * b.M23 + a.M13 * b.M33
-        r.M21 = a.M21 * b.M11 + a.M22 * b.M21 + a.M23 * b.M31
-        r.M22 = a.M21 * b.M12 + a.M22 * b.M22 + a.M23 * b.M32
-        r.M23 = a.M21 * b.M13 + a.M22 * b.M23 + a.M23 * b.M33
-        r.M31 = a.M31 * b.M11 + a.M32 * b.M21 + a.M33 * b.M31
-        r.M32 = a.M31 * b.M12 + a.M32 * b.M22 + a.M33 * b.M32
-        r.M33 = a.M31 * b.M13 + a.M32 * b.M23 + a.M33 * b.M33
+        r.M11 = b.M11 * a.M11 + b.M12 * a.M21 + b.M13 * a.M31
+        r.M12 = b.M11 * a.M12 + b.M12 * a.M22 + b.M13 * a.M32
+        r.M13 = b.M11 * a.M13 + b.M12 * a.M23 + b.M13 * a.M33
+        r.M21 = b.M21 * a.M11 + b.M22 * a.M21 + b.M23 * a.M31
+        r.M22 = b.M21 * a.M12 + b.M22 * a.M22 + b.M23 * a.M32
+        r.M23 = b.M21 * a.M13 + b.M22 * a.M23 + b.M23 * a.M33
+        r.M31 = b.M31 * a.M11 + b.M32 * a.M21 + b.M33 * a.M31
+        r.M32 = b.M31 * a.M12 + b.M32 * a.M22 + b.M33 * a.M32
+        r.M33 = b.M31 * a.M13 + b.M32 * a.M23 + b.M33 * a.M33
         Return r
     End Function
 
+    ''' <summary>⛔ NO TOCAR "PARA QUE SEA CONSISTENTE CON <see cref="Mult"/>". Trasponer el valor
+    ''' etiquetado traspone también lo que representa, así que esto YA es <c>Matrix3::Transpose</c> —y para
+    ''' una rotación, su inversa— en las dos convenciones a la vez. Es el único helper de este bloque que
+    ''' la traspuesta del etiquetado deja indemne.</summary>
     Private Shared Function Transpuesta(a As Matrix33) As Matrix33
         Dim r As New Matrix33
         r.M11 = a.M11 : r.M12 = a.M21 : r.M13 = a.M31
@@ -318,34 +367,55 @@ Public NotInheritable Class EspacioDeShape
 
     ' ═══════════════════════════════════════════════════════════════════════════════════════════════
     ' Aplicar la transformada a la geometría
+    '
+    ' ⛔⛔ LOS TRES APLICADORES ROTAN POR COLUMNA, NO POR FILA, Y NO ES UNA PREFERENCIA: es la misma
+    ' identidad que gobierna Mult() más arriba. NiflySharp lee los 9 floats por columnas
+    ' (NiMain.Matrix33.g.cs:112-124) donde nifly los guarda por filas (Vector3 rows[3], memcpy crudo:
+    ' BasicTypes.hpp:295-298 + Object3d.hpp:489), así que Mij == nifly.rows[j][i] — el valor etiquetado
+    ' ES la traspuesta. nifly rota con el producto fila-por-vector sobre SUS filas
+    ' (Matrix3::operator*(Vector3), Object3d.hpp:559-563), y esa fila j de nifly es la COLUMNA j del
+    ' Matrix33 etiquetado. De ahí que rotar acá sea M11·x + M21·y + M31·z.
+    '
+    ' ⛔ EL COMENTARIO SYNC AHORA DICE LA SEMÁNTICA, NO SÓLO EL CÓDIGO. Los tres citaban su MatTransform
+    ' y copiaban sus fórmulas literalmente; el defecto fue comparar NOMBRES de campo en vez de LAYOUT de
+    ' memoria, y las tres quedaron aplicando la rotación INVERSA (la traspuesta de una rotación es su
+    ' inversa). Las rotaciones simétricas — identidad, 180° sobre un eje — dan igual en las dos
+    ' convenciones y por eso el defecto sobrevivió: sólo lo delata un caso NO simétrico.
+    '
+    ' Implementadores probados del árbol con esta misma convención, y contra los que se mide el gate:
+    ' FO4_Base_Library\NifRenderTransformation.vb:546-649 y FastSkin.vb:464-467.
     ' ═══════════════════════════════════════════════════════════════════════════════════════════════
 
     Private Shared Function AplicarAPunto(t As Transform_Class, v As Vector3) As Vector3
         ' SYNC: MatTransform::ApplyTransform (Object3d.hpp:1099-1101) — escalar, rotar, trasladar.
+        ' Semántica: lleva el punto v del espacio local de t al espacio del padre.
         Dim s = t.EffectiveScale
         Dim p As New Vector3(v.X * s.X, v.Y * s.Y, v.Z * s.Z)
         Dim r = t.Rotation
-        Return New Vector3(r.M11 * p.X + r.M12 * p.Y + r.M13 * p.Z + t.Translation.X,
-                           r.M21 * p.X + r.M22 * p.Y + r.M23 * p.Z + t.Translation.Y,
-                           r.M31 * p.X + r.M32 * p.Y + r.M33 * p.Z + t.Translation.Z)
+        Return New Vector3(r.M11 * p.X + r.M21 * p.Y + r.M31 * p.Z + t.Translation.X,
+                           r.M12 * p.X + r.M22 * p.Y + r.M32 * p.Z + t.Translation.Y,
+                           r.M13 * p.X + r.M23 * p.Y + r.M33 * p.Z + t.Translation.Z)
     End Function
 
     Private Shared Function AplicarADiferencia(t As Transform_Class, v As Vector3) As Vector3
         ' SYNC: MatTransform::ApplyTransformToDiff (Object3d.hpp:1105-1107) — SIN traslación.
+        ' Semántica: v es un DELTA entre dos puntos (un morph), así que escala y rota pero no se mueve
+        ' con el origen.
         Dim s = t.EffectiveScale
         Dim p As New Vector3(v.X * s.X, v.Y * s.Y, v.Z * s.Z)
         Dim r = t.Rotation
-        Return New Vector3(r.M11 * p.X + r.M12 * p.Y + r.M13 * p.Z,
-                           r.M21 * p.X + r.M22 * p.Y + r.M23 * p.Z,
-                           r.M31 * p.X + r.M32 * p.Y + r.M33 * p.Z)
+        Return New Vector3(r.M11 * p.X + r.M21 * p.Y + r.M31 * p.Z,
+                           r.M12 * p.X + r.M22 * p.Y + r.M32 * p.Z,
+                           r.M13 * p.X + r.M23 * p.Y + r.M33 * p.Z)
     End Function
 
     Private Shared Function AplicarADireccion(t As Transform_Class, v As Vector3) As Vector3
         ' SYNC: MatTransform::ApplyTransformToDir (Object3d.hpp:1111-1113) — SÓLO rotación.
+        ' Semántica: v es una DIRECCIÓN (normal, tangente); ni la escala ni la traslación la tocan.
         Dim r = t.Rotation
-        Return New Vector3(r.M11 * v.X + r.M12 * v.Y + r.M13 * v.Z,
-                           r.M21 * v.X + r.M22 * v.Y + r.M23 * v.Z,
-                           r.M31 * v.X + r.M32 * v.Y + r.M33 * v.Z)
+        Return New Vector3(r.M11 * v.X + r.M21 * v.Y + r.M31 * v.Z,
+                           r.M12 * v.X + r.M22 * v.Y + r.M32 * v.Z,
+                           r.M13 * v.X + r.M23 * v.Y + r.M33 * v.Z)
     End Function
 
     ''' <summary>SYNC: <c>OutfitProject::ApplyTransformToShapeGeometry</c>

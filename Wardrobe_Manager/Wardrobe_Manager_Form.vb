@@ -989,10 +989,17 @@ Public Class Wardrobe_Manager_Form
             Exit Sub
         End If
         Dim cur = ListViewSources.SelectedIndices(0)
-        For Each ind As ListViewItem In ListViewSources.SelectedItems
-            Mueve_Singles(ind, Directorios.SliderSets_Discarded, True)
-        Next
-        If cur <= ListViewSources.Items.Count - 1 Then ListViewSources.Items(cur).Selected = True Else If ListViewSources.Items.Count > 0 Then ListViewSources.Items(0).Selected = True
+        ' ⛔ TRY DE RESPALDO EN EL HANDLER. Un `Handles` sin Try es la puerta directa a
+        ' MyApplication_UnhandledException, que cierra la app (ExitApplication = True). El Try por ítem
+        ' de Mueve_Singles ya cubre lo conocido; esto cubre lo que todavía no.
+        Try
+            For Each ind As ListViewItem In ListViewSources.SelectedItems
+                Mueve_Singles(ind, Directorios.SliderSets_Discarded, True)
+            Next
+            If cur <= ListViewSources.Items.Count - 1 Then ListViewSources.Items(cur).Selected = True Else If ListViewSources.Items.Count > 0 Then ListViewSources.Items(0).Selected = True
+        Catch ex As Exception
+            AnotarErrorDeLote("Move to discarded", ex)
+        End Try
         Termina_Procesos()
     End Sub
     Private Sub MoveToProcessedButton_Click(sender As Object, e As EventArgs) Handles MoveToProcessedButton.Click
@@ -1002,10 +1009,15 @@ Public Class Wardrobe_Manager_Form
             Exit Sub
         End If
         Dim cur = ListViewSources.SelectedIndices(0)
-        For Each ind As ListViewItem In ListViewSources.SelectedItems
-            Mueve_Singles(ind, Directorios.SliderSets_Processed, True)
-        Next
-        If cur <= ListViewSources.Items.Count - 1 Then ListViewSources.Items(cur).Selected = True Else If ListViewSources.Items.Count > 0 Then ListViewSources.Items(0).Selected = True
+        ' Try de respaldo en el handler: ver MovetoDiscardedButton_Click.
+        Try
+            For Each ind As ListViewItem In ListViewSources.SelectedItems
+                Mueve_Singles(ind, Directorios.SliderSets_Processed, True)
+            Next
+            If cur <= ListViewSources.Items.Count - 1 Then ListViewSources.Items(cur).Selected = True Else If ListViewSources.Items.Count > 0 Then ListViewSources.Items(0).Selected = True
+        Catch ex As Exception
+            AnotarErrorDeLote("Move to processed", ex)
+        End Try
         Termina_Procesos()
     End Sub
 
@@ -1016,8 +1028,15 @@ Public Class Wardrobe_Manager_Form
             Termina_Procesos()
             Exit Sub
         End If
-        Dim Selected_Pack As OSP_Project_Class = ComboboxPacks.SelectedItem
-        Procesa_Singles(Selected_Pack, Selected_Pack.Filename)
+        ' Try de respaldo en el handler: ver MovetoDiscardedButton_Click. Éste es el camino donde la
+        ' cadena de cierre estaba MEDIDA: textura suelta de 0 bytes ⇒ VolcarEncima ⇒ CommitTextureJobs
+        ' (sin Try) ⇒ Clone_Materials_For_Project (sin Try) ⇒ Procesa_Singles ⇒ acá ⇒ app cerrada.
+        Try
+            Dim Selected_Pack As OSP_Project_Class = ComboboxPacks.SelectedItem
+            Procesa_Singles(Selected_Pack, Selected_Pack.Filename)
+        Catch ex As Exception
+            AnotarErrorDeLote("Copy to pack", ex)
+        End Try
         Termina_Procesos()
     End Sub
     Private Sub MergeButton_Click(sender As Object, e As EventArgs) Handles MergeButton.Click
@@ -1035,8 +1054,15 @@ Public Class Wardrobe_Manager_Form
                 Termina_Procesos()
                 Exit Sub
             End If
-            Dim Selected_Pack As OSP_Project_Class = ComboboxPacks.SelectedItem
-            Merge_Singles(Selected_Pack, Selected_Pack.Filename)
+            ' ⛔ El Try de afuera es `Try/Finally` SIN Catch: restauraba la pausa de eviction y RELANZABA,
+            ' o sea que la excepción seguía llegando a MyApplication_UnhandledException y cerrando la app.
+            ' Este Catch es el respaldo del handler (ver MovetoDiscardedButton_Click).
+            Try
+                Dim Selected_Pack As OSP_Project_Class = ComboboxPacks.SelectedItem
+                Merge_Singles(Selected_Pack, Selected_Pack.Filename)
+            Catch ex As Exception
+                AnotarErrorDeLote("Merge", ex)
+            End Try
             Termina_Procesos()
         Finally
             ' Se devuelve el valor PREVIO, no False: este camino puede correr anidado dentro de otro bulk
@@ -1091,8 +1117,30 @@ Public Class Wardrobe_Manager_Form
     Private _ExternalEditReloading As Boolean = False
     Private WithEvents ExternalEditTimer As New Timer With {.Interval = 700}
 
+    ''' <summary>Los errores de los ítems de UN lote, para mostrarlos JUNTOS al final.
+    ''' <para>⛔ POR QUÉ EXISTE. Los caminos de lote (`Procesa_Singles`, `Merge_Singles`, `Merge_Part`,
+    ''' los dos "move to…") heredaron la semántica de "un archivo por acción del usuario": el primer
+    ''' fallo cortaba la tanda entera, y como los `Handles` no tienen Try la excepción llegaba a
+    ''' `MyApplication_UnhandledException`, que cierra la app con `ExitApplication = True`. Un `.osp`
+    ''' tomado por BodySlide, una textura suelta de 0 bytes o un respaldo que no se pudo tomar
+    ''' (`GuardarConCopia` con OneDrive deshidratado — "SIN RED NO SE TRUNCA") se llevaban puestos los
+    ''' 49 ítems restantes Y la aplicación.</para>
+    ''' <para>⛔ NADA DE CATCH MUDO: cada error entra CON el mensaje de su excepción. Un ítem que falló
+    ''' tampoco se saca de la lista, así que el usuario ve qué quedó pendiente.</para></summary>
+    Private ReadOnly _ErroresDeLote As New List(Of String)
+
+    ''' <summary>Anota el fallo de UN ítem y deja seguir al lote. El texto sale una sola vez, en
+    ''' <see cref="Termina_Procesos"/>.</summary>
+    Private Sub AnotarErrorDeLote(nombre As String, ex As Exception)
+        Dim quien = If(String.IsNullOrWhiteSpace(nombre), "(unnamed project)", nombre)
+        _ErroresDeLote.Add(quien & ": " & If(ex Is Nothing, "unknown error", ex.Message))
+    End Sub
+
     Private Sub Empieza_Procesos(cantidad As Integer)
         Try
+            ' El lote arranca limpio: lo que quedó de la tanda anterior ya se mostró en su
+            ' Termina_Procesos.
+            _ErroresDeLote.Clear()
             Cursor.Current = Cursors.WaitCursor
             Me.Enabled = False
             _Procesando = True
@@ -1117,6 +1165,14 @@ Public Class Wardrobe_Manager_Form
         RequestLeeShapes()
         Habilita_deshabilita()
         _LastLeeShapesRequestKey = ""
+        ' El punto ÚNICO donde se cuentan los fallos del lote. Va al final y después de reactivar el
+        ' form: un modal con el form deshabilitado deja la ventana muerta detrás del cartel.
+        If _ErroresDeLote.Count > 0 Then
+            Dim texto = String.Join(vbCrLf, _ErroresDeLote)
+            _ErroresDeLote.Clear()
+            MsgBox("Some items could not be processed and were left in place:" & vbCrLf & vbCrLf & texto,
+                   vbExclamation Or vbOKOnly, "Batch")
+        End If
     End Sub
     Private Sub Procesa_Singles(Pack As OSP_Project_Class, Filename As String)
         Dim Nombre As String
@@ -1127,11 +1183,23 @@ Public Class Wardrobe_Manager_Form
         For Each ind As ListViewItem In ListViewSources.SelectedItems
             ProgressBar1.Value += 1
             If Not varios Then Nombre = TextBox_SourceName.Text Else Nombre = Calcula_nombre(ind.Tag)
-            resultado = Pack.Agrega_Proyecto(ind.Tag, Nombre, Filename, Exclude_Reference_Checkbox.Checked, Ovewrite_DataFiles.Checked, PhysicsCheckbox.Checked, OutputDirChangeCheck.Checked, batchContext)
-            If Not IsNothing(resultado) Then
-                If CloneMaterialsCheck.Checked Then Clone_Materials_class.Clone_Materials_For_Project(resultado, Ovewrite_DataFiles.Checked, batchContext)
-                If Auto_Move_Check.Checked Then Mueve_Singles(ind, Directorios.SliderSets_Processed, fullpack)
-            End If
+            ' ⛔⛔ TRY POR ÍTEM. Ver _ErroresDeLote: sin esto, una textura suelta de 0 bytes
+            ' (VolcarEncima ⇒ InvalidDataException, sin Try en CommitTextureJobs ni en
+            ' Clone_Materials_For_Project) o un respaldo que no se pudo tomar (GuardarConCopia,
+            ' "SIN RED NO SE TRUNCA") subía hasta el `Handles` de CopytoPackButton_Click —que no tiene
+            ' Try— y de ahí a MyApplication_UnhandledException, que CIERRA LA APP. El resto de la tanda
+            ' no se procesaba y el usuario no sabía qué había quedado a medias.
+            Try
+                resultado = Pack.Agrega_Proyecto(ind.Tag, Nombre, Filename, Exclude_Reference_Checkbox.Checked, Ovewrite_DataFiles.Checked, PhysicsCheckbox.Checked, OutputDirChangeCheck.Checked, batchContext)
+                If Not IsNothing(resultado) Then
+                    ' `elLlamadorGuardaElPack:=True`: Agrega_Proyecto ya hizo Save_Pack_As unas líneas
+                    ' arriba. Ver el docstring de Clone_Materials_For_Project.
+                    If CloneMaterialsCheck.Checked Then Clone_Materials_class.Clone_Materials_For_Project(resultado, Ovewrite_DataFiles.Checked, batchContext, elLlamadorGuardaElPack:=True)
+                    If Auto_Move_Check.Checked Then Mueve_Singles(ind, Directorios.SliderSets_Processed, fullpack)
+                End If
+            Catch ex As Exception
+                AnotarErrorDeLote(Nombre, ex)
+            End Try
         Next
         FlushBatchLoadContext(batchContext)
         Lee_Listbox_Targets()
@@ -1157,12 +1225,19 @@ Public Class Wardrobe_Manager_Form
         ProgressBar1.Value += 1
         Dim mover As ListViewItem = ListViewSources.SelectedItems(0)
         Dim batchContext = ProjectLoadContext.CreateCollectOnly(False)
-        Dim Proyecto_Madre As SliderSet_Class = Pack.Agrega_Proyecto(ListViewSources.SelectedItems(0).Tag, Nombre, Filename, Exclude_Reference_Checkbox.Checked, Ovewrite_DataFiles.Checked, PhysicsCheckbox.Checked, OutputDirChangeCheck.Checked, batchContext)
-        If Not IsNothing(Proyecto_Madre) Then
-            Merge_Part(Proyecto_Madre, mover, Auto_Move_Check.Checked, batchContext)
-            If CloneMaterialsCheck.Checked Then Clone_Materials_class.Clone_Materials_For_Project(Proyecto_Madre, Ovewrite_DataFiles.Checked, batchContext)
-            If Auto_Move_Check.Checked Then Mueve_Singles(mover, Directorios.SliderSets_Processed, fullpack)
-        End If
+        ' Try por ítem, misma ley que Procesa_Singles (ver _ErroresDeLote). Acá el "ítem" es el proyecto
+        ' madre: si su alta falla, no hay nada en qué mergear y el lote se reporta entero al final.
+        Try
+            Dim Proyecto_Madre As SliderSet_Class = Pack.Agrega_Proyecto(ListViewSources.SelectedItems(0).Tag, Nombre, Filename, Exclude_Reference_Checkbox.Checked, Ovewrite_DataFiles.Checked, PhysicsCheckbox.Checked, OutputDirChangeCheck.Checked, batchContext)
+            If Not IsNothing(Proyecto_Madre) Then
+                Merge_Part(Proyecto_Madre, mover, Auto_Move_Check.Checked, batchContext)
+                ' Agrega_Proyecto ya guardó el pack (ver Clone_Materials_For_Project).
+                If CloneMaterialsCheck.Checked Then Clone_Materials_class.Clone_Materials_For_Project(Proyecto_Madre, Ovewrite_DataFiles.Checked, batchContext, elLlamadorGuardaElPack:=True)
+                If Auto_Move_Check.Checked Then Mueve_Singles(mover, Directorios.SliderSets_Processed, fullpack)
+            End If
+        Catch ex As Exception
+            AnotarErrorDeLote(Nombre, ex)
+        End Try
         FlushBatchLoadContext(batchContext)
         Lee_Listbox_Targets()
     End Sub
@@ -1171,8 +1246,13 @@ Public Class Wardrobe_Manager_Form
         For Each ind As ListViewItem In ListViewSources.SelectedItems
             If IsNothing(Movido) OrElse (ind Is Movido) = False Then
                 ProgressBar1.Value += 1
-                resultado = OSP_Project_Class.Merge_Proyecto(Proyecto_Madre, ind.Tag, Exclude_Reference_Checkbox.Checked, PhysicsCheckbox.Checked, context)
-                If Not IsNothing(resultado) AndAlso Mueve Then Mueve_Singles(ind, Directorios.SliderSets_Processed, False)
+                ' Try por ítem, misma ley que Procesa_Singles (ver _ErroresDeLote).
+                Try
+                    resultado = OSP_Project_Class.Merge_Proyecto(Proyecto_Madre, ind.Tag, Exclude_Reference_Checkbox.Checked, PhysicsCheckbox.Checked, context)
+                    If Not IsNothing(resultado) AndAlso Mueve Then Mueve_Singles(ind, Directorios.SliderSets_Processed, False)
+                Catch ex As Exception
+                    AnotarErrorDeLote(TryCast(ind.Tag, SliderSet_Class)?.Nombre, ex)
+                End Try
             End If
         Next
 
@@ -1900,17 +1980,29 @@ Public Class Wardrobe_Manager_Form
                         ' OCULTO da ACCESS_DENIED (medido en net8.0.30). Misma ley que el clone de texturas
                         ' y que `EscrituraEnElLugar` (Ba2_Bsa_Library\EscrituraEnElLugar.vb:30-32): se
                         ' sobrescribe EN EL LUGAR, que además es lo que deja el destino adentro de SU mod
-                        ' bajo Mod Organizer y no corta el hardlink bajo Vortex. Acá SÍ van los reintentos
-                        ' de fábrica: es un archivo por acción del usuario y el caso que cubren —BodySlide
-                        ' teniendo el .osp abierto— es el que anota el comentario de abajo.
+                        ' bajo Mod Organizer y no corta el hardlink bajo Vortex.
+                        '
+                        ' ⛔⛔ `reintentos:=1`, Y EL COMENTARIO QUE HABÍA ACÁ ERA FALSO. Decía "acá SÍ van
+                        ' los reintentos de fábrica: es un archivo por acción del usuario". No lo es:
+                        ' `Mueve_Singles` se llama DENTRO DE UN BUCLE desde CINCO sitios
+                        ' (MovetoDiscardedButton_Click, MoveToProcessedButton_Click, Procesa_Singles,
+                        ' Merge_Singles y Merge_Part), siempre sobre `ListViewSources.SelectedItems`. Con
+                        ' los 10 x 200 ms de fábrica y `Thread.Sleep` en el hilo de UI, 50 `.osp` tomados
+                        ' por BodySlide son 2 s de UI congelada POR ÍTEM — 100 s — más un modal por ítem.
+                        ' El valor y su justificación son los mismos que ya están medidos para el otro
+                        ' camino de lote (`OSP_Clases.CommitTextureJobs`): 0 ms con 1 reintento, 1861 ms
+                        ' con los de fábrica.
+                        ' ⛔ NO se pasa `sincronizar`: el default de `VolcarEncima` es el que manda, y acá
+                        ' la durabilidad importa porque tres líneas abajo se BORRA EL ORIGEN.
                         ' ⚠️ CAMBIO DE CONDUCTA declarado: con un origen VACÍO el `Copy` dejaba un destino de
                         ' 0 bytes (medido); `VolcarEncima` se niega y deja el destino INTACTO — y acá eso
                         ' además evita borrar el origen, que es lo que importa.
                         Try
-                            BSA_BA2_Library_DLL.EscrituraEnElLugar.VolcarEncima(actual, Nuevo)
+                            BSA_BA2_Library_DLL.EscrituraEnElLugar.VolcarEncima(actual, Nuevo, reintentos:=1)
                         Catch ex As Exception
-                            MsgBox("The project could not be copied to the new folder: " & ex.Message,
-                                   vbExclamation Or vbOKOnly, "Move project")
+                            ' El error se ACUMULA en el lote y se muestra una sola vez al final; el ítem no
+                            ' se saca de la lista, así que el usuario ve qué quedó sin mover.
+                            AnotarErrorDeLote(slidertomove.Nombre, ex)
                             Return
                         End Try
                         ' ⛔ Si el origen no se puede borrar (BodySlide lo tiene abierto), el proyecto queda en
@@ -1919,8 +2011,8 @@ Public Class Wardrobe_Manager_Form
                         Try
                             IO.File.Delete(actual)
                         Catch ex As Exception
-                            MsgBox("The project was copied to the new folder, but the original could not be " &
-                                   "deleted: " & ex.Message, vbExclamation Or vbOKOnly, "Move project")
+                            AnotarErrorDeLote(slidertomove.Nombre,
+                                              New IO.IOException("copied to the new folder, but the original could not be deleted: " & ex.Message, ex))
                             Return
                         End Try
                         IO.File.SetLastWriteTime(Nuevo, DateTime.Now)
@@ -2605,6 +2697,9 @@ Public Class Wardrobe_Manager_Form
         Dim dir = IO.Path.GetDirectoryName(path)
         If IO.Directory.Exists(dir) = False Then IO.Directory.CreateDirectory(dir)
 
+        ' ⚠️ SEED-IF-MISSING, fuera del alcance de la ley de EscrituraEnElLugar: el `If Exists = False`
+        ' garantiza que esto no pisa nada. Quien pisa la pose del usuario es el `doc.Save` de abajo, y
+        ' ése ya va por la ley. Se anota para que el próximo censo no lo levante como falso positivo.
         If IO.File.Exists(path) = False Then
             Dim newDoc As New XDocument(New XDeclaration("1.0", "UTF-8", Nothing), New XElement("PoseData"))
             newDoc.Save(path)
@@ -2641,7 +2736,9 @@ Public Class Wardrobe_Manager_Form
                                       New XAttribute("scale", tr.Value.Scale.ToString(CultureInfo.InvariantCulture)), tr.Value.AtributosPerEje()))
         Next
 
-        doc.Save(path)
+        ' ⛔ Con copia y en el lugar: el archivo de poses es dato del usuario y puede tener muchas poses
+        ' suyas, de las cuales esta importación toca UNA. Ver Ba2_Bsa_Library\EscrituraEnElLugar.vb.
+        GuardarXDocumentConCopia(path, doc)
         pose.Filename = path
         pose.Source = Poses_class.Pose_Source_Enum.WardrobeManager
         WM_SliderPresets.Poses(keyName) = pose
@@ -2691,12 +2788,20 @@ Public Class Wardrobe_Manager_Form
             artefactos = salida.Artefactos
             bases = salida.Bases
         Else
-            ' ⛔ Con el motor de BodySlide el barrido NO puede correr al final: los archivos los escribe un
-            ' proceso externo y no hay conjunto observable. Se conserva el borrado PREVIO, que es la
-            ' conducta de siempre de DeleteUnbuilt en este camino — sacarlo dejaba la opción (que viene
-            ' prendida por defecto) en no-op silencioso.
-            BorrarAntesDeConstruirConMotorExterno(que)
-            Build_WithBS(que)
+            ' ⛔⛔ EL CHEQUEO DEL PRESET VA ANTES DEL BORRADO. Estaba adentro de Build_WithBS, o sea
+            ' DESPUÉS de que el borrado previo ya se había llevado la salida de la corrida anterior:
+            ' sin preset seleccionado se salía por `Exit Sub` y los archivos quedaban borrados y no
+            ' rehechos. Con DeleteUnbuilt prendido por defecto, un click sin preset destruía el build.
+            ' No es `Exit Sub`: `Me.Activate()` del final es parte del contrato de este método y sus dos
+            ' llamadores no lo hacen (uno de ellos tampoco llama a Termina_Procesos).
+            If PuedeConstruirConMotorExterno() Then
+                ' ⛔ Con el motor de BodySlide el barrido NO puede correr al final: los archivos los escribe
+                ' un proceso externo y no hay conjunto observable. Se conserva el borrado PREVIO, que es la
+                ' conducta de siempre de DeleteUnbuilt en este camino — sacarlo dejaba la opción (que viene
+                ' prendida por defecto) en no-op silencioso.
+                BorrarAntesDeConstruirConMotorExterno(que)
+                Build_WithBS(que)
+            End If
             For Each sliderset_target In que
                 ' Try por proyecto: SaveHighHeelBuild reescribe el NIF y ahora puede TIRAR (la escritura
                 ' en el lugar propaga). Sin esto, una prenda irrescribible cortaba el lote entero y
@@ -2721,65 +2826,18 @@ Public Class Wardrobe_Manager_Form
         Me.Activate()
     End Sub
 
-    ''' <summary>"Delete unbuilt": borra los artefactos que quedaron de la corrida ANTERIOR y que este
-    ''' build no escribió ni conservó a propósito.
-    ''' <para>⛔ Corre DESPUÉS de construir, no antes. El borrado previo sacaba los archivos del mod bajo
-    ''' Mod Organizer —borrar los saca del árbol virtual, y lo que el build escribe después es un archivo
-    ''' NUEVO, que cae en `overwrite`—, así que cada build se llevaba la prenda fuera de su mod.</para>
-    ''' <para>⛔ Y no se predice qué va a escribir el build: la ley del .tri tiene cuatro condiciones
-    ''' (triAllowed / triWritten / triBlocked / PreventMorphFile) y la del .txt de tacones vive en
-    ''' SaveHighHeelBuild. Se OBSERVA lo que el build escribió o conservó
-    ''' (<see cref="BuildingForm.ArtefactosDelBuild"/>).</para>
-    ''' <para>Con el motor de BodySlide no se barre: los archivos los escribe un proceso externo, así que
-    ''' no hay conjunto observable, y adivinarlo por fecha borraría un .nif bueno del mod del usuario.</para></summary>
-    ''' <summary>El borrado PREVIO, tal como estaba, para el único camino donde no se puede observar lo
-    ''' escrito: el motor de BodySlide. Bajo Mod Organizer esto sigue mandando la salida a `overwrite`
-    ''' —es la conducta que ese camino tuvo siempre— pero es preferible a apagar la opción en silencio.</summary>
+    ''' <summary>El borrado PREVIO del camino de BodySlide. El cuerpo vive en
+    ''' <see cref="BuildingForm.BorrarAntesDeConstruirConMotorExterno"/>, junto a la derivación de nombres
+    ''' que consume — acá quedaba el segundo cálculo que le sacaba el ".nif" a la raíz.</summary>
     Private Sub BorrarAntesDeConstruirConMotorExterno(que As SliderSet_Class())
-        If WM_Config.Current.Settings_Build.DeleteUnbuilt = False Then Return
-        For Each projecto In que
-            Dim baseName = projecto.OutputFullPathBase
-            If baseName.EndsWith(".nif", StringComparison.OrdinalIgnoreCase) Then baseName = baseName.Substring(0, baseName.Length - 4)
-            Dim candidatos As New List(Of String) From {
-                baseName & ".nif", baseName & "_0.nif", baseName & "_1.nif", baseName & ".txt", baseName & ".tri"}
-            For Each cand In candidatos
-                Try
-                    If IO.File.Exists(cand) Then IO.File.Delete(cand)
-                Catch
-                End Try
-            Next
-        Next
+        BuildingForm.BorrarAntesDeConstruirConMotorExterno(que)
     End Sub
 
+    ''' <summary>"Delete unbuilt". El cuerpo vive en <see cref="BuildingForm.BorrarNoConstruidos"/>: es
+    ''' `Friend Shared` para que lo consuma TAMBIÉN el CLI (<c>WM_Cli</c>), donde la opción era un no-op
+    ''' silencioso, y para que un gate pueda invocarlo sin construir el formulario entero.</summary>
     Private Sub BorrarNoConstruidos(bases As HashSet(Of String), artefactos As HashSet(Of String))
-        If WM_Config.Current.Settings_Build.DeleteUnbuilt = False Then Return
-        If artefactos Is Nothing OrElse bases Is Nothing Then Return
-
-        ' Los candidatos salen del base que USÓ EL ESCRITOR, no del sliderset original: con
-        ' ForceClonedOnBuild el build escribe sobre un clon que apunta a meshes\ManoloCloned\<pack>\, y
-        ' calcularlos sobre el original haría que ningún candidato intersecara con lo escrito — el
-        ' barrido borraría los artefactos del mod original en cada build. Y un proyecto que falló no
-        ' aparece en `bases`, así que su salida de la corrida anterior no se toca.
-        For Each baseName In bases
-            Dim raiz = baseName
-            If raiz.EndsWith(".nif", StringComparison.OrdinalIgnoreCase) Then raiz = raiz.Substring(0, raiz.Length - 4)
-
-            ' Los NIF multisize salen como _0/_1 (ver BuildingForm): la limpieza vieja borraba sólo
-            ' "<base>.nif" y en SSE dejaba los dos pesos anteriores intactos. Se listan siempre los tres
-            ' nombres posibles: si este build escribió _0/_1, el "<base>.nif" suelto de una corrida
-            ' anterior (cuando el proyecto no era multisize) es justamente lo que hay que sacar.
-            Dim candidatos As New List(Of String) From {
-                raiz & ".nif", raiz & "_0.nif", raiz & "_1.nif", raiz & ".txt", raiz & ".tri"}
-
-            For Each cand In candidatos
-                If artefactos.Contains(cand) Then Continue For
-                Try
-                    If IO.File.Exists(cand) Then IO.File.Delete(cand)
-                Catch
-                    ' Best-effort: un artefacto que no se pudo borrar no invalida el build.
-                End Try
-            Next
-        Next
+        BuildingForm.BorrarNoConstruidos(bases, artefactos)
     End Sub
 
     Private Function BuildInternally(que As SliderSet_Class()) As (Artefactos As HashSet(Of String), Bases As HashSet(Of String))
@@ -2791,15 +2849,42 @@ Public Class Wardrobe_Manager_Form
         Builder.ShowDialog()
         Return (Builder.ArtefactosDelBuild, Builder.BasesDelBuild)
     End Function
+    ''' <summary>¿Se puede lanzar el build con el motor de BodySlide? Es lo ÚNICO que hay que
+    ''' comprobar antes de que el borrado previo toque un archivo.
+    ''' <para>⛔ EL CHEQUEO DEL PRESET VIVE ACÁ, SEPARADO DE LA EJECUCIÓN, y ése es todo el punto. Estaba
+    ''' adentro de <see cref="Build_WithBS"/>, DESPUÉS de que <c>BorrarAntesDeConstruirConMotorExterno</c>
+    ''' ya había borrado la salida de la corrida anterior: sin preset seleccionado el método salía por
+    ''' `Exit Sub` y dejaba los archivos borrados y no rehechos.</para></summary>
+    Private Function PuedeConstruirConMotorExterno() As Boolean
+        If IsNothing(ComboBoxPresets.SelectedItem) Then
+            MsgBox("Please select a preset before building.", vbOKOnly + vbExclamation, "No Preset Selected")
+            Return False
+        End If
+        Return True
+    End Function
+
     Private Sub Build_WithBS(que As SliderSet_Class())
+        ' El preset ya se validó antes del borrado previo (ver PuedeConstruirConMotorExterno). Se vuelve
+        ' a mirar por contrato: este método no puede depender de que su único llamador se acuerde.
+        If Not PuedeConstruirConMotorExterno() Then Exit Sub
+
         Dim results = Create_Group_Build(que)
         Dim temposdfile = results(0)
         Dim TempGroupfile = results(1)
+        Dim errorTemporales = results(2)
 
-        If IsNothing(ComboBoxPresets.SelectedItem) Then
-            MsgBox("Please select a preset before building.", vbOKOnly + vbExclamation, "No Preset Selected")
+        ' ⛔⛔ SI LOS TEMPORALES NO SE ESCRIBIERON, NO SE LANZA BODYSLIDE. Antes esto se ignoraba: el
+        ' `Catch` de Create_Group_Build era mudo en Release y devolvía las dos rutas igual, así que
+        ' BodySlide arrancaba y leía el `SliderGroups\Temp_WM_Builder.xml` y el `.osp` de la corrida
+        ' ANTERIOR — construía el lote viejo, con la barra de progreso avanzando y sin un solo aviso.
+        ' Construir el lote equivocado es estrictamente peor que no construir.
+        If Not String.IsNullOrEmpty(errorTemporales) Then
+            MsgBox("The build could not be prepared and BodySlide was NOT launched (building now would " &
+                   "rebuild the PREVIOUS batch): " & vbCrLf & vbCrLf & errorTemporales,
+                   vbCritical Or vbOKOnly, "Build")
             Exit Sub
         End If
+
         Dim first = Chr(34) + "Temp_WM_Builder" + Chr(34)
         Dim second = Chr(34) + ComboBoxPresets.SelectedItem.ToString + Chr(34)
         Dim third = Chr(34) + Directorios.Fallout4data + Chr(34)
@@ -2817,6 +2902,14 @@ Public Class Wardrobe_Manager_Form
         If IO.File.Exists(TempGroupfile) Then IO.File.Delete(TempGroupfile)
 
     End Sub
+    ''' <summary>Escribe los dos temporales que consume el <c>/gbuild</c> de BodySlide y devuelve
+    ''' <c>{osp, xml, error}</c>: el tercer elemento es "" si los DOS quedaron escritos, o el motivo del
+    ''' fallo si alguno no.
+    ''' <para>⛔ EL TERCER ELEMENTO NO ES DECORATIVO: <see cref="Build_WithBS"/> NO lanza BodySlide si
+    ''' viene con texto. Antes esta función tenía un `Catch` mudo (`#If DEBUG Then Debugger.Break()`) y
+    ''' devolvía las dos rutas pasara lo que pasara, así que un temporal que no se pudo escribir —el XML
+    ''' con el atributo OCULTO que deja OneDrive, el `.osp` tomado— terminaba en BodySlide construyendo
+    ''' el LOTE ANTERIOR en silencio.</para></summary>
     Public Shared Function Create_Group_Build(que As SliderSet_Class()) As String()
         Dim Otufits As New List(Of String)
         Dim DummyOSP As New OSP_Project_Class
@@ -2824,6 +2917,7 @@ Public Class Wardrobe_Manager_Form
         Dim idx As Integer = 0
         Dim TempOSDFile = IO.Path.Combine(Directorios.SliderSetsRoot, "Temp_WM_Builder.osp")
         Dim TempGroupFile As String = IO.Path.Combine(WM_Config.BsPath, "SliderGroups\Temp_WM_Builder.xml")
+        Dim errorTemporales As String = ""
         Try
             ' ⛔ Acá había un borrado de los dos temporales antes de escribirlos: bajo Mod Organizer eso
             ' los sacaba del mod y los volvía a crear en `overwrite`. Se sobrescriben en el lugar — por
@@ -2848,27 +2942,33 @@ Public Class Wardrobe_Manager_Form
             Next
             DummyOSP.Save_Pack_As(TempOSDFile, True)
 
-            Using writer = IO.File.CreateText(TempGroupFile)
-                writer.WriteLine("<?xml version=" + Chr(34) + "1.0" + Chr(34) + " encoding=" + Chr(34) + "UTF-8" + Chr(34) + "?>")
-
-                writer.WriteLine("<SliderGroups>")
-                writer.WriteLine("<Group name =" + Chr(34) + "Temp_WM_Builder" + Chr(34) + ">")
-                For Each out In Otufits
-                    writer.WriteLine("<Member name =" + Chr(34) + out + Chr(34) + "/>")
-                Next
-                writer.WriteLine("</Group>")
-                writer.WriteLine("</SliderGroups>")
-                writer.Flush()
-            End Using
+            ' ⛔ NO `IO.File.CreateText`: pide CREATE_ALWAYS, y CREATE_ALWAYS sobre un destino con
+            ' FILE_ATTRIBUTE_HIDDEN da ACCESS_DENIED. La ley y su porqué viven en
+            ' Ba2_Bsa_Library\EscrituraEnElLugar.vb. Va por `Escribir` (sin copia): este XML es
+            ' REGENERABLE — se rehace entero en cada build y se borra al terminar.
+            Dim contenido As New Text.StringBuilder()
+            contenido.AppendLine("<?xml version=" + Chr(34) + "1.0" + Chr(34) + " encoding=" + Chr(34) + "UTF-8" + Chr(34) + "?>")
+            contenido.AppendLine("<SliderGroups>")
+            contenido.AppendLine("<Group name =" + Chr(34) + "Temp_WM_Builder" + Chr(34) + ">")
+            For Each out In Otufits
+                contenido.AppendLine("<Member name =" + Chr(34) + out + Chr(34) + "/>")
+            Next
+            contenido.AppendLine("</Group>")
+            contenido.AppendLine("</SliderGroups>")
+            ' conBom:=False = lo que emitía File.CreateText (UTF8NoBOM). El lector es BodySlide.
+            EscribirTextoUtf8(TempGroupFile, contenido.ToString(), conCopia:=False, conBom:=False)
 
         Catch ex As Exception
+            ' ⛔ ESTE CATCH ERA MUDO (`#If DEBUG Then Debugger.Break()`), o sea que en Release no dejaba
+            ' rastro y la función devolvía las dos rutas como si todo hubiera salido bien. El costo era
+            ' un build del LOTE ANTERIOR, en silencio. Ahora el motivo sube y Build_WithBS no lanza nada.
+            errorTemporales = ex.Message
 #If DEBUG Then
             Debugger.Break()
 #End If
         End Try
 
-
-        Return {TempOSDFile, TempGroupFile}
+        Return {TempOSDFile, TempGroupFile, errorTemporales}
 
     End Function
 

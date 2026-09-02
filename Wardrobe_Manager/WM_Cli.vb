@@ -19,6 +19,11 @@ Imports FO4_Base_Library
 '''                      [--executable &lt;ruta al exe del juego&gt;] [--bsexe &lt;ruta al exe de BodySlide&gt;]
 '''                      [--tri|--no-tri] [--recalc-normals|--no-recalc-normals]
 '''                      [--force-weights|--no-force-weights]
+''' </code>
+''' <c>DeleteUnbuilt</c> ("delete unbuilt") NO tiene flag propio y se toma del config, igual que en la
+''' ventana: el barrido corre después de <c>RunBuild</c> sobre los conjuntos que publica
+''' <c>BuildingForm</c>. Antes este camino lo ignoraba por completo.
+''' <code>
 ''' Wardrobe_Manager.exe --list --osp &lt;archivo.osp&gt;
 ''' </code>
 ''' Códigos de salida: 0 ok · 2 argumentos inválidos · 3 no se pudo cargar el .osp ·
@@ -350,12 +355,20 @@ Friend Module WM_Cli
         Console.WriteLine("juego    : " & Config_App.Current.Game.ToString())
         Console.WriteLine("salida   : " & Wardrobe_Manager_Form.Directorios.Fallout4data)
         Console.WriteLine("tri      : " & WM_Config.Current.Settings_Build.SaveTri)
+        Console.WriteLine("delete unbuilt: " & WM_Config.Current.Settings_Build.DeleteUnbuilt)
         Console.WriteLine()
 
         Dim errores As String
         Using f As New BuildingForm(lista, preset, New Poses_class())
             f.Headless = True
             errores = f.RunBuild()
+            ' ⛔ EL BARRIDO CORRE ACÁ TAMBIÉN. `DeleteUnbuilt` era un NO-OP SILENCIOSO en el CLI: la
+            ' opción viene prendida por defecto, `BuildingForm` publicaba los dos conjuntos, y este
+            ' camino los ignoraba — el mismo `--build`, el mismo motor y el mismo .osp dejaban el disco
+            ' distinto según se hubiera lanzado desde la ventana o desde la consola.
+            ' Va DENTRO del Using y DESPUÉS de RunBuild, igual que en la GUI: los conjuntos son
+            ' propiedades de esta instancia y el barrido tiene que ver el build TERMINADO.
+            BuildingForm.BorrarNoConstruidos(f.BasesDelBuild, f.ArtefactosDelBuild)
         End Using
 
         If Not String.IsNullOrWhiteSpace(errores) Then

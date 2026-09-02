@@ -90,10 +90,29 @@ Public Class Create_from_Nif_Form
                 smpXmlPath = Path.ChangeExtension(New_Nif, ".xml")
                 selected_slider.NIFContent.SetSmpPhysicsXmlPath(SliderSet_Class.BuildSmpInNifPath(smpXmlPath))
             End If
-            ' Con copia: alta de un proyecto nuevo desde el editor, dato del usuario.
-            selected_slider.NIFContent.Save_As_Manolo_ConCopia(New_Nif, False)
+            ' ⛔⛔ LA PREGUNTA DE REEMPLAZO VA ACÁ, ANTES DE ESCRIBIR NADA. `Save_As_Manolo_ConCopia` es
+            ' un `Sub` y con "No" hace `Exit Sub` MUDO: no devuelve nada y no tira. Con la pregunta
+            ' adentro, decir "No" no cortaba el flujo — se seguía escribiendo el .xml de física, el .osd
+            ' y el .osp, y los tres quedaban describiendo un .nif VIEJO y AJENO, el que ya estaba en esa
+            ' ruta. El guard de arriba sólo cubre el .osp; el .nif no estaba cubierto por nadie.
+            ' Es el MISMO patrón que ya usa el .osd tres líneas más abajo (`If Not ... Save_As(...) Then
+            ' Throw`): un solo punto de decisión, y el flujo no sigue sin él.
+            ' ⛔ No se cambia la firma de `Save_As_Manolo_ConCopia`: vive en FO4_Base_Library y la
+            ' consumen los dos proyectos — no se toca una librería compartida por esto.
+            If IO.File.Exists(New_Nif) Then
+                If MsgBox("NIF File already exists, replace?", vbYesNo, "Warning") = MsgBoxResult.No Then
+                    Throw New Exception("The mesh was not replaced, project not created: " & New_Nif)
+                End If
+            End If
+            ' Con copia: alta de un proyecto nuevo desde el editor, dato del usuario. `Overwrite:=True`
+            ' porque la pregunta ya se hizo arriba — si quedara en False preguntaría DOS VECES.
+            selected_slider.NIFContent.Save_As_Manolo_ConCopia(New_Nif, True)
             If smpXmlPath IsNot Nothing Then
-                File.WriteAllText(smpXmlPath, selected_slider.PhysicsXmlContent, System.Text.Encoding.UTF8)
+                ' ⛔ NO `File.WriteAllText`: CREATE_ALWAYS sobre un destino OCULTO da ACCESS_DENIED. Con
+                ' copia, igual que el sidecar de física que escribe `Save_Shapedatas`: es dato del
+                ' proyecto del usuario. conBom:=True = lo que emitía `WriteAllText(..., Encoding.UTF8)`.
+                ' Ver Ba2_Bsa_Library\EscrituraEnElLugar.vb.
+                EscribirTextoUtf8(smpXmlPath, selected_slider.PhysicsXmlContent, conCopia:=True, conBom:=True)
             End If
             ' ⛔ Si el .osd NO se escribió (el usuario dijo "No" al reemplazar uno preexistente), NO se
             ' puede grabar el .osp: sus <Data> ya nombran New_osd (arriba, línea del TargetOsd), así que

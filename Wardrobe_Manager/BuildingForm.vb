@@ -9,8 +9,13 @@ Public Class BuildingForm
     ''' Lo consume el barrido de "no construidos" de <c>Wardrobe_Manager_Form.Build</c>, que corre DESPUÉS
     ''' del build y borra sólo lo que quedó de la corrida anterior.
     ''' <para>⛔ Se anota donde se DECIDE cada artefacto (el NIF al grabarlo, el .tri también cuando se
-    ''' conserva, el .txt de tacones según lo que devuelva la emisión), no se predice desde las opciones:
-    ''' la ley del .tri tiene cuatro condiciones y la del .txt vive en SaveHighHeelBuild.</para>
+    ''' conserva), no se predice desde las opciones: la ley del .tri tiene cuatro condiciones y su
+    ''' veredicto lo toma <see cref="VeredictoDelTri"/>.</para>
+    ''' <para>⛔ SÓLO ENTRA LO QUE EL BARRIDO PUEDE BORRAR, y el barrido sólo mira NIF y .tri (ver
+    ''' <see cref="CandidatosDeBarrido"/>). El <c>.txt</c> de tacones y el <c>.xml</c> de física NO se
+    ''' anotan: cada uno tiene un único dueño que resuelve su ciclo de vida completo —
+    ''' <c>SaveHighHeelBuild</c> y el bloque de física de <see cref="RunBuild"/>—, así que anotarlos era
+    ''' escritura sin lector.</para>
     ''' <para>Con el motor de BodySlide este conjunto queda VACÍO —lo escribe el proceso externo, no
     ''' nosotros— y por eso ahí no se barre.</para></summary>
     Public ReadOnly Property ArtefactosDelBuild As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
@@ -37,28 +42,34 @@ Public Class BuildingForm
         ' Agregue cualquier inicialización después de la llamada a InitializeComponent().
     End Sub
 
-    ''' <summary>
-    ''' True si el path existe y su header ES "PIRT" (body-tri de BodySlide). Equivale a
-    ''' IsBodyTriFile de BSOS (TriFile.cpp), que compara los 4 bytes del header contra
-    ''' "TRIP"_mci — un uint32 que escrito little-endian da los bytes P,I,R,T.
-    ''' </summary>
-    Private Shared Function ExistingTriIsBodySlide(triPath As String) As Boolean
-        Return ReadTriHeader(triPath) = "PIRT"
-    End Function
+    ''' <summary>De quien es el <c>.tri</c> que hay en la base de salida. ⛔ ES UN VEREDICTO UNICO Y
+    ''' TIENE UN SOLO PRODUCTOR (<see cref="VeredictoDelTri"/>): lo consumen las TRES decisiones que se
+    ''' toman sobre ese archivo — escribirlo, borrarlo, y anotarlo como artefacto de este build.
+    ''' <para>⛔ ANTES ERAN DOS PREDICADOS (<c>ExistingTriIsForeign</c> / <c>ExistingTriIsBodySlide</c>)
+    ''' leidos en momentos distintos, y uno de los dos SOLO se evaluaba dentro de
+    ''' <c>If Settings_Build.SaveTri</c>. Con el default de fabrica (<c>SaveTri=False</c>) el veredicto
+    ''' "ajeno" no se calculaba nunca, asi que el .tri no entraba en <c>ArtefactosDelBuild</c> y el
+    ''' barrido de "no construidos" lo borraba — justo el archivo que el build habia decidido conservar,
+    ''' 20 lineas mas arriba, por la ley opuesta. Dos leyes, dos lugares, resultado opuesto.</para></summary>
+    Friend Enum DuenoDelTri
+        ''' <summary>No hay archivo en esa ruta.</summary>
+        NoHay
+        ''' <summary>Header "PIRT": body-tri de BodySlide, lo escribimos nosotros y se regenera.</summary>
+        Nuestro
+        ''' <summary>Header distinto de "PIRT" (tipicamente un FRTRI003 de FaceGen) O ILEGIBLE. En los dos
+        ''' casos NO se toca: un archivo que no pudimos leer no se pisa ni se borra a ciegas.</summary>
+        Ajeno
+    End Enum
 
-    ''' <summary>
-    ''' True si el path existe y su header NO es "PIRT" — o sea hay un .tri que no es de BodySlide
-    ''' (tipicamente un FRTRI003 de FaceGen). Un archivo inexistente NO es ajeno.
-    ''' </summary>
-    Private Shared Function ExistingTriIsForeign(triPath As String) As Boolean
-        Dim hdr = ReadTriHeader(triPath)
-        Return hdr IsNot Nothing AndAlso hdr <> "PIRT"
-    End Function
-
-    ''' <summary>Los 4 bytes de header como ASCII, o Nothing si el archivo no existe / no se puede leer.</summary>
-    Private Shared Function ReadTriHeader(triPath As String) As String
+    ''' <summary>El unico lector del header del <c>.tri</c>. "PIRT" es lo que compara <c>IsBodyTriFile</c>
+    ''' de BSOS (TriFile.cpp) contra <c>"TRIP"_mci</c> — un uint32 que escrito little-endian da los bytes
+    ''' P,I,R,T.
+    ''' <para>⛔ SE LLAMA SIEMPRE, no solo cuando vamos a escribir. El costo es una apertura y 4 bytes por
+    ''' proyecto; antes se leia DOS veces cuando <c>SaveTri</c> estaba prendido y CERO cuando estaba
+    ''' apagado, que es el default.</para></summary>
+    Friend Shared Function VeredictoDelTri(triPath As String) As DuenoDelTri
         Try
-            If String.IsNullOrWhiteSpace(triPath) OrElse Not IO.File.Exists(triPath) Then Return Nothing
+            If String.IsNullOrWhiteSpace(triPath) OrElse Not IO.File.Exists(triPath) Then Return DuenoDelTri.NoHay
             Using fs As New IO.FileStream(triPath, IO.FileMode.Open, IO.FileAccess.Read, IO.FileShare.ReadWrite)
                 ' Un archivo de menos de 4 bytes es NUESTRO, no ajeno: WriteTriToFile abre con
                 ' FileMode.Create (trunca primero), asi que un throw a mitad de escritura deja
@@ -66,16 +77,215 @@ Public Class BuildingForm
                 ' Se decide por fs.Length, NO por el retorno de Read: Read puede devolver menos bytes
                 ' de los pedidos sin que el archivo este truncado (red, placeholder de OneDrive, AV),
                 ' y con eso un FRTRI003 valido se habria reportado como nuestro y lo pisabamos.
-                If fs.Length < 4 Then Return "PIRT"
+                If fs.Length < 4 Then Return DuenoDelTri.Nuestro
                 Dim buf(3) As Byte
                 fs.ReadExactly(buf, 0, 4)
-                Return System.Text.Encoding.ASCII.GetString(buf)
+                Return If(System.Text.Encoding.ASCII.GetString(buf) = "PIRT", DuenoDelTri.Nuestro, DuenoDelTri.Ajeno)
             End Using
         Catch
-            ' Ilegible: se trata como ajeno para no pisarlo a ciegas.
-            Return ""
+            ' ⛔ Ilegible ⇒ AJENO, y esta rama es la que de verdad se dispara en produccion. El archivo
+            ' tomado por otro proceso, el placeholder deshidratado de OneDrive y el AV en el medio caen
+            ' todos aca. Tratarlo como ajeno es lo unico seguro: no se pisa y no se borra.
+            Return DuenoDelTri.Ajeno
         End Try
     End Function
+
+    ' ============================================================================================
+    ' LA DERIVACION DE LOS NOMBRES DE SALIDA — UNA SOLA, Y VIVE ACA
+    ' ============================================================================================
+    ' ⛔ POR QUE ESTA ACA Y NO EN CADA LLAMADOR. Los nombres de los artefactos de un build salian de
+    ' CUATRO expresiones distintas: este formulario (que ESCRIBE), los dos barridos de
+    ' Wardrobe_Manager_Form y Remove_DataShapeFiles. Y no coincidian: los barridos le sacaban el ".nif"
+    ' final a la raiz antes de componer, y el escritor no.
+    '
+    ' MEDIDO sobre el corpus del usuario (5.574 sliderSets: 3.196 FO4 + 2.378 SSE): 2 traen ".nif"
+    ' DENTRO de <OutputFile> — "CBBE Vanilla 1st Person.osp" y "CBBE Vanilla Replacers.osp", los dos
+    ' con <OutputFile>1stPersonGauntlets.nif</OutputFile> y OutputPath meshes\armor\nightingale\f.
+    ' En el disco los artefactos construidos son "1stPersonGauntlets.nif_0.nif" y ".nif_1.nif" (existen
+    ' los dos), y los candidatos que calculaba el barrido —"1stPersonGauntlets.nif", "_0.nif", "_1.nif"—
+    ' no existen ninguno. O sea que el strip NO describia lo que el escritor produce, y de ahi salian
+    ' las dos mitades del defecto: el barrido nunca limpiaba los .nif_0/_1.nif rancios de esos dos
+    ' proyectos, y en cambio "1stPersonGauntlets.nif" —el nombre natural del asset del mod— quedaba
+    ' como candidato a borrar SIN que ningun build lo hubiera escrito jamas.
+    ' Peor en BorrarAntesDeConstruirConMotorExterno, que hace el mismo strip SIN conjunto de artefactos
+    ' que lo frene: ahi el borrado es incondicional y el build escribe otro nombre, o sea que no lo
+    ' rehace nunca.
+
+    ''' <summary>Los NIF que este build escribe para un base de salida. Es lo que produce el escritor,
+    ''' no lo que el barrido considera — para eso esta <see cref="CandidatosDeBarrido"/>.
+    ''' <para>⛔ NO se le saca el ".nif" al base. El base es <c>OutputPath\OutputFile</c> tal cual lo
+    ''' declara el .osp, y BodySlide compone igual (<c>outputPath + outputFile + "_0.nif"</c>): un
+    ''' proyecto con <c>OutputFile</c> = "x.nif" emite "x.nif_0.nif", que es lo que hay en disco.</para></summary>
+    Friend Shared Function NifsEscritos(baseSalida As String, multisize As Boolean) As List(Of String)
+        Dim r As New List(Of String)
+        If String.IsNullOrEmpty(baseSalida) Then Return r
+        If multisize Then
+            r.Add(baseSalida & "_0.nif")
+            r.Add(baseSalida & "_1.nif")
+        Else
+            r.Add(baseSalida & ".nif")
+        End If
+        Return r
+    End Function
+
+    ''' <summary>Los nombres que el barrido de "no construidos" considera para un base. Es un
+    ''' SUPERCONJUNTO de <see cref="NifsEscritos"/> a proposito, y no es un descuido: se listan los tres
+    ''' nombres de NIF posibles porque si este build escribio <c>_0</c>/<c>_1</c>, el "&lt;base&gt;.nif"
+    ''' suelto que dejo una corrida anterior (cuando el proyecto todavia no era multisize) es justamente
+    ''' lo que hay que sacar.
+    ''' <para>⛔ EL <c>.txt</c> DE TACONES NO ESTA EN LA LISTA, Y ESO ES LA LEY. Su unico dueño es
+    ''' <c>SliderSet_Class.SaveHighHeelBuild</c>. Ver el comentario de la emision de tacones en
+    ''' <c>RunBuild</c>.</para>
+    ''' <para>⛔ Y EL <c>.xml</c> DE FISICA TAMPOCO. Su ciclo de vida entero —escribir si el proyecto
+    ''' tiene fisica, borrar si no— lo resuelve <c>RunBuild</c> en la misma pasada, con mantenimiento del
+    ''' diccionario incluido. No hay estado rancio que barrer.</para></summary>
+    Friend Shared Function CandidatosDeBarrido(baseSalida As String) As List(Of String)
+        Dim r As New List(Of String)
+        If String.IsNullOrEmpty(baseSalida) Then Return r
+        r.Add(baseSalida & ".nif")
+        r.Add(baseSalida & "_0.nif")
+        r.Add(baseSalida & "_1.nif")
+        r.Add(baseSalida & ".tri")
+        Return r
+    End Function
+
+    ''' <summary>Borrar un artefacto de build es SIEMPRE este par: sacarlo del disco y sacarlo del
+    ''' <c>FilesDictionary</c>. Nunca uno solo de los dos.
+    ''' <para>⛔ POR QUÉ. Las entradas que da de alta <see cref="RunBuild"/> llevan <c>BA2File = ""</c>,
+    ''' o sea <c>IsLosseFile = True</c>. Los dos barridos borraban el archivo y dejaban la entrada, así
+    ''' que el diccionario quedaba declarando un SUELTO QUE NO EXISTE — y un suelto TAPA la copia
+    ''' empaquetada del BA2 para todo consumidor que resuelva por <c>IsLosseFile</c>. El propio
+    ''' <c>RunBuild</c> ya mantenía la simetría en cada borrado suyo (el .tri y el .xml de física); en
+    ''' los barridos faltaba.</para>
+    ''' <para>Best-effort en las dos mitades: un artefacto que no se pudo borrar no invalida el build, y
+    ''' un path fuera de <c>Fallout4data</c> no puede dar clave relativa — no se deja tirar por eso.</para>
+    ''' <para>⛔⛔ SE DESREGISTRA EL <b>SUELTO</b>, NO LA CLAVE. Las dos mitades tienen leyes distintas:</para>
+    ''' <list type="bullet">
+    ''' <item><b>Borrar</b> es best-effort. Si no se pudo, el archivo SIGUE ahí y la entrada todavía
+    ''' describe la realidad: no se toca nada.</item>
+    ''' <item><b>Desregistrar</b> corre cuando el borrado CORRIÓ de verdad, o cuando el archivo ya no
+    ''' estaba <b>y lo que el diccionario declara en esa clave es un SUELTO</b>.</item>
+    ''' </list>
+    ''' <para>⛔ POR QUÉ NO ALCANZA CON "el archivo no está". <c>RemoveDictionaryEntry</c> NO mira
+    ''' <see cref="FilesDictionary_class.File_Location.IsLosseFile"/>: saca al GANADOR de la clave y popea
+    ''' lo que hubiera debajo. Los candidatos que este barrido recorre —<c>&lt;base&gt;.nif</c>,
+    ''' <c>_0</c>, <c>_1</c>, <c>.tri</c>— son exactamente lo que un mod normal shipea DENTRO de su
+    ''' <c>.ba2</c> y sin sueltos; así que con el motor de BodySlide y <c>DeleteUnbuilt</c> (el DEFAULT)
+    ''' un "desregistrar siempre" desmontaba del diccionario los NIF EMPAQUETADOS de cada prenda, que
+    ''' este build no escribió y no podría borrar, y el preview y el pack dejaban de resolverlos por el
+    ''' resto de la sesión. El <c>If Not File.Exists Then Return</c> anterior los dejaba intactos: el
+    ''' arreglo del fantasma, hecho sin esta guarda, cambiaba un defecto por otro peor.</para>
+    ''' <para>⛔ Y EL FANTASMA SÍ SE VA, que es la mitad que faltaba de verdad: una entrada SUELTA de un
+    ''' artefacto que ya no existe —lo borró el usuario, otro build, el gestor de mods— se quedaba para
+    ''' siempre, y un suelto TAPA la copia empaquetada del BA2 para todo consumidor que resuelva por
+    ''' <c>IsLosseFile</c>. Ése —y sólo ése— es el caso que el early-return se comía.
+    ''' Gate: <c>Tools\WmEscrituraGate</c> A6.5..A6.10, que cubren las CUATRO combinaciones de
+    ''' {el archivo estaba / no estaba} × {el ganador es suelto / es de archive}. Menos que las cuatro
+    ''' deja la ley a medias: con sólo A6.5–A6.8 la puerta "el borrado SÍ corrió" quedaba en cero y ahí
+    ''' se coló exactamente este defecto.</para></summary>
+    Friend Shared Sub BorrarArtefactoYDesregistrar(ruta As String)
+        If IO.File.Exists(ruta) Then
+            Try
+                IO.File.Delete(ruta)
+            Catch
+                ' No se pudo borrar: el archivo SIGUE ahí, así que la entrada del diccionario todavía
+                ' describe la realidad y no hay que sacarla.
+                Return
+            End Try
+        End If
+        Try
+            Dim clave = IO.Path.GetRelativePath(Directorios.Fallout4data, ruta).Correct_Path_Separator
+            ' ⛔⛔ LA GUARDA VALE EN LAS DOS PUERTAS, Y ESTUVO ADENTRO DEL `If Not seBorro` — o sea que
+            ' con el archivo PRESENTE el borrado del diccionario salía incondicional y se llevaba igual a
+            ' la entrada empaquetada. La puerta `seBorro = True` no estaba medida por ningún caso.
+            ' Y es alcanzable con el config de fábrica: con el motor de BodySlide, WM NO registra lo que
+            ' escribe el proceso externo —las altas viven sólo en el camino del motor PROPIO, ver
+            ' <c>RunBuild</c>—, así que el suelto está en disco y el GANADOR de esa clave sigue siendo la
+            ' entrada del <c>.ba2</c> del mod. El build siguiente de la MISMA sesión borra el suelto
+            ' (existe ⇒ el `Delete` corre) y desmontaba un BA2 que nunca fue suyo.
+            ' Por eso ya no hace falta saber SI se borró: la pregunta es una sola y es sobre el ganador.
+            ' LA LEY ES UNA: se desregistra si-y-sólo-si el GANADOR de la clave es SUELTO. Si el ganador
+            ' es una entrada de archive, el suelto que borramos —o que no estaba— nunca fue el ganador, y
+            ' no hay nada nuestro que sacar. Gate: A6.5..A6.10 de Tools\WmEscrituraGate, que cubren las
+            ' cuatro combinaciones de {archivo estaba / no estaba} × {ganador suelto / de archive}.
+            Dim loc As FilesDictionary_class.File_Location = Nothing
+            If Not FilesDictionary_class.Dictionary.TryGetValue(clave, loc) Then Return
+            If loc Is Nothing OrElse Not loc.IsLosseFile Then Return
+            FilesDictionary_class.RemoveDictionaryEntry(clave)
+        Catch
+        End Try
+    End Sub
+
+    ''' <summary>El borrado PREVIO, para el único camino donde no se puede observar lo escrito: el motor
+    ''' de BodySlide. Bajo Mod Organizer esto sigue mandando la salida a `overwrite` —es la conducta que
+    ''' ese camino tuvo siempre— pero es preferible a apagar la opción en silencio.
+    ''' <para>⛔ LOS CANDIDATOS SALEN DE <see cref="CandidatosDeBarrido"/>, la misma derivación que usa el
+    ''' escritor. Acá vivía un segundo cálculo que le sacaba el ".nif" final a la raíz, y era el más
+    ''' peligroso de los dos porque en este camino el borrado es INCONDICIONAL: no hay conjunto de
+    ''' artefactos que lo frene. MEDIDO sobre el corpus: con el strip se borraba
+    ''' "1stPersonGauntlets.nif" —el asset del mod— y el build escribía "1stPersonGauntlets.nif_0.nif",
+    ''' o sea que no lo rehacía nunca.</para>
+    ''' <para>⛔⛔ Y EL <c>.tri</c> PASA POR <see cref="VeredictoDelTri"/>, COMO LAS OTRAS DOS DECISIONES.
+    ''' Es la ley que la cabecera de <see cref="DuenoDelTri"/> declara —UN VEREDICTO, TRES decisiones— y
+    ''' este camino era la tercera tomada por su cuenta: recorría <see cref="CandidatosDeBarrido"/>, que
+    ''' incluye el <c>.tri</c>, y borraba INCONDICIONAL. El caso de producción sale con el config de
+    ''' FÁBRICA (motor de BodySlide + <c>DeleteUnbuilt=True</c>): se llevaba puesto el <c>FRTRI003</c> de
+    ''' FaceGen que vive al lado de la base de salida — el MISMO archivo que el build conserva a propósito
+    ''' 20 líneas más arriba— y encima BodySlide no lo rehace, porque no es suyo. Un <c>.tri</c> ILEGIBLE
+    ''' cuenta como ajeno por la misma función, así que tampoco se toca.
+    ''' <b>El <c>.tri</c> NUESTRO (header PIRT) se sigue borrando</b>: acá se aplica la ley, no se apaga
+    ''' el barrido. Gate: <c>Tools\WmEscrituraGate</c> A8.1/A8.2/A8.3.</para></summary>
+    Friend Shared Sub BorrarAntesDeConstruirConMotorExterno(que As SliderSet_Class())
+        If WM_Config.Current.Settings_Build.DeleteUnbuilt = False Then Return
+        If que Is Nothing Then Return
+        For Each projecto In que
+            For Each cand In CandidatosDeBarrido(projecto.OutputFullPathBase)
+                ' El único candidato con dueño posible es el .tri; para todo lo demás VeredictoDelTri no
+                ' es la pregunta. Se compara por extensión y no por posición en la lista: el orden de
+                ' CandidatosDeBarrido no es un contrato.
+                If cand.EndsWith(".tri", StringComparison.OrdinalIgnoreCase) AndAlso
+                   VeredictoDelTri(cand) = DuenoDelTri.Ajeno Then Continue For
+                BorrarArtefactoYDesregistrar(cand)
+            Next
+        Next
+    End Sub
+
+    ''' <summary>"Delete unbuilt": borra los artefactos que quedaron de la corrida ANTERIOR y que este
+    ''' build no escribió ni conservó a propósito.
+    ''' <para>⛔ Corre DESPUÉS de construir, no antes. El borrado previo sacaba los archivos del mod bajo
+    ''' Mod Organizer —borrar los saca del árbol virtual, y lo que el build escribe después es un archivo
+    ''' NUEVO, que cae en `overwrite`—, así que cada build se llevaba la prenda fuera de su mod.</para>
+    ''' <para>⛔ Y ACÁ NO SE DECIDE NADA: se CONSUME el veredicto que ya tomó el build
+    ''' (<see cref="ArtefactosDelBuild"/>). La ley del .tri tiene cuatro condiciones y su veredicto lo
+    ''' toma <see cref="VeredictoDelTri"/>; la del .txt de tacones vive entera en
+    ''' <c>SaveHighHeelBuild</c> y por eso el .txt NI SIQUIERA ES CANDIDATO. Re-derivar cualquiera de las
+    ''' dos acá es el defecto que este comentario existe para no repetir.</para>
+    ''' <para>⛔ ES <c>Friend Shared</c> Y NO UN MIEMBRO DEL FORMULARIO. Vivía como <c>Private Sub</c> de
+    ''' instancia de <c>Wardrobe_Manager_Form</c>, y por eso el <c>--build</c> del CLI no podía llamarlo:
+    ''' <c>DeleteUnbuilt</c> era un no-op silencioso ahí, con la opción prendida por defecto. Acá lo
+    ''' consumen los dos caminos y además puede invocarlo un gate sin construir la ventana.</para>
+    ''' <para>Con el motor de BodySlide no se barre: los archivos los escribe un proceso externo, así que
+    ''' no hay conjunto observable, y adivinarlo por fecha borraría un .nif bueno del mod del usuario.</para></summary>
+    Friend Shared Sub BorrarNoConstruidos(bases As HashSet(Of String), artefactos As HashSet(Of String))
+        If WM_Config.Current.Settings_Build.DeleteUnbuilt = False Then Return
+        If artefactos Is Nothing OrElse bases Is Nothing Then Return
+
+        ' Los candidatos salen del base que USÓ EL ESCRITOR, no del sliderset original: con
+        ' ForceClonedOnBuild el build escribe sobre un clon que apunta a meshes\ManoloCloned\<pack>\, y
+        ' calcularlos sobre el original haría que ningún candidato intersecara con lo escrito — el
+        ' barrido borraría los artefactos del mod original en cada build. Y un proyecto que falló no
+        ' aparece en `bases`, así que su salida de la corrida anterior no se toca.
+        For Each baseName In bases
+            ' ⛔ SIN STRIP DEL ".nif". La lista es la MISMA que compone el escritor; acá había una
+            ' segunda derivación que le sacaba el ".nif" final al base, y por eso ningún candidato
+            ' intersecaba con lo escrito para los proyectos cuyo <OutputFile> ya trae la extensión.
+            ' Ver CandidatosDeBarrido, donde está la medición sobre el corpus.
+            For Each cand In CandidatosDeBarrido(baseName)
+                If artefactos.Contains(cand) Then Continue For
+                BorrarArtefactoYDesregistrar(cand)
+            Next
+        Next
+    End Sub
 
     ''' <summary>
     ''' Modo sin ventana: suprime los dos puntos interactivos del final (el dialogo de issues de carga y
@@ -160,6 +370,9 @@ Public Class BuildingForm
                 ' para todo el proyecto, pero cada size necesita saber si estampar el BODYTRI.
                 Dim triBlocked As Boolean = False
                 Dim triWritten As Boolean = False
+                ' El veredicto del .tri, tomado UNA vez en Sizecount=0 y reusado por el resto de los
+                ' sizes: el .tri es uno solo para todo el proyecto. Ver DuenoDelTri.
+                Dim triDueno As DuenoDelTri = DuenoDelTri.NoHay
                 For Sizecount = 0 To CInt(IIf(sliderset_target.Multisize, 1, 0))
                     ProgressBar1.Value = 0
                     ' Cada peso debe partir de la geometría PRISTINE. Sin esto, la pasada _1 (Big)
@@ -218,7 +431,9 @@ Public Class BuildingForm
                     SkeletonInstance.Default.ApplyPose(If(has_pose, _Pose, Nothing))
                     ProgressBar1.Value += 1
 
-                    Dim fil = builder.OutputFullPathBase + If(sliderset_target.Multisize, "_" + Sizecount.ToString, "") + ".nif"
+                    ' ⛔ El nombre del NIF sale de la derivacion UNICA, no de una expresion local: es la
+                    ' misma que consumen los dos barridos y Remove_DataShapeFiles. Ver NifsEscritos.
+                    Dim fil = NifsEscritos(builder.OutputFullPathBase, sliderset_target.Multisize)(Sizecount)
                     Dim tri = builder.OutputFullPathBase + ".tri"
                     Dim Tridata = builder.BodyTriRelativePath
                     Dim dir = IO.Path.GetDirectoryName(fil)
@@ -360,12 +575,18 @@ Public Class BuildingForm
                     ' chargen del juego — un archivo ajeno que no se regenera.
                     Dim triAllowed As Boolean = (builder.PreventMorphFile = False OrElse WM_Config.Current.Settings_Build.IgnorePreventri)
                     If Sizecount = 0 Then
-                        triBlocked = False
                         triWritten = False
-                        ' Solo se avisa cuando de verdad ibamos a escribir, como BSOS, que hace el
-                        ' chequeo dentro de `if (tri && !triKeep)`.
+                        ' ⛔ EL VEREDICTO SE TOMA ACA, UNA VEZ, Y SIEMPRE — no dentro del `If SaveTri`.
+                        ' Es el unico productor del hecho "de quien es este .tri", y lo consumen las tres
+                        ' decisiones de abajo: escribir, borrar, y anotar como artefacto. Calcularlo solo
+                        ' cuando ibamos a escribir dejaba al barrido decidiendo por su cuenta sobre el
+                        ' mismo archivo, con la ley opuesta. Ver DuenoDelTri.
+                        triDueno = VeredictoDelTri(tri)
+                        triBlocked = (triDueno = DuenoDelTri.Ajeno)
+                        ' Solo se AVISA cuando de verdad ibamos a escribir, como BSOS, que hace el
+                        ' chequeo dentro de `if (tri && !triKeep)`. El veredicto se calcula siempre; el
+                        ' mensaje al usuario sigue atado a la intencion de escribir, que es lo canonico.
                         If WM_Config.Current.Settings_Build.SaveTri AndAlso triAllowed Then
-                            triBlocked = ExistingTriIsForeign(tri)
                             If triBlocked Then
                                 If Errores <> "" Then Errores += vbCrLf
                                 Errores += Nombre & ": kept the existing non-BodySlide .tri at " & tri & " (morphs skipped)"
@@ -412,22 +633,30 @@ Public Class BuildingForm
 
                     ' High Heels. El alta/baja en el diccionario ya la hace la emisión (antes vivía
                     ' acá, y por eso el build con el motor de BodySlide nunca lo actualizaba).
-                    Dim hhEscrito = builder.SaveHighHeelBuild(builder.NIFContent)
-                    ' Para el barrido: el .txt cuenta como artefacto de este build si se escribió (True) o
-                    ' si el build decidió NO gestionarlo (Nothing) — con SaveHHS apagado ese archivo es del
-                    ' mod, no nuestro, y borrarlo sería quedarnos con algo que no escribimos. Sólo cuando
-                    ' devuelve False (altura 0 ⇒ se dio de baja a propósito) queda fuera del conjunto.
-                    ' Sólo FO4: en Skyrim el alto de tacones viaja DENTRO del NIF y no existe ningún
-                    ' .txt que preservar (SaveHighHeelBuild va por SyncHHOffsetInNif).
-                    ' Y el caso "no lo gestiono" (Nothing) sólo protege el .txt cuando DeleteUnbuilt está
-                    ' APAGADO: con la opción prendida el usuario pidió limpiar lo no construido, y la ley
-                    ' de SaveHighHeelBuild ya dice que ahí el archivo se puede destruir. Si no, apagar
-                    ' SaveHHS dejaba un .txt rancio con la altura vieja y el tacón quedaba mal in-game.
-                    If Config_App.Current.Game = Config_App.Game_Enum.Fallout4 AndAlso
-                       (hhEscrito.GetValueOrDefault() OrElse
-                        (Not hhEscrito.HasValue AndAlso Not WM_Config.Current.Settings_Build.DeleteUnbuilt)) Then
-                        ArtefactosDelBuild.Add(builder.OutputFullPathBase & ".txt")
-                    End If
+                    ' ⛔⛔ EL .txt DE TACONES TIENE UN SOLO DUEÑO: SaveHighHeelBuild. ACA NO SE ANOTA NADA,
+                    ' y el barrido tampoco lo lista como candidato (ver CandidatosDeBarrido).
+                    '
+                    ' ⛔ ACA HABIA UNA SEGUNDA LEY, y hacia perder el dato del mod. El .txt se anotaba como
+                    ' artefacto con `hhEscrito.GetValueOrDefault() OrElse (Not hhEscrito.HasValue AndAlso
+                    ' Not DeleteUnbuilt)`, y esa segunda clausula era CODIGO MUERTO: BorrarNoConstruidos
+                    ' retorna en su PRIMERA linea cuando DeleteUnbuilt=False, y no hay otro consumidor del
+                    ' conjunto. O sea que con `SaveHHS=False` + un proyecto CON tacones —el caso del
+                    ' proyecto adoptado— SaveHighHeelBuild devolvia Nothing (no lo gestiono A PROPOSITO,
+                    ' "ese artefacto es del mod" dice su docstring) y el barrido lo borraba igual: tacon en
+                    ' el piso in-game.
+                    '
+                    ' ⚠️ CAMBIO DE CONDUCTA DECLARADO, decidido en la ronda del 01-sep. El comentario que
+                    ' estaba aca justificaba ese borrado: "apagar SaveHHS dejaba un .txt rancio con la
+                    ' altura vieja". Ese costo se ACEPTA, y este es el porque de que se acepte: un .txt
+                    ' rancio da una altura equivocada que el usuario puede corregir prendiendo SaveHHS y
+                    ' reconstruyendo; un .txt borrado destruye la ULTIMA fuente de autodeteccion de la
+                    ' altura (SliderSet_Class.ReadhighHeel la lee de "<base>.txt" cuando no hay .hht), y
+                    ' eso WM no lo puede regenerar. No destruir el ultimo ejemplar gana sobre no dejar un
+                    ' valor viejo.
+                    '
+                    ' Sigue siendo solo FO4: en Skyrim el alto de tacones viaja DENTRO del NIF y no existe
+                    ' ningun .txt que preservar (SaveHighHeelBuild va por SyncHHOffsetInNif).
+                    builder.SaveHighHeelBuild(builder.NIFContent)
                     ProgressBar1.Value += 1
 
 
@@ -458,10 +687,14 @@ Public Class BuildingForm
                         ' Grabo archivo tri
                         Dim triRelative = IO.Path.GetRelativePath(Directorios.Fallout4data, tri).Correct_Path_Separator
                         ' Para el barrido de "no construidos": el .tri cuenta como artefacto de este build
-                        ' tanto si se escribió como si se CONSERVÓ a propósito (triBlocked = .tri ajeno, o
-                        ' PreventMorphFile sin IgnorePreventri). Si sólo contara lo escrito, el barrido
-                        ' borraría justo el que el build decidió no tocar, y encima después de haberle dicho
-                        ' al usuario "kept the existing .tri".
+                        ' tanto si se escribió como si se CONSERVÓ a propósito (triBlocked = .tri ajeno o
+                        ' ilegible, o PreventMorphFile sin IgnorePreventri). Si sólo contara lo escrito, el
+                        ' barrido borraría justo el que el build decidió no tocar, y encima después de
+                        ' haberle dicho al usuario "kept the existing .tri".
+                        ' ⛔ `triBlocked` sale del veredicto UNICO, que ahora se calcula SIEMPRE. Antes se
+                        ' calculaba solo dentro de `If SaveTri`, y con el default de fabrica (SaveTri=False)
+                        ' quedaba en False: un .tri ajeno o ilegible NO entraba en el conjunto y el barrido
+                        ' lo borraba.
                         If triWritten OrElse triBlocked OrElse
                            (builder.PreventMorphFile AndAlso Not WM_Config.Current.Settings_Build.IgnorePreventri) Then
                             ArtefactosDelBuild.Add(tri)
@@ -469,27 +702,46 @@ Public Class BuildingForm
                         If triWritten Then
                             FilesDictionary_class.AddOrUpdateDictionaryEntry(triRelative, New FilesDictionary_class.File_Location With {
                                 .BA2File = "", .Index = -1, .FullPath = triRelative, .FileDate = Date.Now})
-                        ElseIf Not WM_Config.Current.Settings_Build.SaveTri AndAlso Not triBlocked AndAlso (builder.PreventMorphFile = False OrElse WM_Config.Current.Settings_Build.IgnorePreventri) Then
+                        ElseIf Not WM_Config.Current.Settings_Build.SaveTri AndAlso triDueno = DuenoDelTri.Nuestro AndAlso (builder.PreventMorphFile = False OrElse WM_Config.Current.Settings_Build.IgnorePreventri) Then
                             ' BodySlideApp.cpp: sin morphs, el .tri viejo queda huerfano — nadie lo
                             ' referencia ya (el BODYTRI se quito arriba) pero se empaqueta igual en el FOMOD/BA2
-                            ' con morphs de una geometria que ya cambio. Solo se borra si es un body-tri PIRT;
-                            ' un FRTRI003 ajeno nunca se toca (ese caso ya lo ataja triBlocked).
+                            ' con morphs de una geometria que ya cambio. Solo se borra si es NUESTRO (PIRT);
+                            ' un FRTRI003 ajeno —o un .tri que no se pudo leer— nunca se toca.
+                            '
+                            ' ⛔ EL PREDICADO ES EL VEREDICTO UNICO, no una segunda lectura del header. Aca
+                            ' vivia `If ExistingTriIsBodySlide(tri)`, que era la SEGUNDA derivacion del
+                            ' mismo hecho: abria el archivo otra vez y podia contestar distinto que el
+                            ' `triBlocked` de arriba si el estado del archivo cambiaba en el medio (lock,
+                            ' hidratacion de OneDrive). `triDueno = Nuestro` implica `Not triBlocked`, asi
+                            ' que la condicion vieja queda subsumida.
                             '
                             ' El guard de PreventMorphFile es obligatorio: en BSOS `triKeep` apaga TANTO la
                             ' escritura COMO el borrado, asi que un proyecto marcado "prevent morph file"
                             ' conserva su .tri intacto. Sin esta condicion lo borrabamos.
-                            If ExistingTriIsBodySlide(tri) Then
-                                IO.File.Delete(tri)
-                                FilesDictionary_class.RemoveDictionaryEntry(triRelative)
-                            End If
+                            IO.File.Delete(tri)
+                            FilesDictionary_class.RemoveDictionaryEntry(triRelative)
                         End If
                         ' SSE: copia o borra XML de física HDT-SMP junto al NIF de salida (una sola vez, no depende del size)
                         If Config_App.Current.Game = Config_App.Game_Enum.Skyrim Then
                             Dim outXml = builder.OutputFullPathBase + ".xml"
                             Dim xmlRelative = IO.Path.GetRelativePath(Directorios.Fallout4data, outXml).Correct_Path_Separator
                             If Not String.IsNullOrEmpty(builder.PhysicsXmlContent) Then
-                                IO.File.WriteAllText(outXml, builder.PhysicsXmlContent, System.Text.Encoding.UTF8)
-                                ArtefactosDelBuild.Add(outXml)
+                                ' ⛔ NO `IO.File.WriteAllText`: pide CREATE_ALWAYS, y CREATE_ALWAYS sobre un
+                                ' destino con FILE_ATTRIBUTE_HIDDEN da ACCESS_DENIED (lo deja OneDrive, lo
+                                ' dejan los desempaquetadores). Ademas el borrado+alta implicito saca el
+                                ' archivo del arbol virtual de MO2 y corta el hardlink de Vortex. La ley y
+                                ' su porque viven en Ba2_Bsa_Library\EscrituraEnElLugar.vb.
+                                ' Va por `Escribir` y no por `GuardarConCopia`: es SALIDA DE BUILD, se
+                                ' regenera en la corrida siguiente.
+                                ' conBom:=True = lo que emitía `WriteAllText(..., Encoding.UTF8)`. El
+                                ' lector es HDT-SMP; sus bytes no cambian acá.
+                                EscribirTextoUtf8(outXml, builder.PhysicsXmlContent, conCopia:=False, conBom:=True)
+                                ' ⛔ ACA HABIA UN `ArtefactosDelBuild.Add(outXml)` INERTE: el barrido nunca
+                                ' genero un candidato .xml (ver CandidatosDeBarrido), asi que anotarlo no
+                                ' protegia nada. Y no hace falta que lo proteja: estas cuatro lineas son el
+                                ' ciclo de vida COMPLETO del .xml —se escribe si hay fisica, se borra si no,
+                                ' con el diccionario al dia en los dos casos— o sea que no puede quedar un
+                                ' .xml rancio para que el barrido lo levante.
                                 FilesDictionary_class.AddOrUpdateDictionaryEntry(xmlRelative, New FilesDictionary_class.File_Location With {
                                     .BA2File = "", .Index = -1, .FullPath = xmlRelative, .FileDate = Date.Now})
                             ElseIf IO.File.Exists(outXml) Then

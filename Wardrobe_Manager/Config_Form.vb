@@ -195,6 +195,74 @@ Public Class Config_Form
         cts.Cancel()
     End Sub
 
+    ''' <summary>True cuando <c>PackLastActionLabel</c> tiene un RESULTADO de Pack/Unpack que tiene que
+    ''' sobrevivir a <see cref="RefreshClonedMaterialStatus"/>.
+    ''' <para>⛔ EXISTE PARA SACARLE LA SEMÁNTICA AL COLOR. El refresh borraba el label mirando si el
+    ''' <c>ForeColor</c> era <c>DarkRed</c>; como la rama de fallo del unpack pinta DarkRed y el refresh
+    ''' corre en el <c>Finally</c> del mismo handler, el mensaje de error —con el aviso de archives sin
+    ''' remontar y la ruta del reporte— se borraba en el mismo turno. Con un flag propio, el color puede
+    ''' elegirse por SEVERIDAD sin cambiar la conducta: pintar DarkOrange para esquivar el borrado habría
+    ''' sido mentirle al usuario sobre la gravedad.</para></summary>
+    Private _packLabelPersistente As Boolean
+
+    ''' <summary>El RESULTADO persistente (texto y color) del último Pack/Unpack, y el AVISO de estado del
+    ''' refresh, guardados POR SEPARADO. El <c>Text</c> del label es siempre la composición de los dos.
+    ''' <para>⛔⛔ ESTO REEMPLAZA LA CIRUGÍA DE STRINGS, y con ella tres defectos de una vez. Antes el
+    ''' aviso de estado se APENDEABA al texto del label, y de ahí salían: (1) el apéndice NUNCA se
+    ''' retiraba —la limpieza vivía en la rama del contexto, que no corre cuando el flag está prendido—,
+    ''' así que un error transitorio quedaba pegado al resultado para siempre; (2) un error DISTINTO al
+    ''' primero se SUPRIMÍA, porque la guarda de duplicado miraba el literal genérico
+    ''' <c>"Error reading status"</c> y no <i>este</i> error; y (3) el color quedaba amarrado a una sola
+    ''' de las dos cosas. Recomponiendo, el aviso es un CAMPO que vale lo que valga hoy —o <c>""</c> si el
+    ''' refresh salió limpio— y las tres desaparecen: no hay qué retirar, no hay qué deduplicar, y cada
+    ''' parte se pinta por su cuenta.</para></summary>
+    Private _resultadoTexto As String = ""
+    Private _resultadoColor As Drawing.Color = SystemColors.ControlText
+    Private _avisoEstado As String = ""
+
+    ''' <summary>Punto ÚNICO por el que se escribe un resultado persistente en el label del Pack/Unpack.
+    ''' Prende el flag; el color es sólo presentación.
+    ''' <para>Que sea uno solo es el punto: prender el flag rama por rama a mano es exactamente cómo se
+    ''' olvida la que importa.</para>
+    ''' <para>Son <b>SIETE</b> ramas, no ocho: <c>PackButton_Click</c> tiene tres (cancelación, éxito y
+    ''' fallo general — no tiene una rama parcial, porque <c>Pack</c> no tiene un equivalente de
+    ''' <c>UnpackParcialException</c>) y <c>UnpackButton_Click</c> tiene cuatro (cancelación, éxito,
+    ''' unpack parcial y fallo general). El gate cuenta esas siete llamadas EXACTAS: ver D9.6.</para></summary>
+    Private Sub EscribirResultadoPack(texto As String, color As Drawing.Color)
+        _resultadoTexto = texto
+        _resultadoColor = color
+        _packLabelPersistente = True
+        ComponerLabelPack()
+    End Sub
+
+    ''' <summary>Arma el <c>Text</c> del label a partir de las DOS piezas. Es el único que escribe el
+    ''' control, así que no hay estado guardado en el texto ni nadie que tenga que recortarlo.
+    ''' <para>El color sale de la SEVERIDAD: si hay aviso de estado manda <c>DarkRed</c> —no poder leer el
+    ''' estado del disco es lo más grave que hay para mostrar acá— y si no, el color del resultado. El
+    ''' aviso deja de estar amarrado al color del resultado y viceversa.</para></summary>
+    ''' <summary>Escribe un texto TRANSITORIO en el label ("Starting…", el hito por archive) fijando los
+    ''' campos y recomponiendo, pero SIN prender el flag de persistente.
+    ''' <para>⛔⛔ TIENE QUE PASAR POR LOS CAMPOS AUNQUE SEA TRANSITORIO. Estas tres escrituras iban
+    ''' directo al control, así que <c>_resultadoTexto</c> se quedaba con el resultado de la corrida
+    ''' ANTERIOR; y como <c>RefreshClonedMaterialStatus</c> recompone desde los campos, cualquier refresh
+    ''' a mitad de la corrida —cambiar <c>ComboBoxGame</c> con el pack en vuelo, que
+    ''' <c>SetPackButtonsBusy</c> NO bloquea— RESUCITABA ese resultado viejo encima del "Starting…". Con
+    ''' la recomposición, "lo que el label muestra" dejó de poder vivir sólo en el control.</para>
+    ''' <para>NO prende el flag: es transitorio, y el refresh puede barrerlo cuando ya no haya nada que
+    ''' conservar. Eso lo diferencia de <see cref="EscribirResultadoPack"/>.</para></summary>
+    Private Sub EscribirTransitorio(texto As String)
+        _resultadoTexto = texto
+        _resultadoColor = SystemColors.ControlText
+        ComponerLabelPack()
+    End Sub
+
+    Private Sub ComponerLabelPack()
+        If PackLastActionLabel Is Nothing Then Return
+        Dim partes = {_resultadoTexto, _avisoEstado}.Where(Function(p) Not String.IsNullOrEmpty(p))
+        PackLastActionLabel.Text = String.Join("  |  ", partes)
+        PackLastActionLabel.ForeColor = If(_avisoEstado <> "", Drawing.Color.DarkRed, _resultadoColor)
+    End Sub
+
     Private Sub RefreshClonedMaterialStatus()
         ' Defensive: this gets called from ComboBoxGame.SelectedIndexChanged, which fires DURING
         ' InitializeComponent() the moment the Designer assigns ComboBoxGame.SelectedIndex — before
@@ -223,17 +291,39 @@ Public Class Config_Form
             PackButton.Enabled = contextValid AndAlso hasLoose
             UnpackButton.Enabled = contextValid AndAlso hasArchives
 
+            ' ⛔⛔ EL COLOR NO ES ESTADO, y el TEXTO tampoco. El aviso de este método es un CAMPO
+            ' (`_avisoEstado`) que se recalcula entero en cada pasada, y el label se RECOMPONE a partir de
+            ' él y del resultado persistente. Antes acá se escribía el control directo y el aviso vivía
+            ' dentro del string: de ahí salían el apéndice que no se retiraba nunca y la deduplicación por
+            ' literal. Recomponiendo, "no hay aviso" es simplemente `""`.
             If Not contextValid Then
-                PackLastActionLabel.ForeColor = Drawing.Color.DarkRed
-                PackLastActionLabel.Text =
+                _avisoEstado =
                     "Game / data path changed since startup. Pack/Unpack disabled until you " &
                     "revert to the original game and path, or close and reopen Wardrobe Manager " &
                     "(the file dictionary needs to be rebuilt against the new target)."
-            ElseIf PackLastActionLabel.ForeColor.Equals(Drawing.Color.DarkRed) Then
-                ' Clear the warning if context returned to valid mid-session.
-                PackLastActionLabel.ForeColor = SystemColors.ControlText
-                PackLastActionLabel.Text = ""
+                ' ⛔⛔ ACA NO SE APAGA EL FLAG, y el motivo que había escrito era FALSO. Decía "este aviso
+                ' se re-deriva cada refresh, no es un resultado que conservar" — cierto, pero el flag no
+                ' gobierna al AVISO: `_avisoEstado` ya se re-deriva incondicionalmente en las dos ramas
+                ' de este If. Lo único que apagarlo lograba era MATAR EL RESULTADO: un ida-y-vuelta del
+                ' ComboBoxGame (inválido → válido) borraba el WARNING de archives sin remontar, que en la
+                ' rama de ÉXITO del unpack es su ÚNICO portador — sin modal y sin log en Release.
+                ' Si el contexto inválido tiene algo que decir, lo dice `_avisoEstado`; no se dice matando
+                ' un resultado que sigue siendo cierto.
+            Else
+                _avisoEstado = ""
+                ' ⛔ EL TRANSITORIO TAMBIÉN ES ESTADO DEL LABEL. Con el flag en False —el PRIMER Pack de
+                ' la sesión, donde todavía no hay resultado— un refresh a mitad de la corrida entraba acá
+                ' y VACIABA el "Starting…"/el hito por archive hasta el tick siguiente. Y ese refresh es
+                ' alcanzable con el pack EN VUELO: `SetPackButtonsBusy` deshabilita los botones pero no
+                ' bloquea `ComboBoxGame.SelectedIndexChanged`. Antes de la recomposición el transitorio
+                ' sobrevivía —vivía en el control— así que esto sería una regresión del propio rediseño.
+                If Not _packLabelPersistente AndAlso Not _packEnCurso Then
+                    ' Ni resultado que conservar ni corrida en curso: el label queda vacío.
+                    _resultadoTexto = ""
+                    _resultadoColor = SystemColors.ControlText
+                End If
             End If
+            ComponerLabelPack()
         Catch ex As Exception
             ' Surface the throwing call site so first-chance exceptions in the debugger point at
             ' the actual root cause, not at this catch line.
@@ -243,8 +333,24 @@ Public Class Config_Form
             PackStatusLooseSizeValue.Text = "—"
             PackStatusArchivesValue.Text = "—"
             PackStatusArchiveSizeValue.Text = "—"
-            PackLastActionLabel.ForeColor = Drawing.Color.DarkRed
-            PackLastActionLabel.Text = $"Error reading status [{where}]: {ex.Message}"
+            ' ⛔⛔ EL AVISO ES UN CAMPO Y EL LABEL SE RECOMPONE: el resultado persistente NO se pisa y el
+            ' aviso NO se pega al texto. `GetStatus` toca el disco y un `FileNotFoundException` transitorio
+            ' es normal acá (MO2 / OneDrive / el AV borrando un .dds entre la enumeración y el stat).
+            ' Las tres formas que esto reemplaza, y lo que cada una rompía:
+            '   · escribir el error INCONDICIONALMENTE destruía el resultado del último Pack/Unpack — y el
+            '     caso peor es el ÉXITO del unpack, donde el label es el ÚNICO portador del WARNING de
+            '     archives sin remontar y de la ruta del .txt (no hay modal). Peor aún, correlacionado: si
+            '     se perdieron permisos, el remonte falla Y el stat tira, o sea que el aviso se borraba
+            '     POR SU PROPIA CAUSA;
+            '   · SUPRIMIRLO cuando había resultado salvaba el resultado pero perdía el diagnóstico para
+            '     siempre si el fallo no era transitorio;
+            '   · APENDEARLO al string dejaba un apéndice que nunca se retiraba (la limpieza vivía en la
+            '     rama del contexto, que con el flag prendido no corre) y suprimía un error DISTINTO al
+            '     primero, porque la guarda de duplicado miraba el literal genérico y no ESTE error.
+            ' Con el campo: siempre está el aviso ACTUAL (o ninguno), siempre está el resultado, y no hay
+            ' nada que retirar ni que deduplicar.
+            _avisoEstado = $"Error reading status [{where}]: {ex.Message}"
+            ComponerLabelPack()
             PackButton.Enabled = False
             UnpackButton.Enabled = False
         End Try
@@ -259,24 +365,34 @@ Public Class Config_Form
     Private Async Sub PackButton_Click(sender As Object, e As EventArgs) Handles PackButton.Click
         SetPackButtonsBusy(True)
         _packCts = New CancellationTokenSource()
-        PackLastActionLabel.ForeColor = SystemColors.ControlText
-        PackLastActionLabel.Text = "Starting pack…"
+        EscribirTransitorio("Starting pack…")
         Try
             Dim progress As New Progress(Of WM_PackUnpack.PackProgress)(AddressOf OnPackProgress)
             Dim result = Await WM_PackUnpack.PackAsync(progress, _packCts.Token)
+            ' ⛔ EL RESUMEN FINAL NOMBRA LOS HUERFANOS. Este label se arma con los conteos del
+            ' PackagerResult y NO lee el stream de progreso, así que sin esto el aviso —que sí viaja por
+            ' ReportStage— quedaba sólo en el label de progreso y el resumen no mencionaba nada.
+            ' El aviso de huérfanos (benigno) y el de remonte (GRAVE: contenido invisible) van los dos al
+            ' resumen persistente. El segundo es el que no tiene otro portador.
+            Dim huerfanos = WM_PackUnpack.UltimoAvisoHuerfanos & WM_PackUnpack.UltimoAvisoRemontePack
             If _packCts.IsCancellationRequested Then
-                PackLastActionLabel.ForeColor = Drawing.Color.DarkOrange
-                PackLastActionLabel.Text = $"Pack stopped by user. Wrote {result.Archives.Count} archive(s), " &
-                                            $"{result.Plugins.Count} new plugin(s) before stop. Remaining loose files left untouched."
+                EscribirResultadoPack($"Pack stopped by user. Wrote {result.Archives.Count} archive(s), " &
+                                      $"{result.Plugins.Count} new plugin(s) before stop. Remaining loose files left untouched." &
+                                      huerfanos, Drawing.Color.DarkOrange)
             Else
-                PackLastActionLabel.ForeColor = SystemColors.ControlText
-                PackLastActionLabel.Text = $"Pack complete. Wrote {result.Archives.Count} archive(s), " &
-                                            $"{result.Plugins.Count} new plugin(s); skipped {result.Skipped.Count} unchanged."
+                EscribirResultadoPack($"Pack complete. Wrote {result.Archives.Count} archive(s), " &
+                                      $"{result.Plugins.Count} new plugin(s); skipped {result.Skipped.Count} unchanged." &
+                                      huerfanos, SystemColors.ControlText)
             End If
         Catch ex As Exception
-            PackLastActionLabel.ForeColor = Drawing.Color.DarkRed
-            PackLastActionLabel.Text = "Pack failed: " & ex.Message
-            MessageBox.Show(ex.ToString(), "Pack failed", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            ' ⛔ LA RAMA DE FALLO TAMBIÉN NOMBRA SU AVISO. Era la ÚNICA de las siete que no lo hacía, y el
+            ' `.txt` de huérfanos ya está escrito en disco para cuando se llega acá: sin esto, su ruta no
+            ' aparecía en ningún lado y el archivo quedaba huérfano de su propio reporte.
+            Dim avisoHuerfanosFallo = WM_PackUnpack.UltimoAvisoHuerfanos
+            EscribirResultadoPack("Pack failed: " & ex.Message & avisoHuerfanosFallo, Drawing.Color.DarkRed)
+            MessageBox.Show(ex.ToString() & If(avisoHuerfanosFallo = "", "",
+                                               Environment.NewLine & Environment.NewLine & avisoHuerfanosFallo.Trim()),
+                            "Pack failed", MessageBoxButtons.OK, MessageBoxIcon.Error)
         Finally
             _packCts?.Dispose()
             _packCts = Nothing
@@ -294,29 +410,177 @@ Public Class Config_Form
 
         SetPackButtonsBusy(True)
         _packCts = New CancellationTokenSource()
-        PackLastActionLabel.ForeColor = SystemColors.ControlText
-        PackLastActionLabel.Text = "Starting unpack…"
+        EscribirTransitorio("Starting unpack…")
         Try
             Dim progress As New Progress(Of WM_PackUnpack.PackProgress)(AddressOf OnPackProgress)
             Dim result = Await WM_PackUnpack.UnpackAsync(progress, _packCts.Token)
+            ' ⛔⛔ EL AVISO DE REMONTE VA EN ESTE LABEL, QUE ES EL QUE QUEDA. Un archive sin remontar deja
+            ' su contenido invisible por el resto de la sesión, y ese aviso viajaba SÓLO por
+            ' `PackProgressLabel` — que el `Finally` de abajo apaga (`SetPackButtonsBusy(False)` ⇒
+            ' `PackProgressLabel.Visible = False`) en el MISMO turno. El caso peor es el de ÉXITO: sin
+            ' modal, con el label diciendo "Unpack complete." en color normal, el aviso se apagaba con el
+            ' label de progreso y el usuario nunca se enteraba. Va en las CUATRO ramas (éxito,
+            ' cancelación, unpack parcial y fallo general), y en la de éxito además tiñe el label:
+            ' "complete" en color normal con un archive invisible es una mentira.
+            ' ⛔⛔ CADA RAMA USA UN LOCAL CON NOMBRE PROPIO, Y NINGUNO ES PREFIJO DE OTRO. Antes las ramas
+            ' compartían `avisoRemonte`, y su sentencia
+            ' `PackLastActionLabel.Text &= avisoRemonte` es PREFIJO ESTRICTO de la de la rama parcial
+            ' (`… &= avisoRemonteParcial`): borrar la rama de ÉXITO dejaba el chequeo de fuente en verde
+            ' porque la línea de la otra rama lo satisfacía. Con nombres mutuamente no-prefijos cada
+            ' ancla es única POR CONSTRUCCIÓN y no por cuidado del que la escribe — el gate lo verifica.
+            Dim resguardos = result.CopiasDeSueltos.Count + result.Huerfanos.Count
+            Dim colaResguardos = If(resguardos = 0, "",
+                                    $" {resguardos} backup(s) of your own loose files kept next to them " &
+                                    "(*.bak.unpack*) — delete them when you're happy.")
             If _packCts.IsCancellationRequested Then
-                PackLastActionLabel.ForeColor = Drawing.Color.DarkOrange
-                PackLastActionLabel.Text = "Unpack stopped by user."
+                ' ⛔ LA CANCELACIÓN TAMBIÉN NOMBRA LOS RESGUARDOS. Un Stop a mitad ya pudo dejar copias
+                ' `.bak.unpack` del usuario en disco; no decirlas acá era la misma omisión que la rama de
+                ' éxito ya tenía cerrada.
+                Dim avisoRemonteCancel = WM_PackUnpack.UltimoAvisoRemonte
+                EscribirResultadoPack("Unpack stopped by user." & colaResguardos & avisoRemonteCancel,
+                                      Drawing.Color.DarkOrange)
             Else
-                PackLastActionLabel.ForeColor = SystemColors.ControlText
-                PackLastActionLabel.Text = $"Unpack complete. Removed {result.ArchivesRemoved.Count} archive(s) and " &
-                                            $"{result.PluginsRemoved.Count} plugin(s); wrote {result.LooseFilesWritten.Count} loose file(s)."
+                Dim avisoRemonteExito = WM_PackUnpack.UltimoAvisoRemonte
+                EscribirResultadoPack($"Unpack complete. Removed {result.ArchivesRemoved.Count} archive(s) and " &
+                                      $"{result.PluginsRemoved.Count} plugin(s); wrote {result.LooseFilesWritten.Count} loose file(s)." &
+                                      colaResguardos & avisoRemonteExito,
+                                      If(avisoRemonteExito = "", SystemColors.ControlText, Drawing.Color.DarkOrange))
             End If
+
+            ' ⛔ UN UNPACK PARCIAL NO ES "Unpack failed", Y DECIRLO ASI MANDA A DESHACER LO QUE SI SALIO.
+            ' `UnpackParcialException` llega acá con su resultado: `WM_PackUnpack` YA registró los sueltos
+            ' que se escribieron y ninguno de los archives con una entrada fallada se borró. Lo que el
+            ' usuario tiene que ver es las DOS cosas — cuánto salió y qué falló, con el nombre de cada
+            ' entrada— y que volver a correr Unpack sigue donde quedó. Va como Warning, no como Error.
+            ' Este Catch va ANTES del general: el orden es la selección.
+        Catch exParcial As BSA_BA2_Library_DLL.BethesdaArchive.Core.UnpackParcialException
+            Dim r = exParcial.Resultado
+            Dim avisoRemonteParcial = WM_PackUnpack.UltimoAvisoRemonte
+            EscribirResultadoPack($"Unpack incomplete: {r.Fallos.Count} entry(ies) failed. " &
+                                  $"Wrote {r.LooseFilesWritten.Count} loose file(s), removed " &
+                                  $"{r.ArchivesRemoved.Count} archive(s) and {r.PluginsRemoved.Count} plugin(s); " &
+                                  $"{r.ArchivesConservados.Count} archive(s) left in place." & avisoRemonteParcial,
+                                  Drawing.Color.DarkOrange)
+            ' ⛔ EL DETALLE COMPLETO VA A UN ARCHIVO CUYA RUTA EL DIALOGO NOMBRA; EL DIALOGO SE RECORTA.
+            ' (Acá decía "va AL LOG", que es lo contrario del código y de lo que explica `DetalleRecortado`
+            ' treinta líneas abajo: en Release no hay log, y remitir a él era pedirle al usuario algo
+            ' imposible. El comentario quedó del estado anterior.)
+            ' `UnpackParcialException.Message` es el Join de TODOS los fallos, uno por entrada: sobre un
+            ' archive grande con el destino de solo lectura eso son decenas de miles de lineas en un
+            ' MessageBox, que deja de ser legible y puede no poder mostrarse. El recorte es de
+            ' PRESENTACION —cuántas líneas entran en un diálogo— y no un umbral de conducta: no cambia qué
+            ' se extrae, qué se borra ni cuándo se tira. La conducta del packer no se toca (cortar el
+            ' barrido por "demasiados fallos" SÍ sería un umbral inventado, y por eso el reader que itera
+            ' N entradas queda exactamente como está).
+            MessageBox.Show(DetalleRecortado(exParcial, r), "Unpack incomplete",
+                            MessageBoxButtons.OK, MessageBoxIcon.Warning)
         Catch ex As Exception
-            PackLastActionLabel.ForeColor = Drawing.Color.DarkRed
-            PackLastActionLabel.Text = "Unpack failed: " & ex.Message
-            MessageBox.Show(ex.ToString(), "Unpack failed", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            ' ⛔⛔ LA CUARTA SALIDA TAMBIEN DICE EL AVISO, y es la que MAS lo necesita. Acá cae el fallo
+            ' ANCHO del pre-pass (un .ba2 tomado por el AV / MO2 / OneDrive), y en ese escenario el
+            ' remonte falla POR EL MISMO LOCK: el aviso está poblado casi siempre. Sin esto, el usuario
+            ' leía "Unpack failed: cannot access …" y se quedaba sin saber lo importante — que su archive
+            ' quedó DESMONTADO y que hay un .txt con el detalle. Un mensaje de error que omite el daño
+            ' real es peor que uno genérico.
+            Dim avisoRemonteFallo = WM_PackUnpack.UltimoAvisoRemonte
+            ' ⛔ DarkRed A PROPÓSITO Y SIN MIEDO: el borrado que se comía este mensaje era del refresh
+            ' mirando el COLOR, y eso ya no existe (ver `_packLabelPersistente`). Esquivarlo pintando
+            ' DarkOrange habría sido mentirle al usuario sobre la severidad para sortear un bug.
+            EscribirResultadoPack("Unpack failed: " & ex.Message & avisoRemonteFallo, Drawing.Color.DarkRed)
+            MessageBox.Show(ex.ToString() & If(avisoRemonteFallo = "", "",
+                                               Environment.NewLine & Environment.NewLine & avisoRemonteFallo.Trim()),
+                            "Unpack failed", MessageBoxButtons.OK, MessageBoxIcon.Error)
         Finally
             _packCts?.Dispose()
             _packCts = Nothing
             SetPackButtonsBusy(False)
             RefreshClonedMaterialStatus()
         End Try
+    End Sub
+
+    ''' <summary>Cuántas líneas de una lista larga entran en un diálogo antes de dejar de ser legible.
+    ''' <para>⛔ ES UN LÍMITE DE PRESENTACIÓN, NO UNA REGLA DE CONDUCTA, y la distinción importa porque el
+    ''' repo prohíbe los umbrales inventados: esto no decide qué se extrae, qué se borra ni cuándo se
+    ''' tira — sólo cuántos renglones se muestran. El detalle COMPLETO va a un ARCHIVO cuya ruta el
+    ''' diálogo nombra, así que nada queda oculto y el usuario puede llegar a lo que falta.</para></summary>
+    Private Const LINEAS_EN_DIALOGO As Integer = 20
+
+    ''' <summary>Arma el texto del diálogo de unpack incompleto: las listas recortadas + la RUTA REAL del
+    ''' archivo con el detalle completo.
+    ''' <para>⛔⛔ NO SE REMITE "AL LOG", Y ESE ERA EL DEFECTO. El recorte decía <i>"the full list is in
+    ''' the log"</i> y en Release <b>no hay log</b>: <c>Logger.Enabled</c> queda en False y su setter
+    ''' descarta cualquier True. Sobre un unpack con 3.002 fallos, el usuario veía 20 y los otros 2.982
+    ''' se perdían — con un mensaje que le pedía ir a buscarlos a un lado que no existe. Es literal el
+    ''' precedente de <c>ApplicationEvents</c>: <i>"logueaba a NINGUN LADO y el cartel igual decía
+    ''' «Details have been logged»"</i>. Ahora se escribe un archivo de verdad (misma forma que
+    ''' <c>CrashReport</c>: al lado del exe, con fallback a <c>%TEMP%</c>) y el diálogo dice DÓNDE
+    ''' quedó — y si no se pudo escribir, lo dice también en vez de mentir.</para></summary>
+    Private Shared Function DetalleRecortado(exParcial As BSA_BA2_Library_DLL.BethesdaArchive.Core.UnpackParcialException,
+                                             r As BSA_BA2_Library_DLL.BethesdaArchive.Core.UnpackResult) As String
+        ' El archivo lleva TODO: el mensaje entero del packer (una línea por entrada fallada) y las dos
+        ' listas completas. Se escribe UNA vez y las tres secciones del diálogo citan la misma ruta.
+        Dim completo As New Text.StringBuilder()
+        completo.AppendLine("Wardrobe Manager - unpack incomplete. Full detail.")
+        completo.AppendLine("Re-running Unpack picks up where it left off; nothing here was deleted.")
+        completo.AppendLine()
+        completo.AppendLine(exParcial.Message)
+        AgregarListaCompleta(completo, "Your previous loose files were backed up", r.CopiasDeSueltos)
+        AgregarListaCompleta(completo, "Backups left by earlier runs, still on disk", r.Huerfanos)
+        ' El aviso de remonte también entra al archivo: es el dato GRAVE del lote y no puede vivir sólo
+        ' en un label. Ya trae su propia ruta de detalle si hubo fallos.
+        ' ⛔ EL NOMBRE NO PUEDE EMPEZAR CON `avisoRemonte`: los cuatro locales de las ramas del handler
+        ' viven bajo esa invariante de no-prefijo (D9.0) y este quinto identificador la VIOLABA — es
+        ' prefijo estricto de los cuatro, así que un ancla de rama podía satisfacerse con ESTA línea.
+        ' `detalleAvisoRemonte` no es prefijo de ninguno ni ninguno lo es de él.
+        Dim detalleAvisoRemonte = WM_PackUnpack.UltimoAvisoRemonte
+        If detalleAvisoRemonte <> "" Then
+            completo.AppendLine()
+            completo.AppendLine(detalleAvisoRemonte.Trim())
+        End If
+        Dim ruta = WM_PackUnpack.EscribirReporte("unpack_incomplete", completo.ToString())
+
+        Dim lineas = exParcial.Message.Split(New String() {Environment.NewLine}, StringSplitOptions.None)
+        Dim sb As New Text.StringBuilder()
+        For i = 0 To Math.Min(lineas.Length, LINEAS_EN_DIALOGO) - 1
+            sb.AppendLine(lineas(i))
+        Next
+        If lineas.Length > LINEAS_EN_DIALOGO Then
+            sb.AppendLine($"… and {lineas.Length - LINEAS_EN_DIALOGO} more.")
+        End If
+        AgregarLista(sb, "Your previous loose files were backed up", r.CopiasDeSueltos)
+        AgregarLista(sb, "Backups left by earlier runs, still on disk", r.Huerfanos)
+        If detalleAvisoRemonte <> "" Then
+            sb.AppendLine()
+            sb.AppendLine(detalleAvisoRemonte.Trim())
+        End If
+        ' ⛔ LA RUTA SE DICE UNA SOLA VEZ, AL FINAL. Antes cada sección recortada la repetía ("… and N
+        ' more (full list: C:\…)") y con las tres listas largas el mismo path salía tres veces en el
+        ' mismo diálogo, que es ruido, no información.
+        sb.AppendLine()
+        sb.AppendLine(If(ruta = "",
+                         "The full report could NOT be written to disk (the app folder and %TEMP% both refused).",
+                         $"Full report: {ruta}"))
+        Return sb.ToString()
+    End Function
+
+    Private Shared Sub AgregarLista(sb As Text.StringBuilder, titulo As String, items As List(Of String))
+        If items Is Nothing OrElse items.Count = 0 Then Return
+        sb.AppendLine()
+        sb.AppendLine($"{titulo} ({items.Count}):")
+        For Each s In items.Take(LINEAS_EN_DIALOGO)
+            sb.AppendLine(s)
+        Next
+        If items.Count > LINEAS_EN_DIALOGO Then
+            sb.AppendLine($"… and {items.Count - LINEAS_EN_DIALOGO} more.")
+        End If
+    End Sub
+
+    Private Shared Sub AgregarListaCompleta(sb As Text.StringBuilder, titulo As String, items As List(Of String))
+        If items Is Nothing OrElse items.Count = 0 Then Return
+        sb.AppendLine()
+        sb.AppendLine($"{titulo} ({items.Count}):")
+        For Each s In items
+            sb.AppendLine(s)
+        Next
     End Sub
 
     ' Progress(Of T) marshals callbacks to the UI thread automatically — safe to touch controls.
@@ -344,12 +608,19 @@ Public Class Config_Form
         End If
 
         If Not String.IsNullOrEmpty(p.BoxText) Then
-            PackLastActionLabel.ForeColor = SystemColors.ControlText
-            PackLastActionLabel.Text = p.BoxText
+            EscribirTransitorio(p.BoxText)
         End If
     End Sub
 
+    ''' <summary>True mientras un Pack/Unpack está EN VUELO. Lo consume
+    ''' <see cref="RefreshClonedMaterialStatus"/> para no vaciar el texto TRANSITORIO del label: el
+    ''' refresh es alcanzable a mitad de la corrida (cambiar de juego — los botones están deshabilitados
+    ''' pero el <c>SelectedIndexChanged</c> no), y sin esto el "Starting…" desaparecía hasta el tick
+    ''' siguiente en la primera corrida de la sesión.</summary>
+    Private _packEnCurso As Boolean
+
     Private Sub SetPackButtonsBusy(busy As Boolean)
+        _packEnCurso = busy
         PackButton.Enabled = Not busy
         UnpackButton.Enabled = Not busy
         StopButton.Visible = busy

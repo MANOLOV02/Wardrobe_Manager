@@ -511,9 +511,21 @@ Public Class OSD_Class
     ''' archivo (Save_Shapedatas) NO puede hacerlo si el archivo no se escribió: dejaría el .osp
     ''' apuntando a algo que no existe.
     '''
-    ''' ⚠️ El False NO cubre todo: los Throw de más abajo (nombre &gt; 255 bytes, &gt; 65535 diffs) salen
-    ''' DESPUÉS de que FileMode.Create ya truncó el archivo destino. En ese caso el .osd queda
-    ''' destruido en disco y esto no retorna: propaga. El llamador no debe re-apuntar nada.
+    ''' ⚠️ El False NO cubre todo: los Throw de más abajo (nombre &gt; 255 bytes, &gt; 65535 diffs) no
+    ''' retornan, PROPAGAN, y por eso el llamador no debe re-apuntar nada. Esa mitad sigue vigente.
+    '''
+    ''' ⛔ LO QUE ESTE PÁRRAFO DECÍA Y YA NO ES CIERTO: decía que esos Throw salen «DESPUÉS de que
+    ''' FileMode.Create ya truncó el archivo destino» y que «el .osd queda destruido en disco». Acá
+    ''' abajo ya no hay ningún <c>FileMode.Create</c>: se escribe por
+    ''' <c>EscrituraEnElLugar.GuardarConCopia</c>, que primero deja una copia VERIFICADA del contenido
+    ''' anterior y, si el cuerpo tira después de haber empezado, RESTAURA el destino desde esa copia y
+    ''' vuelve a tirar. Y si no pudo dejar la copia, no llega a tocar el destino: el archivo queda
+    ''' intacto. O sea que el .osd NO queda destruido en ninguno de los dos casos.
+    ''' <para>La ley entera —incluido el único resto: si la restauración automática también falla, el
+    ''' contenido anterior queda en el <c>.npcm.prev</c> que nombra el mensaje del error— vive en el
+    ''' docstring de <c>GuardarConCopia</c>, que es su casa. No se repite acá para que no vuelva a
+    ''' pasar esto: una copia de la ley que se quedó vieja y contradecía al código tres líneas
+    ''' más abajo.</para>
     ''' </summary>
     Public Function Save_As(Filename As String, Overwrite As Boolean) As Boolean
         If IO.File.Exists(Filename) AndAlso Overwrite = False Then
@@ -528,7 +540,18 @@ Public Class OSD_Class
         ' destruido en disco: ahora `GuardarConCopia` restaura solo el contenido anterior.
         BSA_BA2_Library_DLL.EscrituraEnElLugar.GuardarConCopia(Filename,
          Sub(stream)
-            Using Writer As New IO.BinaryWriter(stream)
+            ' ⛔ `leaveOpen:=True` NO ES OPCIONAL: el cuerpo NO es dueño del stream. Sin esto, el
+            ' `End Using` del BinaryWriter CIERRA el FileStream que abrió `EscribirNucleo`, y el
+            ' `fs.Flush(True)` que corre después del cuerpo revienta con ObjectDisposedException
+            ' ("Cannot access a closed file") y se lleva la app puesta. Crash real en producción:
+            ' «Copy to pack» → Procesa_Singles → Save_Shapedatas → acá.
+            ' La codificación es la MISMA que usa el constructor de un parámetro
+            ' (`UTF8Encoding(False, True)`), así que los bytes no se mueven — y en este cuerpo ni
+            ' siquiera se usa: `Header` y `Version` son `Byte()` y los nombres van por
+            ' `Write(nameBytes)`, o sea todas las sobrecargas son `Write(Byte())`, nunca
+            ' `Write(String)`. Se pasa explícita igual, para que el cambio sea neutro por
+            ' construcción y no por inspección.
+            Using Writer As New IO.BinaryWriter(stream, New System.Text.UTF8Encoding(False, True), leaveOpen:=True)
 
                 ' BodySlide indexa los bloques del .osd con `outDataDiffs.emplace(dataName, ...)` sobre
                 ' un unordered_map (DiffData.cpp): emplace NO sobreescribe, asi que ante nombres
@@ -783,10 +806,53 @@ Public Class Clone_Materials_class
         Return result
     End Function
 
-    Public Shared Sub Clone_Materials_For_Project(project As SliderSet_Class, overwrite As Boolean, Optional context As ProjectLoadContext = Nothing)
+    ''' <summary>Huella del DOM del <c>.osp</c> que contiene a este proyecto. Es lo que determina los
+    ''' bytes que escribiría <c>Save_Pack_As</c> (<c>xml.Save(fs)</c>), así que dos huellas iguales
+    ''' implican dos guardados byte-idénticos.
+    ''' <para>⛔ NO SE USA <c>GetProjectFileSignature</c>: ésa mide el ARCHIVO EN DISCO (fecha y tamaño),
+    ''' no el documento en memoria — respondería "sin cambios" justo cuando el DOM se movió y el archivo
+    ''' todavía no, que es el caso que hay que detectar.</para>
+    ''' <para>Devuelve "" si no hay DOM que medir; el llamador trata eso como "no sé", o sea guarda.</para></summary>
+    Private Shared Function HuellaDelDom(project As SliderSet_Class) As String
+        Try
+            Dim doc = project?.ParentOSP?.xml
+            If doc Is Nothing OrElse doc.DocumentElement Is Nothing Then Return ""
+            Dim bytes = System.Text.Encoding.UTF8.GetBytes(doc.OuterXml)
+            Return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes))
+        Catch
+            ' No se pudo medir ⇒ "no sé" ⇒ el llamador guarda. El lado seguro del error es escribir.
+            Return ""
+        End Try
+    End Function
+
+    ''' <param name="elLlamadorGuardaElPack">El llamador AFIRMA que el <c>.osp</c> ya quedó escrito en
+    ''' disco con el DOM actual (es lo que hacen <c>Agrega_Proyecto</c> y <c>Merge_Proyecto</c> con su
+    ''' <c>Save_Pack_As</c> antes de volver). Con True se saltea el <c>Save_Pack</c> del final.
+    ''' <para>⛔ SÓLO SE PASA True DONDE ESTÁ PROBADO. En <c>Procesa_Singles</c> y <c>Merge_Singles</c>
+    ''' la prueba es el retorno: <c>Agrega_Proyecto</c> tiene UN solo camino de éxito y su última
+    ''' sentencia antes del <c>Return</c> es el <c>Save_Pack_As</c>, así que un resultado no-Nothing
+    ''' implica pack guardado. En <c>MergeIntoTargetButton_Click</c> NO se pasa: ahí el guardado depende
+    ''' de que al menos un <c>Merge_Proyecto</c> haya tenido éxito y <c>Merge_Part</c> no lo reporta —
+    ''' afirmarlo sin prueba dejaría el .osp repartido contra un .osd ya colapsado, que es exactamente
+    ''' el daño que el <c>Save_Pack</c> de abajo existe para evitar.</para>
+    ''' <para>⛔ Y AUN ASÍ NO SE LE CREE: el salteo exige ADEMÁS que <see cref="HuellaDelDom"/> pruebe
+    ''' que el DOM no se movió mientras corría este método. La afirmación del llamador sola no alcanza
+    ''' para no escribir el proyecto del usuario.</para>
+    ''' <para>MEDIDO, y por eso el parámetro existe: en un lote de 50 ítems este <c>Save_Pack</c> es la
+    ''' SEGUNDA copia completa del <c>.osp</c> por ítem (<c>GuardarConCopia</c> copia el destino antes de
+    ''' pisarlo), y el pack CRECE con cada ítem agregado — o sea que el término crece con el cuadrado del
+    ''' lote. Es el único de los seis <c>GuardarConCopia</c> por ítem que no es red legítima: reescribe
+    ''' un archivo que esta misma corrida acaba de escribir, con los mismos bytes.</para></param>
+    Public Shared Sub Clone_Materials_For_Project(project As SliderSet_Class, overwrite As Boolean, Optional context As ProjectLoadContext = Nothing,
+                                                  Optional elLlamadorGuardaElPack As Boolean = False)
         Dim loadContext = If(context, ProjectLoadContext.CreateInteractive())
         Dim plan As New ClonePlan
         If OSP_Project_Class.Load_and_Check_Shapedata(project, loadContext) = False Then Exit Sub
+        ' ⛔ HUELLA DEL DOM AL ENTRAR. Es lo que hace SEGURO saltear el Save_Pack del final cuando el
+        ' llamador ya guardó: `Save_Pack_As` escribe `xml.Save(fs)`, o sea que los bytes del .osp son
+        ' una función PURA del DOM — si el DOM no cambió, el guardado sería byte por byte el mismo
+        ' archivo que ya está en disco. No se le cree al llamador y listo: se MIDE.
+        Dim domAlEntrar As String = HuellaDelDom(project)
         CollectClonePlan(project, plan)
 
         For Each job In plan.MaterialJobs.Values.ToList()
@@ -824,17 +890,32 @@ Public Class Clone_Materials_class
         End If
 
         ' ⛔ Save_Shapedatas COLAPSA los <Data> locales a un solo .osd, y para eso MUTA el XML del .osp.
-        ' Éste es el único de sus cuatro llamadores que no venía precedido de un Save_Pack_As: los
-        ' otros tres corren después de Agrega_Proyecto / Merge_Proyecto, que ya lo grabaron, así que
-        ' allá el colapso queda en no-op. Acá no, y el camino expuesto es el botón de REPARAR
-        ' materiales (TryRepairCloneIssue), que va de Load_and_Check_Shapedata a UnloadShapeData sin
-        ' tocar el .osp en toda la cadena.
+        ' El camino expuesto es el botón de REPARAR materiales (TryRepairCloneIssue), que va de
+        ' Load_and_Check_Shapedata a UnloadShapeData sin tocar el .osp en toda la cadena.
         ' Sin esto, en un proyecto con VARIOS .osd locales el archivo queda colapsado en disco mientras
         ' el .osp sigue repartido ⇒ en el arranque siguiente los mismos bloques aparecen en los DOS
         ' archivos y FindCrossFileBlockNameClash lo rechaza: el proyecto pasa de andar a no cargar.
+        '
+        ' ⛔ Y CUANDO EL LLAMADOR YA LO GUARDÓ, NO SE VUELVE A ESCRIBIR. Este comentario ya decía que en
+        ' tres de los cuatro llamadores "el colapso queda en no-op" porque venían de Agrega_Proyecto /
+        ' Merge_Proyecto — pero el Save_Pack se hacía IGUAL, y no es gratis: GuardarConCopia copia el
+        ' .osp entero antes de pisarlo, así que era una segunda copia completa del pack POR ÍTEM, sobre
+        ' un pack que crece con cada ítem del lote. Ahora el llamador que puede PROBAR que ya guardó lo
+        ' dice (ver el param), y los que no, no.
         ' El guard de File.Exists cubre el ParentOSP dummy (sin archivo), cuyo Filename da "Unknown".
         Dim pack = project.ParentOSP
-        If pack IsNot Nothing AndAlso IO.File.Exists(pack.Filename) Then pack.Save_Pack(True)
+        If pack Is Nothing OrElse Not IO.File.Exists(pack.Filename) Then Exit Sub
+
+        ' ⛔ SE SALTEA SÓLO SI ESTÁ PROBADO, y la prueba es una implicación cerrada, no un juicio: el
+        ' llamador afirma que ya escribió el .osp con el DOM de ese momento, y la huella dice que el DOM
+        ' NO CAMBIÓ desde que entramos. Como `Save_Pack_As` serializa el DOM y nada más, escribir ahora
+        ' produciría exactamente los mismos bytes que ya están en disco.
+        ' Si el DOM SÍ cambió, se guarda igual aunque el llamador haya dicho que guardó — un .osp
+        ' repartido contra un .osd ya colapsado es el daño que este Save_Pack existe para evitar, y no
+        ' se lo cambia por una afirmación.
+        If elLlamadorGuardaElPack AndAlso domAlEntrar <> "" AndAlso domAlEntrar = HuellaDelDom(project) Then Exit Sub
+
+        pack.Save_Pack(True)
     End Sub
 
     Private Shared Sub CollectClonePlan(project As SliderSet_Class, plan As ClonePlan)
@@ -1576,7 +1657,18 @@ Public Class Clone_Materials_class
                 ' ⚠️ CAMBIO DE CONDUCTA declarado: con un ORIGEN VACÍO el `Copy` dejaba un destino de 0
                 ' bytes (medido); `VolcarEncima` se niega y deja el destino INTACTO. Es la misma ley que
                 ' la rama de abajo ya aplica con su `Throw` cuando el origen no tiene bytes.
-                BSA_BA2_Library_DLL.EscrituraEnElLugar.VolcarEncima(sourceLooseFile, job.TargetFullPath, reintentos:=1)
+                '
+                ' ⛔ `sincronizar:=False` ES UN OPT-OUT EXPLÍCITO DEL DEFAULT, y por eso lleva su motivo.
+                ' `VolcarEncima` defaultea en True porque sus otros llamadores BORRAN la otra copia apenas
+                ' vuelve la llamada (el packer borra el `.new`, el exportador de FOMOD el `.tmp`, el "move
+                ' project" el `.osp` origen): ahí el destino pasa a ser el único ejemplar y sin el flush un
+                ' corte de luz se lleva los dos. ESTE camino no es ese: el origen es el suelto del juego,
+                ' que NO se borra ni se toca — si el clon se pierde, se vuelve a clonar. Y el costo sí se
+                ' nota acá: el flush son +2,66 a +4,53 ms POR LLAMADA (medido en `Escribir`) y esto son
+                ' CIENTOS de archivos por corrida, el mismo régimen que ya justificó el `reintentos:=1` de
+                ' arriba. Salida regenerable, sin otra copia que borrar ⇒ no sincroniza.
+                BSA_BA2_Library_DLL.EscrituraEnElLugar.VolcarEncima(sourceLooseFile, job.TargetFullPath,
+                                                                   reintentos:=1, sincronizar:=False)
             Else
                 Dim bytes As Byte() = Nothing
                 prefetchedPackedBytes.TryGetValue(job.SourceKey, bytes)
@@ -1601,6 +1693,15 @@ Public Class Clone_Materials_class
             RegisterGeneratedDictionaryFile("Textures\" & job.TargetRelative)
         Next
     End Sub
+
+    ' ⛔ ACÁ VIVÍA UNA SEGUNDA COPIA DE `SerializarMaterial`, Y SE FUE. La ley —por qué no se llama a
+    ' `BaseMaterialFile.Save(FileStream)` de MaterialLib, que cierra un stream que no es suyo, y por qué
+    ' se entra por `Serialize(BinaryWriter)` con `leaveOpen:=True`— tiene UNA sola casa:
+    ' `FO4_Base_Library.FO4UnifiedMaterial_Class.SerializarMaterial`. Los dos llamadores de este archivo
+    ' (WriteMaterialJob, más abajo) ya apuntan allá; esta copia había quedado sin un solo llamador —
+    ' verificado por censo sobre todo el árbol, incluidos Tools\.
+    ' Dos implementaciones de una misma ley es exactamente lo que el workspace prohíbe: divergen en
+    ' silencio y después hay que medir cuál de las dos corrió.
 
     Private Shared Sub WriteMaterialJob(job As MaterialJob, overwrite As Boolean, saveAction As Action(Of Stream))
         If IO.Directory.Exists(IO.Path.GetDirectoryName(job.TargetFullPath)) = False Then
@@ -1696,9 +1797,7 @@ Public Class Clone_Materials_class
 
                     ApplyBGSMResolvedReferences(material, job)
 
-                    WriteMaterialJob(job, overwrite, Sub(writer)
-                                                         material.Save(writer)
-                                                     End Sub)
+                    WriteMaterialJob(job, overwrite, Sub(fs) FO4UnifiedMaterial_Class.SerializarMaterial(material, fs))
 
                 Case ".bgem"
                     Dim material As New BGEM
@@ -1710,9 +1809,7 @@ Public Class Clone_Materials_class
 
                     ApplyBGEMResolvedReferences(material, job)
 
-                    WriteMaterialJob(job, overwrite, Sub(writer)
-                                                         material.Save(writer)
-                                                     End Sub)
+                    WriteMaterialJob(job, overwrite, Sub(fs) FO4UnifiedMaterial_Class.SerializarMaterial(material, fs))
 
                 Case Else
                     Throw New Exception
@@ -2298,12 +2395,17 @@ Public Class OSP_Project_Class
             MsgBox("Project name already exists, it will not be processed", vbCritical, "Duplicated")
             Return Nothing
         End If
-        Using writer = IO.File.CreateText(Filename)
-            writer.WriteLine("<?xml version=" + Chr(34) + "1.0" + Chr(34) + " encoding=" + Chr(34) + "UTF-8" + Chr(34) + "?>")
-            writer.WriteLine("<SliderSetInfo version=" + Chr(34) + " 1" + Chr(34) + " ManoloPack=" + Chr(34) + IIf(ManoloPack, "true", "false") + Chr(34) + ">")
-            writer.WriteLine("</SliderSetInfo>")
-            writer.Flush()
-        End Using
+        ' ⛔ NO `IO.File.CreateText`, aunque acá NO haya dato del usuario que perder (con
+        ' Overwrite_If_Exist=False se retornó arriba, y con True el llamador ya pidió pisar). El motivo
+        ' es el OTRO que documenta Ba2_Bsa_Library\EscrituraEnElLugar.vb: CREATE_ALWAYS sobre un destino
+        ' con FILE_ATTRIBUTE_HIDDEN da ACCESS_DENIED, y un .osp oculto (OneDrive, desempaquetador) hacía
+        ' fallar la creación del pack con un error que no nombra la causa. Va por `Escribir`, sin copia:
+        ' el archivo o no existe, o el usuario autorizó pisarlo.
+        Dim contenido As String =
+            "<?xml version=" + Chr(34) + "1.0" + Chr(34) + " encoding=" + Chr(34) + "UTF-8" + Chr(34) + "?>" & vbCrLf &
+            "<SliderSetInfo version=" + Chr(34) + " 1" + Chr(34) + " ManoloPack=" + Chr(34) + IIf(ManoloPack, "true", "false") + Chr(34) + ">" & vbCrLf &
+            "</SliderSetInfo>" & vbCrLf
+        EscribirTextoUtf8(Filename, contenido, conCopia:=False, conBom:=False)
         Return New OSP_Project_Class(Filename, True)
     End Function
     Public Function AddProject(ByRef Template As SliderSet_Class, Optional context As ProjectLoadContext = Nothing) As SliderSet_Class
@@ -3911,10 +4013,12 @@ Public Class SliderSet_Class
                     Return False
                 End If
                 If manage = False Then Return Nothing
-                Using writer = IO.File.CreateText(hhfile)
-                    writer.WriteLine("Height=" + HighHeelHeight.ToString(System.Globalization.CultureInfo.InvariantCulture))
-                    writer.Flush()
-                End Using
+                ' ⛔ NO `IO.File.CreateText`: pide CREATE_ALWAYS, y CREATE_ALWAYS sobre un destino con
+                ' FILE_ATTRIBUTE_HIDDEN da ACCESS_DENIED (lo deja OneDrive, lo dejan los
+                ' desempaquetadores). La ley y su porqué viven en Ba2_Bsa_Library\EscrituraEnElLugar.vb.
+                ' Va por `Escribir` (sin copia): es SALIDA DE BUILD y se regenera en la corrida siguiente.
+                ' conBom:=False = lo que emitía File.CreateText (UTF8NoBOM). El lector es HHS.
+                EscribirTextoUtf8(hhfile, "Height=" + HighHeelHeight.ToString(System.Globalization.CultureInfo.InvariantCulture) & vbCrLf, conCopia:=False, conBom:=False)
                 RegisterBuiltHHFile(hhfile, True)
                 Return True
 
@@ -4043,10 +4147,13 @@ Public Class SliderSet_Class
         If HighHeelAuthored = False Then
             If IO.File.Exists(filename) Then IO.File.Delete(filename)
         Else
-            Using writer = IO.File.CreateText(filename)
-                writer.WriteLine("Height=" + HighHeelHeight.ToString(System.Globalization.CultureInfo.InvariantCulture))
-                writer.Flush()
-            End Using
+            ' ⛔ CON COPIA: el .hht es DATO DEL USUARIO — es la INTENCIÓN que este mismo docstring dice
+            ' que hay que persistir, y no se regenera (si se pierde, la carga siguiente vuelve a
+            ' autodetectar y la intención del usuario desaparece). Y no puede ir por CreateText:
+            ' CREATE_ALWAYS sobre un destino OCULTO da ACCESS_DENIED. Ver
+            ' Ba2_Bsa_Library\EscrituraEnElLugar.vb.
+            ' conBom:=False = lo que emitía File.CreateText (UTF8NoBOM). Lo lee el propio WM.
+            EscribirTextoUtf8(filename, "Height=" + HighHeelHeight.ToString(System.Globalization.CultureInfo.InvariantCulture) & vbCrLf, conCopia:=True, conBom:=False)
         End If
 
         Dim legacy As String = HighHeelSidecarLegacyPath
@@ -4595,10 +4702,10 @@ Public Class SliderSet_Class
             If IO.File.Exists(Built_Tri) Then IO.File.Delete(Built_Tri)
             FilesDictionary_class.RemoveDictionaryEntry(IO.Path.GetRelativePath(Directorios.Fallout4data, Built_htt).Correct_Path_Separator)
             FilesDictionary_class.RemoveDictionaryEntry(IO.Path.GetRelativePath(Directorios.Fallout4data, Built_Tri).Correct_Path_Separator)
-            For sizecount = 0 To CInt(IIf(Multisize(), 1, 0))
-                Dim fil = Me.OutputFullPathBase & If(Multisize(), "_" & sizecount.ToString, "") & ".nif"
-                If IO.File.Exists(fil) Then IO.File.Delete(fil)
-                FilesDictionary_class.RemoveDictionaryEntry(IO.Path.GetRelativePath(Directorios.Fallout4data, fil).Correct_Path_Separator)
+            ' ⛔ La derivación de los NIF de salida sale de UN solo lugar (ver BuildingForm.NifsEscritos):
+            ' era la CUARTA copia de la misma expresión, junto con el escritor y los dos barridos.
+            For Each fil In BuildingForm.NifsEscritos(Me.OutputFullPathBase, Multisize())
+                BuildingForm.BorrarArtefactoYDesregistrar(fil)
             Next
             If Config_App.Current.Game = Config_App.Game_Enum.Skyrim Then
                 Dim Built_Xml = Me.OutputFullPathBase & ".xml"
@@ -4781,7 +4888,14 @@ Public Class SliderSet_Class
         If Config_App.Current.Game = Config_App.Game_Enum.Skyrim Then
             If Not String.IsNullOrEmpty(PhysicsXmlContent) Then
                 If OverwriteShapeFiles OrElse Not IO.File.Exists(smpXmlPath) Then
-                    IO.File.WriteAllText(smpXmlPath, PhysicsXmlContent, System.Text.Encoding.UTF8)
+                    ' ⛔ CON COPIA: éste es el sidecar de física del PROYECTO —dato del usuario, guardado
+                    ' desde el editor— no la salida de build (ésa la escribe BuildingForm por `Escribir`).
+                    ' Y no puede ir por WriteAllText: CREATE_ALWAYS sobre un destino OCULTO da
+                    ' ACCESS_DENIED. Ver Ba2_Bsa_Library\EscrituraEnElLugar.vb.
+                    ' conBom:=True = lo que emitía `WriteAllText(..., Encoding.UTF8)`, que SÍ escribe BOM
+                    ' (Encoding.UTF8 tiene encoderShouldEmitUTF8Identifier = True). Los bytes de un
+                    ' artefacto que lee un tercero (HDT-SMP) no se cambian de paso en un fix de otra cosa.
+                    EscribirTextoUtf8(smpXmlPath, PhysicsXmlContent, conCopia:=True, conBom:=True)
                 End If
             ElseIf IO.File.Exists(smpXmlPath) Then
                 IO.File.Delete(smpXmlPath)

@@ -1720,11 +1720,24 @@ Public Class Editor_Form
         If MsgBox("Override material file?", vbYesNo + vbExclamation, "Warning") = MsgBoxResult.Yes Then
             Dim absPath = Path.Combine(Wardrobe_Manager_Form.Directorios.Fallout4data, xx.FullPath)
             Dim mat = Selected_Shape.RelatedMaterial.material
-            If TypeOf mat.Underlying_Material Is BGSM Then
-                mat.Save_To_Bgsm(absPath)
-            ElseIf TypeOf mat.Underlying_Material Is BGEM Then
-                mat.Save_To_Bgem(absPath)
-            End If
+            ' ⛔ ESTE Try NO ES DECORACION. `Save_To_Bgsm` va por `EscrituraEnElLugar.GuardarConCopia`, que
+            ' TIRA a proposito cuando no pudo dejar una copia verificada del archivo que va a pisar ("was
+            ' NOT modified: its backup could not be created") — disco lleno, permisos, el archivo tomado.
+            ' Sin este Try esa excepcion sale de un handler de WinForms y se lleva puesta la app, que es
+            ' exactamente el defecto que `Mueve_Singles` ya tenia. Se muestra el motivo y NO se sigue:
+            ' seguir refrescaria el combo como si el guardado hubiera salido bien.
+            Try
+                If TypeOf mat.Underlying_Material Is BGSM Then
+                    mat.Save_To_Bgsm(absPath)
+                ElseIf TypeOf mat.Underlying_Material Is BGEM Then
+                    mat.Save_To_Bgem(absPath)
+                End If
+            Catch ex As Exception
+                Logger.LogLazy(Function() $"[WM] Save material failed for '{absPath}': {ex}")
+                MsgBox("Could not save the material file:" & vbCrLf & vbCrLf & ex.Message,
+                       vbOKOnly + vbCritical, "Error")
+                Exit Sub
+            End Try
             WroteFilesToDisk = True
         End If
         Dim relativePath = fil.StripPrefix(prefix)
@@ -1753,13 +1766,27 @@ Public Class Editor_Form
         If ext <> "" Then filtro = ext.Remove(0, 1).ToUpper + " files (*" + ext + ")|*" + ext
         Dim sd As New SaveFileDialog With {.AddExtension = True, .OverwritePrompt = True, .AddToRecent = False, .DefaultExt = ext, .Filter = filtro, .InitialDirectory = Path.Combine(Wardrobe_Manager_Form.Directorios.Fallout4data, Path.GetDirectoryName(fil)), .Title = "Save material file"}
         If sd.ShowDialog = DialogResult.OK Then
-            Dim absPath = Path.Combine(Wardrobe_Manager_Form.Directorios.Fallout4data, sd.FileName)
+            ' `sd.FileName` de un SaveFileDialog es SIEMPRE absoluto. Aca habia un
+            ' `Path.Combine(Fallout4data, sd.FileName)` que no hacia nada —`Path.Combine` descarta el
+            ' primer argumento cuando el segundo es absoluto—, y la linea decia algo que no pasaba. Lo
+            ' confirma el `Path.GetRelativePath(Fallout4data, sd.FileName)` de mas abajo, que trata al
+            ' mismo valor como absoluto.
+            Dim absPath = sd.FileName
             Dim mat = Selected_Shape.RelatedMaterial.material
-            If TypeOf mat.Underlying_Material Is BGSM Then
-                mat.Save_To_Bgsm(absPath)
-            ElseIf TypeOf mat.Underlying_Material Is BGEM Then
-                mat.Save_To_Bgem(absPath)
-            End If
+            ' Mismo motivo que en ButtonMatSave_Click: `GuardarConCopia` tira si no pudo respaldar, y sin
+            ' Try eso mata la app desde un handler de WinForms.
+            Try
+                If TypeOf mat.Underlying_Material Is BGSM Then
+                    mat.Save_To_Bgsm(absPath)
+                ElseIf TypeOf mat.Underlying_Material Is BGEM Then
+                    mat.Save_To_Bgem(absPath)
+                End If
+            Catch ex As Exception
+                Logger.LogLazy(Function() $"[WM] Save material as failed for '{absPath}': {ex}")
+                MsgBox("Could not save the material file:" & vbCrLf & vbCrLf & ex.Message,
+                       vbOKOnly + vbCritical, "Error")
+                Exit Sub
+            End Try
             WroteFilesToDisk = True
             Dim fullpath = FO4UnifiedMaterial_Class.CorrectMaterialPath(Path.GetRelativePath(Wardrobe_Manager_Form.Directorios.Fallout4data, sd.FileName))
             fullpath = fullpath.StripPrefix(prefix)
@@ -2234,6 +2261,12 @@ Public Class Editor_Form
             If IO.Directory.Exists(IO.Path.GetDirectoryName(path)) = False Then
                 IO.Directory.CreateDirectory(IO.Path.GetDirectoryName(path))
             End If
+            ' ⚠️ SEED-IF-MISSING, FUERA DEL ALCANCE DE LA LEY DE `EscrituraEnElLugar`, y se dice acá para
+            ' que el próximo censo de CREATE_ALWAYS no lo levante como falso positivo: el `If Exists =
+            ' False` de arriba garantiza que este `CreateText` NUNCA pisa nada — crea el esqueleto vacío
+            ' y listo. No hay dato del usuario que perder y no hay atributo OCULTO que esquivar (un
+            ' archivo que no existe no tiene atributos). Quien SÍ pisa el preset del usuario es el
+            ' `doc.Save` de más abajo, y ése ya va por la ley.
             If IO.File.Exists(path) = False Then
                 Using writer = IO.File.CreateText(path)
                     writer.WriteLine("<?xml version=" + Chr(34) + "1.0" + Chr(34) + " encoding=" + Chr(34) + "UTF-8" + Chr(34) + "?>")
@@ -2323,7 +2356,12 @@ Public Class Editor_Form
             End If
 
             Dim contar = doc.Root.Elements("Preset").Count
-            doc.Save(path)
+            ' ⛔ NO `doc.Save(path)`: abre el destino con CREATE_ALWAYS por adentro, que sobre un archivo
+            ' OCULTO da ACCESS_DENIED y bajo Mod Organizer / Vortex saca el archivo de su mod. Y va CON
+            ' COPIA: el archivo de presets es DATO DEL USUARIO —puede tener decenas de presets suyos,
+            ' de los cuales este guardado toca UNO— y no se regenera desde ningún lado.
+            ' Ver Ba2_Bsa_Library\EscrituraEnElLugar.vb.
+            GuardarXDocumentConCopia(path, doc)
             WroteFilesToDisk = True
 
 
@@ -2405,6 +2443,9 @@ Public Class Editor_Form
                     IO.Directory.CreateDirectory(IO.Path.GetDirectoryName(path))
                 End If
 
+                ' ⚠️ SEED-IF-MISSING, fuera del alcance de la ley: el `If Exists = False` garantiza que
+                ' esto no pisa nada. Quien pisa la pose del usuario es el `doc.Save` de abajo, y ése ya
+                ' va por la ley. Mismo caso que el esqueleto de SliderPresets, más arriba.
                 If IO.File.Exists(path) = False Then
                     Using writer = IO.File.CreateText(path)
                         writer.WriteLine("<?xml version=" + Chr(34) + "1.0" + Chr(34) + " encoding=" + Chr(34) + "UTF-8" + Chr(34) + "?>")
@@ -2453,7 +2494,8 @@ Public Class Editor_Form
 
 
 
-                doc.Save(path)
+                ' Con copia y en el lugar: la pose es dato del usuario. Ver el guardado de presets.
+                GuardarXDocumentConCopia(path, doc)
             End If
             Dim SafExported As Boolean = False
             If Not delete AndAlso CheckBoxSaveSAF.Checked Then SafExported = ExportSaf(Nombre)
