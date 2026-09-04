@@ -307,9 +307,9 @@ Public Class BuildingForm
         Dim r = _skinSimdGate.Value
         If r.Length = 0 Then Return
         Throw New InvalidOperationException(
-            "Parity gate FAILED [skin-blend] — el blend vectorial de matrices de skin NO es bit-identico al " &
-            "escalar ⇒ los vertices saldrian distintos segun la CPU. Construir ahora produciria NIF que no " &
-            "describen la ley. Detalle: " & r)
+            "Parity gate FAILED [skin-blend] — the vector blend of skin matrices is NOT bit-identical to the " &
+            "scalar one ⇒ vertices would come out different depending on the CPU. Building now would produce NIFs that do not " &
+            "describe the law. Details: " & r)
     End Sub
 
     Private Sub BuildingForm_Shown(sender As Object, e As EventArgs) Handles Me.Shown

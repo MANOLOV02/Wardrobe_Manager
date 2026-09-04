@@ -3098,7 +3098,7 @@ Public Class Wardrobe_Manager_Form
         Dim Oldtheme = Config_App.Current.theme
         Config.ShowDialog(Me)
         While WM_Config.Check_All_Folder = False
-            If MsgBox("Path error, Do you want to correct it or or exit?", vbYesNo, "Warning") = MsgBoxResult.No Then Me.Close() : Exit Sub
+            If MsgBox("Path error. Do you want to correct it, or exit?", vbYesNo, "Warning") = MsgBoxResult.No Then Me.Close() : Exit Sub
             Config.ShowDialog(Me)
         End While
         'If Config_App.Current.theme <> Oldtheme Then ThemeManager.SetTheme(Config_App.Current.theme, Me)
