@@ -837,16 +837,6 @@ Public Class Wardrobe_Manager_Form
         Dim Selected_Combo_Pose As Poses_class = Nothing
         If ComboBoxPresets.SelectedIndex <> -1 Then WM_SliderPresets.Presets.TryGetValue(ComboBoxPresets.Items(ComboBoxPresets.SelectedIndex), Selected_Combo_Preset)
         If ComboBoxPoses.SelectedIndex <> -1 Then WM_SliderPresets.Poses.TryGetValue(ComboBoxPoses.Items(ComboBoxPoses.SelectedIndex), Selected_Combo_Pose)
-        ' ⚠️ DIAGNÓSTICO TEMPORAL [OS-RETURN] — ver el bloque de `EndExternalEditSession`. Acá se ve si el
-        ' combo sigue mostrando el preset pero el objeto NO se resuelve, que es el síntoma reportado:
-        ' "el combo lo sigue mostrando y el cuerpo sale sin morfear". ⛔ BORRAR al cerrar el defecto.
-        Logger.LogLazy(Function() $"[OS-RETURN] Lee_Shapes. comboIndex={ComboBoxPresets.SelectedIndex} " &
-                                  $"comboItem={If(ComboBoxPresets.SelectedItem?.ToString(), "(nothing)")} " &
-                                  $"presetsEnMemoria={WM_SliderPresets.Presets.Count} " &
-                                  $"presetResuelto={If(Selected_Combo_Preset Is Nothing, "NOTHING <-- ACA ESTA EL PROBLEMA", Selected_Combo_Preset.Name)} " &
-                                  $"slidersDelPreset={If(Selected_Combo_Preset Is Nothing, -1, Selected_Combo_Preset.Sliders.Count)} " &
-                                  $"talla={ComboBoxSize.SelectedIndex} seleccionado={If(Seleccionado?.Nombre, "(nothing)")}")
-
         If IsNothing(Seleccionado) Then Exit Sub
         If Seleccionado.Unreadable_Project Then
             preview_Control.Update_Render(Seleccionado, False, Selected_Combo_Preset, Selected_Combo_Pose, ComboBoxSize.SelectedIndex)
@@ -2055,28 +2045,18 @@ Public Class Wardrobe_Manager_Form
         _ExternalEditSlider = Nothing
         _ExternalEditFromTarget = False
 
-        ' ⚠️ DIAGNÓSTICO TEMPORAL — "el preset de morphs desaparece al volver de Outfit Studio".
-        ' Reportado 2026-08-24. Descartadas por lectura: el memo de `Update_Render` SÍ se invalida (el
-        ' reload sube `SlidersVersion`), `WM_SliderPresets.Presets` NO se vacía en este camino, y
-        ' `UnloadShapeData(True)` SÍ limpia `LastShapeDataSignature` y `ShapeDataLoaded`. Falta saber por
-        ' qué rama se va el caso real, así que se traza. Sale sólo en Debug (`Logger.Enabled` descarta
-        ' cualquier True en Release) y con `LogLazy`, o sea que en Release no se interpola ni un string.
-        ' ⛔ BORRAR cuando el defecto esté cerrado — buscar la etiqueta [OS-RETURN].
-        Logger.LogLazy(Function() $"[OS-RETURN] fin de sesion. doFinalReload={doFinalReload} " &
-                                  $"slider={If(lockedSlider?.Nombre, "(nothing)")} " &
-                                  $"SlidersVersion(antes)={If(lockedSlider Is Nothing, -1, lockedSlider.SlidersVersion)} " &
-                                  $"esElRenderizado={preview_Control?.WM_Last_rendered() Is lockedSlider}")
+        ' ⛔ EL `Reload` CORRE SIEMPRE, HAYA GRABADO OS O NO — y siempre reconstruye `Shapes`/`Sliders`
+        ' con objetos NUEVOS (`Lee_SlidersAndShapes`). El `Model.Clean` de abajo, en cambio, es
+        ' CONDICIONAL a que la marca de escritura haya avanzado, así que cerrando OS sin grabar nada el
+        ' modelo se quedaba con los `Shape_class` viejos y el preview perdía los morphs para siempre.
+        ' Quien cierra ese hueco es `Update_Render` (ver el cuarto término de `sameSet` en
+        ' WM_RenderExtensions): compara la INSTANCIA de la lista de shapes y fuerza la recarga de
+        ' geometría. Acá el clean queda como lo que siempre fue: el atajo para el caso "OS grabó".
         If doFinalReload AndAlso Not IsNothing(lockedSlider) Then
             Try
                 lockedSlider.Reload(DeepAnalize_check.Checked, CreateSingleReloadContext())
                 Dim escrituraNueva = GetLatestExternalEditWriteTime(lockedSlider)
                 Dim mismoObjeto = preview_Control.WM_Last_rendered() Is lockedSlider
-                Dim limpio = escrituraNueva > _ExternalEditLastOspWrite AndAlso mismoObjeto
-                Logger.LogLazy(Function() $"[OS-RETURN] tras Reload. SlidersVersion(despues)={lockedSlider.SlidersVersion} " &
-                                          $"ShapeDataLoaded={lockedSlider.ShapeDataLoaded} " &
-                                          $"Unreadable_Project={lockedSlider.Unreadable_Project} Unreadable_NIF={lockedSlider.Unreadable_NIF} " &
-                                          $"escrituraNueva={escrituraNueva:HH:mm:ss.fff} escrituraPrevia={_ExternalEditLastOspWrite:HH:mm:ss.fff} " &
-                                          $"mismoObjetoQueElRenderizado={mismoObjeto} seLimpiaElModelo={limpio}")
                 If escrituraNueva > _ExternalEditLastOspWrite Then
                     If mismoObjeto Then
                         preview_Control.Model.Clean(False)
@@ -2084,7 +2064,6 @@ Public Class Wardrobe_Manager_Form
                     End If
                 End If
             Catch ex As Exception
-                Logger.LogLazy(Function() $"[OS-RETURN] el Reload TIRO: {ex.Message}")
                 MsgBox("Final external edit reload failed: " & ex.Message, MsgBoxStyle.Exclamation, "Error")
             End Try
             ProcessCollectedLoadIssues({lockedSlider.ParentOSP}, Ovewrite_DataFiles.Checked)

@@ -22,6 +22,13 @@ Public Module WM_RenderExtensions
         ' Version de la lista de sliders con la que se resolvio el ultimo SetPreset. Ver
         ' SliderSet_Class.SlidersVersion: un reload la sube y obliga a re-resolver.
         Public Last_SlidersVersion As Integer = -1
+        ''' <summary>LA MISMA INSTANCIA de lista que se le paso a <c>LoadShapesParallel</c> en la ultima
+        ''' carga de geometria. Los <c>RenderableMesh</c> guardan la referencia al <c>Shape_class</c> con
+        ''' el que se construyeron (<c>MeshData.Shape</c>), asi que si el sliderSet reemplazo su lista
+        ''' —<c>Lee_SlidersAndShapes</c> hace <c>Shapes = ...ToList</c> con objetos NUEVOS— los del
+        ''' modelo quedaron huerfanos y hay que recargar la geometria. Ver el porque en
+        ''' <c>Update_Render</c>.</summary>
+        Public Last_Shapes As List(Of Shape_class) = Nothing
         ' SliderMorphResolver has no per-frame state — it rebuilds the same plan from each
         ' slider's persisted Current_Setting. Cache one instance per control and reuse it
         ' every frame instead of allocating on every Update_Render (incl. each animation tick).
@@ -95,6 +102,7 @@ Public Module WM_RenderExtensions
         ctrl.ClearRender(statusText)
         s.Last_rendered = Nothing
         s.Last_SlidersVersion = -1
+        s.Last_Shapes = Nothing
         OSP_Project_Class.PinnedForPreview = Nothing
     End Sub
 
@@ -136,7 +144,26 @@ Public Module WM_RenderExtensions
         Dim prevSize = s.Last_size
 
         ' Detect what changed
-        Dim sameSet = (s.Last_rendered Is seleccionado) AndAlso ctrl.Model.Cleaned = False AndAlso Force = False
+        ' ⛔⛔ EL CUARTO TERMINO CIERRA "al volver de Outfit Studio el cuerpo sale sin morfear y ya no
+        ' aplica ningun preset" (reportado 2026-08-24, cerrado 2026-09-04). No alcanza con que el
+        ' SliderSet_Class sea el MISMO OBJETO: `Lee_SlidersAndShapes` hace `Shapes = ...ToList` con
+        ' `New Shape_class(...)`, o sea que tras cualquier relectura del .osp los Shape_class son OTROS
+        ' aunque el sliderSet no se haya movido. Los `RenderableMesh` del modelo guardan el Shape_class
+        ' con el que se cargaron (`MeshData.Shape`, en LoadShapesParallel) y el camino morph-only del
+        ' pipeline resuelve el plan CONTRA ESOS. `Shape_class.Related_Sliders` filtra por
+        ' `pf.RelatedShape Is Me` —identidad, y `RelatedShape` sale de `GetShapeByTargetCached`, que ya
+        ' devuelve los shapes NUEVOS—, asi que para un shape huerfano da VACIO: plan sin canales, y
+        ' `ApplyMorphPlan` con plan vacio devuelve la malla a NifLocalVertices (contrato "sin morphs").
+        ' De ahi los dos sintomas: el cuerpo sin morfear y el preset que ya no hace nada — cambiarlo
+        ' vuelve a entrar por el mismo morph-only con los mismos huerfanos. Recargar otro proyecto y
+        ' volver lo arreglaba porque eso si rompia `Last_rendered Is seleccionado`.
+        ' Los DOS caminos que relee el .osp sin tocar `Model.Cleaned` quedan cubiertos:
+        '   · `EndExternalEditSession` llama `Reload` SIEMPRE, pero solo limpia el modelo si la marca de
+        '     escritura avanzo — cerrar OS SIN GRABAR NADA es el caso 100 % reproducible;
+        '   · `Load_and_Check_Shapedata` (que corre unas lineas mas arriba, en este mismo metodo) hace
+        '     `ParentOSP.Reload` por su cuenta cuando la firma del .osp cambio en disco.
+        Dim sameSet = (s.Last_rendered Is seleccionado) AndAlso ctrl.Model.Cleaned = False AndAlso Force = False AndAlso
+                      ReferenceEquals(s.Last_Shapes, seleccionado.Shapes)
         ' ⛔ El tercer termino NO es de adorno: `Current_Setting`/`Zap_Setting_Big` viven en los
         ' Slider_class, y un reload los reconstruye con esos campos en 0. Sin mirar la version, el
         ' skipPresetApply de abajo (que compara el preset por REFERENCIA) se saltearia el SetPreset y
@@ -145,18 +172,6 @@ Public Module WM_RenderExtensions
         Dim presetChanged = Not (prevPreset Is Preset) OrElse (prevSize <> weight) OrElse
                             (prevSlidersVersion <> seleccionado.SlidersVersion)
         Dim skipPresetApply = sameSet AndAlso Not presetChanged
-
-        ' ⚠️ DIAGNÓSTICO TEMPORAL [OS-RETURN] — "el preset de morphs desaparece al volver de Outfit
-        ' Studio" (2026-08-24). Ésta es LA decisión: con `skipPresetApply=True` no corre `SetPreset` y los
-        ' sliders se quedan con lo que dejó el reload, que es 0. Los tres términos que la componen van
-        ' desglosados para saber cuál manda. ⛔ BORRAR al cerrar el defecto.
-        Logger.LogLazy(Function() $"[OS-RETURN] Update_Render. skipPresetApply={skipPresetApply}" &
-                                  $" | sameSet={sameSet} (mismoSliderSet={s.Last_rendered Is seleccionado}" &
-                                  $" modelLimpiado={ctrl.Model.Cleaned} force={Force})" &
-                                  $" | presetChanged={presetChanged} (mismoObjetoPreset={prevPreset Is Preset}" &
-                                  $" preset={If(Preset Is Nothing, "NOTHING", Preset.Name)}" &
-                                  $" tallaPrevia={prevSize} talla={weight}" &
-                                  $" slidersVersionPrevia={prevSlidersVersion} slidersVersion={seleccionado.SlidersVersion})")
 
         ' Apply slider weights from preset. During animation playback the pose changes every
         ' tick, but the slider preset usually does not, so avoid reapplying morph setup.
@@ -232,6 +247,9 @@ Public Module WM_RenderExtensions
             End If
 
             s.Last_rendered = seleccionado
+            ' Se sella JUNTO con Last_rendered y con la MISMA instancia que va en intent.Shapes: es
+            ' exactamente la lista con la que LoadShapesParallel va a construir los RenderableMesh.
+            s.Last_Shapes = seleccionado.Shapes
 
         ElseIf poseChanged Then
             ' Pose change: skeleton + bone matrices, optional morphs
