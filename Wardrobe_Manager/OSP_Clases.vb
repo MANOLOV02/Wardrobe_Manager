@@ -5183,7 +5183,27 @@ Public Class Shape_class
         End Get
     End Property
 
-    Public Property OwnSlotsMask As UInteger Implements IRenderableShape.OwnSlotsMask
+    ''' <summary>Ver <see cref="IRenderableShape.OccluderConDispositivo"/>. WM previsualiza una prenda SIN
+    ''' actor: no hay tabla de biped, así que el slot occluder está vacío y el estado del motor con los dos
+    ''' punteros nulos es False. Con eso el antebrazo 60 se dibuja y su variante 160 no, que es lo mismo que
+    ''' hacía WM antes de que esta ley existiera.</summary>
+    Public Property OccluderConDispositivo As Boolean = False Implements IRenderableShape.OccluderConDispositivo
+
+    ''' <summary>Ver <see cref="IRenderableShape.OccluderSlotMask"/>. WM previsualiza una prenda SIN actor,
+    ''' así que no hay RACE de la que leer el campo. La referencia de la previsualización es la raza humana,
+    ''' que declara el slot 60 (medido: <c>HumanRace 00013746</c> trae <c>RACE.DATA+0x80 = 30</c> ⇒ biped 60),
+    ''' y de ahí sale este valor. Es una decisión de PRODUCTO de WM —qué actor se está imaginando el autor
+    ''' cuando mira la prenda—, no una ley del motor: en NPC Manager el valor sale de la raza del NPC.
+    ''' <para>Lo que fija: el par de segmentos 60/160 del antebrazo (el swap de acomodación del Pipboy) se
+    ''' resuelve como en un NPC humano SIN Pipboy — se dibuja el 60 y se oculta el 160. Sin esto los dos se
+    ''' dibujarían encima.</para></summary>
+    Public Property OccluderSlotMask As UInteger = BipedSlots.SlotBitPipboy Implements IRenderableShape.OccluderSlotMask
+
+    ''' <summary>Ver <see cref="IRenderableShape.OcclusionAsWornItem"/>. WM se queda en el camino de head
+    ''' part (False): sin actor no hay dueño de slot contra el cual comparar, así que ninguna partición
+    ''' puede desaparecer por "nadie ocupa su slot".</summary>
+    Public Property OcclusionAsWornItem As Boolean = False Implements IRenderableShape.OcclusionAsWornItem
+
     Public Property Nodo As XmlNode
     Public Property ParentSliderSet As SliderSet_Class
     Public Property MorphDiffs() As Dictionary(Of String, List(Of MorphData))
