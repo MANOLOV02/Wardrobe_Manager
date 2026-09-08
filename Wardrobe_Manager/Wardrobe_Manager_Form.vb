@@ -2547,6 +2547,9 @@ Public Class Wardrobe_Manager_Form
     End Sub
 
     Private Sub Wardrobe_Manager_Form_Load(sender As Object, e As EventArgs) Handles Me.Load
+        ' Nombre del Designer + version REAL del ensamblado (la misma que compara VersionGate). Se pega aca y
+        ' no en el .Designer.vb porque el disenador reescribe ese archivo y se lo comeria.
+        Me.Text = VersionGate.TituloConVersion(Me.Text)
         TypeDescriptor.AddProvider(New FO4UnifiedMaterialProvider(), GetType(FO4UnifiedMaterial_Class))
 
         ' Ruteamos los issues Interactive al dialog bonito (ShowLoadIssuesDialog)

@@ -53,16 +53,38 @@ Namespace My
             ' PRIMERO DE TODO: el handler de AppDomain cubre los hilos que NO son el de UI (el build corre en
             ' background), donde MyApplication.UnhandledException no llega. Ver Shared\CrashReport.vb.
             CrashReport.Install()
-            ' ⛔ LA CARPETA DE DIARIOS, ANTES DE CUALQUIER GUARDADO. Un lote que empiece antes de esto
-            ' no escribe diario, y entonces una terminacion abrupta no deja rastro que el arranque
-            ' siguiente pueda ofrecer. Sin setearla, el lote sigue funcionando igual que siempre — es
-            ' opt-in a proposito, para que los arneses no ensucien el disco del usuario.
-            RecuperacionDeLotes.ConfigurarCarpeta("WardrobeManager")
+            ' ⛔ ACÁ SE FUE `RecuperacionDeLotes.ConfigurarCarpeta`, QUE ROMPÍA EL CONTRATO DE ARRIBA: vive en
+            ' FO4_Base_Library, asi que su sola presencia en este cuerpo hacia que el JIT resolviera la
+            ' libreria ANTES de la primera linea — el agujero exacto que el comentario describe, con
+            ' CrashReport.Install() ya escrito pero sin llegar a correr. Ahora abre ArranqueReal.
+            '
+            ' EL CHEQUEO DE INSTALACION VA ACA, sin tocar ningun DLL propio: es el unico punto donde una
+            ' carpeta con DLL de releases distintas todavia se puede AVISAR. Despues, segun la direccion de la
+            ' mezcla, o muere el JIT (libreria mas vieja que la pedida) o la app arranca y revienta a mitad de
+            ' camino con un MissingMethodException (mas nueva: MEDIDO, .NET 8 hace roll-forward en silencio).
+            ' El "--" alcanza para saber si esto es un run de consola: los modos de WM_Cli son todos --algo, y
+            ' un proyecto pasado como argumento no empieza asi. No se le pregunta a WM_Cli porque preguntarle
+            ' arrastraria la libreria a este cuerpo, que es justo lo que no puede pasar.
+            If e.CommandLine IsNot Nothing AndAlso e.CommandLine.Any(Function(a) a IsNot Nothing AndAlso a.StartsWith("--")) Then
+                VersionGate.UsarConsola()
+            End If
+            If Not VersionGate.VerificarInstalacion() Then
+                Environment.ExitCode = 1
+                e.Cancel = True
+                Return
+            End If
             ArranqueReal(e)
         End Sub
 
         <System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)>
         Private Sub ArranqueReal(e As Microsoft.VisualBasic.ApplicationServices.StartupEventArgs)
+            ' ⛔ LA CARPETA DE DIARIOS, ANTES DE CUALQUIER GUARDADO. Un lote que empiece antes de esto
+            ' no escribe diario, y entonces una terminacion abrupta no deja rastro que el arranque
+            ' siguiente pueda ofrecer. Sin setearla, el lote sigue funcionando igual que siempre — es
+            ' opt-in a proposito, para que los arneses no ensucien el disco del usuario.
+            ' Estaba en el Startup, de donde tuvo que salir (es de la libreria); aca es lo primero, asi que la
+            ' garantia de "antes de cualquier guardado" no cambia.
+            RecuperacionDeLotes.ConfigurarCarpeta("WardrobeManager")
             ' Initialize WM-specific hooks for the shared library
             WM_RenderExtensions.InitializeWM()
 
