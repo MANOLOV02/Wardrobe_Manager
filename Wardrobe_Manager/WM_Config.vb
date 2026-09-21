@@ -52,6 +52,11 @@ Public Class WM_Config
         ' project had been added with "Change out dir"), scoped per pack so builds of different packs
         ' can't overwrite each other. Applied to the temporary build clone only; the .osp is untouched.
         Public Property ForceClonedOnBuild As Boolean
+        ' Baja los vertices de precision COMPLETA a MEDIA al construir. Solo Fallout 4 y solo el motor
+        ' propio (el de BodySlide escribe los NIF el mismo, fuera de nuestro proceso). Apagado de
+        ' fabrica: un wm_config.json anterior a este campo deserializa False y no cambia nada.
+        ' El porque, con las citas del binario y el censo: FO4_Base_Library.EngineVertexPrecision.
+        Public Property ForceHalfPrecision As Boolean
     End Structure
 
     ' ── Properties (moved from Config_App) ──
@@ -120,7 +125,8 @@ Public Class WM_Config
             .AdditionalSlidersGender = SliderGender.Female,
             .ResetSlidersEachBuild = False,
             .IgnorePreventri = False, .BuildInPose = False,
-            .ForceWeights = True, .IgnoreWeightsFlags = False
+            .ForceWeights = True, .IgnoreWeightsFlags = False,
+            .ForceHalfPrecision = False
         }
     End Function
 

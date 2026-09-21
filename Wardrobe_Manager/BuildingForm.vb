@@ -672,6 +672,24 @@ Public Class BuildingForm
                         End If
                     End If
 
+                    ' "Force half precision" (apagado de fabrica). Va ACA, sobre el NIF en memoria y
+                    ' pegado a la escritura, porque es lo ULTIMO que le pasa a la geometria: despues
+                    ' de los morphs, del BODYTRI, de los tacones y del link de fisica. Este es el
+                    ' unico camino que escribe NIF con el motor propio, y lo comparten la interfaz y
+                    ' el CLI (WM_Cli instancia este mismo formulario y llama RunBuild).
+                    '
+                    ' El gate de PANTALLA (Fallout 4 + motor propio) vive en Config_Form.GatearForceHalf;
+                    ' el gate REAL es por archivo y esta adentro del helper (Header.Version.IsFO4), asi
+                    ' que un proyecto con un NIF del otro juego sale intacto aunque la casilla este
+                    ' tildada. La ley del motor, sus direcciones y el censo: EngineVertexPrecision.
+                    If WM_Config.Current.Settings_Build.ForceHalfPrecision Then
+                        Dim convertidas = EngineVertexPrecision.BajarAMediaPrecision(builder.NIFContent)
+                        If convertidas > 0 Then
+                            Dim nL = convertidas, fL = fil
+                            Logger.LogLazy(Function() $"[BUILD] force half precision: {nL} shape(s) convertida(s) en {fL}")
+                        End If
+                    End If
+
                     ' Grabo nif
                     builder.NIFContent.Save_As_Manolo(fil, True)
                     ArtefactosDelBuild.Add(fil)

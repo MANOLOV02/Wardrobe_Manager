@@ -61,6 +61,8 @@ Public Class Config_Form
             CheckBoxIgnorePrevent.Checked = WM_Config.Current.Settings_Build.IgnorePreventri
             CheckBoxBuildInPose.Checked = WM_Config.Current.Settings_Build.BuildInPose
             CheckBoxForceCloned.Checked = WM_Config.Current.Settings_Build.ForceClonedOnBuild
+            CheckBoxForceHalf.Checked = WM_Config.Current.Settings_Build.ForceHalfPrecision
+            GatearForceHalf()
             CheckBoxweightignore.Checked = WM_Config.Current.Settings_Build.IgnoreWeightsFlags
             RadioButtonAllwaysWeight.Checked = WM_Config.Current.Settings_Build.ForceWeights
             RadioButtonNeverWeights.Checked = Not WM_Config.Current.Settings_Build.ForceWeights
@@ -100,7 +102,8 @@ Public Class Config_Form
             .BuildInPose = CheckBoxBuildInPose.Checked,
             .IgnoreWeightsFlags = CheckBoxweightignore.Checked,
          .ForceWeights = RadioButtonAllwaysWeight.Checked,
-            .ForceClonedOnBuild = CheckBoxForceCloned.Checked
+            .ForceClonedOnBuild = CheckBoxForceCloned.Checked,
+            .ForceHalfPrecision = CheckBoxForceHalf.Checked
                     }
 
         WM_Config.Current.Settings_Build = buildSet
@@ -860,6 +863,24 @@ Public Class Config_Form
         CheckBoxweightignore.Enabled = RadioButtonWMEngine.Checked
         RadioButtonNeverWeights.Enabled = CheckBoxweightignore.Checked AndAlso RadioButtonWMEngine.Checked
         RadioButtonAllwaysWeight.Enabled = CheckBoxweightignore.Checked AndAlso RadioButtonWMEngine.Checked
+        GatearForceHalf()
+    End Sub
+
+    ''' <summary>Habilita "Force half precision" sólo donde hace algo: Fallout 4 y motor propio.
+    ''' <para>⛔ ES UN MÉTODO Y NO UNA LÍNEA REPETIDA a propósito. Los dos <c>CheckedChanged</c> de los
+    ''' radios de motor llevan la MISMA lista de controles copiada, y ya divergieron: en el de
+    ''' BodySlide falta <c>CheckBoxForceCloned</c>, y hoy funciona sólo porque al tildar un radio se
+    ''' dispara también el <c>CheckedChanged</c> del otro. Esta condición tiene UNA sede y se llama
+    ''' desde los tres lados (carga, los dos radios, y el combo de juego).</para>
+    ''' <para>El gateo es de la PANTALLA. La conversión en sí se gatea por el ARCHIVO
+    ''' (<c>Header.Version.IsFO4</c>, ver <see cref="FO4_Base_Library.EngineVertexPrecision"/>), así
+    ''' que un proyecto con un NIF del otro juego queda intacto aunque la casilla esté tildada.</para></summary>
+    Private Sub GatearForceHalf()
+        ' Defensivo como ComponerLabelPack / RefreshClonedMaterialStatus: uno de los llamadores es
+        ' ComboBoxGame.SelectedIndexChanged, que puede dispararse DURANTE InitializeComponent, antes
+        ' de que estos dos controles existan.
+        If CheckBoxForceHalf Is Nothing OrElse RadioButtonWMEngine Is Nothing Then Return
+        CheckBoxForceHalf.Enabled = RadioButtonWMEngine.Checked AndAlso ComboBoxGame.SelectedIndex = 0
     End Sub
 
     Private Sub RadioButtonBSEngine_CheckedChanged(sender As Object, e As EventArgs) Handles RadioButtonBSEngine.CheckedChanged
@@ -869,6 +890,7 @@ Public Class Config_Form
         CheckBoxweightignore.Enabled = RadioButtonWMEngine.Checked
         RadioButtonNeverWeights.Enabled = CheckBoxweightignore.Checked AndAlso RadioButtonWMEngine.Checked
         RadioButtonAllwaysWeight.Enabled = CheckBoxweightignore.Checked AndAlso RadioButtonWMEngine.Checked
+        GatearForceHalf()
     End Sub
 
     Private Sub TabPage3_Click(sender As Object, e As EventArgs) Handles TabPage3.Click
@@ -880,6 +902,7 @@ Public Class Config_Form
             Config_App.Current.Game = ComboBoxGame.SelectedIndex
             GroupBoxweights.Enabled = ComboBoxGame.SelectedIndex <> 0
             GroupBoxLooksmenu.Enabled = CheckBoxBuildTri.Checked And RadioButtonWMEngine.Checked AndAlso ComboBoxGame.SelectedIndex = 0
+            GatearForceHalf()
             Check_GameMismatch()
             ' El override del Plugins.txt es POR JUEGO: cambiar de juego cambia de slot.
             RefreshPluginsTxtRow()

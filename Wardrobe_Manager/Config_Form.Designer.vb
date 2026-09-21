@@ -61,6 +61,7 @@ Partial Class Config_Form
         CheckBoxweightignore = New CheckBox()
         CheckBoxBuildInPose = New CheckBox()
         CheckBoxForceCloned = New CheckBox()
+        CheckBoxForceHalf = New CheckBox()
         CheckBoxIgnorePrevent = New CheckBox()
         Button8 = New Button()
         Button7 = New Button()
@@ -413,6 +414,7 @@ Partial Class Config_Form
         ' 
         TabPage3.Controls.Add(GroupBoxweights)
         TabPage3.Controls.Add(CheckBoxBuildInPose)
+        TabPage3.Controls.Add(CheckBoxForceHalf)
         TabPage3.Controls.Add(CheckBoxForceCloned)
         TabPage3.Controls.Add(CheckBoxIgnorePrevent)
         TabPage3.Controls.Add(Button8)
@@ -500,7 +502,22 @@ Partial Class Config_Form
         CheckBoxForceCloned.Text = "Force output to Meshes\ManoloCloned\<PackName> on build"
         ToolTip1.SetToolTip(CheckBoxForceCloned, resources.GetString("CheckBoxForceCloned.ToolTip"))
         CheckBoxForceCloned.UseVisualStyleBackColor = True
-        ' 
+        '
+        ' CheckBoxForceHalf
+        '
+        ' Fila de "Build in pose" (y=138), a su derecha: ese renglon estaba vacio de x=298 en
+        ' adelante. Mismo apareo que "Build Tri Morph file" + "Ignore prevent morph file" en y=113.
+        CheckBoxForceHalf.AutoSize = True
+        CheckBoxForceHalf.Location = New Point(320, 138)
+        CheckBoxForceHalf.Name = "CheckBoxForceHalf"
+        CheckBoxForceHalf.Size = New Size(170, 19)
+        CheckBoxForceHalf.TabIndex = 34
+        CheckBoxForceHalf.Text = "Force half precision"
+        ToolTip1.SetToolTip(CheckBoxForceHalf, "Store vertex positions in half precision in the built meshes." & vbCrLf &
+                                               "Fallout 4 renders full-precision vertices distorted when the mesh is used as a head part." & vbCrLf &
+                                               "Fallout 4 only, and only with Wardrobe Manager's own build engine.")
+        CheckBoxForceHalf.UseVisualStyleBackColor = True
+        '
         ' CheckBoxIgnorePrevent
         ' 
         CheckBoxIgnorePrevent.AutoSize = True
@@ -1143,6 +1160,7 @@ Partial Class Config_Form
     Friend WithEvents CheckBoxIgnorePrevent As CheckBox
     Friend WithEvents CheckBoxBuildInPose As CheckBox
     Friend WithEvents CheckBoxForceCloned As CheckBox
+    Friend WithEvents CheckBoxForceHalf As CheckBox
     Friend WithEvents ComboBoxGame As ComboBox
     Friend WithEvents LabelGameMismatch As Label
     Friend WithEvents Label7 As Label
