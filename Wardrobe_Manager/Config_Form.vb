@@ -739,8 +739,7 @@ Public Class Config_Form
             WM_Config.Current.OSExePath = TextBox3.Text
         End If
         If Config_App.Check_FOFolder And (TextBox4.Text.Contains(Config_App.Current.FO4EDataPath, StringComparison.OrdinalIgnoreCase) = False Or Config_App.Check_Skeleton = False) Then
-            Dim skel As String = IIf(Config_App.Current.Game = Config_App.Game_Enum.Fallout4, "res\skeleton_fo4.nif", "res\skeleton_female_sse.nif")
-            TextBox4.Text = IO.Path.Combine(IO.Path.GetDirectoryName(TextBox1.Text), "Data\" + pathS + "\Bodyslide\" + skel)
+            TextBox4.Text = RutaDelEsqueletoPorDefecto()
             Config_App.Current.SkeletonPath = TextBox4.Text
             SkeletonInstance.Default.Skeleton = Nothing
         End If
@@ -763,21 +762,10 @@ Public Class Config_Form
             End If
         End Using
     End Function
-    Private Shared Function Search_Nif(initalpath As String) As String
-        Using dlg As New OpenFileDialog()
-            dlg.Title = "Select an skeleton nif"
-            dlg.Filter = "NIF files (*.nif)|*.nif"
-            dlg.CheckFileExists = True
-            dlg.CheckPathExists = True
-            dlg.Multiselect = False
-            dlg.InitialDirectory = initalpath
-            If dlg.ShowDialog() = DialogResult.OK Then
-                Return dlg.FileName
-            Else
-                Return String.Empty
-            End If
-        End Using
-    End Function
+    ' ⛔ ACÁ VIVÍA `Search_Nif`, y se BORRÓ: era la segunda sede de elegir el esqueleto y la única
+    ' que no veía dentro de los BA2/BSA. Su único llamador (`Button4_Click`) usa ahora
+    ' `Wardrobe_Manager_Form.ElegirEsqueletoConPicker`. Dejarla muerta era dejar la trampa servida para
+    ' el próximo botón que la encontrara y la reusara.
     Private Sub Button2_Click(sender As Object, e As EventArgs) Handles Button2.Click
         Dim result = Search_exe(IO.Path.GetDirectoryName(TextBox2.Text))
         If String.IsNullOrEmpty(result) Then Return
@@ -806,10 +794,63 @@ Public Class Config_Form
         WM_Config.Current.BSAFiles_Clonables(ListView1.Items(e.Index).Tag) = IIf(e.NewValue = CheckState.Checked, True, False)
     End Sub
 
+    ''' <summary>⛔ El esqueleto se elige con EL MISMO picker que el formulario principal. Acá había un
+    ''' <c>OpenFileDialog</c> (<c>Search_Nif</c>), que ve el disco y nada más: el esqueleto vanilla vive
+    ''' DENTRO de los BA2/BSA, así que desde este diálogo no se podía elegir y desde el principal sí.
+    ''' Una ley, una sede — ver <see cref="Wardrobe_Manager_Form.ElegirEsqueletoConPicker"/>.
+    ''' <para>⛔ LO QUE EL PICKER NO PUEDE OFRECER, y por eso está el botón «Auto» al lado: el
+    ''' diccionario indexa <c>Data</c>, y el esqueleto POR DEFECTO de esta app es el <c>res\skeleton_*.nif</c>
+    ''' que trae BodySlide, que vive FUERA de <c>Data</c>. El `OpenFileDialog` que había acá permitía
+    ''' llegar ahí —se sembraba justo en esa carpeta— y el picker no, así que sacarlo sin más QUITABA
+    ''' una capacidad. Acá hubo un comentario mío que decía que la caja de texto quedaba como camino de
+    ''' escape: era FALSO, el diseñador la declara <c>ReadOnly</c> y nada lee lo que se tipee.</para>
+    ''' <para>⛔ CAPACIDAD QUE SE PERDIÓ A PROPÓSITO — DECIDIDO POR EL USUARIO (22-sep). El `Search_Nif`
+    ''' que había acá devolvía CUALQUIER ruta del disco; entre los dos botones de hoy se cubre todo
+    ''' <c>Data</c> (picker, sueltos + BA2/BSA) y el default de BodySlide (Auto), pero un esqueleto
+    ''' propio en, por ejemplo, <c>D:\mis_esqueletos\x.nif</c> ya no se puede poner desde la interfaz.
+    ''' Se le presentaron las dos opciones —(a) dejarlo así, (b) un tercer botón «Other…» con
+    ''' <c>OpenFileDialog</c> sólo para fuera de <c>Data</c>, que por su propia ley pondría ROJO a
+    ''' <c>PickersDeAssetsGate</c>— y eligió (a). Queda escrito para que el día que haga falta el
+    ''' camino (b) esté dicho, con su consecuencia.</para>
+    ''' <para>⛔ HUECO DECLARADO: el diccionario se llenó al arrancar contra el <c>Data</c> de la SESIÓN
+    ''' (ver <c>initialDataPath</c>), así que si el usuario retarguetea el juego en este mismo diálogo y
+    ''' sin reiniciar, el picker muestra el árbol del juego anterior. Es la misma dependencia que ya
+    ''' tiene el picker del formulario principal; no se le inventa acá una guarda que la otra sede no
+    ''' tiene.</para></summary>
     Private Sub Button4_Click(sender As Object, e As EventArgs) Handles Button4.Click
-        Dim result = Search_Nif(IO.Path.GetDirectoryName(TextBox4.Text))
+        Dim result = Wardrobe_Manager_Form.ElegirEsqueletoConPicker(Me)
         If String.IsNullOrEmpty(result) Then Return
         Config_App.Current.SkeletonPath = result
+        TextBox4.Text = Config_App.Current.SkeletonPath
+        SkeletonInstance.Default.Skeleton = Nothing
+        Check_Folders()
+    End Sub
+
+    ''' <summary>⛔ LA ÚNICA SEDE de «cuál es el esqueleto por defecto»: el que trae BodySlide, junto a
+    ''' su exe, distinto por juego. Lo usan los DOS caminos — el auto-detector que corre al elegir el
+    ''' <c>.exe</c> del juego y el botón «Auto» de esta fila —, y por eso está acá una sola vez: son la
+    ''' misma respuesta y no pueden divergir.</summary>
+    Private Function RutaDelEsqueletoPorDefecto() As String
+        Dim pathS As String = If(Config_App.Current.Game = Config_App.Game_Enum.Fallout4, "Tools", "CalienteTools")
+        Dim skel As String = If(Config_App.Current.Game = Config_App.Game_Enum.Fallout4,
+                                "res\skeleton_fo4.nif", "res\skeleton_female_sse.nif")
+        Return IO.Path.Combine(IO.Path.GetDirectoryName(TextBox1.Text), "Data\" & pathS & "\Bodyslide\" & skel)
+    End Function
+
+    ''' <summary>«Auto» de la fila del esqueleto: vuelve al que trae BodySlide, que es el valor por
+    ''' defecto de la app y vive FUERA de <c>Data</c> — o sea lo único que el picker del diccionario no
+    ''' puede ofrecer. Es el mismo par (Auto + Browse) que esta misma pantalla ya usa para
+    ''' <c>Plugins.txt</c>: no es una forma nueva, es la de al lado.
+    ''' <para>Antes de esto, volver al default sólo pasaba como EFECTO COLATERAL de re-elegir el
+    ''' <c>.exe</c> del juego, y sólo si el chequeo del esqueleto daba que faltaba.</para></summary>
+    Private Sub ButtonAutoSkeleton_Click(sender As Object, e As EventArgs) Handles ButtonAutoSkeleton.Click
+        If String.IsNullOrWhiteSpace(TextBox1.Text) Then
+            MessageBox.Show(Me, "Set the game executable first: the default skeleton lives next to BodySlide, " &
+                                "inside the game folder.", "Skeleton",
+                            MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Return
+        End If
+        Config_App.Current.SkeletonPath = RutaDelEsqueletoPorDefecto()
         TextBox4.Text = Config_App.Current.SkeletonPath
         SkeletonInstance.Default.Skeleton = Nothing
         Check_Folders()

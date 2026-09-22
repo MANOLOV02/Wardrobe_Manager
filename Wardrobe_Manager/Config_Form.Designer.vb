@@ -47,6 +47,7 @@ Partial Class Config_Form
         Label4 = New Label()
         Label5 = New Label()
         Button4 = New Button()
+        ButtonAutoSkeleton = New Button()
         Label6 = New Label()
         TextBox4 = New TextBox()
         TabControl1 = New TabControl()
@@ -308,6 +309,16 @@ Partial Class Config_Form
         Button4.Text = "...."
         ToolTip1.SetToolTip(Button4, "Browse for the skeleton NIF.")
         Button4.UseVisualStyleBackColor = True
+        '
+        ' ButtonAutoSkeleton
+        '
+        ButtonAutoSkeleton.Location = New Point(826, 161)
+        ButtonAutoSkeleton.Name = "ButtonAutoSkeleton"
+        ButtonAutoSkeleton.Size = New Size(53, 23)
+        ButtonAutoSkeleton.TabIndex = 15
+        ButtonAutoSkeleton.Text = "Auto"
+        ToolTip1.SetToolTip(ButtonAutoSkeleton, "Go back to the skeleton that ships with BodySlide, which is this app's default and lives outside the game's Data folder.")
+        ButtonAutoSkeleton.UseVisualStyleBackColor = True
         ' 
         ' Label6
         ' 
@@ -326,7 +337,7 @@ Partial Class Config_Form
         TextBox4.Location = New Point(197, 161)
         TextBox4.Name = "TextBox4"
         TextBox4.ReadOnly = True
-        TextBox4.Size = New Size(682, 23)
+        TextBox4.Size = New Size(623, 23)
         TextBox4.TabIndex = 12
         ToolTip1.SetToolTip(TextBox4, "Path to the skeleton NIF used for preview and posing.")
         ' 
@@ -356,6 +367,7 @@ Partial Class Config_Form
         TabPage1.Controls.Add(Label7)
         TabPage1.Controls.Add(Label1)
         TabPage1.Controls.Add(Button4)
+        TabPage1.Controls.Add(ButtonAutoSkeleton)
         TabPage1.Controls.Add(TextBox1)
         TabPage1.Controls.Add(Label6)
         TabPage1.Controls.Add(Button1)
@@ -1138,6 +1150,7 @@ Partial Class Config_Form
     Friend WithEvents Label4 As Label
     Friend WithEvents Label5 As Label
     Friend WithEvents Button4 As Button
+    Friend WithEvents ButtonAutoSkeleton As Button
     Friend WithEvents Label6 As Label
     Friend WithEvents TextBox4 As TextBox
     Friend WithEvents TabControl1 As TabControl

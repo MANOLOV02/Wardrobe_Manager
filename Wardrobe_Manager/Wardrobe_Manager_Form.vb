@@ -3248,20 +3248,79 @@ Public Class Wardrobe_Manager_Form
         RequestLeeShapes()
     End Sub
 
-    Private Sub ButtonSkeleton_Click(sender As Object, e As EventArgs) Handles ButtonSkeleton.Click
+    ''' <summary>⛔⛔ LA ÚNICA SEDE de «elegir el esqueleto»: el picker del DICCIONARIO, que ve los
+    ''' sueltos Y los BA2/BSA. Existe como función compartida porque la elección tenía DOS sedes — esta
+    ''' y un <c>OpenFileDialog</c> en <c>Config_Form.Button4</c> (<c>Search_Nif</c>) —, y la segunda
+    ''' ofrecía un universo distinto: el diálogo del sistema no ve dentro de los archives, así que
+    ''' desde el diálogo de configuración el esqueleto vanilla no se podía elegir y desde el formulario
+    ''' principal sí. Dos sedes de una misma ley siempre terminan divergiendo; ésta ya lo había hecho.
+    ''' <para>La semilla es la clave del diccionario, relativa a <c>Data</c>. Si el esqueleto
+    ''' configurado vive FUERA de <c>Data</c> —el <c>res\skeleton_*.nif</c> de BodySlide, que es el
+    ''' valor por defecto de <see cref="Directorios.SkeletonPath"/>— <c>GetRelativePath</c> devuelve una
+    ''' ruta con <c>..</c> que no es clave de nada y el picker abre en la raíz del árbol, que es lo
+    ''' correcto: no hay dónde posicionarse.</para>
+    ''' <para>⛔ El picker SÓLO puede ofrecer lo que está bajo <c>Data</c>, y el esqueleto por defecto
+    ''' de la app —el <c>res\skeleton_*.nif</c> que trae BodySlide— vive AFUERA. Acá había escrito que
+    ''' la caja de texto de <c>Config_Form</c> quedaba como camino de escape: era FALSO, el diseñador
+    ''' la declara <c>ReadOnly</c> y nada lee lo que se tipee. El camino real es el botón «Auto» de esa
+    ''' misma fila, que repone el default; el picker cubre lo que el juego trae, que es lo que el
+    ''' diálogo del sistema no podía ofrecer.</para>
+    ''' <para>⛔ Y LO QUE ENTRE LOS DOS NO SE CUBRE, dicho acá para que no haya que descubrirlo usando
+    ''' la app: un esqueleto arbitrario FUERA de <c>Data</c> que no sea el de BodySlide (por ejemplo
+    ''' <c>D:\mis_esqueletos\x.nif</c>) ya no se puede elegir desde la interfaz. Es una capacidad que el
+    ''' <c>OpenFileDialog</c> daba y ésta no. El usuario lo decidió así el 22-sep, con la alternativa
+    ''' sobre la mesa (un botón «Other…», que pondría ROJO al gate de pickers por su propia ley).</para>
+    ''' <para>Devuelve la ruta ABSOLUTA (<c>Data</c> + clave), o "" si el usuario canceló. El que llama
+    ''' hace sus propios efectos: acá se recarga el esqueleto y se limpia el render; en
+    ''' <c>Config_Form</c> se refresca la caja y se invalida la instancia.</para></summary>
+    Friend Shared Function ElegirEsqueletoConPicker(owner As IWin32Window) As String
         Dim dict_used As FilesDictionary_class.DictionaryFilePickerConfig = FilesDictionary_class.ALLMeshesDictionary_Filter
-        Dim filtered = FilesDictionary_class.GetFilteredKeys(dict_used)
-        Dim initialKey As String = IO.Path.GetRelativePath(Directorios.Fallout4data, Directorios.SkeletonPath)
-        Using frm As New DictionaryFilePicker_Form(filtered, dict_used.RootPrefix, dict_used.AllowedExtensions, initialKey)
-            If frm.ShowDialog() = DialogResult.OK Then
-                Config_App.Current.SkeletonPath = IO.Path.Combine(Directorios.Fallout4data, frm.DictionaryPicker_Control1.SelectedKey)
-                SkeletonInstance.Default.LoadFromConfig(True, True)
-                preview_Control.Model.Clean(False)
-                preview_Control.Model.CleanTextures()
-                Habilita_deshabilita()
-                RequestLeeShapes(True)
+        ' ⛔ LA MISMA GUARDA QUE `PickerDeAssets`, y por el mismo motivo: el diccionario se llena en una
+        ' tarea de fondo, así que un botón apretado temprano abría un árbol VACÍO sin decir por qué.
+        ' Acá el `GetFilteredKeys` iba pelado — y desde este delta entran los DOS formularios de WM por
+        ' esta función, así que el agujero valía doble. No se reusa `ElegirEnCaja` porque esta sede
+        ' necesita la ruta ABSOLUTA y su raíz es la vacía (ver la guarda de `CorrectGameRelativePath`).
+        Dim filtered As List(Of String)
+        Try
+            filtered = FilesDictionary_class.GetFilteredKeys(dict_used)
+        Catch ex As Exception
+            Logger.LogLazy(Function() $"[WM] no se pudo leer el diccionario de mallas: {ex.GetType().Name}: {ex.Message}")
+            filtered = Nothing
+        End Try
+        If filtered Is Nothing OrElse filtered.Count = 0 Then
+            MessageBox.Show(owner,
+                            "No meshes are indexed yet." & vbCrLf & vbCrLf &
+                            "The file dictionary (loose files + BA2/BSA) is still being built, or the game's Data " &
+                            "folder is not set. Try again once it finishes.",
+                            "Pick the skeleton", MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Return ""
+        End If
+        Dim initialKey As String = ""
+        Try
+            If Not String.IsNullOrEmpty(Directorios.Fallout4data) AndAlso
+               Not String.IsNullOrEmpty(Directorios.SkeletonPath) Then
+                initialKey = IO.Path.GetRelativePath(Directorios.Fallout4data, Directorios.SkeletonPath)
             End If
+        Catch
+            initialKey = ""
+        End Try
+        Using frm As New DictionaryFilePicker_Form(filtered, dict_used.RootPrefix, dict_used.AllowedExtensions, initialKey)
+            If frm.ShowDialog(owner) <> DialogResult.OK Then Return ""
+            Dim sel = frm.DictionaryPicker_Control1.SelectedKey
+            If String.IsNullOrEmpty(sel) Then Return ""
+            Return IO.Path.Combine(Directorios.Fallout4data, sel)
         End Using
+    End Function
+
+    Private Sub ButtonSkeleton_Click(sender As Object, e As EventArgs) Handles ButtonSkeleton.Click
+        Dim elegido = ElegirEsqueletoConPicker(Me)
+        If String.IsNullOrEmpty(elegido) Then Return
+        Config_App.Current.SkeletonPath = elegido
+        SkeletonInstance.Default.LoadFromConfig(True, True)
+        preview_Control.Model.Clean(False)
+        preview_Control.Model.CleanTextures()
+        Habilita_deshabilita()
+        RequestLeeShapes(True)
     End Sub
 
     Private Sub ButtonSkeleton_DpiChangedAfterParent(sender As Object, e As EventArgs) Handles ButtonSkeleton.DpiChangedAfterParent
