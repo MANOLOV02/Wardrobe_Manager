@@ -4315,10 +4315,11 @@ Public Class SliderSet_Class
 
     ''' <summary>Quita TODOS los HH_OFFSET del NIF, incluido el de la RAÍZ: el strip viejo sólo
     ''' miraba shapes, así que un HH_OFFSET en la raíz sobrevivía y — siendo el primero del
-    ''' recorrido — era justamente el que ganaba en el motor. Dos pasadas: primero se sueltan las
-    ''' referencias (los índices siguen válidos porque todavía no se borró ningún bloque) y después
-    ''' se borran los bloques por objeto; borrar un bloque renumera el resto, así que mezclar las dos
-    ''' cosas en un solo loop podía soltar la referencia equivocada.</summary>
+    ''' recorrido — era justamente el que ganaba en el motor. Dos pasadas: primero se juntan las
+    ''' víctimas y después se borran los bloques por objeto; <c>RemoveBlock</c> suelta la referencia
+    ''' correcta de cada lista y renumera el resto. ⛔ Nada de <c>RemoveBlockRef</c>: borra por POSICIÓN,
+    ''' no por índice de bloque, y soltaba OTRO extra data que después se borraba
+    ''' (Tools\ExtraDataUnlinkGate: MScoat.nif perdía la tela).</summary>
     Private Function RemoveHHOffsetFromNif(NIF As Nifcontent_Class_Manolo) As Boolean
         Dim victims As New List(Of NiFloatExtraData)
         Dim root = NIF.GetRootNode()
@@ -4326,7 +4327,6 @@ Public Class SliderSet_Class
             For Each edr In root.ExtraDataList.References.ToList
                 Dim ed = TryCast(NIF.Blocks(edr.Index), NiFloatExtraData)
                 If Not IsNothing(ed) AndAlso Not IsNothing(ed.Name) AndAlso ed.Name.String = "HH_OFFSET" Then
-                    root.ExtraDataList.RemoveBlockRef(edr.Index)
                     victims.Add(ed)
                 End If
             Next
@@ -4336,7 +4336,6 @@ Public Class SliderSet_Class
             For Each edr In shap.ExtraDataList.References.ToList
                 Dim ed = TryCast(NIF.Blocks(edr.Index), NiFloatExtraData)
                 If Not IsNothing(ed) AndAlso Not IsNothing(ed.Name) AndAlso ed.Name.String = "HH_OFFSET" Then
-                    shap.ExtraDataList.RemoveBlockRef(edr.Index)
                     victims.Add(ed)
                 End If
             Next
