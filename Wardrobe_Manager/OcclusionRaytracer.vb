@@ -224,7 +224,7 @@ Public Class OcclusionRaytracer
         r.UsaAlphaVertice = usaVC AndAlso
                             (mb Is Nothing OrElse Not (mb.Tree OrElse mb.NifShaderType = NiflySharp.Enums.BSLightingShaderType.TreeAnim))
         If mb IsNot Nothing Then
-            r.Umbral = mb.AlphaTestRef / 255.0F
+            r.Umbral = mat.AlphaTestThreshold
             r.AlphaMaterial = mb.Alpha
             r.UOff = mb.UOffset : r.VOff = mb.VOffset
             r.UScale = mb.UScale : r.VScale = mb.VScale
