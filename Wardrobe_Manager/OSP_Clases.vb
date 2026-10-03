@@ -1365,12 +1365,8 @@ Public Class Clone_Materials_class
 
         Select Case job.Extension
             Case ".bgsm"
-                Dim material As New BGSM
-                Using ms As New MemoryStream(payload)
-                    Using reader As New BinaryReader(ms)
-                        material.Deserialize(reader)
-                    End Using
-                End Using
+                ' As the engine reads it: binary or JSON, a blend pair MaterialLib cannot represent kept raw (MaterialFileReader).
+                Dim material = DirectCast(MaterialFileReader.Leer(payload, GetType(BGSM)).Material, BGSM)
 
                 job.BaseTexturePropertyName = "DiffuseTexture"
 
@@ -1405,12 +1401,7 @@ Public Class Clone_Materials_class
                 End If
 
             Case ".bgem"
-                Dim material As New BGEM
-                Using ms As New MemoryStream(payload)
-                    Using reader As New BinaryReader(ms)
-                        material.Deserialize(reader)
-                    End Using
-                End Using
+                Dim material = DirectCast(MaterialFileReader.Leer(payload, GetType(BGEM)).Material, BGEM)
 
                 job.BaseTexturePropertyName = "BaseTexture"
 
@@ -1831,28 +1822,21 @@ Public Class Clone_Materials_class
         For Each job In pending
             Select Case job.Extension
                 Case ".bgsm"
-                    Dim material As New BGSM
-                    Using ms As New MemoryStream(FilesDictionary_class.GetBytes(job.Source))
-                        Using reader As New BinaryReader(ms)
-                            material.Deserialize(reader)
-                        End Using
-                    End Using
+                    ' Read and written as the engine reads it (MaterialFileReader): a raw blend pair goes back verbatim.
+                    Dim lectura = MaterialFileReader.Leer(FilesDictionary_class.GetBytes(job.Source), GetType(BGSM))
+                    Dim material = DirectCast(lectura.Material, BGSM)
 
                     ApplyBGSMResolvedReferences(material, job)
 
-                    WriteMaterialJob(job, overwrite, Sub(fs) FO4UnifiedMaterial_Class.SerializarMaterial(material, fs))
+                    WriteMaterialJob(job, overwrite, Sub(fs) MaterialFileReader.Escribir(material, lectura.BlendCrudo, fs))
 
                 Case ".bgem"
-                    Dim material As New BGEM
-                    Using ms As New MemoryStream(FilesDictionary_class.GetBytes(job.Source))
-                        Using reader As New BinaryReader(ms)
-                            material.Deserialize(reader)
-                        End Using
-                    End Using
+                    Dim lectura = MaterialFileReader.Leer(FilesDictionary_class.GetBytes(job.Source), GetType(BGEM))
+                    Dim material = DirectCast(lectura.Material, BGEM)
 
                     ApplyBGEMResolvedReferences(material, job)
 
-                    WriteMaterialJob(job, overwrite, Sub(fs) FO4UnifiedMaterial_Class.SerializarMaterial(material, fs))
+                    WriteMaterialJob(job, overwrite, Sub(fs) MaterialFileReader.Escribir(material, lectura.BlendCrudo, fs))
 
                 Case Else
                     Throw New Exception
@@ -2169,6 +2153,9 @@ Public Enum ProjectLoadIssueKind
     ShapeDataReadError
     CloneMaterialSourceMissing
     CloneMaterialPending
+    ''' <summary>Merge renombró una shape del proyecto entrante pero su XML de HDT-SMP no se pudo parsear: la física de esa
+    ''' shape quedó atada al nombre viejo.</summary>
+    PhysicsXmlNotRenamed
 End Enum
 
 Public Class ProjectLoadIssue
@@ -2372,6 +2359,8 @@ Public Class OSP_Project_Class
                 text = "Error reading project: " & issue.ProjectName & " " & issue.Message
             Case ProjectLoadIssueKind.CloneMaterialSourceMissing
                 text = "Clone material repair skipped for project: " & issue.ProjectName & " " & issue.Message
+            Case ProjectLoadIssueKind.PhysicsXmlNotRenamed
+                text = "Physics not updated for project: " & issue.ProjectName & " " & issue.Message
             Case Else
                 text = "Error reading shapedata from project: " & issue.ProjectName & " " & issue.Message
         End Select
@@ -2866,6 +2855,24 @@ Public Class OSP_Project_Class
         OSP_Project_Class.ForgetLoadedShapeDataSlot(Sliderset_Target)
     End Sub
 
+    ''' <summary>Nombre para una shape de <paramref name="target"/> que entra a <paramref name="madre"/>: el actual si
+    ''' no choca, si no <c>nombre_0</c>, <c>nombre_1</c>... (el esquema de Check_Unique_Shapename) hasta que no choque
+    ''' con ninguna shape de la madre ni con las demás de target (nombre o target, OrdinalIgnoreCase), ni con ninguna shape
+    ''' del NIF de la madre (que puede traer shapes que su .osp no lista y con las que los NIF se fusionan).</summary>
+    Private Shared Function NombreUnicoParaMerge(madre As SliderSet_Class, target As SliderSet_Class, propia As Shape_class) As String
+        Dim base = propia.Nombre
+        Dim choca = Function(n As String) madre.Shapes.Concat(target.Shapes.Where(Function(x) x IsNot propia)).Any(
+            Function(x) x.Nombre.Equals(n, StringComparison.OrdinalIgnoreCase) OrElse x.Target.Equals(n, StringComparison.OrdinalIgnoreCase)) OrElse
+            (madre.NIFContent IsNot Nothing AndAlso madre.NIFContent.NifShapes.Any(Function(x) String.Equals(x.Name?.String, n, StringComparison.OrdinalIgnoreCase)))
+        Dim nuevo = base
+        Dim indice = 0
+        While choca(nuevo)
+            nuevo = base & "_" & indice.ToString(CultureInfo.InvariantCulture)
+            indice += 1
+        End While
+        Return nuevo
+    End Function
+
     Public Shared Function Merge_Proyecto(Sliderset_Madre As SliderSet_Class, Sliderset_Source As SliderSet_Class, ExcludeReference As Boolean, Keep_Physics As Boolean, Optional context As ProjectLoadContext = Nothing) As SliderSet_Class
         ' Add project and update
         Dim Sliderset_Target = New SliderSet_Class(Sliderset_Madre.ParentOSP.xml.ImportNode(Sliderset_Source.Nodo.Clone, True), Sliderset_Madre.ParentOSP)
@@ -2970,25 +2977,29 @@ Public Class OSP_Project_Class
         Dim subind As Integer = 0
         For Each Shap In Sliderset_Target.Shapes
 
-            ' Primero cambia el nombre
+            ' Primero cambia el nombre. Único sobre Madre (que ya tiene, con su nombre nuevo, las shapes de Target ya
+            ' procesadas) ∪ las demás shapes de Target, con los nombres ACTUALES: antes era solo sobre Madre y, si el
+            ' nombre nuevo chocaba con otra shape de Target, la búsqueda por nombre de la shape del NIF agarraba la
+            ' equivocada.
             Dim nombre_Viejo As String = Shap.Nombre
-            Dim nombre_Nuevo As String = Sliderset_Madre.Check_Unique_Shapename(nombre_Viejo)
-
+            Dim nombre_Nuevo As String = NombreUnicoParaMerge(Sliderset_Madre, Sliderset_Target, Shap)
 
             If nombre_Viejo <> nombre_Nuevo Then
+                ' Datos: ley PROPIA de Merge (los bloques se renombran contra el destino más abajo); aquí solo el target.
+                ' La lista se toma antes de la identidad: Related_Slider_data resuelve por el target actual.
                 For Each dat In Shap.Related_Slider_data.ToList
                     dat.Target = nombre_Nuevo
                 Next
-
-                If Shap.Target <> nombre_Nuevo Then
-                    Dim nifShap = Sliderset_Target.NIFContent.NifShapes.FirstOrDefault(Function(pf) pf.Name.String.Equals(Shap.Nombre, StringComparison.OrdinalIgnoreCase))
-                    If nifShap IsNot Nothing Then
-                        nifShap.Name.String = nombre_Nuevo
-                    End If
+                ' Identidad: NIF + animación + palette, <Shape>, material, SMP, ReferenceInfo (sede única con Rename).
+                Dim ident = ShapeRenameHelper.RenombrarIdentidad(Shap, Sliderset_Target, nombre_Nuevo)
+                If ident.SmpNoParseable Then
+                    ReportLoadIssue(loadContext, New ProjectLoadIssue With {
+                        .Kind = ProjectLoadIssueKind.PhysicsXmlNotRenamed,
+                        .OspFile = If(Sliderset_Target.ParentOSP?.Filename, ""),
+                        .ProjectName = Sliderset_Target.Nombre,
+                        .Message = $"shape '{nombre_Viejo}' was renamed to '{nombre_Nuevo}' but the physics XML could not be parsed; its physics still refer to the old name.",
+                        .ShapeNames = New List(Of String) From {nombre_Viejo, nombre_Nuevo}})
                 End If
-                Shap.Target = nombre_Nuevo
-                Shap.Nombre = nombre_Nuevo
-                Sliderset_Target.InvalidateAllLookupCaches()
             End If
 
             ' Agrega shape
@@ -2999,23 +3010,50 @@ Public Class OSP_Project_Class
 
             ' Agrega dat
             For Each dat In Shap.Related_Slider_data.ToList
-                ' Primero cambia el nombre
-                Dim dat_Viejo As String = dat.TargetSlider
-                Dim dat_Nuevo As String = Sliderset_Madre.Check_Unique_DataName(dat.Target.Replace(":", "_"), dat.ParentSlider.Nombre)
-                If dat_Nuevo <> dat_Viejo Then
-                    For Each osd In dat.RelatedLocalOSDBlocks.ToList
-                        osd.BlockName = dat_Nuevo
-                    Next
-                    dat.TargetSlider = dat_Nuevo
-                    dat.Nombre = dat_Nuevo
-                    Sliderset_Target.InvalidateAllLookupCaches()
-                End If
-
-                For Each block In dat.RelatedLocalOSDBlocks
-                    If Not Sliderset_Madre.OSDContent_Local.Blocks.Any(Function(pf) pf.BlockName.Equals(dat_Nuevo, StringComparison.OrdinalIgnoreCase)) Then
-                        Sliderset_Madre.OSDContent_Local.Clone_block(block)
+                ' Primero cambia el nombre. ⛔ SOLO de los datos LOCALES (sus bloques viajan al .osd de la madre). Un dato
+                ' EXTERNO apunta por nombre a un bloque de un .osd ajeno que no se renombra: cambiarle el name lo dejaba
+                ' sin bloque (el morph se perdia al guardar; es el defecto [01] de OutfitProject::RenameShape). BodySlide
+                ' carga el bloque externo por su name y lo aplica por target (SliderSet.cpp:381): basta el target nuevo.
+                If dat.Islocal Then
+                    Dim dat_Viejo As String = dat.TargetSlider
+                    Dim dat_Nuevo As String = Sliderset_Madre.Check_Unique_DataName(dat.Target.Replace(":", "_"), dat.ParentSlider.Nombre)
+                    If dat_Nuevo <> dat_Viejo Then
+                        For Each osd In dat.RelatedLocalOSDBlocks.ToList
+                            osd.BlockName = dat_Nuevo
+                        Next
+                        dat.TargetSlider = dat_Nuevo
+                        dat.Nombre = dat_Nuevo
+                        Sliderset_Target.InvalidateAllLookupCaches()
                     End If
-                Next
+
+                    For Each block In dat.RelatedLocalOSDBlocks
+                        If Not Sliderset_Madre.OSDContent_Local.Blocks.Any(Function(pf) pf.BlockName.Equals(dat_Nuevo, StringComparison.OrdinalIgnoreCase)) Then
+                            Sliderset_Madre.OSDContent_Local.Clone_block(block)
+                        End If
+                    Next
+                Else
+                    ' Externo cuyo name YA lo usa un dato de la madre (en CUALQUIER slider: BodySlide indexa el nombre por
+                    ' archivo y en todo el set, osdNames[archivo][dataName] SliderSet.cpp:381 / namedSet DiffData.cpp:285-290,
+                    ' y el ultimo pisa el target; en la app, mismo slider = "Duplicated Slider Data"). Renombrarlo lo deja sin
+                    ' bloque. Se MATERIALIZA: sus diffs se copian al .osd local de la madre con un nombre unico (name, texto y
+                    ' BlockName juntos), como Merge ya hace con las referencias. Sin choque conserva su nombre y queda externo.
+                    ' Decision del usuario 3-oct-2026 ("copiar solo si choca").
+                    Dim nombreExterno = dat.Nombre
+                    If Sliderset_Madre.Sliders.SelectMany(Function(pf) pf.Datas).Any(Function(d) d.Nombre.Equals(nombreExterno, StringComparison.OrdinalIgnoreCase)) Then
+                        Dim nombreUnico = Sliderset_Madre.Check_Unique_DataName(dat.Target.Replace(":", "_"), dat.ParentSlider.Nombre)
+                        For Each block In dat.RelatedExternalOSDBlocks.ToList
+                            Dim copia As New OSD_Block_Class(Sliderset_Madre.OSDContent_Local) With {.BlockName = nombreUnico}
+                            copia.DataDiff.AddRange(block.SnapshotDiffs())
+                            copia.RebuildCompactArrays()
+                            Sliderset_Madre.OSDContent_Local.Blocks.Add(copia)
+                        Next
+                        dat.Islocal = True
+                        dat.TargetOsd = Sliderset_Madre.LocalOsdFileName
+                        dat.Nombre = nombreUnico
+                        dat.TargetSlider = nombreUnico
+                        Sliderset_Target.InvalidateAllLookupCaches()
+                    End If
+                End If
 
                 Dim slid As Slider_class = Sliderset_Madre.Sliders.FirstOrDefault(Function(pf) pf.Nombre.Equals(dat.ParentSlider.Nombre, StringComparison.OrdinalIgnoreCase))
                 If slid Is Nothing Then Continue For
@@ -4449,10 +4487,13 @@ Public Class SliderSet_Class
         End While
         Return Nuevo
     End Function
+    ''' <summary>Nombre de dato libre: ningun &lt;Data&gt; lo usa en su texto Y ningun bloque del .osd local se llama asi (un
+    ''' bloque huerfano con ese nombre haria que el dato nuevo resolviera a los dos y los sumara).</summary>
     Public Function Check_Unique_DataName(Prueba As String, slidername As String) As String
         Dim index = 0
         Dim Nuevo As String = Prueba
-        While Me.Sliders.SelectMany(Function(pf) pf.Datas).Any(Function(pf) pf.TargetSlider.Equals(Nuevo + slidername, StringComparison.OrdinalIgnoreCase))
+        While Me.Sliders.SelectMany(Function(pf) pf.Datas).Any(Function(pf) pf.TargetSlider.Equals(Nuevo + slidername, StringComparison.OrdinalIgnoreCase)) OrElse
+              (OSDContent_Local IsNot Nothing AndAlso OSDContent_Local.Blocks.Any(Function(b) b.BlockName.Equals(Nuevo + slidername, StringComparison.OrdinalIgnoreCase)))
             Nuevo = Prueba + "_" + index.ToString
             index += 1
         End While
@@ -4961,6 +5002,10 @@ Public Class SliderSet_Class
 
 
     Public Sub RemoveShape(Shape As Shape_class)
+        ' La entrada de BaseMaterials se va ANTES que el bloque, con la MISMA clave que el lector
+        ' (Shape_class.RelatedMaterial: RelatedNifShape.Name.String, case-sensitive). Si quedaba, una shape nueva con
+        ' ese nombre (Clone/Split la vuelven a proponer) heredaba el material de la borrada.
+        If Not IsNothing(Shape.RelatedNifShape) Then NIFContent.BaseMaterials.Remove(Shape.RelatedNifShape.Name.String)
         If Not IsNothing(Shape.RelatedNifShape) Then NIFContent.RemoveShape_Manolo(Shape.RelatedNifShape)
         For Each slid In Sliders
             For Each dat In slid.Datas.ToList
@@ -5503,7 +5548,8 @@ Public Class Shape_class
             Return attr.Value
         End Get
         Set(value As String)
-            Nodo.Attributes("target").Value = value
+            ' Ausente se CREA (un .osp sin target es legal: el getter cae al texto); antes tiraba NRE.
+            DirectCast(Nodo, XmlElement).SetAttribute("target", value)
         End Set
     End Property
     Public Property Nombre As String
@@ -5896,7 +5942,8 @@ Public Class Slider_Data_class
             Return attr.Value
         End Get
         Set(value As String)
-            Nodo.Attributes("name").Value = value
+            ' Ausente se CREA (el getter cae al nombre del slider); antes tiraba NRE.
+            DirectCast(Nodo, XmlElement).SetAttribute("name", value)
         End Set
     End Property
 
@@ -5905,7 +5952,7 @@ Public Class Slider_Data_class
             Return Nodo.Attributes("target").Value
         End Get
         Set(value As String)
-            Nodo.Attributes("target").Value = value
+            DirectCast(Nodo, XmlElement).SetAttribute("target", value)
         End Set
     End Property
 
@@ -6045,14 +6092,26 @@ Public Class Slider_Data_class
         ' every source block gets its own local block; create a fresh clone when none is left to claim.
         Dim claimedLocals As New HashSet(Of OSD_Block_Class)(System.Collections.Generic.ReferenceEqualityComparer.Instance)
 
+        ' ⛔ Un bloque local con el nombre de este dato que ya NOMBRA OTRO <Data> local es de ese otro: reclamarlo hacia
+        ' que editar esta shape escribiera en el morph de la otra (y el rename lo renombraba, dejando al otro sin bloque).
+        ' Entonces este dato pasa a un nombre UNICO (convencion target_+slider, Check_Unique_DataName) y sus clones nacen
+        ' con ese nombre: name, texto y BlockName cambian JUNTOS (el <Data> resuelve sus bloques solo por su name). Un
+        ' bloque huerfano (sin dueño) se sigue reclamando como antes. Decision del usuario 3-oct-2026; censo: 0 casos.
+        Dim nombreDelDato = Me.Nombre
+        Dim tieneOtroDuenio = sliderSet.Sliders.SelectMany(Function(sl) sl.Datas).Any(
+            Function(d) d IsNot Me AndAlso d.Islocal AndAlso d.Nombre.Equals(nombreDelDato, StringComparison.OrdinalIgnoreCase))
+        If tieneOtroDuenio Then
+            nombreDelDato = sliderSet.Check_Unique_DataName(Me.Target.Replace(":", "_"), ParentSlider.Nombre)
+        End If
+
         For Each sourceBlock In sourceBlocks
-            Dim existing = sliderSet.OSDContent_Local.Blocks.FirstOrDefault(
-                Function(b) b.BlockName.Equals(sourceBlock.BlockName, StringComparison.OrdinalIgnoreCase) AndAlso Not claimedLocals.Contains(b))
+            Dim existing = If(tieneOtroDuenio, Nothing, sliderSet.OSDContent_Local.Blocks.FirstOrDefault(
+                Function(b) b.BlockName.Equals(sourceBlock.BlockName, StringComparison.OrdinalIgnoreCase) AndAlso Not claimedLocals.Contains(b)))
             If existing IsNot Nothing Then
                 claimedLocals.Add(existing)
                 clones.Add(existing)
             Else
-                Dim clone = New OSD_Block_Class(sliderSet.OSDContent_Local) With {.BlockName = sourceBlock.BlockName}
+                Dim clone = New OSD_Block_Class(sliderSet.OSDContent_Local) With {.BlockName = If(tieneOtroDuenio, nombreDelDato, sourceBlock.BlockName)}
                 clone.DataDiff.AddRange(sourceBlock.SnapshotDiffs())
                 clone.RebuildCompactArrays()
                 sliderSet.OSDContent_Local.Blocks.Add(clone)
@@ -6063,6 +6122,10 @@ Public Class Slider_Data_class
 
         Islocal = True
         TargetOsd = osdFilename
+        If tieneOtroDuenio Then
+            Me.Nombre = nombreDelDato
+            Me.TargetSlider = nombreDelDato
+        End If
         Return clones
     End Function
     ''' <summary>

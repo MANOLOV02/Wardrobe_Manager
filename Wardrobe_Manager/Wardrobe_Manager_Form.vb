@@ -1353,6 +1353,8 @@ Public Class Wardrobe_Manager_Form
                 Return "Clone material source missing"
             Case ProjectLoadIssueKind.CloneMaterialPending
                 Return "Clone material pending"
+            Case ProjectLoadIssueKind.PhysicsXmlNotRenamed
+                Return "Physics not updated after renaming a shape"
             Case Else
                 Return kind.ToString()
         End Select
@@ -1423,7 +1425,8 @@ Public Class Wardrobe_Manager_Form
                 ProjectLoadIssueKind.ProjectValidationError,
                 ProjectLoadIssueKind.ShapeDataReadError,
                 ProjectLoadIssueKind.CloneMaterialSourceMissing,
-                ProjectLoadIssueKind.CloneMaterialPending
+                ProjectLoadIssueKind.CloneMaterialPending,
+                ProjectLoadIssueKind.PhysicsXmlNotRenamed
             }
 
             Dim grouped = issues.GroupBy(Function(iss) iss.Kind).ToDictionary(Function(g) g.Key, Function(g) g.ToList())

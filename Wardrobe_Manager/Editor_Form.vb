@@ -85,37 +85,13 @@ Public Class Editor_Form
         ActualizarBotonesHelper()
     End Sub
 
-    ''' <summary>Crea el <c>BSLightingShaderProperty</c> vacio + su <c>BSShaderTextureSet</c> y los
-    ''' engancha a la shape. ⛔ UNICO camino por el que una shape puede recibir un shader, y solo desde
-    ''' el boton "Convert to renderable shape". Antes vivia en <c>Lee_Comboselected_Material</c> y corria
-    ''' SOLO al abrir el editor: eso le metia shader a los proxies de colision de HDT-SMP, que pasaban a
-    ''' verse in-game.
-    ''' <para>El assert se conserva: <c>GetShader</c> devuelve Nothing tambien cuando el ref apunta fuera
-    ''' de rango o a un bloque que no es <c>INiShader</c> (o sea con Index &lt;&gt; -1). Sin el, ese caso
-    ''' pasaria de fallar ruidoso a orfanar el bloque referenciado en silencio.</para></summary>
+    ''' <summary>Thin caller: el alta del shader vacio vive en la LIBRERIA
+    ''' (<see cref="Nifcontent_Class_Manolo.CrearShaderVacio"/>), con el mismo helper de alta que la conversion de
+    ''' familia. ⛔ UNICO camino por el que una shape helper recibe un shader, y solo desde el boton "Make shape
+    ''' renderable" (antes corria solo al abrir el editor y le metia shader a los proxies de HDT-SMP). Name VACIO =
+    ''' material embebido: GetRelatedMaterial lo lee sin guard en el epilogo.</summary>
     Private Sub CrearShaderVacio(shape As Shape_class)
-        Dim bs = TryCast(shape.RelatedNifShape, NiflySharp.Blocks.BSTriShape)
-        If bs Is Nothing Then Throw New NotSupportedException("Shader creation from editor requires BSTriShape family shape.")
-        If Not bs.ShaderPropertyRef.IsEmpty() Then
-            Throw New InvalidOperationException(
-                $"'{shape.Nombre}' resolves no shader but ShaderPropertyRef={bs.ShaderPropertyRef.Index}: " &
-                "the ref points to a missing block or to one that is not an INiShader.")
-        End If
-        Dim nif = shape.ParentSliderSet.NIFContent
-        Dim shad = New BSLightingShaderProperty
-        ' ⛔ Name VACIO, no Nothing: GetRelatedMaterial lee `typed.Name.String` sin guard, y el epilogo
-        ' del boton lo llama justo despues de crear el shader. Antes no explotaba porque el shader se
-        ' fabricaba DESPUES de que GetRelatedMaterial ya habia corrido. String vacio = material EMBEBIDO,
-        ' que es lo que corresponde a un shader recien creado sin .bgsm en disco (misma convencion que
-        ' usa el bake al dejar `Name.String = ""`).
-        shad.Name = New NiStringRef("")
-        bs.ShaderPropertyRef = New NiBlockRef(Of BSShaderProperty) With {.Index = nif.AddBlock(shad)}
-        Dim texset = New BSShaderTextureSet
-        shad.TextureSetRef = New NiBlockRef(Of BSShaderTextureSet) With {.Index = nif.AddBlock(texset)}
-        texset.Textures = New List(Of NiString4)
-        While texset.Textures.Count < 8
-            texset.Textures.Add(New NiString4 With {.Content = ""})
-        End While
+        shape.ParentSliderSet.NIFContent.CrearShaderVacio(shape.RelatedNifShape)
     End Sub
 
     ''' <summary>Epilogo COMUN de Convert / Make helper.
@@ -152,9 +128,12 @@ Public Class Editor_Form
         ' Dos avisos, uno por rama: en la rama del bit0 NO se le da ningun material, asi que el texto de
         ' la otra afirmaria algo que no ocurre.
         Dim msg As String
+        ' Aviso de geometria ANTES de mutar, de la MISMA consulta que usa la ley unica (CompletarCanalesParaLighting).
+        Dim avisoCanales = If(sinShader, Nifcontent_Class_Manolo.AvisoCanalesParaLighting(Selected_Shape.IR_Geometry), Nothing)
         If sinShader Then
             msg = "This shape has no shader property: it is auxiliary geometry (collision, marker) that the engine never draws." & vbCrLf & vbCrLf &
-                  "An empty material will be created and the shape will become VISIBLE in-game." & vbCrLf & vbCrLf & "Continue?"
+                  "An empty material will be created and the shape will become VISIBLE in-game." & vbCrLf & vbCrLf &
+                  If(avisoCanales Is Nothing, "", avisoCanales & vbCrLf & vbCrLf) & "Continue?"
         Else
             msg = "This shape already has a material, but it is flagged as hidden (NiAVObject flags bit 0)." & vbCrLf & vbCrLf &
                   "That flag will be cleared and the shape will become VISIBLE in-game. The material is not touched." & vbCrLf & vbCrLf & "Continue?"
@@ -164,8 +143,14 @@ Public Class Editor_Form
         If MsgBox(msg, vbYesNo + vbQuestion, "Make shape renderable") <> vbYes Then Exit Sub
 
         Dim shaderAntes = Selected_Shape.RelatedNifShader
+        Dim geomAntes = Selected_Shape.IR_Geometry
+        Dim normalesAntes = geomAntes.HasNormals, tangentesAntes = geomAntes.HasTangents
         Try
-            If sinShader Then CrearShaderVacio(Selected_Shape)
+            If sinShader Then
+                CrearShaderVacio(Selected_Shape)
+                ' La geometria que un Lighting necesita: MISMA ley que la conversion (decision del usuario).
+                Selected_Shape.ParentSliderSet.NIFContent.CompletarCanalesParaLighting(Selected_Shape)
+            End If
             ' SIEMPRE: es la otra mitad del predicado. Una shape con bit0 y shader ya es renderizable
             ' salvo por el bit.
             Selected_Shape.ParentSliderSet.NIFContent.ClearShapeHidden(Selected_Shape.RelatedNifShape)
@@ -174,6 +159,7 @@ Public Class Editor_Form
             Exit Sub
         End Try
         EpilogoHelper(shaderAntes)
+        If normalesAntes <> geomAntes.HasNormals OrElse tangentesAntes <> geomAntes.HasTangents Then Process_render_Changes(True)
     End Sub
 
     Private Sub btnMakeHelper_Click(sender As Object, e As EventArgs) Handles btnMakeHelper.Click
@@ -201,21 +187,212 @@ Public Class Editor_Form
         shape.ParentSliderSet.NIFContent.RemoveShaderAndOrphanClosure(shape.RelatedNifShape)
     End Sub
 
-    ''' <summary>Enablement de Convert / Make helper. Se llama al cambiar de shape y en el epilogo de
-    ''' los dos botones (invierten el estado).
-    ''' <para>⛔ `esBs` va PRIMERO y con AndAlso: corta el nulo y ademas la FAMILIA. El setter escribible
-    ''' de ShaderPropertyRef vive SOLO en BSTriShape (en INiShape es get-only), asi que sobre un
-    ''' NiTriShape / NiTriStrips / BSLODTriShape los dos botones tirarian NotSupportedException desde un
-    ''' handler de click, o sea un crash. Esa familia existe de verdad en el corpus (los *_col.nif y los
-    ''' EditorMarker de SSE).</para>
-    ''' <para>⛔ `MaterialLimpio` los mete bajo el MISMO candado que ya protege a ComboBoxShapes de
-    ''' perder ediciones de material sin guardar.</para></summary>
+    ''' <summary>Enablement de los botones ESTRUCTURALES de la pestana Tools (Make renderable / Make hidden /
+    ''' Convert shader / Clone / Split). Se llama desde Iniciado_Edit (cambio de shape, edicion de material) y en el
+    ''' epilogo de cada boton.
+    ''' <para>⛔ El predicado de familia es UNO y vive en la libreria:
+    ''' <see cref="Nifcontent_Class_Manolo.AdmiteReapuntarPorRef"/> (BSTriShape o NiGeometry, sin shader ni alpha en
+    ''' la lista Properties). Lo que hacia `esBs` —cortar el nulo y la familia— lo hace ahi para las dos familias; los
+    ''' *_col.nif y EditorMarker de SSE (NiTriShape) quedan habilitados por decision del usuario.</para>
+    ''' <para>⛔ `MaterialLimpio` los mete a TODOS bajo el MISMO candado que ya protege a ComboBoxShapes de perder
+    ''' ediciones de material sin guardar (Split incluido, decision del usuario).</para>
+    ''' <para>Convert shader: el motivo de negacion sale de
+    ''' <see cref="Nifcontent_Class_Manolo.MotivoParaNoConvertirShader"/> (la MISMA guarda que corre la conversion) y
+    ''' se muestra en el tooltip y en la etiqueta debajo — un boton deshabilitado no dispara su tooltip en
+    ''' WinForms.</para></summary>
     Private Sub ActualizarBotonesHelper()
         Dim s = Selected_Shape
-        Dim esBs As Boolean = s IsNot Nothing AndAlso TypeOf s.RelatedNifShape Is NiflySharp.Blocks.BSTriShape
-        btnConvertToRenderable.Enabled = esBs AndAlso s.IR_IsHelperShape AndAlso MaterialLimpio
-        btnMakeHelper.Enabled = esBs AndAlso Not s.IR_IsHelperShape AndAlso MaterialLimpio
+        Dim nif = s?.ParentSliderSet?.NIFContent
+        Dim limpio = MaterialLimpio
+        Dim reapuntable As Boolean = s IsNot Nothing AndAlso nif IsNot Nothing AndAlso nif.AdmiteReapuntarPorRef(s.RelatedNifShape)
+        btnConvertToRenderable.Enabled = reapuntable AndAlso s.IR_IsHelperShape AndAlso limpio
+        btnMakeHelper.Enabled = reapuntable AndAlso Not s.IR_IsHelperShape AndAlso limpio
+
+        Dim motivo As String
+        If s Is Nothing OrElse nif Is Nothing Then
+            motivo = "No shape selected."
+        Else
+            motivo = nif.MotivoParaNoConvertirShader(s.RelatedNifShape, s.RelatedMaterial?.material)
+            If motivo Is Nothing AndAlso Not limpio Then motivo = "Save or cancel the pending material changes first."
+        End If
+        btnConvertShader.Text = TextoBotonConvertirShader(nif, s?.RelatedNifShader)
+        btnConvertShader.Enabled = motivo Is Nothing
+        ToolTip1.SetToolTip(btnConvertShader, If(motivo, "Replace the shape's shader with one of the other family (Lighting <-> Effect), keeping every value both families share."))
+        LabelConvertShaderMotivo.Text = If(motivo, "")
+
+        ButtonCloneShape.Enabled = ShapeCloneHelper.CanClone(s) AndAlso limpio
+        ButtonSplitShape.Enabled = s IsNot Nothing AndAlso limpio
     End Sub
+
+    ''' <summary>Texto del boton segun el shader actual y el VOCABULARIO DEL NIF (BGSM/BGEM sólo existen en FO4; en
+    ''' Skyrim el material vive en el shader).</summary>
+    Private Shared Function TextoBotonConvertirShader(nif As Nifcontent_Class_Manolo, shad As INiShader) As String
+        Dim fo4 = nif IsNot Nothing AndAlso nif.Vocabulario() = Nifcontent_Class_Manolo.VocabularioDeShader.Fo4
+        If TypeOf shad Is BSLightingShaderProperty Then Return If(fo4, "Convert to Effect shader (BGEM)", "Convert to Effect shader")
+        If TypeOf shad Is BSEffectShaderProperty Then Return If(fo4, "Convert to Lighting shader (BGSM)", "Convert to Lighting shader")
+        Return "Convert shader family"
+    End Function
+
+    Private Sub btnConvertShader_Click(sender As Object, e As EventArgs) Handles btnConvertShader.Click
+        Dim s = Selected_Shape
+        If s Is Nothing Then Exit Sub
+        Dim nif = s.ParentSliderSet.NIFContent
+        Dim mat = s.RelatedMaterial?.material
+        Dim motivo = nif.MotivoParaNoConvertirShader(s.RelatedNifShape, mat)
+        If motivo IsNot Nothing Then
+            MsgBox(motivo, vbOKOnly + vbExclamation, "Convert shader")
+            Exit Sub
+        End If
+
+        ' Lista MEDIDA de lo que se pierde para ESTA shape: la conversion REAL sobre una copia del NIF. Si la
+        ' simulacion falla, la real fallaria igual sobre los mismos datos: se niega ANTES de tocar el NIF vivo.
+        Dim perdidas As List(Of String)
+        Try
+            perdidas = nif.PerdidasAlConvertirShader(s.RelatedNifShape, mat)
+        Catch ex As Exception
+            Logger.LogLazy(Function() $"[CONVERT-SHADER] simulation failed for '{s.Nombre}': {ex}")
+            MsgBox("The shader cannot be converted: " & ex.Message, vbOKOnly + vbExclamation, "Convert shader")
+            Exit Sub
+        End Try
+        If perdidas Is Nothing Then
+            ' Nothing = la simulacion no pudo correr (shape/material no encontrados en la copia): no se promete nada.
+            MsgBox("The shader cannot be converted: the conversion could not be simulated on a copy of the mesh.", vbOKOnly + vbExclamation, "Convert shader")
+            Exit Sub
+        End If
+
+        Dim shad = s.RelatedNifShader
+        Dim aEfecto = TypeOf shad Is BSLightingShaderProperty
+        Dim fo4 = nif.Vocabulario() = Nifcontent_Class_Manolo.VocabularioDeShader.Fo4
+        Dim msg As New Text.StringBuilder()
+        msg.AppendLine(If(aEfecto, "The shape's Lighting shader will be replaced by an Effect shader.",
+                                   "The shape's Effect shader will be replaced by a Lighting shader."))
+        msg.AppendLine()
+        Dim nombreMaterial = TryCast(shad, BSShaderProperty)?.Name?.String
+        If fo4 AndAlso Not String.IsNullOrEmpty(nombreMaterial) Then
+            msg.AppendLine($"The link to '{nombreMaterial}' is replaced by an EMBEDDED material holding the current values. The file on disk is not touched.")
+            msg.AppendLine()
+        End If
+        If perdidas.Count = 0 Then
+            msg.AppendLine("Every current value is kept.")
+        Else
+            msg.AppendLine("Values that change or are lost with the other shader family:")
+            For Each p In perdidas.Take(25)
+                msg.AppendLine("  - " & p)
+            Next
+            If perdidas.Count > 25 Then msg.AppendLine($"  ... and {perdidas.Count - 25} more")
+        End If
+        ' Alpha que no se puede crear en el bloque nuevo: la conversion lo descarta (misma decision que la real).
+        Dim avisoAlpha = nif.AvisoAlphaQueSePierde(s.RelatedNifShape, mat)
+        If avisoAlpha IsNot Nothing Then
+            msg.AppendLine()
+            msg.AppendLine(avisoAlpha)
+        End If
+
+        ' Controllers que se BORRAN (shader viejo y alpha si el plan lo quita), con la MISMA decision de clausura que
+        ' el borrado real: si una hermana comparte el bloque, sus controllers quedan y no se cuentan. Los animados por
+        ' una secuencia ya negaron la conversion arriba.
+        Dim sueltos = nif.ControllersQueSeBorranAlConvertir(s.RelatedNifShape, mat)
+        If sueltos > 0 Then
+            msg.AppendLine()
+            msg.AppendLine($"{sueltos} controller(s) of the removed shader/alpha blocks (not driven by any animation sequence) will be removed with them.")
+        End If
+        Dim geom = s.IR_Geometry
+        Dim avisoCanales = If(aEfecto, Nothing, Nifcontent_Class_Manolo.AvisoCanalesParaLighting(geom))
+        If avisoCanales IsNot Nothing Then
+            msg.AppendLine()
+            msg.AppendLine(avisoCanales)
+        End If
+        msg.AppendLine()
+        msg.Append("Continue?")
+        ' ⛔ El aviso va ANTES de tocar nada: un MsgBox en el medio bombea mensajes y dejaria ver el NIF a medias.
+        If MsgBox(msg.ToString(), vbYesNo + vbQuestion, "Convert shader") <> vbYes Then Exit Sub
+
+        Dim shaderAntes = s.RelatedNifShader
+        Dim normalesAntes = geom.HasNormals
+        Dim tangentesAntes = geom.HasTangents
+        Try
+            nif.ConvertirFamiliaDeShader(s, mat)
+        Catch ex As Exception
+            ' La simulacion paso, asi que esto no deberia ocurrir; si ocurre, el NIF puede haber quedado a medias:
+            ' se resincroniza el editor con lo que haya y se le dice al usuario que descarte la edicion.
+            EpilogoHelper(shaderAntes)
+            Process_render_Changes(True)
+            MsgBox("Could not convert the shader: " & ex.Message & vbCrLf & vbCrLf &
+                   "The shape may be left half converted. Use Cancel to discard this edit session (nothing has been saved).",
+                   vbOKOnly + vbCritical, "Convert shader")
+            Exit Sub
+        End Try
+        EpilogoHelper(shaderAntes)
+        ' Normales/tangentes nuevas en el NIF: el preview tiene que releer la geometria (VBOs), no solo repintar.
+        If normalesAntes <> geom.HasNormals OrElse tangentesAntes <> geom.HasTangents Then Process_render_Changes(True)
+    End Sub
+
+    Private Sub ButtonCloneShape_Click(sender As Object, e As EventArgs) Handles ButtonCloneShape.Click
+        Dim s = Selected_Shape
+        If Not ShapeCloneHelper.CanClone(s) OrElse Selected_Slider Is Nothing Then Exit Sub
+        ' Como OS (OnDupeShape): el nombre lo elige el usuario y tiene que ser unico.
+        Dim propuesto = Selected_Slider.Check_Unique_Shapename(s.Target & "_Clone")
+        Dim nombre = InputBox("Name of the new shape:", "Clone shape", propuesto)
+        If String.IsNullOrWhiteSpace(nombre) Then Exit Sub
+        nombre = nombre.Trim()
+        ' Validacion unica de nombres de shape (proyecto + NIF, Latin-1, separadores, limites de .tri/.osd).
+        Dim motivoNombre = ShapeRenameHelper.MotivoNombreInvalido(Selected_Slider, nombre, formaDeDatos:=s)
+        If motivoNombre IsNot Nothing Then
+            MsgBox(motivoNombre, vbOKOnly + vbExclamation, "Clone shape")
+            Exit Sub
+        End If
+        If MsgBox($"Clone '{s.Target}' as '{nombre}'?" & vbCrLf & vbCrLf &
+                  "The copy gets its own material, the shape's morphs for every slider and the animation entries of this NIF's sequences that drive the shape's own controllers." & vbCrLf &
+                  "It does NOT get physics (physics is assigned by shape name)." & vbCrLf & vbCrLf &
+                  "Changes stay in memory until you save.",
+                  vbYesNo + vbQuestion, "Clone shape") <> vbYes Then Exit Sub
+        Dim ajenos = 0
+        Try
+            ajenos = ShapeCloneHelper.Clone(s, Selected_Slider, nombre).AnimacionAjena
+            Selected_Slider.InvalidateShapeDataLookupCache()
+            Selected_Slider.RebuildShapeDataLookupCache()
+            ComboBoxShapes.Items.Insert(ComboBoxShapes.SelectedIndex + 1, nombre)
+            ButtonRemoveSHape.Enabled = ComboBoxShapes.Items.Count > 1
+            ButtonRenameShape.Enabled = ComboBoxShapes.Items.Count > 0
+            Iniciado_Edit()
+            Process_render_Changes(True)
+        Catch ex As Exception
+            MsgBox("Clone failed: " & ex.Message, vbCritical, "Clone shape")
+            Exit Sub
+        End Try
+        If ajenos > 0 Then MsgBox(TextoAnimacionAjena(ajenos), vbOKOnly + vbInformation, "Clone shape")
+    End Sub
+
+    Private Sub ButtonRenameShape_Click(sender As Object, e As EventArgs) Handles ButtonRenameShape.Click
+        Dim s = Selected_Shape
+        If s Is Nothing OrElse Selected_Slider Is Nothing Then Exit Sub
+        Dim nombre = InputBox("New name for the shape:", "Rename shape", s.Nombre)
+        If String.IsNullOrWhiteSpace(nombre) Then Exit Sub
+        nombre = nombre.Trim()
+        If String.Equals(nombre, s.Nombre, StringComparison.Ordinal) Then Exit Sub
+        ' El MISMO plan que el rename (validacion, nombres de datos, morphs externos legibles, XML de fisica).
+        Dim motivo = ShapeRenameHelper.MotivoParaNoRenombrar(s, Selected_Slider, nombre)
+        If motivo IsNot Nothing Then
+            MsgBox(motivo, vbOKOnly + vbExclamation, "Rename shape")
+            Exit Sub
+        End If
+        If MsgBox($"Rename '{s.Nombre}' to '{nombre}'?" & vbCrLf & vbCrLf &
+                  "The mesh, every slider's morph data, the material, this NIF's animation entries and the physics XML are updated." & vbCrLf & vbCrLf &
+                  "Changes stay in memory until you save.",
+                  vbYesNo + vbQuestion, "Rename shape") <> vbYes Then Exit Sub
+        Dim idx = ComboBoxShapes.SelectedIndex
+        Try
+            ' Todo lo que puede fallar se decide antes de tocar nada (plan): si tira, el proyecto quedo como estaba.
+            ShapeRenameHelper.Renombrar(s, Selected_Slider, nombre)
+        Catch ex As Exception
+            MsgBox("Rename failed: " & ex.Message, vbOKOnly + vbExclamation, "Rename shape")
+            Exit Sub
+        End Try
+        ' Solo el texto: el handler de cambio de shape recargaria el material desde disco (ediciones sin guardar perdidas).
+        ComboBoxItemHelper.ReemplazarSinEvento(ComboBoxShapes, idx, nombre, AddressOf ComboBoxShapes_SelectedIndexChanged)
+        Iniciado_Edit()
+    End Sub
+
     Private Sub Finalizado_Edit()
         _Editando = False
         RaiseEvent Edit_Ended()
@@ -924,6 +1101,7 @@ Public Class Editor_Form
             HHNumericUpDown.Value = 0
             ButtonRemovePhysics.Enabled = False
             ButtonRemoveSHape.Enabled = False
+            ButtonRenameShape.Enabled = False
             ButtonCancel.Enabled = False
             ButtonSave.Enabled = False
             ButtonMatSave.Enabled = False
@@ -945,6 +1123,7 @@ Public Class Editor_Form
             SetHHSpinner(Selected_Slider.HighHeelHeight)
             ButtonRemovePhysics.Enabled = Selected_Slider.HasPhysics
             ButtonRemoveSHape.Enabled = ComboBoxShapes.Items.Count > 1
+            ButtonRenameShape.Enabled = ComboBoxShapes.Items.Count > 0
             ButtonCancel.Enabled = False
             ButtonSave.Enabled = False
             ButtonMatSave.Enabled = False
@@ -974,6 +1153,7 @@ Public Class Editor_Form
         ColorComboBox1.SelectedColor = Selected_Shape.Wirecolor
         TrackBar1.Value = Math.Max(0R, Math.Min(1.0R, CDbl(Selected_Shape.WireAlpha)))
         ButtonRemoveSHape.Enabled = ComboBoxShapes.Items.Count > 1
+        ButtonRenameShape.Enabled = ComboBoxShapes.Items.Count > 0
         Habilita_Mask_Buttons()
         Lee_Materials()
         Update_Grayscale()
@@ -3269,7 +3449,7 @@ Public Class Editor_Form
         If MsgBox(msg, vbYesNo + vbQuestion, "Split Shape") <> MsgBoxResult.Yes Then Exit Sub
         Try
             Dim origShapeIdx = Selected_Slider.Shapes.IndexOf(Selected_Shape)
-            SplitShapeHelper.Split(Selected_Shape, Selected_Slider)
+            Dim ajenos = SplitShapeHelper.Split(Selected_Shape, Selected_Slider)
             ' Invalidate cached shape-slider lookups (morphs, OSD blocks changed by split)
             Selected_Slider.InvalidateShapeDataLookupCache()
             Selected_Slider.RebuildShapeDataLookupCache()
@@ -3277,12 +3457,21 @@ Public Class Editor_Form
             Dim splitShape = Selected_Slider.Shapes(origShapeIdx + 1)
             ComboBoxShapes.Items.Insert(ComboBoxShapes.SelectedIndex + 1, splitShape.Nombre)
             ButtonRemoveSHape.Enabled = ComboBoxShapes.Items.Count > 1
+            ButtonRenameShape.Enabled = ComboBoxShapes.Items.Count > 0
             Iniciado_Edit()
             Process_render_Changes(True)
+            ' Despues del refresco: un MsgBox bombea mensajes y no puede ver el editor a medio actualizar.
+            If ajenos > 0 Then MsgBox(TextoAnimacionAjena(ajenos), vbOKOnly + vbInformation, "Split Shape")
         Catch ex As Exception
             MsgBox("Split failed: " & ex.Message, vbCritical, "Split Shape")
         End Try
     End Sub
+    ''' <summary>Aviso comun de Split y Clone: bloques de secuencia que matchean a la shape por nombre pero cuyo
+    ''' controller es de otro objeto (Nifcontent_Class_Manolo.CopiarAnimacionAlClon no los duplica).</summary>
+    Private Shared Function TextoAnimacionAjena(n As Integer) As String
+        Return $"{n} animation entr{If(n = 1, "y", "ies")} of this shape {If(n = 1, "is", "are")} driven by controllers that belong to other objects and {If(n = 1, "was", "were")} not copied to the new shape."
+    End Function
+
     Private Shared Function SafeNormalize(v As Vector3) As Vector3
         If v.LengthSquared <= 0.000001F Then Return Vector3.Zero
         Return Vector3.Normalize(v)
@@ -3324,6 +3513,7 @@ Public Class Editor_Form
                 Dim targetIdx = ComboBoxShapes.Items.IndexOf(frm.TargetShape.Nombre)
                 If targetIdx >= 0 Then ComboBoxShapes.SelectedIndex = targetIdx
                 ButtonRemoveSHape.Enabled = ComboBoxShapes.Items.Count > 1
+                ButtonRenameShape.Enabled = ComboBoxShapes.Items.Count > 0
                 _LastBonesSignature = ""
                 _LastSliderLayoutSignature = ""
                 Lee_Bones()

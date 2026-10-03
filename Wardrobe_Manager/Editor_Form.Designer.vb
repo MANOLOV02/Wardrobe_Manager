@@ -33,6 +33,7 @@ Partial Class Editor_Form
         Dim resources As System.ComponentModel.ComponentResourceManager = New System.ComponentModel.ComponentResourceManager(GetType(Editor_Form))
         GroupBox6 = New GroupBox()
         ButtonRemoveSHape = New Button()
+        ButtonRenameShape = New Button()
         TableLayoutPanel1 = New TableLayoutPanel()
         Label18 = New Label()
         RenderCheckVertexColors = New CheckBox()
@@ -183,6 +184,9 @@ Partial Class Editor_Form
         ButtonConform = New Button()
         ButtonSplitShape = New Button()
         ButtonMergeShapes = New Button()
+        btnConvertShader = New Button()
+        ButtonCloneShape = New Button()
+        LabelConvertShaderMotivo = New Label()
         SingleBoneCheck = New CheckBox()
         NumericMaskRadius = New NumericUpDown()
         Label17 = New Label()
@@ -243,6 +247,7 @@ Partial Class Editor_Form
         ' 
         GroupBox6.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
         GroupBox6.Controls.Add(ButtonRemoveSHape)
+        GroupBox6.Controls.Add(ButtonRenameShape)
         GroupBox6.Controls.Add(TableLayoutPanel1)
         GroupBox6.Controls.Add(ComboBoxShapes)
         GroupBox6.Controls.Add(Label11)
@@ -266,6 +271,19 @@ Partial Class Editor_Form
         ButtonRemoveSHape.TextImageRelation = TextImageRelation.ImageBeforeText
         ToolTip1.SetToolTip(ButtonRemoveSHape, "Remove the currently selected shape from the project.")
         ButtonRemoveSHape.UseVisualStyleBackColor = True
+        ' 
+        ' ButtonRenameShape
+        ' 
+        ButtonRenameShape.Anchor = AnchorStyles.Top Or AnchorStyles.Right
+        ButtonRenameShape.Font = New Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        ButtonRenameShape.Location = New Point(533, 19)
+        ButtonRenameShape.Name = "ButtonRenameShape"
+        ButtonRenameShape.Size = New Size(83, 23)
+        ButtonRenameShape.TabIndex = 6
+        ButtonRenameShape.Text = "Rename"
+        ButtonRenameShape.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ButtonRenameShape, "Rename the currently selected shape: mesh, morphs, material, animation and physics references.")
+        ButtonRenameShape.UseVisualStyleBackColor = True
         ' 
         ' TableLayoutPanel1
         ' 
@@ -461,7 +479,7 @@ Partial Class Editor_Form
         ComboBoxShapes.FormattingEnabled = True
         ComboBoxShapes.Location = New Point(136, 19)
         ComboBoxShapes.Name = "ComboBoxShapes"
-        ComboBoxShapes.Size = New Size(480, 23)
+        ComboBoxShapes.Size = New Size(391, 23)
         ComboBoxShapes.TabIndex = 3
         ToolTip1.SetToolTip(ComboBoxShapes, "Select the shape to edit.")
         ' 
@@ -592,7 +610,7 @@ Partial Class Editor_Form
         Button10.TabIndex = 51
         Button10.Text = "auto"
         Button10.TextImageRelation = TextImageRelation.ImageBeforeText
-        ToolTip1.SetToolTip(Button10, "Remove the currently selected shape from the project.")
+        ToolTip1.SetToolTip(Button10, "Compute the high heel offset from the lowest point of the meshes.")
         Button10.UseVisualStyleBackColor = True
         ' 
         ' CheckBoxGenweight
@@ -2209,6 +2227,9 @@ Partial Class Editor_Form
         TabPage5.Controls.Add(ButtonConform)
         TabPage5.Controls.Add(ButtonSplitShape)
         TabPage5.Controls.Add(ButtonMergeShapes)
+        TabPage5.Controls.Add(btnConvertShader)
+        TabPage5.Controls.Add(LabelConvertShaderMotivo)
+        TabPage5.Controls.Add(ButtonCloneShape)
         TabPage5.ImageKey = "ApplicationsDevelopment"
         TabPage5.Location = New Point(4, 24)
         TabPage5.Name = "TabPage5"
@@ -2222,7 +2243,7 @@ Partial Class Editor_Form
         btnMakeHelper.ImageList = IconsSmall
         btnMakeHelper.Location = New Point(14, 184)
         btnMakeHelper.Name = "btnMakeHelper"
-        btnMakeHelper.Size = New Size(220, 26)
+        btnMakeHelper.Size = New Size(260, 26)
         btnMakeHelper.TabIndex = 5
         btnMakeHelper.Text = "Make shape hidden"
         btnMakeHelper.TextImageRelation = TextImageRelation.ImageBeforeText
@@ -2235,7 +2256,7 @@ Partial Class Editor_Form
         btnConvertToRenderable.ImageList = IconsSmall
         btnConvertToRenderable.Location = New Point(14, 150)
         btnConvertToRenderable.Name = "btnConvertToRenderable"
-        btnConvertToRenderable.Size = New Size(220, 26)
+        btnConvertToRenderable.Size = New Size(260, 26)
         btnConvertToRenderable.TabIndex = 4
         btnConvertToRenderable.Text = "Make shape renderable"
         btnConvertToRenderable.TextImageRelation = TextImageRelation.ImageBeforeText
@@ -2248,7 +2269,7 @@ Partial Class Editor_Form
         ButtonMaskOccluded.ImageList = IconsSmall
         ButtonMaskOccluded.Location = New Point(14, 14)
         ButtonMaskOccluded.Name = "ButtonMaskOccluded"
-        ButtonMaskOccluded.Size = New Size(220, 26)
+        ButtonMaskOccluded.Size = New Size(260, 26)
         ButtonMaskOccluded.TabIndex = 0
         ButtonMaskOccluded.Text = "Mask Occluded Vertices..."
         ButtonMaskOccluded.TextImageRelation = TextImageRelation.ImageBeforeText
@@ -2261,7 +2282,7 @@ Partial Class Editor_Form
         ButtonConform.ImageList = IconsSmall
         ButtonConform.Location = New Point(14, 48)
         ButtonConform.Name = "ButtonConform"
-        ButtonConform.Size = New Size(220, 26)
+        ButtonConform.Size = New Size(260, 26)
         ButtonConform.TabIndex = 1
         ButtonConform.Text = "Conform Sliders..."
         ButtonConform.TextImageRelation = TextImageRelation.ImageBeforeText
@@ -2274,7 +2295,7 @@ Partial Class Editor_Form
         ButtonSplitShape.ImageList = IconsSmall
         ButtonSplitShape.Location = New Point(14, 82)
         ButtonSplitShape.Name = "ButtonSplitShape"
-        ButtonSplitShape.Size = New Size(220, 26)
+        ButtonSplitShape.Size = New Size(260, 26)
         ButtonSplitShape.TabIndex = 2
         ButtonSplitShape.Text = "Split Shape by Mask"
         ButtonSplitShape.TextImageRelation = TextImageRelation.ImageBeforeText
@@ -2287,12 +2308,45 @@ Partial Class Editor_Form
         ButtonMergeShapes.ImageList = IconsSmall
         ButtonMergeShapes.Location = New Point(14, 116)
         ButtonMergeShapes.Name = "ButtonMergeShapes"
-        ButtonMergeShapes.Size = New Size(220, 26)
+        ButtonMergeShapes.Size = New Size(260, 26)
         ButtonMergeShapes.TabIndex = 3
         ButtonMergeShapes.Text = "Merge Shapes..."
         ButtonMergeShapes.TextImageRelation = TextImageRelation.ImageBeforeText
         ToolTip1.SetToolTip(ButtonMergeShapes, "Merge the selected shape with one or more other shapes. The target shape defines the name and shader. OSD morphs are combined.")
         ButtonMergeShapes.UseVisualStyleBackColor = True
+        ' 
+        ' btnConvertShader
+        ' 
+        btnConvertShader.ImageKey = "Appearance"
+        btnConvertShader.ImageList = IconsSmall
+        btnConvertShader.Location = New Point(14, 218)
+        btnConvertShader.Name = "btnConvertShader"
+        btnConvertShader.Size = New Size(260, 26)
+        btnConvertShader.TabIndex = 6
+        btnConvertShader.Text = "Convert shader family"
+        btnConvertShader.TextImageRelation = TextImageRelation.ImageBeforeText
+        btnConvertShader.UseVisualStyleBackColor = True
+        ' 
+        ' LabelConvertShaderMotivo
+        ' 
+        LabelConvertShaderMotivo.ForeColor = SystemColors.GrayText
+        LabelConvertShaderMotivo.Location = New Point(280, 218)
+        LabelConvertShaderMotivo.Name = "LabelConvertShaderMotivo"
+        LabelConvertShaderMotivo.Size = New Size(420, 60)
+        LabelConvertShaderMotivo.TabIndex = 7
+        ' 
+        ' ButtonCloneShape
+        ' 
+        ButtonCloneShape.ImageKey = "AddGroup"
+        ButtonCloneShape.ImageList = IconsSmall
+        ButtonCloneShape.Location = New Point(14, 252)
+        ButtonCloneShape.Name = "ButtonCloneShape"
+        ButtonCloneShape.Size = New Size(260, 26)
+        ButtonCloneShape.TabIndex = 8
+        ButtonCloneShape.Text = "Clone Shape..."
+        ButtonCloneShape.TextImageRelation = TextImageRelation.ImageBeforeText
+        ToolTip1.SetToolTip(ButtonCloneShape, "Duplicate the selected shape with its own material, its morphs for every slider and its animation in this NIF's sequences. Physics is not copied.")
+        ButtonCloneShape.UseVisualStyleBackColor = True
         ' 
         ' SingleBoneCheck
         ' 
@@ -2568,6 +2622,7 @@ Partial Class Editor_Form
     Friend WithEvents RenderCheckWireframe As CheckBox
     Friend WithEvents RenderCheckHide As CheckBox
     Friend WithEvents ButtonRemoveSHape As Button
+    Friend WithEvents ButtonRenameShape As Button
     Friend WithEvents GroupBox2 As GroupBox
     Friend WithEvents TableLayoutPanel2 As TableLayoutPanel
     Friend WithEvents ButtonCancel As Button
@@ -2654,6 +2709,9 @@ Partial Class Editor_Form
     Friend WithEvents ButtonConform As Button
     Friend WithEvents ButtonSplitShape As Button
     Friend WithEvents ButtonMergeShapes As Button
+    Friend WithEvents btnConvertShader As Button
+    Friend WithEvents ButtonCloneShape As Button
+    Friend WithEvents LabelConvertShaderMotivo As Label
     Friend WithEvents btnConvertToRenderable As Button
     Friend WithEvents btnMakeHelper As Button
     Friend WithEvents GroupBox9 As GroupBox

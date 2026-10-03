@@ -13,22 +13,15 @@ Imports NiflySharp.Structs
 ''' </summary>
 Public Class SplitShapeHelper
 
-    Private Shared Function RemapDiffs(sourceDiffs As IEnumerable(Of OSD_DataDiff_Class),
-                                       remap As IReadOnlyDictionary(Of Integer, Integer)) As List(Of OSD_DataDiff_Class)
-        Return sourceDiffs.
-            Where(Function(d) remap.ContainsKey(d.Index)).
-            Select(Function(d) New OSD_DataDiff_Class() With {
-                .Index = remap(d.Index), .X = d.X, .Y = d.Y, .Z = d.Z
-            }).ToList()
-    End Function
-
     Public Shared Function CanSplit(shape As Shape_class) As Boolean
         Return shape IsNot Nothing AndAlso
                shape.MaskedVertices.Count > 0 AndAlso
                shape.RelatedNifShape IsNot Nothing
     End Function
 
-    Public Shared Sub Split(shape As Shape_class, sliderSet As SliderSet_Class)
+    ''' <returns>Cuantos bloques de animacion de la shape NO se copiaron a la mitad nueva porque su controller es de
+    ''' otro objeto (el llamador lo informa).</returns>
+    Public Shared Function Split(shape As Shape_class, sliderSet As SliderSet_Class) As Integer
         ' INiShape (BSTriShape, BSSubIndex, BSDynamic, BSMeshLOD, NiTriShape, BSLOD,
         ' NiTriStrips, BSSegmented).  Polymorphic vertex/skin handling via adapter.
         Dim origNif As INiShape = shape.RelatedNifShape
@@ -148,7 +141,11 @@ Public Class SplitShapeHelper
         ' BSGeometrySegmentData.DeepClone) and _segmentData (BSGeometrySegmentSharedData
         ' .DeepClone) — split half ends up with structurally independent segmentation, no
         ' alias breaking required from app side.
-        Dim splitNifRaw As INiShape = sliderSet.NIFContent.CloneShape_Original(origNif, splitName, sliderSet.NIFContent)
+        ' Clon del bloque + su ANIMACION (ControlledBlocks por ref/nombre, ObjectPalette), con reversion si falla:
+        ' sede unica en la libreria, compartida con Clone. Va ANTES de tocar la geometria: si la copia de animacion
+        ' falla, el NIF queda como estaba y el original sin compactar.
+        Dim clonado = sliderSet.NIFContent.ClonarShapeConAnimacion(origNif, splitName)
+        Dim splitNifRaw As INiShape = clonado.Clon
 
         ' Polymorphic split-shape adapter — BSTriShape-family clones into BSTriShape,
         ' NiTriShape-family clones into NiTriShape (NiflySharp's CloneShape preserves the
@@ -191,109 +188,39 @@ Public Class SplitShapeHelper
         sliderSet.NIFContent.UpdateSkinPartitions(origNif)
         If splitNifRaw IsNot Nothing Then sliderSet.NIFContent.UpdateSkinPartitions(splitNifRaw)
 
-        ' 9. Register split shape in BaseMaterials.
-        ' Create a new RelatedMaterial_Class wrapper (not an alias) so that changing the
-        ' material path/reference on the split does not mutate the original and vice versa.
-        Dim bm = sliderSet.NIFContent.BaseMaterials
-        Dim origNifName = origNif.Name.String
+        ' 9-10. Material propio (NO alias), nodo <Shape> y Shape_class: nucleo compartido con Clone.
+        ShapeDuplicacionNucleo.RegistrarMaterial(sliderSet, origNif.Name.String, splitName)
+        ShapeDuplicacionNucleo.AgregarShapeAlProyecto(shape, sliderSet, splitName, heredarDataFolder:=True)
 
-        Dim orig As Nifcontent_Class_Manolo.RelatedMaterial_Class = Nothing
-
-        If bm.TryGetValue(origNifName, orig) AndAlso Not bm.ContainsKey(splitName) Then
-            bm.Add(splitName, New Nifcontent_Class_Manolo.RelatedMaterial_Class With {
-                .path = orig.path,
-                .material = orig.material
-            })
-        End If
-
-        ' 10. Add Shape_class entry in OSP XML.
-        Dim xml = sliderSet.ParentOSP.xml
-        Dim splitShapeNode = CType(xml.CreateElement("Shape"), Xml.XmlElement)
-        splitShapeNode.SetAttribute("target", splitName)
-        ' ⛔ LOS TRES ATRIBUTOS DE NORMALES VIAJAN CON LA MITAD NUEVA. El canónico los propaga por shape
-        ' al escribir el proyecto (`OutfitProject.cpp:486-488`: `SetSmoothSeamNormals` /
-        ' `SetSmoothSeamNormalsAngle` / `SetLockNormals`), y acá sólo se copiaban `target`, el texto y el
-        ' DataFolder.
-        ' Hasta que la app EMPEZÓ A RESPETARLOS (2026-08-24) esto era inocuo porque no los leía nadie.
-        ' Ahora no: sin esta copia, partir una prenda con `LockNormals="true"` deja una mitad con las
-        ' normales que autoró el autor y la otra con las normales recalculadas — o sea una costura de
-        ' iluminación EN LA MISMA PRENDA. Alcance: 41 shapes del corpus con `LockNormals` y 8 con
-        ' `SmoothSeamNormals="false"`.
-        ' Se copian VERBATIM y sólo si están: el default del canónico es "atributo ausente", y escribirlos
-        ' siempre agregaría atributos a un .osp que no los traía.
-        For Each atributo In {"LockNormals", "SmoothSeamNormals", "SmoothSeamNormalsAngle"}
-            Dim a = shape.Nodo?.Attributes(atributo)
-            If a IsNot Nothing Then splitShapeNode.SetAttribute(atributo, a.Value)
-        Next
-        splitShapeNode.AppendChild(xml.CreateTextNode(splitName))
-        sliderSet.Nodo.InsertAfter(splitShapeNode, shape.Nodo)
-        Dim splitShape As New Shape_class(splitShapeNode, sliderSet) With {
-            .Datafolder = shape.Datafolder.ToList()
-        }
-        sliderSet.Shapes.Insert(sliderSet.Shapes.IndexOf(shape) + 1, splitShape)
-
-        ' 11. OSD: external blocks are read-only. Any remap happens on local copies.
-        Dim osdFilename = sliderSet.LocalOsdFileName
-        Dim osdContent = sliderSet.OSDContent_Local
-
+        ' 11. OSD: los bloques externos son de solo lectura; todo remapeo va a copias locales. La mitad ORIGINAL se
+        ' reescribe con su remapeo (exclusivo de Split); la nueva recibe el suyo por el nucleo compartido.
         For Each slider In sliderSet.Sliders
-            Dim origDats = slider.Datas.Where(
-                Function(d) d.Target.Equals(shape.Target, StringComparison.OrdinalIgnoreCase)).ToList()
-            If origDats.Any(Function(d) d.Islocal) Then
-                origDats = origDats.Where(Function(d) d.Islocal).ToList()
-            End If
-            If origDats.Count = 0 Then Continue For
+            Dim fuente = ShapeDuplicacionNucleo.DatosDeLaShape(slider, shape)
+            If fuente.Datos.Count = 0 Then Continue For
 
             Dim allDiff As New List(Of OSD_DataDiff_Class)()
-
-            For Each dat In origDats
-                Dim sourceBlocks = If(dat.Islocal,
-                    dat.RelatedLocalOSDBlocks.ToList(),
-                    dat.RelatedExternalOSDBlocks.ToList())
-                Dim sourceDiffs = sourceBlocks.Select(Function(block) block.SnapshotDiffs()).ToList()
-                Dim editableBlocks = dat.MaterializeEditableLocalBlocks()
-
+            For d = 0 To fuente.Datos.Count - 1
+                Dim sourceDiffs = fuente.Diffs(d)
                 For Each diffList In sourceDiffs
                     allDiff.AddRange(diffList)
                 Next
-
+                Dim editableBlocks = fuente.Datos(d).MaterializeEditableLocalBlocks()
                 For i = 0 To editableBlocks.Count - 1
-                    Dim kept = RemapDiffs(sourceDiffs(i), origRemap)
+                    Dim kept = ShapeDuplicacionNucleo.RemapDiffs(sourceDiffs(i), origRemap)
                     editableBlocks(i).DataDiff.Clear()
                     editableBlocks(i).DataDiff.AddRange(kept)
                     editableBlocks(i).RebuildCompactArrays()
                 Next
             Next
 
-            Dim splitDiff = RemapDiffs(allDiff, splitRemap)
-            If splitDiff.Count = 0 Then Continue For
-
-            Dim splitBlockName = splitName.Replace(":", "_") & slider.Nombre
-            Dim splitBlock = osdContent.Blocks.FirstOrDefault(
-                Function(b) b.BlockName.Equals(splitBlockName, StringComparison.OrdinalIgnoreCase))
-            If splitBlock Is Nothing Then
-                splitBlock = New OSD_Block_Class(osdContent) With {.BlockName = splitBlockName}
-                osdContent.Blocks.Add(splitBlock)
-            End If
-
-            splitBlock.DataDiff.Clear()
-            splitBlock.DataDiff.AddRange(splitDiff)
-            splitBlock.RebuildCompactArrays()
-
-            Dim splitDat = slider.Datas.FirstOrDefault(
-                Function(d) d.Target.Equals(splitName, StringComparison.OrdinalIgnoreCase) AndAlso
-                            d.Nombre.Equals(splitBlockName, StringComparison.OrdinalIgnoreCase))
-            If splitDat Is Nothing Then
-                slider.Datas.Add(New Slider_Data_class(splitBlockName, slider, splitName, osdFilename))
-            Else
-                splitDat.Islocal = True
-                splitDat.TargetOsd = osdFilename
-            End If
+            ShapeDuplicacionNucleo.EscribirMorphsDelNuevo(sliderSet, slider, splitName,
+                                                          ShapeDuplicacionNucleo.RemapDiffs(allDiff, splitRemap))
         Next
 
         ' 12. Clear mask on original and rebuild caches.
         shape.MaskedVertices.Clear()
         sliderSet.InvalidateAllLookupCaches()
-    End Sub
+        Return clonado.Ajenos
+    End Function
 
 End Class
