@@ -45,6 +45,7 @@ Public Class Create_from_Nif_Form
         chkAutoConvert.Enabled = (Config_App.Current.Game = Config_App.Game_Enum.Skyrim)
 
         EditPreviewControl = New PreviewControl With {.Dock = DockStyle.Fill}
+        EditPreviewControl.Intent.DrawEngineSkippedForEditing = True   ' the NIF being imported: a piece view (C2 v3 L5)
         Panel1.Controls.Add(EditPreviewControl)
         EditPreviewControl.Model.SingleBoneSkinning = False
         EditPreviewControl.Model.RecalculateNormals = False

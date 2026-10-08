@@ -212,7 +212,8 @@ Public Class OcclusionRaytracer
         Dim mb = mat.MaterialBase
 
         r.UsaTest = mat.HasAlphaTest
-        r.UsaBlend = mat.HasAlphaBlend
+        ' The GAME's blend (raw alpha), not the preview's: the occlusion tool follows the engine (C2 rev-12).
+        r.UsaBlend = mat.EngineHasAlphaBlend
 
         ' ⛔ `MaterialData.UseVertexAlpha` es Friend de la libreria, asi que el predicado se rearma aca
         ' con la MISMA ley (Render.vb): hay alpha de vertice si la shape muestra color de

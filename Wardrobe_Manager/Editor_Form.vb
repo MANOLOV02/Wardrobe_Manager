@@ -1834,6 +1834,7 @@ Public Class Editor_Form
         ' que es exactamente lo que hace falta sobre un control sin contexto.
         Dim previoSinUsar = EditPreviewControl
         EditPreviewControl = New PreviewControl With {.Dock = DockStyle.Fill}
+        EditPreviewControl.Intent.DrawEngineSkippedForEditing = True   ' editing the project's shapes and materials (C2 v3 L5)
         If previoSinUsar IsNot Nothing AndAlso Not previoSinUsar.IsDisposed Then previoSinUsar.BeginTeardown()
         Panel1.Controls.Add(EditPreviewControl)
         EditPreviewControl.Model.SingleBoneSkinning = Config_App.Current.Setting_SingleBoneSkinning
@@ -3536,8 +3537,7 @@ Public Class Editor_Form
 
         Dim occluders = EditPreviewControl.Model.meshes.
             Where(Function(m) m.MeshData.Shape IsNot Selected_Shape AndAlso
-                               Not m.MeshData.Shape.RenderHide AndAlso
-                               Not m.MeshData.Shape.IsHelperShape AndAlso
+                               HelperShapeGate.IsOccluderCandidate(m.MeshData.Shape) AndAlso
                                m.MeshData.Meshgeometry.Vertices IsNot Nothing)
 
         Using frm As New OcclusionMask_Form(targetMesh, occluders)

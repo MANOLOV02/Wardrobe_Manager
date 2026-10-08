@@ -139,24 +139,24 @@ Friend Module WM_Cli
     End Function
 
     Private Sub PrintUsage()
-        Console.WriteLine("Wardrobe Manager — modo consola")
+        Console.WriteLine("Wardrobe Manager — console mode")
         Console.WriteLine()
-        Console.WriteLine("  --build --osp <archivo.osp> [opciones]   construye los NIF")
-        Console.WriteLine("  --list  --osp <archivo.osp>              lista los proyectos del .osp y sale")
+        Console.WriteLine("  --build --osp <file.osp> [options]      builds the NIFs")
+        Console.WriteLine("  --list  --osp <file.osp>                 lists the .osp projects and exits")
         Console.WriteLine()
-        Console.WriteLine("Opciones:")
-        Console.WriteLine("  --project <nombre>      construye solo ese sliderset (repetible; por defecto, todos)")
-        Console.WriteLine("  --preset <nombre|.xml>  preset a aplicar; si es una ruta .xml se carga de ahi")
-        Console.WriteLine("  --preset-name <nombre>  cual preset del .xml, cuando el archivo tiene varios")
-        Console.WriteLine("  --size big|small|default   peso a construir (default: big)")
+        Console.WriteLine("Options:")
+        Console.WriteLine("  --project <name>        builds only that sliderset (repeatable; default: all)")
+        Console.WriteLine("  --preset <name|.xml>    preset to apply; a .xml path is loaded from that file")
+        Console.WriteLine("  --preset-name <name>   which preset of the .xml, when the file has several")
+        Console.WriteLine("  --size big|small|default   weight to build (default: big)")
         Console.WriteLine("  --game fo4|sse")
-        Console.WriteLine("  --executable <exe>      exe del juego (de ahi sale la carpeta Data de salida)")
-        Console.WriteLine("  --bsexe <exe>           exe de BodySlide (de ahi salen SliderSets/SliderCategories)")
-        Console.WriteLine("  --tri | --no-tri                       fuerza SaveTri")
+        Console.WriteLine("  --executable <exe>      game exe (the output Data folder comes from it)")
+        Console.WriteLine("  --bsexe <exe>           BodySlide exe (SliderSets/SliderCategories come from it)")
+        Console.WriteLine("  --tri | --no-tri                       forces SaveTri")
         Console.WriteLine("  --recalc-normals | --no-recalc-normals")
         Console.WriteLine("  --force-weights | --no-force-weights")
         Console.WriteLine()
-        Console.WriteLine("Salida: 0 ok · 2 args · 3 .osp ilegible · 4 proyecto inexistente · 5 errores de build")
+        Console.WriteLine("Exit code: 0 ok · 2 args · 3 unreadable .osp · 4 missing project · 5 build errors")
     End Sub
 
     ' ============================================================================================
@@ -166,12 +166,12 @@ Friend Module WM_Cli
     Private Function Run(args As List(Of String), soloListar As Boolean) As Integer
         Dim ospPath = OptValue(args, "--osp")
         If String.IsNullOrWhiteSpace(ospPath) Then
-            Console.Error.WriteLine("Falta --osp <archivo.osp>.")
+            Console.Error.WriteLine("Missing --osp <file.osp>.")
             Return 2
         End If
         ospPath = Path.GetFullPath(ospPath)
         If Not File.Exists(ospPath) Then
-            Console.Error.WriteLine("No existe el .osp: " & ospPath)
+            Console.Error.WriteLine("The .osp does not exist: " & ospPath)
             Return 3
         End If
 
@@ -197,7 +197,7 @@ Friend Module WM_Cli
                 Case "sse", "skyrim", "skyrimse"
                     Config_App.Current.Game = Config_App.Game_Enum.Skyrim
                 Case Else
-                    Console.Error.WriteLine("--game invalido: " & juego & " (usar fo4 o sse)")
+                    Console.Error.WriteLine("Invalid --game: " & juego & " (use fo4 or sse)")
                     Return 2
             End Select
         End If
@@ -228,11 +228,11 @@ Friend Module WM_Cli
         Try
             osp = New OSP_Project_Class(ospPath, True, ctx)
         Catch ex As Exception
-            Console.Error.WriteLine("No se pudo cargar el .osp: " & ex.Message)
+            Console.Error.WriteLine("Could not load the .osp: " & ex.Message)
             Return 3
         End Try
         If osp.SliderSets Is Nothing OrElse osp.SliderSets.Count = 0 Then
-            Console.Error.WriteLine("El .osp no tiene sliderSets: " & ospPath)
+            Console.Error.WriteLine("The .osp has no sliderSets: " & ospPath)
             Return 3
         End If
 
@@ -257,7 +257,7 @@ Friend Module WM_Cli
             Dim faltantes = pedidos.Where(Function(n) Not osp.SliderSets.Any(
                 Function(ss) String.Equals(n, ss.Nombre, StringComparison.OrdinalIgnoreCase))).ToList()
             If faltantes.Count > 0 Then
-                Console.Error.WriteLine("No estan en el .osp: " & String.Join(", ", faltantes))
+                Console.Error.WriteLine("Not in the .osp: " & String.Join(", ", faltantes))
                 Return 4
             End If
         End If
@@ -290,7 +290,7 @@ Friend Module WM_Cli
                         Next
                     End If
                 Catch ex As Exception
-                    Console.Error.WriteLine("Error enumerando SliderPresets: " & ex.Message)
+                    Console.Error.WriteLine("Error enumerating SliderPresets: " & ex.Message)
                 End Try
             ElseIf File.Exists(nombrePreset) Then
                 WM_SliderPresets.LoadFromXml(Path.GetFullPath(nombrePreset), silencioso:=True)
@@ -305,18 +305,18 @@ Friend Module WM_Cli
                             Function(pr) String.Equals(pr.Name, nombreDentro, StringComparison.OrdinalIgnoreCase))
                     End If
                     If preset Is Nothing Then
-                        Console.Error.WriteLine("El preset '" & nombreDentro & "' no esta en " & nombrePreset)
+                        Console.Error.WriteLine("Preset '" & nombreDentro & "' is not in " & nombrePreset)
                         If WM_SliderPresets.Presets.Count > 0 Then
-                            Console.Error.WriteLine("Contiene: " & String.Join(", ", WM_SliderPresets.Presets.Keys))
+                            Console.Error.WriteLine("It contains: " & String.Join(", ", WM_SliderPresets.Presets.Keys))
                         End If
                         Return 4
                     End If
                 ElseIf WM_SliderPresets.Presets.Count = 1 Then
                     preset = WM_SliderPresets.Presets.Values.First()
                 ElseIf WM_SliderPresets.Presets.Count > 1 Then
-                    Console.Error.WriteLine(nombrePreset & " tiene " & WM_SliderPresets.Presets.Count &
-                                            " presets: hace falta --preset-name <nombre>.")
-                    Console.Error.WriteLine("Contiene: " & String.Join(", ", WM_SliderPresets.Presets.Keys))
+                    Console.Error.WriteLine(nombrePreset & " has " & WM_SliderPresets.Presets.Count &
+                                            " presets: --preset-name <name> is required.")
+                    Console.Error.WriteLine("It contains: " & String.Join(", ", WM_SliderPresets.Presets.Keys))
                     Return 2
                 End If
             End If
@@ -330,9 +330,9 @@ Friend Module WM_Cli
                 End If
             End If
             If preset Is Nothing Then
-                Console.Error.WriteLine("No se encontro el preset: " & nombrePreset)
+                Console.Error.WriteLine("Preset not found: " & nombrePreset)
                 If WM_SliderPresets.Presets.Count > 0 Then
-                    Console.Error.WriteLine("Disponibles: " & String.Join(", ", WM_SliderPresets.Presets.Keys))
+                    Console.Error.WriteLine("Available: " & String.Join(", ", WM_SliderPresets.Presets.Keys))
                 End If
                 Return 4
             End If
@@ -344,16 +344,16 @@ Friend Module WM_Cli
         Dim size = OptValue(args, "--size")
         If Not String.IsNullOrWhiteSpace(size) AndAlso
            Not {"big", "small", "default"}.Contains(size.ToLowerInvariant()) Then
-            Console.Error.WriteLine("--size invalido: " & size & " (usar big, small o default)")
+            Console.Error.WriteLine("Invalid --size: " & size & " (use big, small or default)")
             Return 2
         End If
 
         ' ── Build ────────────────────────────────────────────────────────────────────────────────
         Console.WriteLine("osp      : " & ospPath)
-        Console.WriteLine("proyectos: " & String.Join(", ", lista.Select(Function(x) x.Nombre)))
-        Console.WriteLine("preset   : " & If(preset Is Nothing, "(ninguno — defaults del sliderset)", preset.Name))
-        Console.WriteLine("juego    : " & Config_App.Current.Game.ToString())
-        Console.WriteLine("salida   : " & Wardrobe_Manager_Form.Directorios.Fallout4data)
+        Console.WriteLine("projects : " & String.Join(", ", lista.Select(Function(x) x.Nombre)))
+        Console.WriteLine("preset   : " & If(preset Is Nothing, "(none — sliderset defaults)", preset.Name))
+        Console.WriteLine("game     : " & Config_App.Current.Game.ToString())
+        Console.WriteLine("output   : " & Wardrobe_Manager_Form.Directorios.Fallout4data)
         Console.WriteLine("tri      : " & WM_Config.Current.Settings_Build.SaveTri)
         Console.WriteLine("delete unbuilt: " & WM_Config.Current.Settings_Build.DeleteUnbuilt)
         Console.WriteLine()
@@ -372,12 +372,12 @@ Friend Module WM_Cli
         End Using
 
         If Not String.IsNullOrWhiteSpace(errores) Then
-            Console.Error.WriteLine("Errores de build:")
+            Console.Error.WriteLine("Build errors:")
             Console.Error.WriteLine(errores)
             Return 5
         End If
 
-        Console.WriteLine("OK — " & lista.Length & " proyecto(s) construido(s).")
+        Console.WriteLine("OK — " & lista.Length & " project(s) built.")
         Return 0
     End Function
 

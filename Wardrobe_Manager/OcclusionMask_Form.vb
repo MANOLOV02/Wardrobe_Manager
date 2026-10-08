@@ -70,7 +70,7 @@ Public Class OcclusionMask_Form
             Dim esDecal = mat IsNot Nothing AndAlso mat.MaterialBase IsNot Nothing AndAlso mat.MaterialBase.Decal
             If mat IsNot Nothing AndAlso mat.HasAlphaTest Then
                 clase = "alpha-test - solid parts block, holes do not"
-            ElseIf mat IsNot Nothing AndAlso mat.HasAlphaBlend Then
+            ElseIf mat IsNot Nothing AndAlso mat.EngineHasAlphaBlend Then
                 Dim a = If(mat.MaterialBase Is Nothing, 1.0F, mat.MaterialBase.Alpha)
                 clase = $"alpha-blend - opacity {a:0.00} x texture alpha"
             End If
