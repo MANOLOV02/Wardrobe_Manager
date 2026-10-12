@@ -15,63 +15,6 @@ Imports NiflySharp.Structs
 Imports FO4_Base_Library
 Imports Wardrobe_Manager.Wardrobe_Manager_Form
 
-Public Class HighHeels_Plugins_values
-    Public Property HighHeelsKeys As New Dictionary(Of String, Double)
-    Public Class HHJsonItem
-        <JsonPropertyName("key")>
-        Public Property ItemKey As String
-
-        <JsonPropertyName("value")>
-        Public Property ItemValue As Double
-    End Class
-    Sub Lee_HH_Json_y_txt()
-        Dim carpeta As String = Directorios.HighHeels_Plugin
-        If IO.Directory.Exists(carpeta) = False Then Exit Sub
-
-        For Each archivo As String In Directory.GetFiles(carpeta, "*.json")
-            Dim contenido As String = File.ReadAllText(archivo)
-            Dim data = JsonSerializer.Deserialize(Of Dictionary(Of String, List(Of HHJsonItem)))(contenido)
-
-            If data IsNot Nothing Then
-                For Each kvp In data
-                    For Each item In kvp.Value
-                        item.ItemKey = Correct_Path_Separator(item.ItemKey)
-                        HighHeelsKeys(item.ItemKey) = item.ItemValue
-                    Next
-                Next
-            End If
-        Next
-
-        For Each archivo As String In Directory.GetFiles(carpeta, "*.txt")
-            Dim lin As String = ""
-
-            Using archivoSTM As New StreamReader(archivo)
-                lin = archivoSTM.ReadLine()
-            End Using
-
-            If String.IsNullOrWhiteSpace(lin) Then Continue For
-            If lin.Contains("="c) = False Then Continue For
-
-            Dim sep = lin.Split("="c)
-            If sep.Length <> 2 Then Continue For
-
-            Dim kvp = New HHJsonItem With {
-        .ItemKey = IO.Path.GetFileNameWithoutExtension(archivo) + ".nif",
-        .ItemValue = Double.Parse(sep(1).Trim(), System.Globalization.CultureInfo.InvariantCulture)}
-
-            HighHeelsKeys(kvp.ItemKey) = kvp.ItemValue
-        Next
-    End Sub
-    Public Sub LoadFromDirectory()
-        HighHeelsKeys.Clear()
-        ' El registro del plugin HHS es SÓLO de Fallout 4: en SSE el offset vive dentro del NIF
-        ' (HH_OFFSET, lo consume skee/RaceMenu) y esta carpeta no se consulta nunca.
-        If Config_App.Current IsNot Nothing AndAlso Config_App.Current.Game <> Config_App.Game_Enum.Fallout4 Then Exit Sub
-        Lee_HH_Json_y_txt()
-    End Sub
-
-End Class
-
 
 Public Class SlidersPreset_Class
     Public Property Name As String = ""
@@ -3569,9 +3512,9 @@ Public Class SliderSet_Class
     Public Function ResolveEffectiveHighHeel(Optional context As ProjectLoadContext = Nothing) As Double
         If ShapeDataLoaded Then Return HighHeelHeight
         Dim v As Double
-        If TryReadHeightFile(HighHeelSidecarPath, v) Then Return v
+        If HighHeels.TryReadHeightFile(HighHeelSidecarPath, v) Then Return v
         Dim legacy As String = HighHeelSidecarLegacyPath
-        If legacy.Length > 0 AndAlso TryReadHeightFile(legacy, v) Then Return v
+        If legacy.Length > 0 AndAlso HighHeels.TryReadHeightFile(legacy, v) Then Return v
         If Config_App.Current.Game = Config_App.Game_Enum.Fallout4 Then Return DetectHighHeelFromHHSRegistry()
         Dim self As SliderSet_Class = Me
         If OSP_Project_Class.Load_and_Check_Shapedata(self, context) Then Return HighHeelHeight
@@ -4108,40 +4051,6 @@ Public Class SliderSet_Class
         ' hilos entrando juntos al SelectNodes del XmlDocument compartido.
         Dim _seed = GenWeights
     End Sub
-    ''' <summary>Lee "Height=&lt;n&gt;" de un sidecar de tacones (el .hht del proyecto o un .txt de
-    ''' HHS). Tolera archivo vacío, líneas en blanco y líneas sin "=": antes un .hht de 0 bytes
-    ''' tiraba NullReference DENTRO de Load_and_Check_Shapedata y el proyecto quedaba marcado como
-    ''' NIF ilegible. Devuelve False si no hay valor legible, que NO es lo mismo que "el valor es 0".</summary>
-    Public Shared Function TryReadHeightFile(archivoName As String, ByRef value As Double) As Boolean
-        value = 0
-        If String.IsNullOrWhiteSpace(archivoName) Then Return False
-        Try
-            If IO.File.Exists(archivoName) = False Then Return False
-            For Each raw In IO.File.ReadLines(archivoName)
-                If raw Is Nothing Then Continue For
-                Dim lin As String = raw.Trim()
-                If lin.Length = 0 Then Continue For
-                Dim idx As Integer = lin.IndexOf("="c)
-                If idx < 0 Then Continue For
-                ' No se exige la clave "Height": el formato real de HHS no está verificado en este
-                ' workspace, así que se acepta la primera línea clave=valor cuyo valor parsee.
-                Dim parsed As Double
-                If Double.TryParse(lin.Substring(idx + 1).Trim(),
-                                   System.Globalization.NumberStyles.Float,
-                                   System.Globalization.CultureInfo.InvariantCulture, parsed) Then
-                    value = parsed
-                    Return True
-                End If
-            Next
-        Catch
-        End Try
-        Return False
-    End Function
-    Public Shared Function ReadHighHeelTXT(archivoName As String) As Double
-        Dim v As Double
-        TryReadHeightFile(archivoName, v)
-        Return v
-    End Function
     ''' <summary>Resuelve el HH del proyecto en DOS niveles:
     '''  1) AUTORIZADO — el sidecar .hht del proyecto (canónico, y el path histórico como fallback).
     '''     Si existe, es la verdad, INCLUIDO "Height=0": así un proyecto puede afirmar "no tiene
@@ -4150,13 +4059,13 @@ Public Class SliderSet_Class
     '''     SALIDA de WM: ese bucle salida→entrada era el que resucitaba un 0 recién grabado.</summary>
     Public Sub ReadhighHeel()
         Dim authored As Double
-        If TryReadHeightFile(HighHeelSidecarPath, authored) Then
+        If HighHeels.TryReadHeightFile(HighHeelSidecarPath, authored) Then
             HighHeelHeight = authored
             HighHeelAuthored = True
             Exit Sub
         End If
         Dim legacy As String = HighHeelSidecarLegacyPath
-        If legacy.Length > 0 AndAlso TryReadHeightFile(legacy, authored) Then
+        If legacy.Length > 0 AndAlso HighHeels.TryReadHeightFile(legacy, authored) Then
             HighHeelHeight = authored
             HighHeelAuthored = True
             Exit Sub
@@ -4179,7 +4088,7 @@ Public Class SliderSet_Class
                 ' resucitarlo — que era el bucle salida→entrada real. Se mantiene porque para un
                 ' proyecto adoptado de un mod ese .txt es el dato que shipeó el mod, y quitarlo
                 ' dejaba en 0 silencioso a todo proyecto cuya única evidencia era ese archivo.
-                TryReadHeightFile(Me.OutputFullPathBase & ".txt", v)
+                HighHeels.TryReadHeightFile(Me.OutputFullPathBase & ".txt", v)
                 Return v
             Case Config_App.Game_Enum.Skyrim
                 Return DetectHighHeelFromNif()
@@ -4191,18 +4100,7 @@ Public Class SliderSet_Class
     ''' basename, así que una key "body.nif" le asignaba tacones a "...\femalebody.nif". Gana la
     ''' key más larga (la más específica). El formato real de HHS sigue SIN VERIFICAR.</summary>
     Private Function DetectHighHeelFromHHSRegistry() As Double
-        Dim target As String = (Me.OutputFullPathBase & ".nif").Correct_Path_Separator
-        Dim best As Double = 0
-        Dim bestLen As Integer = -1
-        For Each kvp In WM_HighHeels.HighHeelsKeys
-            Dim k As String = kvp.Key.Correct_Path_Separator
-            If k.Length = 0 OrElse k.Length <= bestLen Then Continue For
-            If target.EndsWith(k, StringComparison.OrdinalIgnoreCase) = False Then Continue For
-            If target.Length > k.Length AndAlso target(target.Length - k.Length - 1) <> "\"c Then Continue For
-            bestLen = k.Length
-            best = kvp.Value
-        Next
-        Return best
+        Return HighHeels.Registry.Match(Me.OutputFullPathBase & ".nif")
     End Function
     ''' <summary>HH_OFFSET tal como lo resuelve el motor: el PRIMERO del recorrido (la raíz antes
     ''' que los hijos), NO el máximo. Verificado en skee/RaceMenu: SkeletonExtender.cpp usa
@@ -4211,25 +4109,7 @@ Public Class SliderSet_Class
     ''' ignoraba el de la RAÍZ (sólo miraba shapes). Y `Dim maxhh = 0` inferÍa INTEGER — el proyecto
     ''' no fija OptionStrict/OptionInfer — así que un 3,7 del mod se leía 3 y se re-horneaba como 4.</summary>
     Private Function DetectHighHeelFromNif() As Double
-        If IsNothing(Me.NIFContent) Then Return 0
-        Try
-            Dim root = Me.NIFContent.GetRootNode()
-            If Not IsNothing(root) AndAlso Not IsNothing(root.ExtraDataList) Then
-                For Each edr In root.ExtraDataList.References
-                    Dim ed = TryCast(Me.NIFContent.Blocks(edr.Index), NiFloatExtraData)
-                    If Not IsNothing(ed) AndAlso Not IsNothing(ed.Name) AndAlso ed.Name.String = "HH_OFFSET" Then Return CDbl(ed.FloatData)
-                Next
-            End If
-            For Each shap In Me.NIFContent.GetShapes
-                If IsNothing(shap) OrElse IsNothing(shap.ExtraDataList) Then Continue For
-                For Each edr In shap.ExtraDataList.References
-                    Dim ed = TryCast(Me.NIFContent.Blocks(edr.Index), NiFloatExtraData)
-                    If Not IsNothing(ed) AndAlso Not IsNothing(ed.Name) AndAlso ed.Name.String = "HH_OFFSET" Then Return CDbl(ed.FloatData)
-                Next
-            Next
-        Catch
-        End Try
-        Return 0
+        Return HighHeels.HhOffsetOf(Me.NIFContent)
     End Function
     ''' <summary>
     ''' ¿Este sliderSet se construye en DOS pesos (<c>_0</c>/<c>_1</c>) o en uno solo?

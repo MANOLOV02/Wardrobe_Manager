@@ -54,9 +54,6 @@ Public Module WM_RenderExtensions
         End Set
     End Property
 
-    ''' <summary>WM-specific high heels plugin data.</summary>
-    Public Property WM_HighHeels As New HighHeels_Plugins_values
-
     ''' <summary>Initialize WM-specific setup. Call once at application startup.</summary>
     Public Sub InitializeWM()
         ' Register WM-specific file extensions for dictionary scanning

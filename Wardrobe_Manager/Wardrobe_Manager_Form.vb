@@ -117,11 +117,6 @@ Public Class Wardrobe_Manager_Form
                 Return IO.Path.Combine(WM_Config.BsPath, "SliderSets\Descartados")
             End Get
         End Property
-        Public Shared ReadOnly Property HighHeels_Plugin As String
-            Get
-                Return IO.Path.Combine(Config_App.Current.FO4EDataPath, "F4SE\Plugins\HHS")
-            End Get
-        End Property
         Public Shared ReadOnly Property ShapedataRoot As String
             Get
                 Return IO.Path.Combine(WM_Config.BsPath, "ShapeData\")
@@ -478,7 +473,7 @@ Public Class Wardrobe_Manager_Form
                 ProgressBar1.Value += 1
             Next
 
-            WM_HighHeels.LoadFromDirectory()
+            HighHeels.Registry.Reload()
 
             ' Pre-scan paralelo: parsea el XML de cada OSP solo para contar <SliderSet> nodes.
             ' Es cheap (~1-5 ms por OSP) y nos da el total real de sliders para que la
