@@ -281,13 +281,6 @@ Public Class Editor_Form
             Next
             If perdidas.Count > 25 Then msg.AppendLine($"  ... and {perdidas.Count - 25} more")
         End If
-        ' Alpha que no se puede crear en el bloque nuevo: la conversion lo descarta (misma decision que la real).
-        Dim avisoAlpha = nif.AvisoAlphaQueSePierde(s.RelatedNifShape, mat)
-        If avisoAlpha IsNot Nothing Then
-            msg.AppendLine()
-            msg.AppendLine(avisoAlpha)
-        End If
-
         ' Controllers que se BORRAN (shader viejo y alpha si el plan lo quita), con la MISMA decision de clausura que
         ' el borrado real: si una hermana comparte el bloque, sus controllers quedan y no se cuentan. Los animados por
         ' una secuencia ya negaron la conversion arriba.
