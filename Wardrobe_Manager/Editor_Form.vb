@@ -1928,34 +1928,70 @@ Public Class Editor_Form
             Exit Sub
         End If
         Dim xx = FilesDictionary_class.Dictionary(fil)
-        If xx.IsLosseFile = False Then
-            MsgBox("Cant write Ba2/BSA file. Choose save as... instead", vbOKOnly + vbCritical, "Error")
-            Exit Sub
+        ' EMPAQUETADO: no se puede escribir dentro del BA2/BSA, pero el juego resuelve un archivo suelto en
+        ' Data POR ENCIMA del mismo archivo empaquetado (es la misma precedencia que `Resolve_Conflict` le
+        ' da a un suelto sobre una entrada de archive). Asi que se ofrece escribirlo suelto en la misma ruta
+        ' relativa, avisando que va a tapar al del archive.
+        Dim pregunta As String
+        If xx.IsLosseFile Then
+            pregunta = "Override material file?"
+        Else
+            pregunta = "This material is packed in '" & Path.GetFileName(xx.BA2File) & "'." & vbCrLf & vbCrLf &
+                       "It will be saved as a loose file in Data, and in game the loose file overrides the one inside the BA2/BSA." & vbCrLf & vbCrLf &
+                       "Continue?"
         End If
-        If MsgBox("Override material file?", vbYesNo + vbExclamation, "Warning") = MsgBoxResult.Yes Then
-            Dim absPath = Path.Combine(Wardrobe_Manager_Form.Directorios.Fallout4data, xx.FullPath)
-            Dim mat = Selected_Shape.RelatedMaterial.material
-            ' ⛔ ESTE Try NO ES DECORACION. `Save_To_Bgsm` va por `EscrituraEnElLugar.GuardarConCopia`, que
-            ' TIRA a proposito cuando no pudo dejar una copia verificada del archivo que va a pisar ("was
-            ' NOT modified: its backup could not be created") — disco lleno, permisos, el archivo tomado.
-            ' Sin este Try esa excepcion sale de un handler de WinForms y se lleva puesta la app, que es
-            ' exactamente el defecto que `Mueve_Singles` ya tenia. Se muestra el motivo y NO se sigue:
-            ' seguir refrescaria el combo como si el guardado hubiera salido bien.
-            Try
-                If TypeOf mat.Underlying_Material Is BGSM Then
-                    mat.Save_To_Bgsm(absPath)
-                ElseIf TypeOf mat.Underlying_Material Is BGEM Then
-                    mat.Save_To_Bgem(absPath)
-                End If
-            Catch ex As Exception
-                Logger.LogLazy(Function() $"[WM] Save material failed for '{absPath}': {ex}")
-                MsgBox("Could not save the material file:" & vbCrLf & vbCrLf & ex.Message,
-                       vbOKOnly + vbCritical, "Error")
-                Exit Sub
-            End Try
-            WroteFilesToDisk = True
-        End If
-        Dim relativePath = fil.StripPrefix(prefix)
+        ' "No" sale sin releer: releer aca volveria a cargar el material del disco y tiraria lo editado.
+        If MsgBox(pregunta, vbYesNo + vbExclamation, "Warning") <> MsgBoxResult.Yes Then Exit Sub
+        ' La ruta del suelto es la CLAVE (relativa a Data), no `xx.FullPath`: para una entrada empaquetada
+        ' ese campo describe la ubicacion dentro del archive.
+        Dim absPath = Path.Combine(Wardrobe_Manager_Form.Directorios.Fallout4data, fil)
+        If Not Escribe_Material_Suelto(absPath) Then Exit Sub
+        Registra_Y_Relee_Material_Suelto(fil, absPath)
+    End Sub
+
+    ''' <summary>Escribe el material de la shape seleccionada en <paramref name="absPath"/>. Devuelve False
+    ''' (con el motivo ya mostrado) si no se pudo escribir; en ese caso el llamador NO sigue.</summary>
+    Private Function Escribe_Material_Suelto(absPath As String) As Boolean
+        Dim mat = Selected_Shape.RelatedMaterial.material
+        ' ⛔ ESTE Try NO ES DECORACION. `Save_To_Bgsm` va por `EscrituraEnElLugar.GuardarConCopia`, que
+        ' TIRA a proposito cuando no pudo dejar una copia verificada del archivo que va a pisar ("was
+        ' NOT modified: its backup could not be created") — disco lleno, permisos, el archivo tomado.
+        ' Sin este Try esa excepcion sale de un handler de WinForms y se lleva puesta la app, que es
+        ' exactamente el defecto que `Mueve_Singles` ya tenia. Se muestra el motivo y NO se sigue:
+        ' seguir refrescaria el combo como si el guardado hubiera salido bien.
+        Try
+            If TypeOf mat.Underlying_Material Is BGSM Then
+                mat.Save_To_Bgsm(absPath)
+            ElseIf TypeOf mat.Underlying_Material Is BGEM Then
+                mat.Save_To_Bgem(absPath)
+            End If
+        Catch ex As Exception
+            Logger.LogLazy(Function() $"[WM] Save material failed for '{absPath}': {ex}")
+            MsgBox("Could not save the material file:" & vbCrLf & vbCrLf & ex.Message,
+                   vbOKOnly + vbCritical, "Error")
+            Return False
+        End Try
+        WroteFilesToDisk = True
+        Return True
+    End Function
+
+    ''' <summary>Publica en el diccionario el suelto recien escrito y lo relee en el editor (combo, grilla,
+    ''' etiqueta de origen y preview), para Save y Save as por igual.
+    ''' <para>⛔ AddOrUpdate, NO TryAdd: si la clave ya existia (el mismo material en un BA2, o un suelto
+    ''' que se acaba de pisar) TryAdd no hace nada y el diccionario sigue apuntando al archive, asi que la
+    ''' relectura de abajo cargaba el material VIEJO del BA2 en vez del que se acaba de guardar.
+    ''' AddOrUpdate ademas apila la entrada empaquetada debajo y purga el cache de bytes de la clave.</para></summary>
+    Private Sub Registra_Y_Relee_Material_Suelto(key As String, absPath As String)
+        Dim prefix = MaterialsPrefix
+        FilesDictionary_class.AddOrUpdateDictionaryEntry(key, New FilesDictionary_class.File_Location With {
+            .BA2File = "",
+            .Index = -1,
+            .FullPath = key,
+            .SourceOrder = Integer.MaxValue,
+            .FileDate = IO.File.GetLastWriteTime(absPath)
+        })
+        Dim relativePath = key.StripPrefix(prefix)
+        Selected_Shape.RelatedMaterial.path = relativePath
         MaterialPathTextbox.Text = prefix + Path.GetDirectoryName(relativePath)
         Dim fname = Path.GetFileName(relativePath)
         Dim existingIdx = ComboBoxMaterials.FindStringExact(fname)
@@ -1979,38 +2015,22 @@ Public Class Editor_Form
         Dim filtro As String = " files (*" + ".bgsm" + ")|*.bgsm"
         If ext = "" AndAlso Selected_Shape.RelatedNifShader IsNot Nothing AndAlso Selected_Shape.RelatedNifShader.GetType Is GetType(BSEffectShaderProperty) Then filtro = " files (*" + ".bgem" + ")|*.bgem"
         If ext <> "" Then filtro = ext.Remove(0, 1).ToUpper + " files (*" + ext + ")|*" + ext
-        Dim sd As New SaveFileDialog With {.AddExtension = True, .OverwritePrompt = True, .AddToRecent = False, .DefaultExt = ext, .Filter = filtro, .InitialDirectory = Path.Combine(Wardrobe_Manager_Form.Directorios.Fallout4data, Path.GetDirectoryName(fil)), .Title = "Save material file"}
-        If sd.ShowDialog = DialogResult.OK Then
-            ' `sd.FileName` de un SaveFileDialog es SIEMPRE absoluto. Aca habia un
-            ' `Path.Combine(Fallout4data, sd.FileName)` que no hacia nada —`Path.Combine` descarta el
-            ' primer argumento cuando el segundo es absoluto—, y la linea decia algo que no pasaba. Lo
-            ' confirma el `Path.GetRelativePath(Fallout4data, sd.FileName)` de mas abajo, que trata al
-            ' mismo valor como absoluto.
-            Dim absPath = sd.FileName
-            Dim mat = Selected_Shape.RelatedMaterial.material
-            ' Mismo motivo que en ButtonMatSave_Click: `GuardarConCopia` tira si no pudo respaldar, y sin
-            ' Try eso mata la app desde un handler de WinForms.
-            Try
-                If TypeOf mat.Underlying_Material Is BGSM Then
-                    mat.Save_To_Bgsm(absPath)
-                ElseIf TypeOf mat.Underlying_Material Is BGEM Then
-                    mat.Save_To_Bgem(absPath)
-                End If
-            Catch ex As Exception
-                Logger.LogLazy(Function() $"[WM] Save material as failed for '{absPath}': {ex}")
-                MsgBox("Could not save the material file:" & vbCrLf & vbCrLf & ex.Message,
-                       vbOKOnly + vbCritical, "Error")
+        ' Con material asignado el picker arranca con SU nombre (y en su carpeta); sin material,
+        ' `fil` es solo el prefijo y GetFileName da "", o sea el nombre vacio de siempre.
+        Using sd As New SaveFileDialog With {.AddExtension = True, .OverwritePrompt = True, .AddToRecent = False, .DefaultExt = ext, .Filter = filtro, .InitialDirectory = Path.Combine(Wardrobe_Manager_Form.Directorios.Fallout4data, Path.GetDirectoryName(fil)), .FileName = Path.GetFileName(fil), .Title = "Save material file"}
+            If sd.ShowDialog = DialogResult.OK Then
+                ' `sd.FileName` de un SaveFileDialog es SIEMPRE absoluto. Aca habia un
+                ' `Path.Combine(Fallout4data, sd.FileName)` que no hacia nada —`Path.Combine` descarta el
+                ' primer argumento cuando el segundo es absoluto—, y la linea decia algo que no pasaba. Lo
+                ' confirma el `Path.GetRelativePath(Fallout4data, sd.FileName)` de mas abajo, que trata al
+                ' mismo valor como absoluto.
+                Dim absPath = sd.FileName
+                If Not Escribe_Material_Suelto(absPath) Then Exit Sub
+                Dim key = FO4UnifiedMaterial_Class.CorrectMaterialPath(Path.GetRelativePath(Wardrobe_Manager_Form.Directorios.Fallout4data, absPath)).Correct_Path_Separator
+                Registra_Y_Relee_Material_Suelto(key, absPath)
                 Exit Sub
-            End Try
-            WroteFilesToDisk = True
-            Dim fullpath = FO4UnifiedMaterial_Class.CorrectMaterialPath(Path.GetRelativePath(Wardrobe_Manager_Form.Directorios.Fallout4data, sd.FileName))
-            fullpath = fullpath.StripPrefix(prefix)
-            Selected_Shape.RelatedMaterial.path = fullpath
-            Dim Location As New FilesDictionary_class.File_Location With {.BA2File = "", .Index = -1, .FullPath = prefix + Selected_Shape.RelatedMaterial.path, .FileDate = IO.File.GetLastWriteTime(sd.FileName)}
-            FilesDictionary_class.TryAddDictionaryEntry((prefix + Selected_Shape.RelatedMaterial.path).Correct_Path_Separator, Location)
-            MaterialPathTextbox.Text = prefix + Path.GetDirectoryName(Selected_Shape.RelatedMaterial.path)
-            ComboBoxMaterials.SelectedIndex = ComboBoxMaterials.Items.Add(Path.GetFileName(Selected_Shape.RelatedMaterial.path))
-        End If
+            End If
+        End Using
         If ComboBoxMaterials.SelectedIndex <> -1 Then Lee_Comboselected_Material(Path.Combine(MaterialPathTextbox.Text, ComboBoxMaterials.SelectedItem).Correct_Path_Separator)
     End Sub
 
