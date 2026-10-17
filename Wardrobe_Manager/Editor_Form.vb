@@ -2028,10 +2028,9 @@ Public Class Editor_Form
                 If Not Escribe_Material_Suelto(absPath) Then Exit Sub
                 Dim key = FO4UnifiedMaterial_Class.CorrectMaterialPath(Path.GetRelativePath(Wardrobe_Manager_Form.Directorios.Fallout4data, absPath)).Correct_Path_Separator
                 Registra_Y_Relee_Material_Suelto(key, absPath)
-                Exit Sub
             End If
+            ' Cancelar NO relee: releer cargaria el material del disco y tiraria lo editado.
         End Using
-        If ComboBoxMaterials.SelectedIndex <> -1 Then Lee_Comboselected_Material(Path.Combine(MaterialPathTextbox.Text, ComboBoxMaterials.SelectedItem).Correct_Path_Separator)
     End Sub
 
     Private Sub ButtonMatLoad_Click(sender As Object, e As EventArgs) Handles ButtonMatLoad.Click
