@@ -52,6 +52,9 @@ Partial Class OcclusionMask_Form
         lblThreshold = New Label()
         nudThreshold = New NumericUpDown()
         lblThresholdHint = New Label()
+        lblMinTransmission = New Label()
+        nudMinTransmission = New NumericUpDown()
+        lblMinTransmissionHint = New Label()
         grpSafety = New GroupBox()
         lblClearance = New Label()
         nudClearance = New NumericUpDown()
@@ -71,6 +74,7 @@ Partial Class OcclusionMask_Form
         grpSafety.SuspendLayout()
         CType(nudGrazing, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(nudThreshold, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(nudMinTransmission, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(nudClearance, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(nudRings, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(nudBias, System.ComponentModel.ISupportInitialize).BeginInit()
@@ -133,9 +137,12 @@ Partial Class OcclusionMask_Form
         grpDetect.Controls.Add(lblThreshold)
         grpDetect.Controls.Add(nudThreshold)
         grpDetect.Controls.Add(lblThresholdHint)
+        grpDetect.Controls.Add(lblMinTransmission)
+        grpDetect.Controls.Add(nudMinTransmission)
+        grpDetect.Controls.Add(lblMinTransmissionHint)
         grpDetect.Location = New Point(14, 162)
         grpDetect.Name = "grpDetect"
-        grpDetect.Size = New Size(372, 233)
+        grpDetect.Size = New Size(372, 298)
         grpDetect.TabIndex = 4
         grpDetect.TabStop = False
         grpDetect.Text = "What counts as hidden"
@@ -227,6 +234,39 @@ Partial Class OcclusionMask_Form
         lblThresholdHint.TabIndex = 8
         lblThresholdHint.Text = "1.00 = no ray may escape, so more rays give LESS mask. With 1024 rays use 0.98."
         '
+        ' lblMinTransmission
+        '
+        ' Criterio del USUARIO (r19e-02), no ley del motor: la transmision de cada capa la da la ley del juego;
+        ' esto decide cuanta luz acumulada cuenta como tapado.
+        lblMinTransmission.AutoSize = True
+        lblMinTransmission.Location = New Point(12, 227)
+        lblMinTransmission.Name = "lblMinTransmission"
+        lblMinTransmission.Size = New Size(100, 15)
+        lblMinTransmission.TabIndex = 9
+        lblMinTransmission.Text = "Light let through"
+        '
+        ' nudMinTransmission
+        '
+        nudMinTransmission.DecimalPlaces = 2
+        nudMinTransmission.Increment = New Decimal(New Integer() {1, 0, 0, 131072})
+        nudMinTransmission.Location = New Point(118, 225)
+        nudMinTransmission.Maximum = New Decimal(New Integer() {1, 0, 0, 0})
+        nudMinTransmission.Minimum = New Decimal(New Integer() {0, 0, 0, 0})
+        nudMinTransmission.Name = "nudMinTransmission"
+        nudMinTransmission.Size = New Size(70, 23)
+        nudMinTransmission.TabIndex = 10
+        nudMinTransmission.Value = New Decimal(New Integer() {15, 0, 0, 131072})
+        '
+        ' lblMinTransmissionHint
+        '
+        lblMinTransmissionHint.AutoSize = False
+        lblMinTransmissionHint.ForeColor = SystemColors.GrayText
+        lblMinTransmissionHint.Location = New Point(12, 252)
+        lblMinTransmissionHint.Name = "lblMinTransmissionHint"
+        lblMinTransmissionHint.Size = New Size(342, 34)
+        lblMinTransmissionHint.TabIndex = 11
+        lblMinTransmissionHint.Text = "A ray through see-through layers counts as blocked at or below this much light. Each layer's share is the game's; 0 = only opaque blocks."
+        '
         ' ══ COLUMNA DERECHA ══════════════════════════════════════════════════
         '
         ' grpSafety
@@ -242,7 +282,7 @@ Partial Class OcclusionMask_Form
         grpSafety.Controls.Add(lblBiasHint)
         grpSafety.Location = New Point(400, 162)
         grpSafety.Name = "grpSafety"
-        grpSafety.Size = New Size(372, 233)
+        grpSafety.Size = New Size(372, 298)
         grpSafety.TabIndex = 5
         grpSafety.TabStop = False
         grpSafety.Text = "Safety margin"
@@ -345,7 +385,7 @@ Partial Class OcclusionMask_Form
         '
         ' progressBar1
         '
-        progressBar1.Location = New Point(14, 409)
+        progressBar1.Location = New Point(14, 474)
         progressBar1.Name = "progressBar1"
         progressBar1.Size = New Size(758, 14)
         progressBar1.TabIndex = 6
@@ -354,7 +394,7 @@ Partial Class OcclusionMask_Form
         '
         lblStatus.AutoSize = False
         lblStatus.ForeColor = SystemColors.GrayText
-        lblStatus.Location = New Point(14, 429)
+        lblStatus.Location = New Point(14, 494)
         lblStatus.Name = "lblStatus"
         lblStatus.Size = New Size(758, 34)
         lblStatus.TabIndex = 7
@@ -362,7 +402,7 @@ Partial Class OcclusionMask_Form
         '
         ' btnAction
         '
-        btnAction.Location = New Point(14, 471)
+        btnAction.Location = New Point(14, 536)
         btnAction.Name = "btnAction"
         btnAction.Size = New Size(110, 28)
         btnAction.TabIndex = 8
@@ -372,7 +412,7 @@ Partial Class OcclusionMask_Form
         ' btnApply
         '
         btnApply.Enabled = False
-        btnApply.Location = New Point(578, 471)
+        btnApply.Location = New Point(578, 536)
         btnApply.Name = "btnApply"
         btnApply.Size = New Size(92, 28)
         btnApply.TabIndex = 9
@@ -382,7 +422,7 @@ Partial Class OcclusionMask_Form
         ' btnClose
         '
         btnClose.DialogResult = DialogResult.Cancel
-        btnClose.Location = New Point(680, 471)
+        btnClose.Location = New Point(680, 536)
         btnClose.Name = "btnClose"
         btnClose.Size = New Size(92, 28)
         btnClose.TabIndex = 10
@@ -394,7 +434,7 @@ Partial Class OcclusionMask_Form
         AutoScaleDimensions = New SizeF(7.0F, 15.0F)
         AutoScaleMode = AutoScaleMode.Font
         CancelButton = btnClose
-        ClientSize = New Size(786, 515)
+        ClientSize = New Size(786, 580)
         Controls.Add(lblTarget)
         Controls.Add(lblOccluders)
         Controls.Add(clbOccluders)
@@ -418,6 +458,7 @@ Partial Class OcclusionMask_Form
         grpSafety.PerformLayout()
         CType(nudGrazing, System.ComponentModel.ISupportInitialize).EndInit()
         CType(nudThreshold, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(nudMinTransmission, System.ComponentModel.ISupportInitialize).EndInit()
         CType(nudClearance, System.ComponentModel.ISupportInitialize).EndInit()
         CType(nudRings, System.ComponentModel.ISupportInitialize).EndInit()
         CType(nudBias, System.ComponentModel.ISupportInitialize).EndInit()
@@ -439,6 +480,9 @@ Partial Class OcclusionMask_Form
     Friend WithEvents lblThreshold As Label
     Friend WithEvents nudThreshold As NumericUpDown
     Friend WithEvents lblThresholdHint As Label
+    Friend WithEvents lblMinTransmission As Label
+    Friend WithEvents nudMinTransmission As NumericUpDown
+    Friend WithEvents lblMinTransmissionHint As Label
     Friend WithEvents grpSafety As GroupBox
     Friend WithEvents lblClearance As Label
     Friend WithEvents nudClearance As NumericUpDown

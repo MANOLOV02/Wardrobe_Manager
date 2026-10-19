@@ -31,10 +31,12 @@ Imports System.Threading.Tasks
 ''' a una union de prendas ABIERTAS (cuello, mangas, cintura), donde no esta definido, y costaba SEIS
 ''' travesias completas del BVH sin early-exit por vertice — el camino mas caro de la corrida.
 ''' <br/>· <b>Transparencia resuelta POR PUNTO</b>, no por shape: en cada impacto se samplea la alpha
-''' de la textura en el UV interpolado. El alpha-test descarta el fragmento por debajo de su
-''' <c>AlphaTestRef</c> (el agujero del encaje no frena el rayo, la parte solida si), y el alpha-blend
-''' aporta <c>alphaTextura x Alpha</c> a una TRANSMITANCIA acumulada a lo largo del rayo: una gasa al
-''' 40 % deja pasar y dos capas de esa gasa tapan.
+''' de la textura en el UV interpolado y se evalua la COBERTURA DEL MOTOR de esa shape en el juego
+''' activo (<c>MaterialData.EngineColourCoverage</c>, el dueno unico en la libreria: los mismos cortes,
+''' umbrales float32, alpha de vertice y de material, blend y UV que suben el pase de color y el
+''' z-prepass). El agujero del encaje no frena el rayo, la parte solida si, y un dibujo con blend deja
+''' pasar lo que su factor de destino conserva, acumulado en una TRANSMITANCIA a lo largo del rayo: una
+''' gasa al 40 % deja pasar y dos capas de esa gasa tapan.
 ''' <br/>⛔ El flag <c>Decal</c> NO exime de tapar, y excluirlo fue un error: se copio el criterio del
 ''' pase de sombras, donde un decal se saltea porque es coplanar y solo aporta z-fighting a la
 ''' SILUETA. Para la VISIBILIDAD es al reves — si el material es opaco en ese punto, tapa lo que hay
@@ -60,6 +62,14 @@ Public Class OcclusionRaytracer
         ''' <summary>Fraccion de rayos que tienen que chocar para considerar el vertice tapado
         ''' (0,5–1,0). 1,0 = certeza.</summary>
         Public OcclusionThreshold As Single
+        ''' <summary>Luz que todavia pasa (producto de las transmisiones de las capas con blend que el rayo cruza) a
+        ''' partir de la cual el rayo se considera frenado: frenado si transmision &lt;= MinTransmission. 0,15 por
+        ''' defecto = el 85 % detenido.
+        ''' <para>⛔ CRITERIO DEL USUARIO DE LA HERRAMIENTA, no ley del motor (decision del usuario 19-oct-2026, r19e-02): la
+        ''' transmision de CADA capa sale de la ley (EngineCoverage.Transmittance sobre el alfa de salida del motor); esto
+        ''' solo decide cuanta luz acumulada cuenta como "tapado". Con 0 solo tapa lo totalmente opaco: lo que este bajo
+        ''' un blend casi opaco no se enmascara nunca.</para></summary>
+        Public MinTransmission As Single
         ''' <summary>
         ''' ⭐⭐ ANGULO MINIMO SOBRE EL PLANO TANGENTE, en grados. Los rayos mas rasantes que esto NO se
         ''' disparan.
@@ -91,6 +101,7 @@ Public Class OcclusionRaytracer
                 .RayCount = 256,
                 .NormalBias = 0.01F,
                 .OcclusionThreshold = 1.0F,
+                .MinTransmission = 0.15F,
                 .GrazingCutoffDeg = 12.0F,
                 .MinClearance = 0.0F,
                 .SafetyRings = 1
@@ -99,11 +110,6 @@ Public Class OcclusionRaytracer
     End Structure
 
     ' ─── Tri storage (positions cached; AABB/BvhNode from BvhHelper) ──────────
-
-    ''' <summary>Fraccion de luz que todavia pasa por debajo de la cual el rayo se considera frenado.
-    ''' 0,15 = el 85 % detenido. ⛔ No es 0: exigir opacidad total dejaria sin enmascarar todo lo que
-    ''' este bajo un material con el flag de blend puesto, que en la practica es opaco.</summary>
-    Private Const TransmisionMinima As Single = 0.15F
 
     Private Structure TriData
         Public V0, V1, V2 As Vector3
@@ -121,39 +127,37 @@ Public Class OcclusionRaytracer
     End Structure
 
     ''' <summary>
-    ''' Ley de opacidad de UN material, resuelta para poder evaluarla por PUNTO.
+    ''' La cobertura de UN material, resuelta para poder evaluarla por PUNTO.
     ''' <para>⛔⛔ LA TRANSPARENCIA NO ES UNA PROPIEDAD DE LA SHAPE, ES DE CADA PUNTO. Una version
     ''' anterior descartaba la prenda ENTERA si el material traia alpha-blend o alpha-test. Eso esta mal
     ''' por los dos lados: un vestido opaco con el flag de blend puesto (o con Alpha 0,99, que basta
     ''' para que <c>HasAlphaBlend</c> de True) dejaba de tapar y la herramienta marcaba solo lo de las
     ''' botas; y un encaje que es opaco en el 70 % de su area quedaba reducido a "no tapa nada". Lo que
     ''' decide es la alpha de la TEXTURA en el UV del impacto, que es lo que mira el motor.</para>
+    ''' <para>La ley es la del motor y vive en la libreria (<c>MaterialData.EngineColourCoverage</c>); aca
+    ''' solo vive el mapa de alpha decodificado y su muestreo.</para>
     ''' </summary>
     Private NotInheritable Class MatInfo
-        Public Opaco As Boolean
-        Public UsaTest As Boolean
-        Public Umbral As Single             ' AlphaTestRef / 255
-        Public UsaBlend As Boolean
-        Public AlphaMaterial As Single = 1.0F
-        Public UsaAlphaVertice As Boolean
-        Public UOff, VOff, UScale, VScale As Single
+        ''' <summary>False = la malla no tiene material: el estado opaco liso del render
+        ''' (<c>ResolveColourDepthState</c>), tapa.</summary>
+        Public TieneCobertura As Boolean
+        Public Cobertura As PreviewModel.RenderableMesh.MaterialData.EngineCoverage
         Public Mapa As Byte()               ' RGBA8, se lee el canal A
         Public MapaW, MapaH As Integer
 
-        ''' <summary>Alpha de la textura en (u,v). 1 si no hay mapa: el fallback del motor para un
-        ''' sampler sin difusa es la BLANCA, no el negro.</summary>
+        ''' <summary>Alpha de la difusa en (u,v): la UV del motor (escala y despues offset, <c>RestUv</c>), su
+        ''' modo de direccionamiento por eje (<c>SamplerLaw</c>: wrap o clamp) y muestreo puntual D3D11 (texel =
+        ''' floor(u * ancho)) sobre el mip de 256 que decodifica <c>CargarAlpha</c>. 1 si no hay mapa: el default
+        ''' del motor para una difusa vacia o faltante es opaco en alpha (<c>EngineDefaultTextureLaw.Rgba</c>:
+        ''' DiffuseMap / DefNormalMap, A = 255).</summary>
         Public Function AlphaTextura(u As Single, v As Single) As Single
             If Mapa Is Nothing OrElse MapaW <= 0 OrElse MapaH <= 0 Then Return 1.0F
-            Dim uu = u * UScale + UOff
-            Dim vv = v * VScale + VOff
-            uu -= CSng(Math.Floor(uu))
-            vv -= CSng(Math.Floor(vv))
-            Dim x = CInt(uu * (MapaW - 1))
-            Dim y = CInt(vv * (MapaH - 1))
-            If x < 0 Then x = 0
-            If y < 0 Then y = 0
-            If x >= MapaW Then x = MapaW - 1
-            If y >= MapaH Then y = MapaH - 1
+            Dim uu = u * Cobertura.UvScale.X + Cobertura.UvOffset.X
+            Dim vv = v * Cobertura.UvScale.Y + Cobertura.UvOffset.Y
+            uu = If(Cobertura.WrapU, uu - CSng(Math.Floor(uu)), Math.Min(1.0F, Math.Max(0.0F, uu)))
+            vv = If(Cobertura.WrapV, vv - CSng(Math.Floor(vv)), Math.Min(1.0F, Math.Max(0.0F, vv)))
+            Dim x = Math.Min(MapaW - 1, CInt(Math.Floor(uu * MapaW)))
+            Dim y = Math.Min(MapaH - 1, CInt(Math.Floor(vv * MapaH)))
             Return Mapa((y * MapaW + x) * 4 + 3) / 255.0F
         End Function
     End Class
@@ -174,6 +178,15 @@ Public Class OcclusionRaytracer
     Public ReadOnly Property LastAfterTopology As Integer
     Public ReadOnly Property LastAfterRings As Integer
     Private ReadOnly _mats As New List(Of MatInfo)
+    ''' <summary>La cobertura del OBJETIVO en el juego (su lista y su orden dentro de ella, para
+    ''' <c>EngineCoverage.DrawsAfter</c>). Nothing = sin material: ningun orden relativo es conocido.</summary>
+    Private _coberturaObjetivo As PreviewModel.RenderableMesh.MaterialData.EngineCoverage?
+    ''' <summary>Las mallas del BVH, en el orden de su indice de material (TriData.Mat), y el objetivo: RefrescarCoberturas las relee.</summary>
+    Private ReadOnly _ocluders As New List(Of PreviewModel.RenderableMesh)
+    Private ReadOnly _objetivo As PreviewModel.RenderableMesh
+    ''' <summary>Cuantas formas (objetivo incluido) de la ultima RefrescarCoberturas no tienen su orden dentro de la lista
+    ''' (EngineCoverage.OrderInputsRead False: claves del render viejas): ahi el orden se toma como desconocido (minimo).</summary>
+    Public ReadOnly Property LastOrderUnknown As Integer
     ''' <summary>Cache de mapas de alpha decodificados, por ruta. Se decodifica a 256x256 (DecodeDds
     ''' acepta un mip preferido): alcanza de sobra para decidir "hay tela o hay agujero" y baja el costo
     ''' dos ordenes de magnitud contra la textura completa.</summary>
@@ -185,16 +198,18 @@ Public Class OcclusionRaytracer
     ''' la vista traen ese flag o un Alpha de 0,99: descartandolas en silencio, un vestido dejaba de
     ''' tapar y la herramienta marcaba solo lo de las botas, sin una pista de por que. La decision vive
     ''' en la lista con casillas del dialogo, donde se VE.</para></summary>
-    Public Sub New(occluderMeshes As IEnumerable(Of PreviewModel.RenderableMesh))
+    Public Sub New(occluderMeshes As IEnumerable(Of PreviewModel.RenderableMesh), targetMesh As PreviewModel.RenderableMesh)
         Dim triList As New List(Of TriData)
         Dim mn = New Vector3(Single.MaxValue, Single.MaxValue, Single.MaxValue)
         Dim mx = New Vector3(Single.MinValue, Single.MinValue, Single.MinValue)
-
+        _objetivo = targetMesh
         For Each mesh In occluderMeshes
             If mesh Is Nothing OrElse mesh.MeshData Is Nothing Then Continue For
-            _mats.Add(ResolverMaterial(mesh))
-            AppendMeshTris(triList, mesh, mn, mx, _mats.Count - 1)
+            _ocluders.Add(mesh)
+            AppendMeshTris(triList, mesh, mn, mx, _ocluders.Count - 1)
         Next
+        ' Las coberturas NO se arman aca: dependen del orden de dibujo que el render tenga al momento de correr
+        ' (claves de RebuildRenderBuckets). Las arma RefrescarCoberturas, que el dialogo llama en cada Run.
 
         _tris = triList.ToArray()
         _bMin = mn
@@ -202,46 +217,51 @@ Public Class OcclusionRaytracer
         If _tris.Length > 0 Then _root = BuildBvhFromTris(_tris)
     End Sub
 
-    ''' <summary>Traduce el material de la malla a la ley que se evalua por punto. Es la MISMA lectura
-    ''' que hace el pase de profundidad del render (Render.vb, RenderDepthOnly): mismo AlphaTestRef,
-    ''' mismo escalar Alpha, mismo gate de alpha de vertice, misma transformacion de UV.</summary>
-    Private Shared Function ResolverMaterial(mesh As PreviewModel.RenderableMesh) As MatInfo
-        Dim r As New MatInfo With {.Opaco = True, .UScale = 1.0F, .VScale = 1.0F}
-        Dim mat = mesh.MeshData.Material
-        If mat Is Nothing Then Return r
-        Dim mb = mat.MaterialBase
-
-        r.UsaTest = mat.HasAlphaTest
-        ' The GAME's blend (raw alpha), not the preview's: the occlusion tool follows the engine (C2 rev-12).
-        r.UsaBlend = mat.EngineHasAlphaBlend
-
-        ' ⛔ `MaterialData.UseVertexAlpha` es Friend de la libreria, asi que el predicado se rearma aca
-        ' con la MISMA ley (Render.vb): hay alpha de vertice si la shape muestra color de
-        ' vertice Y la geometria lo tiene, salvo en Tree/TreeAnim, que usan ese canal para otra cosa.
-        Dim shp = mesh.MeshData.Shape
-        Dim geo = mesh.MeshData.Meshgeometry.Geometry
-        Dim usaVC = shp IsNot Nothing AndAlso shp.ShowVertexColor AndAlso
-                    geo IsNot Nothing AndAlso geo.HasVertexColors
-        r.UsaAlphaVertice = usaVC AndAlso
-                            (mb Is Nothing OrElse Not (mb.Tree OrElse mb.NifShaderType = NiflySharp.Enums.BSLightingShaderType.TreeAnim))
-        If mb IsNot Nothing Then
-            r.Umbral = mat.AlphaTestThreshold
-            r.AlphaMaterial = mb.Alpha
-            r.UOff = mb.UOffset : r.VOff = mb.VOffset
-            r.UScale = mb.UScale : r.VScale = mb.VScale
+    ''' <summary>Arma la cobertura del objetivo y de cada ocluder con el estado ACTUAL del render (el orden de dibujo y
+    ''' las claves de la lista). Se llama en el hilo del dialogo antes de cada corrida, nunca desde la Task.
+    ''' <para>Las texturas de alpha salen de la cache compartida: rearmar no vuelve a tocar disco.</para></summary>
+    Public Sub RefrescarCoberturas()
+        Dim isSse = Config_App.Current.Game = Config_App.Game_Enum.Skyrim
+        Dim sinOrden = 0
+        _coberturaObjetivo = Nothing
+        Dim matObjetivo = _objetivo?.MeshData?.Material
+        If matObjetivo IsNot Nothing AndAlso matObjetivo.MaterialBase IsNot Nothing Then
+            _coberturaObjetivo = matObjetivo.EngineColourCoverage(isSse)
+            If Not _coberturaObjetivo.Value.OrderInputsRead Then sinOrden += 1
         End If
-        r.Opaco = Not r.UsaTest AndAlso Not r.UsaBlend
-        If r.Opaco Then Return r
+        _mats.Clear()
+        For Each mesh In _ocluders
+            Dim mi = ResolverMaterial(mesh, isSse)
+            If mi.TieneCobertura AndAlso Not mi.Cobertura.OrderInputsRead Then sinOrden += 1
+            _mats.Add(mi)
+        Next
+        _LastOrderUnknown = sinOrden
+    End Sub
 
-        ' Solo se decodifica la difusa de lo que NO es opaco: un proyecto de tela opaca no toca disco.
-        If mb IsNot Nothing Then
-            Dim ruta = FO4UnifiedMaterial_Class.CorrectTexturePath(mb.Diffuse_or_Base_Texture)
-            Dim tex = CargarAlpha(ruta)
-            If tex IsNot Nothing Then
-                r.Mapa = tex.Rgba8
-                r.MapaW = tex.Width
-                r.MapaH = tex.Height
-            End If
+    ''' <summary>La cobertura de la malla EN EL JUEGO ACTIVO tal como la dibuja el motor visto desde fuera: la del
+    ''' PASE DE COLOR y la del z-prepass que lo precede, que es lo que el jugador ve — NO la del pase de sombras
+    ''' (copiar su criterio fue el error de los decal) ni la del pase de profundidad del preview. Se lee del dueno
+    ''' unico de la libreria (<c>MaterialData.EngineColourCoverage</c>): los mismos cortes, umbrales float32, alpha
+    ''' de vertice y de material, blend, UV y direccionamiento que suben ApplyMaterial y los prepasses. Aca no se
+    ''' rearma ninguna ley.</summary>
+    Private Shared Function ResolverMaterial(mesh As PreviewModel.RenderableMesh, isSse As Boolean) As MatInfo
+        Dim r As New MatInfo
+        Dim mat = mesh.MeshData.Material
+        If mat Is Nothing OrElse mat.MaterialBase Is Nothing Then Return r
+        r.Cobertura = mat.EngineColourCoverage(isSse)
+        r.TieneCobertura = True
+        Dim c = r.Cobertura
+        ' Solo se decodifica la difusa si algun corte o el blend la leen: un proyecto de tela opaca no toca disco.
+        Dim leeTextura = c.Drawn AndAlso ((c.InPrepass AndAlso c.Prepass.Test AndAlso c.Prepass.Texture) OrElse
+                                          (c.Colour.Test AndAlso c.Colour.Texture) OrElse
+                                          ((c.Blend OrElse c.BlendSource.Test) AndAlso c.BlendSource.Texture))
+        If Not leeTextura Then Return r
+        Dim ruta = FO4UnifiedMaterial_Class.CorrectTexturePath(mat.MaterialBase.Diffuse_or_Base_Texture)
+        Dim tex = CargarAlpha(ruta)
+        If tex IsNot Nothing Then
+            r.Mapa = tex.Rgba8
+            r.MapaW = tex.Width
+            r.MapaH = tex.Height
         End If
         Return r
     End Function
@@ -271,27 +291,66 @@ Public Class OcclusionRaytracer
         Return tex
     End Function
 
-    ''' <summary>Opacidad EN EL PUNTO de impacto, con las baricentricas del rayo. 0 = el motor descarta
-    ''' ese fragmento (agujero del encaje) y no tapa; 1 = tapa del todo.</summary>
-    Private Function OpacidadEnImpacto(ByRef td As TriData, bu As Single, bv As Single) As Single
+    ''' <summary>Opacidad EN EL PUNTO de impacto, con las baricentricas del rayo: 0 = no tapa, 1 = tapa del todo.
+    ''' Compone la cobertura del motor (<c>MatInfo.Cobertura</c>) por PROFUNDIDAD Y ORDEN DE DIBUJO, que es lo que
+    ''' decide en el juego si lo de atras se ve:
+    ''' <br/>1) z-prepass: si su corte conserva el fragmento, el motor escribio esa profundidad antes de todo pase
+    ''' de color (FO4 0x14181FAA0 al empezar el G-buffer; SSE slot 0x2B) y lo de atras falla el test: tapa.
+    ''' <br/>2) color con profundidad EQUAL (SSE, lote opaco): dibuja solo donde su prepass escribio; si no, nada.
+    ''' <br/>3) corte del pase de color y kill de su alpha de salida: el fragmento descartado no tapa.
+    ''' <br/>4) sin blend: tapa si escribe profundidad (lo de atras, antes o despues, queda oculto) o si se dibuja
+    ''' DESPUES del objetivo (lo pisa); dibujado antes sin escribir profundidad, el objetivo lo pisa.
+    ''' <br/>5) con blend: lo de atras queda multiplicado por el factor de destino. Dibujado despues del objetivo
+    ''' deja pasar ese factor; antes, tapa solo si escribe profundidad.
+    ''' <para>El orden "antes / despues" es el del motor (<c>EngineCoverage.DrawsAfter</c>): la lista y, dentro de
+    ''' ella, la ley que la fuente fija — la lista alfa ordenada por la clave del motor sobre el centro del world
+    ''' bound, vista a lo largo del rayo (el ojo mira en <c>-dir</c>), los enlazados por registro, el lote opaco de SSE
+    ''' por O-OP y los buckets de tecnica de FO4 por la clave del render (item 2b: tipo de shader, activacion de la
+    ''' tecnica, paquetes grabados en orden de registro y despues la cadena al reves).</para>
+    ''' <para>⛔ SOLO donde la fuente no fija el orden (listas 0, decal y billboard de SSE sin insercion leida) o la
+    ''' cobertura tiene factores que la CPU no evalua (<c>EngineAlphaCut.Unknown</c>,
+    ''' un factor de destino que depende de un color), se toma la opacidad que vale PARA TODO orden y valor posible
+    ''' —la minima—: un vertice se enmascara solo si esta tapado CON CERTEZA (<c>OcclusionThreshold</c> 1,0).</para></summary>
+    Private Function OpacidadEnImpacto(ByRef td As TriData, bu As Single, bv As Single, dir As Vector3) As Single
         If td.Mat < 0 OrElse td.Mat >= _mats.Count Then Return 1.0F
         Dim mi = _mats(td.Mat)
-        If mi.Opaco Then Return 1.0F
+        If Not mi.TieneCobertura Then Return 1.0F
+        Dim c = mi.Cobertura
+        If Not c.Drawn Then Return 0.0F
 
         Dim w = 1.0F - bu - bv
         Dim u = td.UV0.X * w + td.UV1.X * bu + td.UV2.X * bv
         Dim v = td.UV0.Y * w + td.UV1.Y * bu + td.UV2.Y * bv
-        Dim a = mi.AlphaTextura(u, v)
-        If mi.UsaAlphaVertice Then a *= (td.VA0 * w + td.VA1 * bu + td.VA2 * bv)
+        Dim texA = mi.AlphaTextura(u, v)
+        Dim vc = td.VA0 * w + td.VA1 * bu + td.VA2 * bv
 
-        If mi.UsaTest Then
-            ' ⛔ En SSE el escalar Alpha entra DENTRO del test; en FO4 se aplica despues. Misma
-            ' divergencia que documenta el fragment de profundidad del render.
-            Dim aTest = If(Config_App.Current.Game = Config_App.Game_Enum.Skyrim, a * mi.AlphaMaterial, a)
-            If aTest < mi.Umbral Then Return 0.0F
+        ' 1) z-prepass.
+        If c.InPrepass Then
+            Dim kp = c.Prepass.Keeps(texA, vc)
+            If Not kp.HasValue Then Return 0.0F
+            If kp.Value Then Return 1.0F
         End If
-        If mi.UsaBlend Then Return Math.Max(0.0F, Math.Min(1.0F, a * mi.AlphaMaterial))
-        Return 1.0F
+        ' 2) EQUAL contra su propio prepass, que aca no escribio.
+        If c.ColourOnPrepass Then Return 0.0F
+        ' 3) Corte del pase de color y el kill de su alpha de salida (registros del G-buffer FO4 con bit 15): un
+        ' fragmento descartado no escribe ni color ni profundidad.
+        Dim kc = c.Colour.Keeps(texA, vc)
+        If Not kc.HasValue OrElse Not kc.Value Then Return 0.0F
+        Dim kb = c.BlendSource.Keeps(texA, vc)
+        If Not kb.HasValue OrElse Not kb.Value Then Return 0.0F
+        Dim dib As Boolean? = Nothing
+        If _coberturaObjetivo.HasValue Then dib = PreviewModel.RenderableMesh.MaterialData.EngineCoverage.DrawsAfter(c, _coberturaObjetivo.Value, -dir)
+        Dim despues = dib.HasValue AndAlso dib.Value
+        Dim antes = dib.HasValue AndAlso Not dib.Value
+        ' 4) Sin blend.
+        If Not c.Blend Then Return If(c.ColourWritesDepth OrElse despues, 1.0F, 0.0F)
+        ' 5) Con blend.
+        If antes Then Return If(c.ColourWritesDepth, 1.0F, 0.0F)
+        If Not despues AndAlso Not c.ColourWritesDepth Then Return 0.0F
+        If c.BlendSource.Unknown IsNot Nothing Then Return 0.0F
+        Dim t = c.Transmittance(c.BlendSource.Value(texA, vc))
+        If Not t.HasValue Then Return 0.0F
+        Return Math.Max(0.0F, Math.Min(1.0F, 1.0F - t.Value))
     End Function
 
     Public ReadOnly Property HasOccluders As Boolean
@@ -403,10 +462,11 @@ Public Class OcclusionRaytracer
     ''' True si el rayo choca con algun triangulo de [root/tris] a distancia 0 &lt; t &lt;= maxDist.
     ''' <paramref name="vertExcluido"/> &gt;= 0 saltea los triangulos que TOCAN ese vertice: es la
     ''' exclusion exacta de auto-interseccion, y reemplaza a la vieja distancia minima metrica.
+    ''' <paramref name="transmisionMinima"/>: RaycastSettings.MinTransmission (criterio del usuario).
     ''' </summary>
     Private Function RayBloqueado(root As BvhNode, tris As TriData(),
                                   orig As Vector3, dir As Vector3,
-                                  maxDist As Single, vertExcluido As Integer) As Boolean
+                                  maxDist As Single, vertExcluido As Integer, transmisionMinima As Single) As Boolean
         If root Is Nothing Then Return False
 
         Dim dirInv = SafeInv(dir)
@@ -429,13 +489,13 @@ Public Class OcclusionRaytracer
                     If Not MollerTrumbore(orig, dir, tris(ti), t, bu, bv) Then Continue For
                     If t <= 0.0F OrElse t > maxDist Then Continue For
 
-                    Dim op = OpacidadEnImpacto(tris(ti), bu, bv)
+                    Dim op = OpacidadEnImpacto(tris(ti), bu, bv, dir)
                     ' Agujero de encaje / fragmento descartado por el alpha test: no frena nada.
                     If op <= 0.0F Then Continue For
                     ' Opaco: corta en el acto, que es el 99 % de los casos y el camino rapido.
                     If op >= 1.0F Then Return True
                     transmision *= (1.0F - op)
-                    If transmision <= TransmisionMinima Then Return True
+                    If transmision <= transmisionMinima Then Return True
                 Next
             Else
                 If n.Left IsNot Nothing Then stack.Push(n.Left)
@@ -443,7 +503,7 @@ Public Class OcclusionRaytracer
             End If
         End While
 
-        Return transmision <= TransmisionMinima
+        Return transmision <= transmisionMinima
     End Function
 
     ''' <summary>Distancia al impacto mas cercano, o -1 si no hay ninguno. Se usa solo para la holgura
@@ -563,6 +623,9 @@ Public Class OcclusionRaytracer
 
         Dim result As New HashSet(Of Integer)
         If _root Is Nothing Then Return result
+        ' Sin coberturas armadas cada ocluder contaria como opaco (OpacidadEnImpacto: indice fuera de _mats): un llamador que
+        ' olvido RefrescarCoberturas es un error, no un resultado.
+        If _mats.Count <> _ocluders.Count Then Throw New InvalidOperationException("OcclusionRaytracer: RefrescarCoberturas was not called before ComputeOccludedVertices")
 
         Dim verts = If(targetMesh?.MeshData?.Meshgeometry.Vertices IsNot Nothing, SkinningHelper.GetWorldVertices(targetMesh.MeshData.Meshgeometry), Nothing)
         Dim norms = If(targetMesh?.MeshData?.Meshgeometry.Normals IsNot Nothing, SkinningHelper.GetWorldNormals(targetMesh.MeshData.Meshgeometry), Nothing)
@@ -611,9 +674,9 @@ Public Class OcclusionRaytracer
                     For Each hd In hemisphereDirs
                         Dim worldDir = AlignToNormal(hd, norm)
 
-                        Dim blocked = RayBloqueado(_root, _tris, biased, worldDir, maxDist, -1)
+                        Dim blocked = RayBloqueado(_root, _tris, biased, worldDir, maxDist, -1, settings.MinTransmission)
                         If Not blocked AndAlso selfRoot IsNot Nothing Then
-                            blocked = RayBloqueado(selfRoot, selfTris, biased, worldDir, maxDist, vi)
+                            blocked = RayBloqueado(selfRoot, selfTris, biased, worldDir, maxDist, vi, settings.MinTransmission)
                         End If
 
                         If Not blocked Then

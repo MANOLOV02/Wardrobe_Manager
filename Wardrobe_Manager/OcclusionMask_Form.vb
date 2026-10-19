@@ -58,21 +58,31 @@ Public Class OcclusionMask_Form
         End If
     End Sub
 
-    ''' <summary>Llena la lista informativa con la ley de opacidad que va a usar cada ocluder. ⛔ NO es
-    ''' una eleccion: la transparencia se resuelve por PUNTO de impacto con la alpha de la textura, asi
-    ''' que no hay nada que tildar. Esta para poder VER con que ley entro cada shape.</summary>
+    ''' <summary>Llena la lista informativa con la cobertura del motor que va a usar cada ocluder
+    ''' (<c>MaterialData.EngineColourCoverage</c>, la misma que lee el raytracer). ⛔ NO es una eleccion: la
+    ''' transparencia se resuelve por PUNTO de impacto con la alpha de la textura, asi que no hay nada que
+    ''' tildar. Esta para poder VER con que ley entro cada shape.</summary>
     Private Sub PoblarOcluders()
         clbOccluders.Items.Clear()
+        Dim isSse = Config_App.Current.Game = Config_App.Game_Enum.Skyrim
         For Each m In _candidatos
             Dim mat = m.MeshData.Material
             Dim clase = "opaque"
-            ' El flag Decal se muestra pero NO cambia la ley: si es opaco en el punto, tapa.
+            ' El flag Decal se muestra; lo que el decal cambia lo decide la ley del motor (la cobertura), no esta lista.
             Dim esDecal = mat IsNot Nothing AndAlso mat.MaterialBase IsNot Nothing AndAlso mat.MaterialBase.Decal
-            If mat IsNot Nothing AndAlso mat.HasAlphaTest Then
-                clase = "alpha-test - solid parts block, holes do not"
-            ElseIf mat IsNot Nothing AndAlso mat.EngineHasAlphaBlend Then
-                Dim a = If(mat.MaterialBase Is Nothing, 1.0F, mat.MaterialBase.Alpha)
-                clase = $"alpha-blend - opacity {a:0.00} x texture alpha"
+            If mat IsNot Nothing AndAlso mat.MaterialBase IsNot Nothing Then
+                Dim c = mat.EngineColourCoverage(isSse)
+                If Not c.Drawn Then
+                    clase = "not drawn by the game - does not block"
+                ElseIf c.Blend Then
+                    clase = "alpha-blend - blocks what the game's blend hides"
+                ElseIf (c.InPrepass AndAlso c.Prepass.Discards) OrElse c.Colour.Discards Then
+                    clase = "alpha-test - solid parts block, holes do not"
+                End If
+                If c.Drawn AndAlso ((c.Colour.Discards AndAlso c.Colour.Unknown IsNot Nothing) OrElse
+                                    (c.Blend AndAlso c.BlendSource.Unknown IsNot Nothing)) Then
+                    clase &= " (alpha not evaluable on the CPU: does not block there)"
+                End If
             End If
             Dim tris = 0
             If m.MeshData.Meshgeometry.Indices IsNot Nothing Then tris = m.MeshData.Meshgeometry.Indices.Length \ 3
@@ -93,12 +103,15 @@ Public Class OcclusionMask_Form
     Private Sub StartComputation()
         ' El BVH se arma en la primera corrida y se reusa: la escena no cambia mientras el dialogo
         ' esta abierto (es modal).
-        If _raytracer Is Nothing Then _raytracer = New OcclusionRaytracer(_candidatos)
+        If _raytracer Is Nothing Then _raytracer = New OcclusionRaytracer(_candidatos, _targetMesh)
+        ' Las coberturas se arman en CADA corrida, con el orden de dibujo que el render tiene ahora (r19e-03).
+        _raytracer.RefrescarCoberturas()
 
         Dim settings = New OcclusionRaytracer.RaycastSettings With {
             .RayCount = RayCounts(cboQuality.SelectedIndex),
             .NormalBias = CSng(nudBias.Value),
             .OcclusionThreshold = CSng(nudThreshold.Value),
+            .MinTransmission = CSng(nudMinTransmission.Value),
             .GrazingCutoffDeg = CSng(nudGrazing.Value),
             .MinClearance = CSng(nudClearance.Value),
             .SafetyRings = CInt(nudRings.Value)
@@ -180,6 +193,10 @@ Public Class OcclusionMask_Form
         ' ⭐ Las tres etapas, siempre. Un solo numero final no distingue "los rayos no vieron la region
         ' tapada" de "la erosion se la comio", y esas dos se arreglan en lugares opuestos.
         Dim etapas = $"rays hid {_raytracer.LastRayHidden} -> topology {_raytracer.LastAfterTopology} -> rings {_raytracer.LastAfterRings}"
+        ' Orden de dibujo no leido (claves del render viejas): esas formas se tomaron con orden desconocido, sin silencio.
+        If _raytracer.LastOrderUnknown > 0 Then
+            etapas &= $"   [draw order unknown for {_raytracer.LastOrderUnknown} shape(s): the preview had not rebuilt its draw lists; those count as not covering where the order decides]"
+        End If
         If count > 0 Then
             Return $"Done: {count} vertices to mask.   {etapas}   ({settings.RayCount} rays, {_raytracer.OccluderTriangleCount} occluder triangles)"
         End If
@@ -196,6 +213,7 @@ Public Class OcclusionMask_Form
         cboQuality.Enabled = activo
         nudGrazing.Enabled = activo
         nudThreshold.Enabled = activo
+        nudMinTransmission.Enabled = activo
         nudClearance.Enabled = activo
         nudRings.Enabled = activo
         nudBias.Enabled = activo
