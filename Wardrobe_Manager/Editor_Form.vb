@@ -1194,24 +1194,34 @@ Public Class Editor_Form
             End If
         End If
 
-        ' Sha
-        '
-        ' rType change: this modifies the NIF shader, not the material file.
-        ' Confirm with the user, apply to NIF immediately, or revert.
+        ' Shader type (user decision 19-oct (d)). With a Fallout 4 material file applied the type IS the cascade of the material's
+        ' flags: the setter (FO4UnifiedMaterial_Class.NifShaderType) moved them with its plan; the dialog lists that same plan
+        ' (UltimoAjusteDeTipo) and No undoes it exactly (DeshacerUltimoAjusteDeTipo). Without a file (or in Skyrim) it is the NIF
+        ' block's own field: confirm, or revert, as before. On Yes the block gets the type and the bits that decide it, from the
+        ' library's single writer (EscribirTipoEnBloque).
         If e.ChangedItem IsNot Nothing AndAlso e.ChangedItem.Label = "NifShaderType" Then
-            If MsgBox("ShaderType is stored in the NIF shader, not in the material file." & vbCrLf &
-                       "Do you want to apply this change?",
-                       vbYesNo + vbExclamation, "ShaderType Change") = MsgBoxResult.No Then
+            If Selected_Material.ArchivoFo4Aplicado() Then
+                Dim plan = Selected_Material.UltimoAjusteDeTipo()
+                Dim cambios = If(plan.Count = 0, "no flag changes",
+                                 String.Join(", ", plan.Select(Function(c) $"{c.Nombre}: {If(c.Despues, "on", "off")}")))
+                If MsgBox("With a material file, the shader type is the result of the material's flags." & vbCrLf &
+                           "This change sets: " & cambios & "." & vbCrLf &
+                           "Do you want to apply this change?",
+                           vbYesNo + vbExclamation, "ShaderType Change") = MsgBoxResult.No Then
+                    Selected_Material.DeshacerUltimoAjusteDeTipo()
+                    PropertyGrid1.Refresh()
+                    Exit Sub
+                End If
+            ElseIf MsgBox("ShaderType is stored in the NIF shader, not in the material file." & vbCrLf &
+                           "Do you want to apply this change?",
+                           vbYesNo + vbExclamation, "ShaderType Change") = MsgBoxResult.No Then
                 Selected_Material.NifShaderType = CType(e.OldValue, NiflySharp.Enums.BSLightingShaderType)
                 PropertyGrid1.Refresh()
                 Exit Sub
-            Else
-                ' Apply immediately to NIF shader
-                Dim bslsp = TryCast(Selected_Shape.RelatedNifShader, BSLightingShaderProperty)
-                If bslsp IsNot Nothing Then
-                    bslsp.ShaderType_SK_FO4 = Selected_Material.NifShaderType
-                End If
             End If
+            Dim bslsp = TryCast(Selected_Shape.RelatedNifShader, BSLightingShaderProperty)
+            If bslsp IsNot Nothing Then Selected_Material.EscribirTipoEnBloque(Selected_Slider.NIFContent, bslsp)
+            PropertyGrid1.Refresh()
         End If
 
         ' ModelSpaceNormals toggle: needs TBN recalc + full VBO re-upload
@@ -1341,7 +1351,6 @@ Public Class Editor_Form
             Case GetType(BSEffectShaderProperty)
                 If isEmbedded Then
                     Selected_Material.Create_From_Shader(Selected_Slider.NIFContent, Selected_Shape.RelatedNifShape, CType(Selected_Shape.RelatedNifShader, BSEffectShaderProperty))
-                    Selected_Material.NifShaderType = NiflySharp.Enums.BSLightingShaderType.Default
                     Selected_Shape.RelatedMaterial.material = Selected_Material
                     Label6.Text = "None"
                     Label6.ForeColor = Color.FromKnownColor(KnownColor.DarkGray)
@@ -1350,7 +1359,6 @@ Public Class Editor_Form
                 Dim locBgem As FilesDictionary_class.File_Location = Nothing
                 If FilesDictionary_class.Dictionary.TryGetValue(fullpath, locBgem) Then
                     Selected_Material.Deserialize(fullpath, GetType(BGEM), Selected_Shape.RelatedNifShape, Selected_Slider.NIFContent)
-                    Selected_Material.NifShaderType = NiflySharp.Enums.BSLightingShaderType.Default
                     If locBgem.IsLosseFile Then
                         Label6.Text = "Loose"
                     Else
@@ -1368,6 +1376,11 @@ Public Class Editor_Form
 
 
         PropertyGrid1.SelectedObject = Selected_Material
+        If Not Selected_Material.TipoLoConstruyeSuJuego() Then
+            MsgBox($"This shape's NIF has Shader Type {Selected_Material.NifShaderType}, which the game does not build: its loader creates no material for it and cannot load the shape." & vbCrLf &
+                   "The value is kept as it is. Choose a valid type in ShaderType to fix it.",
+                   vbOKOnly + vbExclamation, "ShaderType")
+        End If
         Update_Grayscale()
         EditPreviewControl.ForceRerender(RenderDirtyFlags.Textures)
         Iniciado_Edit()
