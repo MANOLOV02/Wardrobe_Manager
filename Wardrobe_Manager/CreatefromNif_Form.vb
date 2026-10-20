@@ -349,7 +349,7 @@ Public Class Create_from_Nif_Form
         If Key <> "" Then
             Read_selected(Key)
         Else
-            EditPreviewControl.Model.Clean(False)
+            EditPreviewControl.WM_RequestReload()
             CheckBox1.Enabled = False
         End If
     End Sub

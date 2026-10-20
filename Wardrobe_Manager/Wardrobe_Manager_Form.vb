@@ -1833,11 +1833,7 @@ Public Class Wardrobe_Manager_Form
             Return outcome
         Finally
             If previewTouched AndAlso Not IsNothing(preview_Control) Then
-                If Not IsNothing(preview_Control.Model) Then
-                    preview_Control.Model.Clean(False)
-                    preview_Control.Model.CleanTextures()
-                End If
-                preview_Control.WM_Set_Last_rendered(Nothing)
+                preview_Control.WM_RequestReload(cleanTextures:=True)
                 OSP_Project_Class.PinnedForPreview = Nothing
             End If
 
@@ -2020,8 +2016,7 @@ Public Class Wardrobe_Manager_Form
             _ExternalEditSlider.Reload(DeepAnalize_check.Checked, CreateSingleReloadContext())
             If GetLatestExternalEditWriteTime(_ExternalEditSlider) > _ExternalEditLastOspWrite Then
                 If preview_Control.WM_Last_rendered() Is _ExternalEditSlider Then
-                    preview_Control.Model.Clean(False)
-                    preview_Control.Model.CleanTextures()
+                    preview_Control.WM_RequestReload(cleanTextures:=True)
                 End If
             End If
             ProcessCollectedLoadIssues({_ExternalEditSlider.ParentOSP}, Ovewrite_DataFiles.Checked)
@@ -2057,8 +2052,7 @@ Public Class Wardrobe_Manager_Form
                 Dim mismoObjeto = preview_Control.WM_Last_rendered() Is lockedSlider
                 If escrituraNueva > _ExternalEditLastOspWrite Then
                     If mismoObjeto Then
-                        preview_Control.Model.Clean(False)
-                        preview_Control.Model.CleanTextures()
+                        preview_Control.WM_RequestReload(cleanTextures:=True)
                     End If
                 End If
             Catch ex As Exception
@@ -3057,8 +3051,7 @@ Public Class Wardrobe_Manager_Form
         Dim resultado = Editor.ShowDialog(Me)
         If resultado <> DialogResult.Abort Then
             If preview_Control.WM_Last_rendered() Is selected Then
-                preview_Control.Model.Clean(False)
-                preview_Control.Model.CleanTextures()
+                preview_Control.WM_RequestReload(cleanTextures:=True)
             End If
             selected.Reload(DeepAnalize_check.Checked, CreateSingleReloadContext())
             ProcessCollectedLoadIssues({selected.ParentOSP}, Ovewrite_DataFiles.Checked)
@@ -3157,7 +3150,7 @@ Public Class Wardrobe_Manager_Form
         preview_Control.Model.SingleBoneSkinning = SingleBoneCheck.Checked
         Config_App.Current.Setting_SingleBoneSkinning = SingleBoneCheck.Checked
         ComboBoxPoses.Enabled = Not SingleBoneCheck.Checked
-        preview_Control.Model.Clean(False)
+        preview_Control.WM_RequestReload()
         RequestLeeShapes()
     End Sub
 
@@ -3315,8 +3308,7 @@ Public Class Wardrobe_Manager_Form
         If String.IsNullOrEmpty(elegido) Then Return
         Config_App.Current.SkeletonPath = elegido
         SkeletonInstance.Default.LoadFromConfig(True, True)
-        preview_Control.Model.Clean(False)
-        preview_Control.Model.CleanTextures()
+        preview_Control.WM_RequestReload(cleanTextures:=True)
         Habilita_deshabilita()
         RequestLeeShapes(True)
     End Sub
@@ -3330,7 +3322,7 @@ Public Class Wardrobe_Manager_Form
         If IsNothing(preview_Control) Then Exit Sub
         preview_Control.Model.RecalculateNormals = RecalculateNormalsCheck.Checked
         Config_App.Current.Setting_RecalculateNormals = RecalculateNormalsCheck.Checked
-        preview_Control.Model.Clean(False)
+        preview_Control.WM_RequestReload()
         RequestLeeShapes()
     End Sub
 

@@ -97,15 +97,58 @@ Public Module WM_RenderExtensions
     Private Sub ClearUnreadable(ctrl As PreviewControl, s As WM_RenderState, statusText As String)
         ctrl.Model.FloorOffset = 0
         ctrl.ClearRender(statusText)
-        s.Last_rendered = Nothing
-        s.Last_SlidersVersion = -1
-        s.Last_Shapes = Nothing
+        ForgetLastRequest(s)
         OSP_Project_Class.PinnedForPreview = Nothing
     End Sub
 
+    ''' <summary>THE forget of WM's last request (what <see cref="Update_Render"/> compares a call against to tell "the same scene"):
+    ''' the next Update_Render reloads the geometry. Used by ClearUnreadable and <see cref="WM_RequestReload"/>.</summary>
+    Private Sub ForgetLastRequest(s As WM_RenderState)
+        s.Last_rendered = Nothing
+        s.Last_SlidersVersion = -1
+        s.Last_Shapes = Nothing
+    End Sub
+
+    ''' <summary>The model must reload its scene (the set's data changed on disk, a merge or an edit replaced shapes, a skinning
+    ''' setting changed, the skeleton changed): clears the model - so the render cannot draw the stale meshes meanwhile - and forgets
+    ''' WM's last request, so the next <see cref="Update_Render"/> reloads the geometry. THE way a WM form asks for a reload: WM
+    ''' tells "the same scene" by its own last request, not by the model's state (round 6, tr-11: a failed full reload leaves the
+    ''' model cleaned, and reading that as "reload" re-ran the failed reload on every animation frame).</summary>
+    <Extension()>
+    Public Sub WM_RequestReload(ctrl As PreviewControl, Optional cleanTextures As Boolean = False)
+        If ctrl Is Nothing Then Return
+        If ctrl.Model IsNot Nothing Then
+            ctrl.Model.Clean(False)
+            If cleanTextures Then ctrl.Model.CleanTextures()
+        End If
+        ForgetLastRequest(GetState(ctrl))
+    End Sub
+
+#If DEBUG Then
+    ''' <summary>DEBUG ONLY (gates): the WM render mutant on, Nothing = the law. "wm-sameset-cleaned": the round-5 law, the same scene
+    ''' also needs the model not cleaned; "wm-refresh-marks-morphs": the round-5 law, a call that changed nothing marks Morphs outside
+    ''' playback.</summary>
+    Public GateMutant As String = Nothing
+#End If
+
+    ''' <summary>The WM render mutant <paramref name="name"/> is on (DEBUG; False in Release).</summary>
+    Private Function GateMutantOn(name As String) As Boolean
+#If DEBUG Then
+        Return String.Equals(GateMutant, name, StringComparison.Ordinal)
+#Else
+        Return False
+#End If
+    End Function
+
+    ''' <summary>Renders <paramref name="seleccionado"/>. The dirty flags it marks come from comparing this call with WM's own last
+    ''' request (the set, its shape list, the preset, the size, the sliders' version, the pose) - never from the model's state -, so
+    ''' a call that changes nothing marks no content (round 6, tr-11). <paramref name="edited"/>: the caller changed the set's data in
+    ''' place (the editor's slider, mask, zap or preset edits mutate the same objects, which the comparison cannot see) - a content
+    ''' change: Morphs.</summary>
     <Extension()>
     Public Sub Update_Render(ctrl As PreviewControl, seleccionado As SliderSet_Class, Force As Boolean,
-                             Preset As SlidersPreset_Class, Pose As Poses_class, weight As WM_Config.SliderSize)
+                             Preset As SlidersPreset_Class, Pose As Poses_class, weight As WM_Config.SliderSize,
+                             Optional edited As Boolean = False)
         Dim _sw As New System.Diagnostics.Stopwatch() : _sw.Start()
         If ctrl.Disposing OrElse ctrl.IsDisposed Then Exit Sub
         If Not ctrl.Visible Then Exit Sub
@@ -159,8 +202,12 @@ Public Module WM_RenderExtensions
         '     escritura avanzo — cerrar OS SIN GRABAR NADA es el caso 100 % reproducible;
         '   · `Load_and_Check_Shapedata` (que corre unas lineas mas arriba, en este mismo metodo) hace
         '     `ParentOSP.Reload` por su cuenta cuando la firma del .osp cambio en disco.
-        Dim sameSet = (s.Last_rendered Is seleccionado) AndAlso ctrl.Model.Cleaned = False AndAlso Force = False AndAlso
-                      ReferenceEquals(s.Last_Shapes, seleccionado.Shapes)
+        ' THE "same scene" of WM: its own last request - the same set object, the same shape list (a reload replaces the Shape_class
+        ' objects, see above), not forced. NOT the model's state (Model.Cleaned): a full reload that failed leaves the model cleaned and
+        ' the request standing in the intent, and reading that as "reload" marked Shapes on every call - every animation frame of
+        ' HkxPoseImport re-ran the failed reload (round 6, tr-11). A form that needs a reload says so: WM_RequestReload.
+        Dim sameSet = (s.Last_rendered Is seleccionado) AndAlso Force = False AndAlso ReferenceEquals(s.Last_Shapes, seleccionado.Shapes)
+        If GateMutantOn("wm-sameset-cleaned") Then sameSet = sameSet AndAlso ctrl.Model.Cleaned = False
         ' ⛔ El tercer termino NO es de adorno: `Current_Setting`/`Zap_Setting_Big` viven en los
         ' Slider_class, y un reload los reconstruye con esos campos en 0. Sin mirar la version, el
         ' skipPresetApply de abajo (que compara el preset por REFERENCIA) se saltearia el SetPreset y
@@ -255,18 +302,16 @@ Public Module WM_RenderExtensions
             intent.MarkDirty(poseFlags)
             If presetChanged Then intent.MarkDirty(RenderDirtyFlags.Morphs)
 
-        ElseIf presetChanged Then
-            ' Morph-only: same set, same pose, preset/size changed. A slider/preset change does
-            ' not alter materials, so Textures stays clean (it would trigger Process_Textures_GL).
+        ElseIf presetChanged OrElse edited Then
+            ' Morph-only: same set, same pose, preset/size changed or the caller edited the set's data in place. A slider/preset change
+            ' does not alter materials, so Textures stays clean (it would trigger Process_Textures_GL).
             intent.MarkDirty(RenderDirtyFlags.Morphs)
 
         Else
-            ' Preserve the old refresh behavior outside playback, but keep same-frame timer
-            ' ticks from doing needless morph work while the animation is running. Morph-only:
-            ' no material change, so Textures stays clean (avoids redundant Process_Textures_GL).
-            If Not ctrl.PlayingAnimation Then
-                intent.MarkDirty(RenderDirtyFlags.Morphs)
-            End If
+            ' Nothing changed: no content to mark (a refresh that marked Morphs re-ran a failed run on every call, tr-11). The frame is
+            ' repainted on request.
+            If GateMutantOn("wm-refresh-marks-morphs") AndAlso Not ctrl.PlayingAnimation Then intent.MarkDirty(RenderDirtyFlags.Morphs)
+            ctrl.UpdateRequired = True
         End If
 
         ' Signal the control — pipeline executes synchronously for now

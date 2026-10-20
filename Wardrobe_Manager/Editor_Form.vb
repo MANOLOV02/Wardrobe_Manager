@@ -3153,7 +3153,9 @@ Public Class Editor_Form
         ' (Idempotent; SetPreset just re-copies preset values into Current_Setting. Harmless on pose-only
         ' renders, and the main form is unaffected — it uses its own render path with distinct presets.)
         If Selected_Slider IsNot Nothing Then Selected_Slider.SetPreset(Selected_Preset, Selected_size)
-        EditPreviewControl.Update_Render(Selected_Slider, Force, Selected_Preset, Selected_Pose, Selected_size)
+        ' edited: the editor mutates the set's data in place (sliders, masks, zaps, the working preset) - a content change WM's
+        ' comparison cannot see (round 6, tr-11)
+        EditPreviewControl.Update_Render(Selected_Slider, Force, Selected_Preset, Selected_Pose, Selected_size, edited:=True)
     End Sub
 
     Private Sub PoseBakeButton_Click(sender As Object, e As EventArgs) Handles PoseBakeButton.Click
@@ -3528,8 +3530,8 @@ Public Class Editor_Form
                 ' Invalidate cached shape-slider lookups (morphs, OSD blocks changed by merge)
                 Selected_Slider.InvalidateShapeDataLookupCache()
                 Selected_Slider.RebuildShapeDataLookupCache()
-                ' Clear stale meshes immediately so the render timer can't draw removed donors
-                EditPreviewControl.Model.Clean(False)
+                ' Clear stale meshes immediately so the render timer can't draw removed donors (and the next render reloads)
+                EditPreviewControl.WM_RequestReload()
                 ' Remove donor entries from combobox
                 For Each donor In frm.DonorShapes
                     Dim idx = ComboBoxShapes.Items.IndexOf(donor.Nombre)
