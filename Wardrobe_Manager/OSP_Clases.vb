@@ -5441,6 +5441,18 @@ Public Class Shape_class
         End Set
     End Property
 
+    Private _gameAttach As GameAttachKind = GameAttachKind.BipedWorn
+    ''' <summary>Ola 7b, see <see cref="IRenderableShape.GameAttach"/>: a project shape builds an outfit piece, the model of an ARMA the game
+    ''' puts on through the biped (BipedWorn); the project's source NIF decides a Fallout 4 *_faceBones.nif (GameAttachLaw.Resolve).</summary>
+    Public Property GameAttach As GameAttachKind Implements IRenderableShape.GameAttach
+        Get
+            Return GameAttachLaw.Resolve(ParentSliderSet?.SourceFileFullPath, IR_NifContent, _gameAttach)
+        End Get
+        Set(value As GameAttachKind)
+            _gameAttach = value
+        End Set
+    End Property
+
     Private _CoberedSlotsMask As UInteger = 0F
     Public Property CoveredSlotsMask As UInteger Implements IRenderableShape.CoveredSlotsMask
         Get
