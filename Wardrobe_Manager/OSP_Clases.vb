@@ -2546,6 +2546,7 @@ Public Class OSP_Project_Class
             Sliderset_Target.ShapeDataLoaded = True
             Sliderset_Target.InvalidateShapeDataLookupCache()
             Sliderset_Target.RebuildShapeDataLookupCache()
+            Sliderset_Target.SetAsideUntakenShapes()
 
             If Sliderset_Target.Shapes.Any(Function(pf) pf.RelatedNifShape Is Nothing) Then Throw New Exception("Shape without Nif Shapes different")
             ' ⛔ ESTE GATE NO PODÍA FALLAR. Comparaba `Count(datas CON bloques) > Count(datas)`, y el
@@ -3146,6 +3147,67 @@ Public Class SliderSet_Class
     Public Property NIFContent As New Nifcontent_Class_Manolo()
     Public Property ParentOSP As OSP_Project_Class
     Public Property Shapes As New List(Of Shape_class)
+
+    ''' <summary>Ola 7e round 4 (r19k-01b): the project's shapes whose NIF block the app's loader does not take
+    ''' (Nifcontent_Class_Manolo.TakesShape: particles, the water shader, Fallout 4's sky), set aside from Shapes - the list every
+    ''' WM path edits, renders and builds - by SetAsideUntakenShapes. Their .osp node and their NIF block stay, so a save keeps them;
+    ''' the preview lists them in its notice (NifRenderableShape.UntakenShapesOf of the same NIF); the Editor does not offer them.</summary>
+    Public ReadOnly Property UntakenShapes As New List(Of Shape_class)
+
+    ''' <summary>Ola 7e round 5 (r19k-03): ONE walk of the NIF's shape blocks by the loader's law (Nifcontent_Class_Manolo.TakesShape),
+    ''' for its two readers: Taken - each name's first taken block (the name index behind RelatedNifShape) - and UntakenOnly - the
+    ''' names no taken block has (SetAsideUntakenShapes). A name a taken block and an untaken one share is taken, so the set-aside is
+    ''' exactly the index's complement.</summary>
+    Private Function NifShapesByLoaderLaw() As (Taken As Dictionary(Of String, INiShape), UntakenOnly As HashSet(Of String))
+        Dim taken As New Dictionary(Of String, INiShape)(StringComparer.OrdinalIgnoreCase)
+        Dim untaken As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+        If NIFContent IsNot Nothing Then
+            For Each b In NIFContent.NifShapes
+                If b Is Nothing OrElse b.Name Is Nothing OrElse String.IsNullOrWhiteSpace(b.Name.String) Then Continue For
+                If NIFContent.TakesShape(b) Then taken.TryAdd(b.Name.String, b) Else untaken.Add(b.Name.String)
+            Next
+        End If
+        untaken.ExceptWith(taken.Keys)
+        Return (taken, untaken)
+    End Function
+
+    ''' <summary>Ola 7e round 4 (r19k-01b): splits the project's shapes by the loaded NIF - a shape whose name no block the loader takes
+    ''' has (NifShapesByLoaderLaw.UntakenOnly, round 5) goes to UntakenShapes, the rest stay in Shapes, in the .osp's order. A shape the NIF does not have at all stays in Shapes (its
+    ''' check, "Shape without Nif", is the load's). Run where the shapes or the NIF change: Lee_SlidersAndShapes, the shape data's load
+    ''' and a merge's restore. With no untaken block it changes nothing.</summary>
+    Public Sub SetAsideUntakenShapes()
+#If DEBUG Then
+        ' Ola 7e tester (WmMismaEscenaGate --create-from-nif --sse, osp water): nothing set aside (round 3).
+        If WM_RenderExtensions.GateMutantOn("wm-no-setaside") Then Exit Sub
+#End If
+        Dim fuera As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+        ' Ola 7e round 5 (r19k-03): the names no TAKEN block has - the complement of the name index (the same walk). A name a taken
+        ' block shares with an untaken one (a BSTriShape and a NiParticleSystem both "X") stays in Shapes, editable, as in HEAD.
+        fuera.UnionWith(NifShapesByLoaderLaw().UntakenOnly)
+#If DEBUG Then
+        ' Ola 7e tester (WmMismaEscenaGate --create-from-nif --sse, osp dup): round 4's rule - every untaken block's name, the taken
+        ' ones not subtracted (r19k-03 undone).
+        If WM_RenderExtensions.GateMutantOn("wm-setaside-old-rule") AndAlso NIFContent IsNot Nothing Then
+            For Each b In NIFContent.NifShapes
+                If b?.Name Is Nothing OrElse String.IsNullOrWhiteSpace(b.Name.String) Then Continue For
+                If Not NIFContent.TakesShape(b) Then fuera.Add(b.Name.String)
+            Next
+        End If
+#End If
+        If fuera.Count = 0 AndAlso UntakenShapes.Count = 0 Then Exit Sub
+        If UntakenShapes.Count > 0 Then
+            ' Set aside by an earlier NIF: back with the others in the .osp's order, then split again by this one.
+            Dim nodos = Nodo.SelectNodes("Shape").Cast(Of XmlNode)().ToList()
+            Dim todas = Shapes.Concat(UntakenShapes).OrderBy(Function(s) nodos.IndexOf(s.Nodo)).ToList()
+            Shapes.Clear()
+            Shapes.AddRange(todas)
+            UntakenShapes.Clear()
+        End If
+        For Each s In Shapes.Where(Function(x) fuera.Contains(x.Nombre)).ToList()
+            Shapes.Remove(s)
+            UntakenShapes.Add(s)
+        Next
+    End Sub
     Public Property Sliders As New List(Of Slider_class)
     Public Property HighHeelHeight As Double = 0
     ''' <summary>True = HighHeelHeight es INTENCIÓN (sidecar del proyecto o edición del usuario), no
@@ -3264,16 +3326,11 @@ Public Class SliderSet_Class
         If ShapeDataLoaded = False Then Exit Sub
 
         If Not IsNothing(NIFContent) AndAlso Not IsNothing(NIFContent.NifShapes) Then
-            For Each nifShape In NIFContent.NifShapes
-                ' Accept any shape the factory supports — BSTriShape family (FO4 outfits) +
-                ' NiTriShape family (NiTriShape, BSLODTriShape, NiTriStrips, BSSegmentedTriShape).
-                ' Editor_Form / MergeShapesHelper / PhysicsWeightCollapseHelper that need
-                ' BSTriShape-specific paths must TryCast at the access site.
-                If nifShape Is Nothing Then Continue For
-                If Not ShapeGeometryFactory.IsSupported(nifShape) Then Continue For
-                If IsNothing(nifShape.Name) OrElse String.IsNullOrWhiteSpace(nifShape.Name.String) Then Continue For
-
-                _NifShapeByNameCache.TryAdd(nifShape.Name.String, nifShape)
+            ' Ola 7e rounds 4-5 (r19k-01b, r19k-03): the taken half of the one walk by the loader's law (NifShapesByLoaderLaw: TakesShape -
+            ' the class, its geometry and a shader with a material), whose other half SetAsideUntakenShapes reads. Editor_Form /
+            ' MergeShapesHelper / PhysicsWeightCollapseHelper that need BSTriShape-specific paths must TryCast at the access site.
+            For Each kv In NifShapesByLoaderLaw().Taken
+                _NifShapeByNameCache.Add(kv.Key, kv.Value)
             Next
         End If
 
@@ -4027,6 +4084,7 @@ Public Class SliderSet_Class
             ' La madre sigue CARGADA: no se la descarga en ningún momento, así que el próximo
             ' `Merge_Proyecto` del bucle la encuentra usable.
             ShapeDataLoaded = True
+            SetAsideUntakenShapes()
         Catch ex As Exception
             Dim m = ex.Message
             Logger.LogLazy(Function() $"[MERGE] no pude restaurar la madre en memoria tras un merge fallido: {m}")
@@ -4042,6 +4100,8 @@ Public Class SliderSet_Class
         ' `big`/`small` en un .osp que ya solo tiene `default` ⇒ TODOS los defaults en 0.
         _genWeightsCache = 0
         Shapes = Nodo.SelectNodes("Shape").Cast(Of XmlNode)().Select(Function(shap) New Shape_class(shap, Me)).ToList
+        UntakenShapes.Clear()
+        SetAsideUntakenShapes()
         Sliders = FusionaSlidersHomonimos(
             Nodo.SelectNodes("Slider").Cast(Of XmlNode)().Select(Function(slid) New Slider_class(slid, Me)).ToList)
         LastProjectFileSignature = GetProjectFileSignature()

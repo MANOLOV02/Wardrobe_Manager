@@ -127,12 +127,13 @@ Public Module WM_RenderExtensions
 #If DEBUG Then
     ''' <summary>DEBUG ONLY (gates): the WM render mutant on, Nothing = the law. "wm-sameset-cleaned": the round-5 law, the same scene
     ''' also needs the model not cleaned; "wm-refresh-marks-morphs": the round-5 law, a call that changed nothing marks Morphs outside
-    ''' playback.</summary>
+    ''' playback; "cfn-supported-shape" (ola 7e tester, WmMismaEscenaGate --create-from-nif): Create from NIF filters the shapes with
+    ''' SupportedShape alone again (p7e-01 undone).</summary>
     Public GateMutant As String = Nothing
 #End If
 
-    ''' <summary>The WM render mutant <paramref name="name"/> is on (DEBUG; False in Release).</summary>
-    Private Function GateMutantOn(name As String) As Boolean
+    ''' <summary>The WM mutant <paramref name="name"/> is on (DEBUG; False in Release): the one reading of GateMutant in WM.</summary>
+    Friend Function GateMutantOn(name As String) As Boolean
 #If DEBUG Then
         Return String.Equals(GateMutant, name, StringComparison.Ordinal)
 #Else

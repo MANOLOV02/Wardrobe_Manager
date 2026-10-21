@@ -57,6 +57,13 @@ Public Class Create_from_Nif_Form
             If IsNothing(selected_slider) Then Exit Sub
             If selected_slider.Unreadable_NIF Then Throw New Exception("Unreadable NIF")
             If selected_slider.Unreadable_Project Then Throw New Exception("Unreadable Project")
+            ' Ola 7e (p7e-09): no shape the app can use - nothing is written and the user is told why (an informed refusal, not an
+            ' error: no Throw through the generic "Error creating project" box and its stack trace).
+            Dim sinFormas = NoUsableShapesNotice()
+            If sinFormas IsNot Nothing Then
+                MsgBox(sinFormas, vbExclamation, "No project created")
+                Exit Sub
+            End If
             ' ⛔ EL NOMBRE SE VALIDA ANTES DE ARMAR NINGUNA RUTA. Con el cuadro vacío, el segundo
             ' argumento de `Path.Combine` quedaba como "\nombre.nif", que Windows considera una ruta
             ' ENRAIZADA (`Path.IsPathRooted("\.nif")` = True), y `Combine` DESCARTA el primer argumento:
@@ -255,7 +262,14 @@ Public Class Create_from_Nif_Form
 
             For Each shap In selected_slider.NIFContent.GetShapes
 
-                If Nifcontent_Class_Manolo.SupportedShape(shap.GetType) Then
+                ' Ola 7e (p7e-01): the loader's one law (TakesShape: a class it takes and a shader with a material), as the material
+                ' dictionary and NifRenderableShape.FromNif read it - a water or Fallout 4 sky shape has no material and is not taken.
+                Dim toma = selected_slider.NIFContent.TakesShape(shap)
+#If DEBUG Then
+                ' Ola 7e tester (WmMismaEscenaGate --create-from-nif): HEAD's filter, the class alone (p7e-01 undone).
+                If WM_RenderExtensions.GateMutantOn("cfn-supported-shape") Then toma = Nifcontent_Class_Manolo.SupportedShape(shap.GetType)
+#End If
+                If toma Then
                     Dim shapec As New Shape_class(shap.Name.String, selected_slider)
                     selected_slider.Shapes.Add(shapec)
                 End If
@@ -339,10 +353,22 @@ Public Class Create_from_Nif_Form
             _loadedSkeletonKey = targetSkelKey
         End If
 
+        ' Ola 7e (p7e-09): "Create" off when the NIF has no shape the app can use (the guard in OkClicked stays the authority).
+        If NoUsableShapesNotice() IsNot Nothing Then DictionaryPicker_Control1.btnOk.Enabled = False
         EditPreviewControl.WM_Set_Last_rendered(Nothing)
         EditPreviewControl.Model.FloorOffset = -selected_slider.HighHeelHeight
         EditPreviewControl.Update_Render(selected_slider, True, Nothing, Nothing, WM_Config.SliderSize.Default)
     End Sub
+    ''' <summary>Ola 7e (p7e-09): why no project can be made from the selected NIF, Nothing when it can - a readable NIF whose shapes
+    ''' the loader takes none of (TakesShape). The cause is the library's (NifRenderableShape.UntakenShapeSummary: the frame notice's
+    ''' reasons, each with its count), so the message names it.</summary>
+    Private Function NoUsableShapesNotice() As String
+        If selected_slider Is Nothing OrElse selected_slider.Unreadable_NIF OrElse selected_slider.Shapes.Count > 0 Then Return Nothing
+        Dim causas = NifRenderableShape.UntakenShapeSummary(selected_slider.NIFContent)
+        If causas = "" Then Return "This NIF has no shapes: no project created."
+        Return $"This NIF has no shapes the app can use ({causas}): no project created."
+    End Function
+
     Private Last_key As String = ""
     Private Sub DictionaryPicker_Control1_SelectionChanged(Key As String) Handles DictionaryPicker_Control1.SelectionChanged
         Last_key = Key
