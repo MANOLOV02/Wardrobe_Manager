@@ -87,6 +87,9 @@ Namespace My
             RecuperacionDeLotes.ConfigurarCarpeta("WardrobeManager")
             ' Initialize WM-specific hooks for the shared library
             WM_RenderExtensions.InitializeWM()
+            ' The app's channel for unexpected errors (CrashReport), for what the library survives and reports: a preview control
+            ' released with a step that failed (PreviewControl.Release; ola 7g round 2f, user decision r7g-04 - release and warn).
+            FO4_Base_Library.PreviewControl.UnexpectedErrorChannel = AddressOf CrashReport.ReportError
 
             ' MODO CONSOLA. Se atiende ANTES de crear la ventana principal: si TryRun reconoce un modo
             ' (--build / --list / --help) corre ahi mismo y cancela el arranque de la GUI, igual que el

@@ -48,7 +48,7 @@ Public Class HkxPoseImport_Form
         DictionaryPicker_Control1.btnOk.Text = "Import"
         DictionaryPicker_Control1.btnOk.Font = New Font(DictionaryPicker_Control1.btnOk.Font, FontStyle.Bold)
         DictionaryPicker_Control1.btnCancel.Text = "Exit"
-        DictionaryPicker_Control1.btnOk.Enabled = False
+        DictionaryPicker_Control1.HostAllowsOk = False      ' ola 7g (p7e-11): no animation loaded yet
         FrameSlider.Enabled = False
         ButtonPlay.Enabled = False
 
@@ -78,7 +78,7 @@ Public Class HkxPoseImport_Form
 
         If _selectedSliderSet Is Nothing Then
             SetStatus("No selected slider set. Select a project in Wardrobe Manager before importing HKX poses.", True)
-            DictionaryPicker_Control1.btnOk.Enabled = False
+            DictionaryPicker_Control1.HostAllowsOk = False
         Else
             ' Mostrar el modelo estático al abrir (antes de elegir un HKX) — si no, aparece vacío.
             RenderStaticModel()
@@ -107,10 +107,8 @@ Public Class HkxPoseImport_Form
         _player?.Stop()
         If EditPreviewControl IsNot Nothing Then EditPreviewControl.PlayingAnimation = False
         SkeletonInstance.Default.LoadFromConfig(True, True)
-        If EditPreviewControl IsNot Nothing Then
-            EditPreviewControl.Clean()
-            EditPreviewControl.Dispose()
-        End If
+        ' The one release of the preview (PreviewControl.Release, ola 7g round 2b).
+        PreviewControl.Release(EditPreviewControl)
         If Me.HasSaved = True Then
             Me.DialogResult = DialogResult.Yes
         Else
@@ -255,7 +253,7 @@ Public Class HkxPoseImport_Form
         _player = Nothing
         _lastResult = Nothing
         If EditPreviewControl IsNot Nothing Then EditPreviewControl.PlayingAnimation = False
-        DictionaryPicker_Control1.btnOk.Enabled = False
+        DictionaryPicker_Control1.HostAllowsOk = False
         FrameSlider.Enabled = False
         ButtonPlay.Enabled = False
 
@@ -299,7 +297,7 @@ Public Class HkxPoseImport_Form
             If EditPreviewControl IsNot Nothing Then EditPreviewControl.WM_Set_Last_rendered(Nothing)
 
             TextBoxPoseName.Text = DefaultPoseName(animationSource.DisplayPath)
-            DictionaryPicker_Control1.btnOk.Enabled = True
+            DictionaryPicker_Control1.HostAllowsOk = True
             UpdatePreview()
         Catch ex As Exception
             Logger.LogLazy(Function() "[HKX-POSE-UI] Picker load exception: " & ex.ToString())

@@ -161,8 +161,8 @@ Public Class Create_from_Nif_Form
     Private Sub Create_from_Nif_2_FormClosing(sender As Object, e As FormClosingEventArgs) Handles Me.FormClosing
         ' Restore global skeleton
         SkeletonInstance.Default.LoadFromConfig(True, True)
-        EditPreviewControl.Clean()
-        EditPreviewControl.Dispose()
+        ' The one release of the preview (PreviewControl.Release, ola 7g round 2b).
+        PreviewControl.Release(EditPreviewControl)
         If Me.HasSaved = True Then
             Me.DialogResult = DialogResult.Yes
         Else
@@ -194,6 +194,8 @@ Public Class Create_from_Nif_Form
                 tri = stripped
             End If
         End If
+        ' Ola 7g (p7e-11): hasta leer este NIF, "Create" no tiene veredicto: apagado (lo decide el final de este metodo).
+        DictionaryPicker_Control1.HostAllowsOk = False
         selected_slider.ParentOSP.xml.DocumentElement.InnerText = ""
         selected_slider = New SliderSet_Class(selected_slider.ParentOSP) With {
             .BypassDiskShapeDataLoad = True
@@ -353,8 +355,9 @@ Public Class Create_from_Nif_Form
             _loadedSkeletonKey = targetSkelKey
         End If
 
-        ' Ola 7e (p7e-09): "Create" off when the NIF has no shape the app can use (the guard in OkClicked stays the authority).
-        If NoUsableShapesNotice() IsNot Nothing Then DictionaryPicker_Control1.btnOk.Enabled = False
+        ' Ola 7e (p7e-09): "Create" off when the NIF has no shape the app can use (the guard in OkClicked stays the authority). Ola 7g
+        ' (p7e-11): the form's verdict, not the button - the picker combines it with its selection (DictionaryPicker_Control.HostAllowsOk).
+        DictionaryPicker_Control1.HostAllowsOk = (NoUsableShapesNotice() Is Nothing)
         EditPreviewControl.WM_Set_Last_rendered(Nothing)
         EditPreviewControl.Model.FloorOffset = -selected_slider.HighHeelHeight
         EditPreviewControl.Update_Render(selected_slider, True, Nothing, Nothing, WM_Config.SliderSize.Default)

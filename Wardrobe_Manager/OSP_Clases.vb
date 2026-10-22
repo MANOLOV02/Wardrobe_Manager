@@ -2800,14 +2800,17 @@ Public Class OSP_Project_Class
     End Sub
 
     ''' <summary>Nombre para una shape de <paramref name="target"/> que entra a <paramref name="madre"/>: el actual si
-    ''' no choca, si no <c>nombre_0</c>, <c>nombre_1</c>... (el esquema de Check_Unique_Shapename) hasta que no choque
-    ''' con ninguna shape de la madre ni con las demás de target (nombre o target, OrdinalIgnoreCase), ni con ninguna shape
-    ''' del NIF de la madre (que puede traer shapes que su .osp no lista y con las que los NIF se fusionan).</summary>
+    ''' no choca, si no <c>nombre_0</c>, <c>nombre_1</c>... (el esquema de Check_Unique_Shapename) hasta que quede libre por
+    ''' la ley única de nombres de forma (SliderSet_Class.ShapeNameFree, ola 7g) en la madre Y en target sin la propia: el
+    ''' resultado lleva las shapes de los dos .osp (tomadas y apartadas: r19k-04 lleva las apartadas) y los bloques de los dos
+    ''' NIF (Merge_Shapes_Original copia todos los de target, también los que su .osp no lista).</summary>
     Private Shared Function NombreUnicoParaMerge(madre As SliderSet_Class, target As SliderSet_Class, propia As Shape_class) As String
         Dim base = propia.Nombre
-        Dim choca = Function(n As String) madre.Shapes.Concat(target.Shapes.Where(Function(x) x IsNot propia)).Any(
-            Function(x) x.Nombre.Equals(n, StringComparison.OrdinalIgnoreCase) OrElse x.Target.Equals(n, StringComparison.OrdinalIgnoreCase)) OrElse
-            (madre.NIFContent IsNot Nothing AndAlso madre.NIFContent.NifShapes.Any(Function(x) String.Equals(x.Name?.String, n, StringComparison.OrdinalIgnoreCase)))
+        Dim choca = Function(n As String) Not madre.ShapeNameFree(n) OrElse Not target.ShapeNameFree(n, propia)
+#If DEBUG Then
+        ' Ola 7g tester (WmMismaEscenaGate --ola7g, case 14): the madre side only (the target's other shapes and its NIF left out).
+        If WM_RenderExtensions.GateMutantOn("g7-merge-no-target-side") Then choca = Function(n As String) Not madre.ShapeNameFree(n)
+#End If
         Dim nuevo = base
         Dim indice = 0
         While choca(nuevo)
@@ -2918,8 +2921,17 @@ Public Class OSP_Project_Class
         End If
 
         ' Procesa Merge
+        ' Ola 7g (r19k-04, decision del usuario: LLEVARLA AL RESULTADO): las formas APARTADAS del proyecto que se suma
+        ' (UntakenShapes: particulas, agua, cielo de FO4) entran igual que las tomadas - su nodo <Shape>, sus datos y, por
+        ' Merge_Shapes_Original de abajo, su bloque del NIF -, porque el juego si las dibuja. En la madre quedan apartadas
+        ' (SetAsideUntakenShapes despues de fusionar los NIF): no se dibujan, el aviso del cuadro las nombra y un guardado las
+        ' conserva. El renombre por choque las cubre: RenombrarIdentidad renombra el bloque de una apartada (NifBlocksOf).
         Dim subind As Integer = 0
-        For Each Shap In Sliderset_Target.Shapes
+        For Each Shap In Sliderset_Target.ShapesInOspOrder()
+#If DEBUG Then
+            ' Ola 7g tester (WmMismaEscenaGate --ola7g, case 1): HEAD's merge - the taken shapes only.
+            If WM_RenderExtensions.GateMutantOn("g7-merge-taken-only") AndAlso Sliderset_Target.UntakenShapes.Contains(Shap) Then Continue For
+#End If
 
             ' Primero cambia el nombre. Único sobre Madre (que ya tiene, con su nombre nuevo, las shapes de Target ya
             ' procesadas) ∪ las demás shapes de Target, con los nombres ACTUALES: antes era solo sobre Madre y, si el
@@ -3010,6 +3022,14 @@ Public Class OSP_Project_Class
 
         ' Merge Shapes
         Nifcontent_Class_Manolo.Merge_Shapes_Original(Sliderset_Madre.NIFContent, Sliderset_Target.NIFContent, Keep_Physics)
+        ' Ola 7g (r19k-04): con los bloques ya en el NIF de la madre, las formas que el cargador no toma vuelven a UntakenShapes
+        ' (la misma ley que al cargar: no se editan, no se dibujan, se guardan).
+#If DEBUG Then
+        ' Ola 7g tester (WmMismaEscenaGate --ola7g, case 1): the merged madre not split again (its set-aside shapes left in Shapes).
+        If Not WM_RenderExtensions.GateMutantOn("g7-no-setaside-after-merge") Then Sliderset_Madre.SetAsideUntakenShapes()
+#Else
+        Sliderset_Madre.SetAsideUntakenShapes()
+#End If
         Sliderset_Madre.InvalidateAllLookupCaches()
 
         ' SSE: merge HDT-SMP XML physics (take first, same behaviour as FO4 BSClothExtraData)
@@ -3068,12 +3088,21 @@ Public Class OSP_Project_Class
             ' lote (adentro, mas arriba) devolvio el DISCO al estado previo, y recien entonces esto
             ' devuelve la MEMORIA leyendo de ese disco. `RestaurarDesde` no tira, asi que la excepcion
             ' ORIGINAL sube intacta — la causa nunca la pisa el rollback.
+#If DEBUG Then
+            ' Ola 7g tester (WmMismaEscenaGate --ola7g, case 5): no rollback of the madre in memory.
+            If Not mergeConfirmado AndAlso Not WM_RenderExtensions.GateMutantOn("g7-no-restore") Then Sliderset_Madre.RestaurarDesde(instantaneaMadre)
+#Else
             If Not mergeConfirmado Then Sliderset_Madre.RestaurarDesde(instantaneaMadre)
+#End If
         End Try
     End Function
 
     Private Shared Sub Make_Sliders_Local(Sliderset_Target As SliderSet_Class, Optional KeepSafeReferences As Boolean = True)
-        For Each extsh In Sliderset_Target.Shapes.Where(Function(pf) pf.IsExternal)
+        For Each extsh In Sliderset_Target.ShapesInOspOrder().Where(Function(pf) pf.IsExternal)
+#If DEBUG Then
+            ' Ola 7g tester (WmMismaEscenaGate --ola7g, case 6): HEAD's walk - the taken shapes only.
+            If WM_RenderExtensions.GateMutantOn("g7-local-taken-only") AndAlso Sliderset_Target.UntakenShapes.Contains(extsh) Then Continue For
+#End If
             If extsh.IsSafeReference = False OrElse KeepSafeReferences = False Then
                 For Each dat In extsh.Related_Slider_data.ToList
                     If dat.Islocal = False Then
@@ -3154,6 +3183,81 @@ Public Class SliderSet_Class
     ''' the preview lists them in its notice (NifRenderableShape.UntakenShapesOf of the same NIF); the Editor does not offer them.</summary>
     Public ReadOnly Property UntakenShapes As New List(Of Shape_class)
 
+    ''' <summary>Ola 7g round 2 (p7g-01): THE PROJECT'S SHAPES - taken and set aside (Shapes, then UntakenShapes): every shape the .osp
+    ''' lists and a save keeps, whatever the loader takes. The one owner of that set; its readers: the metadata lookup cache (a
+    ''' &lt;Data&gt;'s shape, Slider_Data_class.RelatedShape, and a shape's local / external data flags - a set-aside shape's data are the
+    ''' project's: the merge carries them, Make_Sliders_Local makes them local, the external .osd resolves through their shape's
+    ''' DataFolder), ShapesInOspOrder and the name law (ShapeNameInProject). What the app draws, edits and builds reads Shapes.</summary>
+    Public Function ProjectShapes() As IEnumerable(Of Shape_class)
+        Return Shapes.Concat(UntakenShapes)
+    End Function
+
+    ''' <summary>Ola 7g (r19k-04): every shape of the project (ProjectShapes), in the .osp's order - the order SetAsideUntakenShapes
+    ''' re-splits by and a merge carries them in.</summary>
+    Public Function ShapesInOspOrder() As List(Of Shape_class)
+        If UntakenShapes.Count = 0 Then Return Shapes.ToList()
+        Dim nodos = Nodo.SelectNodes("Shape").Cast(Of XmlNode)().ToList()
+        Return ProjectShapes().OrderBy(Function(s) nodos.IndexOf(s.Nodo)).ToList()
+    End Function
+
+    ''' <summary>Ola 7g (r19k-04): the NIF blocks of a project shape - a taken shape's block (Shape_class.RelatedNifShape: its
+    ''' name's first taken block), or every block of a set-aside shape's name (no taken block has it: NifShapesByLoaderLaw
+    ''' .UntakenOnly). Empty for a shape the NIF does not have. ShapeRenameHelper.RenombrarIdentidad renames what this gives.</summary>
+    Public Function NifBlocksOf(shape As Shape_class) As List(Of INiShape)
+        Dim taken = shape.RelatedNifShape
+        If taken IsNot Nothing Then Return New List(Of INiShape) From {taken}
+        Dim r As New List(Of INiShape)
+        If NIFContent Is Nothing OrElse Not UntakenShapes.Contains(shape) Then Return r
+        For Each b In NIFContent.NifShapes
+            If b?.Name IsNot Nothing AndAlso String.Equals(b.Name.String, shape.Nombre, StringComparison.OrdinalIgnoreCase) Then r.Add(b)
+        Next
+        Return r
+    End Function
+
+    ' ----------------- THE LAW OF A SHAPE NAME IN USE (ola 7g): one owner for every place that validates or makes a shape name -----------------
+    ' Check_Unique_Shapename (the names Clone proposes and Split takes), ShapeRenameHelper.MotivoNombreInvalido (Rename and Clone) and
+    ' the merge's NombreUnicoParaMerge. Since ola 7e r4 a set-aside shape (UntakenShapes) is out of Shapes but still the project's:
+    ' its .osp node and its NIF block stay, so its name is in use. Outfit Studio checks a new name against the NIF's shape names
+    ' (workNif.GetShapeNames, OutfitProject.cpp:2477-2483, cited at MotivoNombreInvalido).
+
+    ''' <summary>A shape of the project, taken or set aside, other than <paramref name="excepto"/>, has <paramref name="nombre"/>
+    ''' as its name or its target (OrdinalIgnoreCase: how the app's caches resolve a shape).</summary>
+    Public Function ShapeNameInProject(nombre As String, Optional excepto As Shape_class = Nothing) As Boolean
+#If DEBUG Then
+        ' Ola 7g tester (WmMismaEscenaGate --ola7g, case 12): the set-aside shapes left out (Shapes only, as before the 7g).
+        If WM_RenderExtensions.GateMutantOn("g7-project-no-untaken") Then
+            Return Shapes.Any(Function(x) x IsNot excepto AndAlso
+                (x.Nombre.Equals(nombre, StringComparison.OrdinalIgnoreCase) OrElse x.Target.Equals(nombre, StringComparison.OrdinalIgnoreCase)))
+        End If
+#End If
+        Return ProjectShapes().Any(Function(x) x IsNot excepto AndAlso
+            (x.Nombre.Equals(nombre, StringComparison.OrdinalIgnoreCase) OrElse x.Target.Equals(nombre, StringComparison.OrdinalIgnoreCase)))
+    End Function
+
+    ''' <summary>A shape block of the NIF - also one its .osp does not list - is named <paramref name="nombre"/>
+    ''' (OrdinalIgnoreCase). <paramref name="excepto"/>'s own name is free for it: the blocks of that name are its own (a set-aside
+    ''' shape's are every block of its name, NifBlocksOf; a name a taken and an untaken block share is the taken shape's,
+    ''' NifShapesByLoaderLaw), so a rename that only changes case is valid.</summary>
+    Public Function ShapeNameInNif(nombre As String, Optional excepto As Shape_class = Nothing) As Boolean
+        If NIFContent Is Nothing Then Return False
+#If DEBUG Then
+        ' Ola 7g tester (WmMismaEscenaGate --ola7g, cases 13 and 15): HEAD's rule (MotivoNombreInvalido's nifPropia) - only the
+        ' shape's own TAKEN block is free for it; a block of its name that it does not resolve to (the untaken twin) counts.
+        If WM_RenderExtensions.GateMutantOn("g7-nif-identity-only") Then
+            Dim propio = excepto?.RelatedNifShape
+            Return NIFContent.NifShapes.Any(Function(b) b IsNot Nothing AndAlso b IsNot propio AndAlso String.Equals(b.Name?.String, nombre, StringComparison.OrdinalIgnoreCase))
+        End If
+#End If
+        If excepto IsNot Nothing AndAlso String.Equals(nombre, excepto.Nombre, StringComparison.OrdinalIgnoreCase) Then Return False
+        Return NIFContent.NifShapes.Any(Function(b) b IsNot Nothing AndAlso String.Equals(b.Name?.String, nombre, StringComparison.OrdinalIgnoreCase))
+    End Function
+
+    ''' <summary>No shape of the project and no shape block of the NIF has <paramref name="nombre"/> (but
+    ''' <paramref name="excepto"/>, see ShapeNameInProject / ShapeNameInNif).</summary>
+    Public Function ShapeNameFree(nombre As String, Optional excepto As Shape_class = Nothing) As Boolean
+        Return Not ShapeNameInProject(nombre, excepto) AndAlso Not ShapeNameInNif(nombre, excepto)
+    End Function
+
     ''' <summary>Ola 7e round 5 (r19k-03): ONE walk of the NIF's shape blocks by the loader's law (Nifcontent_Class_Manolo.TakesShape),
     ''' for its two readers: Taken - each name's first taken block (the name index behind RelatedNifShape) - and UntakenOnly - the
     ''' names no taken block has (SetAsideUntakenShapes). A name a taken block and an untaken one share is taken, so the set-aside is
@@ -3197,8 +3301,7 @@ Public Class SliderSet_Class
         If fuera.Count = 0 AndAlso UntakenShapes.Count = 0 Then Exit Sub
         If UntakenShapes.Count > 0 Then
             ' Set aside by an earlier NIF: back with the others in the .osp's order, then split again by this one.
-            Dim nodos = Nodo.SelectNodes("Shape").Cast(Of XmlNode)().ToList()
-            Dim todas = Shapes.Concat(UntakenShapes).OrderBy(Function(s) nodos.IndexOf(s.Nodo)).ToList()
+            Dim todas = ShapesInOspOrder()
             Shapes.Clear()
             Shapes.AddRange(todas)
             UntakenShapes.Clear()
@@ -3288,7 +3391,15 @@ Public Class SliderSet_Class
             _ShapeHasLocalCache = New Dictionary(Of String, Boolean)(StringComparer.OrdinalIgnoreCase)
             _ShapeHasExternalCache = New Dictionary(Of String, Boolean)(StringComparer.OrdinalIgnoreCase)
 
-            For Each shap In Shapes
+            ' The project's shapes, taken and set aside (ProjectShapes; ola 7g round 2, p7g-01): a set-aside shape's data are the
+            ' project's (RelatedShape, Related_Slider_data, IsExternal / HasLocal). Taken first, so a target both lists share is the
+            ' taken shape's.
+            Dim formasCache As IEnumerable(Of Shape_class) = ProjectShapes()
+#If DEBUG Then
+            ' Ola 7g round 2 tester (WmMismaEscenaGate --ola7g, R2-1 / R2-3): the cache as before the round 2 - the taken shapes only.
+            If WM_RenderExtensions.GateMutantOn("g7-cache-taken-only") Then formasCache = Shapes
+#End If
+            For Each shap In formasCache
                 _ShapeByTargetCache.TryAdd(shap.Target, shap)
                 _ShapeHasLocalCache.TryAdd(shap.Target, False)
                 _ShapeHasExternalCache.TryAdd(shap.Target, False)
@@ -4418,10 +4529,25 @@ Public Class SliderSet_Class
         Return True
     End Function
 
+    ''' <summary><paramref name="Prueba"/> if free, else <c>Prueba_0</c>, <c>Prueba_1</c>... - free by the project's one law
+    ''' (ShapeNameFree, ola 7g: taken and set-aside shapes and the NIF's blocks), so the name Clone proposes passes
+    ''' MotivoNombreInvalido and the one Split takes never lands on a set-aside shape's or a NIF block's name.</summary>
     Public Function Check_Unique_Shapename(Prueba As String) As String
+#If DEBUG Then
+        ' Ola 7g tester (WmMismaEscenaGate --ola7g, cases 10 and 11): HEAD's rule - only the taken shapes (Shapes), name or target.
+        If WM_RenderExtensions.GateMutantOn("g7-unique-shapes-only") Then
+            Dim i0 = 0
+            Dim n0 As String = Prueba
+            While Shapes.Any(Function(pf) pf.Nombre.Equals(n0, StringComparison.OrdinalIgnoreCase) OrElse pf.Target.Equals(n0, StringComparison.OrdinalIgnoreCase))
+                n0 = Prueba + "_" + i0.ToString
+                i0 += 1
+            End While
+            Return n0
+        End If
+#End If
         Dim index = 0
         Dim Nuevo As String = Prueba
-        While Me.Shapes.Any(Function(pf) pf.Nombre.Equals(Nuevo, StringComparison.OrdinalIgnoreCase)) Or Me.Shapes.Any(Function(pf) pf.Target.Equals(Nuevo, StringComparison.OrdinalIgnoreCase))
+        While Not ShapeNameFree(Nuevo)
             Nuevo = Prueba + "_" + index.ToString
             index += 1
         End While

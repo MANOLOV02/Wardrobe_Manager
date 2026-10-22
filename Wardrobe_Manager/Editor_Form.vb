@@ -826,6 +826,23 @@ Public Class Editor_Form
                     presetLookup(grupo.Key) = creadas
                 End If
             Next
+        Else
+            ' Ola 7g (p7e-10): ningun preset elegido (lista vacia, o el ultimo se borro): nombre, set y grupos por defecto - los
+            ' de un preset anterior no tienen que viajar a un "Save As".
+#If DEBUG Then
+            Dim gateAntes = (Selected_Preset.Name, Selected_Preset.SetName, Selected_Preset.GroupNames)
+#End If
+            Selected_Preset.Name = ""
+            Selected_Preset.SetName = ""
+            Selected_Preset.GroupNames = New List(Of String)
+#If DEBUG Then
+            ' Ola 7g tester (WmMismaEscenaGate --ola7g, case 20): HEAD's work preset - the last preset's name, set and groups kept.
+            If WM_RenderExtensions.GateMutantOn("g7-workpreset-keeps") Then
+                Selected_Preset.Name = gateAntes.Item1
+                Selected_Preset.SetName = gateAntes.Item2
+                Selected_Preset.GroupNames = gateAntes.Item3
+            End If
+#End If
         End If
 
 
@@ -847,18 +864,33 @@ Public Class Editor_Form
     ''' —cambiar de preset, Cancelar, la siembra inicial de <c>MarcaBones</c>— pero NO cuando es efecto
     ''' colateral de otro gesto: cambiar la talla, quitar una shape, crear un zap o borrar un zap. Esos
     ''' cuatro preguntan primero.</para>
-    ''' <para>La señal de "hay algo pendiente" es <c>ButtonSavePreset.Enabled</c>, que sólo se prende
-    ''' cuando el usuario mueve de verdad un slider del preset (<c>DynamicPresetTrackBar_MouseUp</c> y
-    ''' <c>PresetscrollTimer_Tick</c>, los dos únicos <c>Habilita_Preset_Botones(True)</c>).</para></summary>
+    ''' <para>La señal de "hay algo pendiente" es <c>_presetConCambios</c>, que sólo se prende cuando el usuario mueve de
+    ''' verdad un slider del preset (<c>DynamicPresetTrackBar_MouseUp</c> y <c>PresetscrollTimer_Tick</c>, los dos únicos
+    ''' <c>Habilita_Preset_Botones(True)</c>). Era <c>ButtonSavePreset.Enabled</c>, que ya no sirve: sin preset elegido (ola 7g,
+    ''' p7e-10) Guardar queda apagado aunque haya cambios.</para></summary>
     Private Function ConfirmarDescarteDePreset() As Boolean
-        If Not ButtonSavePreset.Enabled Then Return True
+#If DEBUG Then
+        ' Ola 7g tester (WmMismaEscenaGate --ola7g, case 17): HEAD's signal - the Save button, which is off without a preset.
+        If WM_RenderExtensions.GateMutantOn("g7-discard-by-savebutton") AndAlso Not ButtonSavePreset.Enabled Then Return True
+#End If
+        If Not _presetConCambios Then Return True
         Return MsgBox("You have unsaved slider values. Discard them?",
                       vbYesNo Or vbExclamation, "Unsaved slider values") = MsgBoxResult.Yes
     End Function
 
+    ''' <summary>Ola 7g (p7e-10): hay una edicion del preset sin guardar (Habilita_Preset_Botones).</summary>
+    Private _presetConCambios As Boolean
+
     Private Sub Habilita_Preset_Botones(Opcion As Boolean)
-        ButtondelPreset.Enabled = (ComboBoxPresets.SelectedIndex <> -1)
-        ButtonSavePreset.Enabled = Opcion
+        _presetConCambios = Opcion
+        Dim hayPreset = (ComboBoxPresets.SelectedIndex <> -1)
+        ButtondelPreset.Enabled = hayPreset
+        ' Guardar escribe el archivo del preset ELEGIDO: sin ninguno (carpeta de presets vacia) queda "Guardar como" (ola 7g).
+        ButtonSavePreset.Enabled = Opcion AndAlso hayPreset
+#If DEBUG Then
+        ' Ola 7g tester (WmMismaEscenaGate --ola7g, case 17): HEAD's Save - on with an edit, a preset chosen or not.
+        If WM_RenderExtensions.GateMutantOn("g7-save-without-preset") Then ButtonSavePreset.Enabled = Opcion
+#End If
         ButtonSaveAsPreset.Enabled = Opcion
         ButtonCancelPreset.Enabled = Opcion
     End Sub
@@ -1078,10 +1110,23 @@ Public Class Editor_Form
         ComboBoxPoses.Items.Clear()
         ComboBoxPresets.Items.AddRange(WM_SliderPresets.Presets.Select(Function(pf) pf.Key).Order.ToArray)
         ComboBoxPoses.Items.AddRange(WM_SliderPresets.Poses.Select(Function(pf) pf.Key).Order.ToArray)
-        Dim idx = ComboBoxPresets.FindString(Preset)
-        Dim idx2 = ComboBoxPoses.FindString(Pose)
-        If idx <> -1 Then ComboBoxPresets.SelectedIndex = idx Else ComboBoxPresets.SelectedIndex = 0
-        If idx2 <> -1 Then ComboBoxPoses.SelectedIndex = idx2 Else ComboBoxPoses.SelectedIndex = 0
+        ' Ola 7g (p7e-10): sin presets (la carpeta SliderPresets de BodySlide vacia) la lista queda vacia y sin seleccion, y
+        ' Actualiza_Preset deja cada slider en su valor por defecto.
+#If DEBUG Then
+        ' Ola 7g tester (WmMismaEscenaGate --ola7g, cases 17 and 19): HEAD's selection - FindString (a prefix, any case) and index 0
+        ' when it finds nothing (ArgumentOutOfRangeException on an empty list).
+        If WM_RenderExtensions.GateMutantOn("g7-presets-findstring") Then
+            Dim idxG = ComboBoxPresets.FindString(Preset)
+            Dim idxG2 = ComboBoxPoses.FindString(Pose)
+            If idxG <> -1 Then ComboBoxPresets.SelectedIndex = idxG Else ComboBoxPresets.SelectedIndex = 0
+            If idxG2 <> -1 Then ComboBoxPoses.SelectedIndex = idxG2 Else ComboBoxPoses.SelectedIndex = 0
+        Else
+#End If
+        ComboBoxPresets.SeleccionarExactoOPrimero(Preset)
+        ComboBoxPoses.SeleccionarExactoOPrimero(Pose)
+#If DEBUG Then
+        End If
+#End If
         Actualiza_Preset()
         SingleBoneCheck.Checked = EditPreviewControl.Model.SingleBoneSkinning
         If IsNothing(Selected_Slider) Then
@@ -1820,28 +1865,30 @@ Public Class Editor_Form
         If Selected_Slider.OutputFileValue <> OutFilTextbox.Text Then Iniciado_Edit()
         Selected_Slider.OutputFileValue = OutFilTextbox.Text
     End Sub
+    ''' <summary>THE EDITOR'S ONE PREVIEW CONTROL (ola 7g round 2, p7g-05; D:\WinTmp\rc\memdbg\informe.md). Created ONCE, by this field
+    ''' initializer - it has to exist before InitializeComponent ends: the designer's RadioButton1.Checked = True reaches
+    ''' RadioButton1_CheckedChanged, which dereferences it; then CheckBoxRenderFloor in the constructor, Lee_Edit and the checkboxes
+    ''' Open_Editor sets (SingleBoneCheck, RecalculateNormalsCheck) - and configured ONCE, by ConfigurarPreview right after
+    ''' InitializeComponent, which puts it in Panel1. Released ONCE, by PreviewControl.Release in EditorControl_Closing.
+    ''' <para>NOTHING RENDERS THROUGH IT BEFORE THE FORM IS SHOWN (ola 7g round 2f, r7g-05): in Panel1 of a form not shown yet it is
+    ''' not Visible, and Update_Render and ForceRerender leave on Not Visible (WM_RenderExtensions) - Lee_Edit and those handlers only
+    ''' set state. Its handle, its context and its programs are made when the form shows it (measured: no program set built and no
+    ''' handle right before Open_Editor's ShowDialog).</para>
+    ''' <para>It used to be replaced in Shown by a second control, the first one only quiesced (BeginTeardown) on the belief that it
+    ''' "never had a GL context". It had one: in no parent it was Visible, so Lee_Edit rendered through it before the form was shown
+    ''' (ComboBoxSize -&gt; Process_render_Changes -&gt; Update_Render -&gt; ClearUnreadable -&gt; ... -&gt; PreviewModel.Clean -&gt;
+    ''' EnsureContextCurrent created its handle, its context and its programs - 3,776 in Debug, +1.77 GB), and as it was never in
+    ''' Panel1.Controls nothing freed it: +1.7 GB per opening in Debug, measured.</para></summary>
     Private WithEvents EditPreviewControl As New PreviewControl
-    Private Sub EditorControl_Shown(sender As Object, e As EventArgs) Handles Me.Shown
-        If ComboBoxShapes.Items.Count > 0 Then ComboBoxShapes.SelectedIndex = 0
-        Application.DoEvents()
-        ' ⛔ EL DEL INICIALIZADOR DE CAMPO (:1572) VIENE CON SU TEMPORIZADOR DE 16 ms YA ARRANCADO por el
-        ' ctor de PreviewControl, y hasta acá nadie lo apagaba: quedaba uno huérfano por CADA apertura del
-        ' editor, invalidando para siempre un control que nunca tuvo contexto gráfico. MEDIDO: un Timer de
-        ' WinForms arrancado y sin referencias sobrevive a dos `GC.Collect` + `WaitForPendingFinalizers` y
-        ' sigue tickeando; lo que lo para es el Dispose del control, que al huérfano no le llegaba.
-        '
-        ' NO se puede declarar el campo `= Nothing` (que es lo que hacen CreatefromNif_Form y
-        ' HkxPoseImport_Form): hay CINCO accesos anteriores a este punto, y el primero es dentro del
-        ' propio constructor — `InitializeComponent` hace `RadioButton1.Checked = True`
-        ' (Editor_Form.Designer.vb:1381) y su handler (:2163) desreferencia el control. Los otros cuatro
-        ' son `CheckBoxRenderFloor` (ctor), `Lee_Edit:893` y los dos handlers de Open_Editor:2802-2803.
-        '
-        ' `BeginTeardown` para y dispone el Timer SIN emitir una sola llamada GL (Render.vb:2225-2233),
-        ' que es exactamente lo que hace falta sobre un control sin contexto.
-        Dim previoSinUsar = EditPreviewControl
-        EditPreviewControl = New PreviewControl With {.Dock = DockStyle.Fill}
+
+    ''' <summary>The configuration of EditPreviewControl, ONCE, right after InitializeComponent (the constructor), before Lee_Edit
+    ''' fills the form (Lee_Edit renders nothing through it: the form is not shown yet, see the field). Docked into Panel1 (so the
+    ''' form's own disposal reaches it too), the edit intent, the app's settings it reads, the mask brush and the floor. The floor's
+    ''' geometry is built by its first draw, with the context current (FloorRenderer.Render: Rebuild while not Initialized): the
+    ''' constructor has no GL context.</summary>
+    Private Sub ConfigurarPreview()
+        EditPreviewControl.Dock = DockStyle.Fill
         EditPreviewControl.Intent.DrawEngineSkippedForEditing = True   ' editing the project's shapes and materials (C2 v3 L5)
-        If previoSinUsar IsNot Nothing AndAlso Not previoSinUsar.IsDisposed Then previoSinUsar.BeginTeardown()
         Panel1.Controls.Add(EditPreviewControl)
         EditPreviewControl.Model.SingleBoneSkinning = Config_App.Current.Setting_SingleBoneSkinning
         EditPreviewControl.AllowMask = True
@@ -1850,10 +1897,31 @@ Public Class Editor_Form
         EditPreviewControl.Model.Floor.Color = Config_App.Current.RenderGridColor
         EditPreviewControl.Model.Floor.Size = Config_App.Current.Settings_RenderGrid.Size
         EditPreviewControl.Model.Floor.StepSize = Config_App.Current.Settings_RenderGrid.StepSize
-        EditPreviewControl.Model.Floor.Rebuild()
         AddHandler EditPreviewControl.FloorToggled, Sub(s, enabled)
                                                         CheckBoxRenderFloor.Checked = enabled
                                                     End Sub
+    End Sub
+
+#If DEBUG Then
+    ''' <summary>Ola 7g round 2 tester: the controls the mutant g7-shown-replacement leaves orphaned (the gate disposes them after each opening, so the series stays under the memory budget).</summary>
+    Public Shared ReadOnly GateOrfanos As New List(Of PreviewControl)
+#End If
+    Private Sub EditorControl_Shown(sender As Object, e As EventArgs) Handles Me.Shown
+#If DEBUG Then
+        ' Ola 7g round 2 tester (WmMismaEscenaGate --ola7g, R2-7): the design before the round 2 - a second control replaces the field's, and the
+        ' first one, never freed, is only quiesced (and it is not in Panel1 any more: nothing disposes it with the form).
+        If WM_RenderExtensions.GateMutantOn("g7-shown-replacement") Then
+            Dim previoSinUsar = EditPreviewControl
+            EditPreviewControl = New PreviewControl With {.Dock = DockStyle.Fill}
+            EditPreviewControl.Intent.DrawEngineSkippedForEditing = True
+            Panel1.Controls.Remove(previoSinUsar)
+            If previoSinUsar IsNot Nothing AndAlso Not previoSinUsar.IsDisposed Then previoSinUsar.BeginTeardown()
+            GateOrfanos.Add(previoSinUsar)
+            Panel1.Controls.Add(EditPreviewControl)
+        End If
+#End If
+        If ComboBoxShapes.Items.Count > 0 Then ComboBoxShapes.SelectedIndex = 0
+        Application.DoEvents()
         Process_render_Changes(True)
     End Sub
 
@@ -1888,10 +1956,9 @@ Public Class Editor_Form
             Next
         End If
         DisposeLastBitmap()
-        If EditPreviewControl IsNot Nothing AndAlso Not EditPreviewControl.IsDisposed Then
-            EditPreviewControl.Clean()
-            EditPreviewControl.Dispose()
-        End If
+        ' The one release of the one preview control (ola 7g round 2, p7g-05): the lib's route, PreviewControl.Release (round 2b) -
+        ' BeginTeardown, then Dispose: Clean and Control.Dispose, which frees its window and takes it out of Panel1.
+        PreviewControl.Release(EditPreviewControl)
     End Sub
     Private Sub ButtonRenderScreenshot_Click(sender As Object, e As EventArgs) Handles ButtonRenderScreenshot.Click
         If IsNothing(EditPreviewControl) OrElse EditPreviewControl.IsDisposed Then Exit Sub
@@ -2485,11 +2552,12 @@ Public Class Editor_Form
     End Sub
 
     Private Sub Buttonsave_Click(sender As Object, e As EventArgs) Handles ButtonSavePreset.Click
-        Dim nombre = ComboBoxPresets.SelectedItem.ToString
-        Dim filename = WM_SliderPresets.Presets(nombre).Filename
-        If nombre <> "" Then
-            SavePresetXml(filename, nombre, False)
-        End If
+        ' Ola 7g (p7e-10): sin preset elegido no hay archivo que guardar (el mismo guard que Borrar, Button10_Click).
+        If ComboBoxPresets.SelectedItem Is Nothing Then Exit Sub
+        Dim nombre = ComboBoxPresets.SelectedItem.ToString()
+        Dim entrada As SlidersPreset_Class = Nothing
+        If nombre = "" OrElse Not WM_SliderPresets.Presets.TryGetValue(nombre, entrada) OrElse entrada Is Nothing Then Exit Sub
+        SavePresetXml(entrada.Filename, nombre, False)
     End Sub
     Public Function SavePresetXml(path As String, Nombre As String, delete As Boolean) As Boolean
         Try
@@ -2614,8 +2682,7 @@ Public Class Editor_Form
 
             If delete Then
                 WM_SliderPresets.Presets.Remove(Nombre)
-                ComboBoxPresets.Items.Remove(Nombre)
-                If ComboBoxPresets.Items.Count > 0 Then ComboBoxPresets.SelectedIndex = 0
+                ComboBoxPresets.QuitarItem(Nombre)
             Else
                 ' ⛔ La copia en memoria se arma con lo que se ESCRIBIO, no con Selected_Preset.
                 ' Selected_Preset es la lista de TRABAJO del editor: el catalogo entero x 3 tallas mas
@@ -2642,10 +2709,14 @@ Public Class Editor_Form
                 End If
                 ' ⛔ `FindString` busca por PREFIJO: devuelve el primer ítem que EMPIEZA con el texto, así
                 ' que guardar "Body" seleccionaba "BodySlim" si venía antes — y como el cambio de selección
-                ' dispara la carga, los valores de ESE preset se cargaban encima. `FindStringExact` compara
-                ' el nombre entero; devuelve -1 si no está, y asignar -1 a SelectedIndex es legal (deja el
-                ' combo sin selección), así que no hace falta guard.
-                ComboBoxPresets.SelectedIndex = ComboBoxPresets.FindStringExact(Nombre)
+                ' dispara la carga, los valores de ESE preset se cargaban encima. Y `FindStringExact` no
+                ' distingue mayúsculas, el diccionario de presets sí (ordinal): "body" elegía "Body". La regla
+                ' única de los combos de presets y poses (ola 7g): el nombre exacto, Ordinal (WM_ComboSeleccion).
+                ComboBoxPresets.SeleccionarExactoOPrimero(Nombre)
+#If DEBUG Then
+                ' Ola 7g tester (WmMismaEscenaGate --ola7g, case 18): HEAD's FindStringExact (exact, any case).
+                If WM_RenderExtensions.GateMutantOn("g7-saveas-findstringexact") Then ComboBoxPresets.SelectedIndex = ComboBoxPresets.FindStringExact(Nombre)
+#End If
             End If
 
             If delete AndAlso contar = 0 Then
@@ -2749,8 +2820,11 @@ Public Class Editor_Form
 
             If delete Or KeynameActual <> Keyname Then
                 WM_SliderPresets.Poses.Remove(KeynameActual)
-                ComboBoxPoses.Items.Remove(KeynameActual)
-                If delete Then If ComboBoxPoses.Items.Count > 0 Then ComboBoxPoses.SelectedIndex = 0
+                If delete Then
+                    ComboBoxPoses.QuitarItem(KeynameActual)
+                Else
+                    ComboBoxPoses.Items.Remove(KeynameActual)
+                End If
             End If
 
             If Not delete Then
@@ -2763,7 +2837,11 @@ Public Class Editor_Form
                     ComboBoxPoses.Items.Add(Keyname)
                 End If
 
-                ComboBoxPoses.SelectedIndex = ComboBoxPoses.FindString(Keyname)
+                ComboBoxPoses.SeleccionarExactoOPrimero(Keyname)
+#If DEBUG Then
+                ' Ola 7g tester (WmMismaEscenaGate --ola7g, case 21): HEAD's FindString (a prefix, any case).
+                If WM_RenderExtensions.GateMutantOn("g7-pose-findstring") Then ComboBoxPoses.SelectedIndex = ComboBoxPoses.FindString(Keyname)
+#End If
             End If
             If delete AndAlso contar = 0 Then
                 IO.File.Delete(path)
@@ -3025,6 +3103,8 @@ Public Class Editor_Form
 
         ' Esta llamada es exigida por el dise?ador.
         InitializeComponent()
+        ' The one preview control, configured once (ola 7g round 2, p7g-05): see EditPreviewControl.
+        ConfigurarPreview()
 
 
         ' SAM (ScreenArcher Menu) is a Fallout 4 mod, so "Save for screen archer" only makes sense for

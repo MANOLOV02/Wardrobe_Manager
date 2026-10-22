@@ -2532,10 +2532,8 @@ Public Class Wardrobe_Manager_Form
     Private Sub Wardrobe_Manager_Form_FormClosing(sender As Object, e As FormClosingEventArgs) Handles Me.FormClosing
         Config_App.SaveConfig()
         WM_Config.SaveConfig()
-        If preview_Control IsNot Nothing Then
-            preview_Control.Clean()
-            preview_Control.Dispose()
-        End If
+        ' The one release of the preview (PreviewControl.Release, ola 7g round 2b).
+        PreviewControl.Release(preview_Control)
     End Sub
 
     Private Sub Wardrobe_Manager_Form_Load(sender As Object, e As EventArgs) Handles Me.Load
@@ -2976,12 +2974,7 @@ Public Class Wardrobe_Manager_Form
         ComboBoxPresets.BeginUpdate()
         ComboBoxPresets.Items.Clear()
         ComboBoxPresets.Items.AddRange(ordered)
-        Dim idx = Array.IndexOf(ordered, old_str)
-        If idx <> -1 Then
-            ComboBoxPresets.SelectedIndex = idx
-        Else
-            If ComboBoxPresets.Items.Count > 0 Then ComboBoxPresets.SelectedIndex = 0
-        End If
+        ComboBoxPresets.SeleccionarExactoOPrimero(old_str)
         ComboBoxPresets.EndUpdate()
         ComboBoxPresets.ResumeLayout()
     End Sub
@@ -2998,12 +2991,7 @@ Public Class Wardrobe_Manager_Form
         ComboBoxPoses.BeginUpdate()
         ComboBoxPoses.Items.Clear()
         ComboBoxPoses.Items.AddRange(ordered)
-        Dim idx = Array.IndexOf(ordered, old_str)
-        If idx <> -1 Then
-            ComboBoxPoses.SelectedIndex = idx
-        Else
-            If ComboBoxPoses.Items.Count > 0 Then ComboBoxPoses.SelectedIndex = 0
-        End If
+        ComboBoxPoses.SeleccionarExactoOPrimero(old_str)
         ComboBoxPoses.EndUpdate()
         ComboBoxPoses.ResumeLayout()
     End Sub

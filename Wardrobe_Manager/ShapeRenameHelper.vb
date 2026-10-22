@@ -45,12 +45,12 @@ Public NotInheritable Class ShapeRenameHelper
             Return "The name can only use Latin-1 characters (NIF files store shape names in that encoding)."
         End If
         If latin1.GetByteCount(nombre) > 255 Then Return "The name is longer than 255 characters (limit of the .tri format)."
-        If ss.Shapes.Any(Function(x) x IsNot propia AndAlso
-                             (x.Nombre.Equals(nombre, StringComparison.OrdinalIgnoreCase) OrElse x.Target.Equals(nombre, StringComparison.OrdinalIgnoreCase))) Then
+        ' The project's one law of a shape name in use (SliderSet_Class.ShapeNameInProject / ShapeNameInNif, ola 7g): a set-aside
+        ' shape (UntakenShapes) is a project shape too.
+        If ss.ShapeNameInProject(nombre, propia) Then
             Return $"A shape named '{nombre}' already exists in the project."
         End If
-        Dim nifPropia = propia?.RelatedNifShape
-        If ss.NIFContent.NifShapes.Any(Function(n) n IsNot nifPropia AndAlso String.Equals(n.Name?.String, nombre, StringComparison.OrdinalIgnoreCase)) Then
+        If ss.ShapeNameInNif(nombre, propia) Then
             Return $"A shape named '{nombre}' already exists in the mesh."
         End If
         If formaDeDatos IsNot Nothing Then
@@ -218,9 +218,17 @@ Public NotInheritable Class ShapeRenameHelper
     Public Shared Function RenombrarIdentidad(shape As Shape_class, ss As SliderSet_Class, nuevo As String) As ResultadoIdentidad
         Dim r As New ResultadoIdentidad
         Dim nif = ss.NIFContent
-        ' Todo lo que se resuelve por el nombre viejo, ANTES de cambiarlo (RelatedNifShape resuelve por Nombre).
-        Dim nifShape = shape.RelatedNifShape
-        Dim viejoNif = nifShape?.Name?.String
+        ' Todo lo que se resuelve por el nombre viejo, ANTES de cambiarlo (NifBlocksOf resuelve por Nombre): el bloque de una
+        ' shape tomada o los de una apartada (ola 7g, r19k-04: el merge las lleva al resultado y las renombra si chocan).
+        Dim nifShapes = ss.NifBlocksOf(shape)
+#If DEBUG Then
+        ' Ola 7g tester (WmMismaEscenaGate --ola7g, case 2): HEAD's rule - only a taken shape's block (RelatedNifShape); a set-aside
+        ' shape's blocks keep their name.
+        If WM_RenderExtensions.GateMutantOn("g7-rename-related-only") Then
+            nifShapes = If(shape.RelatedNifShape Is Nothing, New List(Of INiShape), New List(Of INiShape) From {shape.RelatedNifShape})
+        End If
+#End If
+        Dim viejoNif = nifShapes.FirstOrDefault()?.Name?.String
         Dim viejoNombre = shape.Nombre
 
         ' Material: la MISMA entrada (mismo objeto: ediciones sin guardar viajan con la shape) bajo la clave nueva. Una
@@ -232,11 +240,11 @@ Public NotInheritable Class ShapeRenameHelper
         bm.Remove(nuevo)
         If tenia Then bm(nuevo) = entrada
 
-        If nifShape IsNot Nothing Then
+        For Each nifShape In nifShapes
             Dim a = nif.RenombrarShapeConAnimacion(nifShape, nuevo)
-            r.BloquesAnimacion = a.Bloques
-            r.EntradasPalette = a.Palette
-        End If
+            r.BloquesAnimacion += a.Bloques
+            r.EntradasPalette += a.Palette
+        Next
 
         shape.Nombre = nuevo
         shape.Target = nuevo
