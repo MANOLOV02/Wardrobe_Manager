@@ -2033,6 +2033,9 @@ Public Class Editor_Form
     ''' (con el motivo ya mostrado) si no se pudo escribir; en ese caso el llamador NO sigue.</summary>
     Private Function Escribe_Material_Suelto(absPath As String) As Boolean
         Dim mat = Selected_Shape.RelatedMaterial.material
+        ' Ola 7h round 4g (user decision): a material read partial or with the engine's defaults is saved AS IT WAS READ, and the user is
+        ' told (its one producer, MaterialFileReader.AvisoAlGuardar). Taken before the save: the save does not change the read.
+        Dim aviso = mat.AvisoAlGuardar(Selected_Shape.RelatedMaterial.path)
         ' ⛔ ESTE Try NO ES DECORACION. `Save_To_Bgsm` va por `EscrituraEnElLugar.GuardarConCopia`, que
         ' TIRA a proposito cuando no pudo dejar una copia verificada del archivo que va a pisar ("was
         ' NOT modified: its backup could not be created") — disco lleno, permisos, el archivo tomado.
@@ -2052,6 +2055,7 @@ Public Class Editor_Form
             Return False
         End Try
         WroteFilesToDisk = True
+        If aviso IsNot Nothing Then MsgBox(aviso, vbOKOnly + vbExclamation, "Warning")
         Return True
     End Function
 

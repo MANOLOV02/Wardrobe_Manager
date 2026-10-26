@@ -661,6 +661,9 @@ Public Class Clone_Materials_class
         Public ReadOnly InlineSlots As New List(Of InlineTextureSlot)
         ''' <summary>Índices de BSShaderTextureSet ya enumerados: varias shapes pueden COMPARTIR el bloque.</summary>
         Public ReadOnly SeenInlineTexsets As New HashSet(Of Integer)
+        ''' <summary>Ola 7h round 4g (user decision): the materials CommitMaterialJobs wrote as they were read - partial or with the
+        ''' engine's defaults - each with MaterialFileReader.AvisoAlGuardar's warning.</summary>
+        Public ReadOnly AvisosDeMaterial As New List(Of (Fuente As String, Aviso As String))
     End Class
 
     Private Class ShapeMaterialBinding
@@ -821,6 +824,7 @@ Public Class Clone_Materials_class
 
         CommitTextureJobs(plan, overwrite)
         CommitMaterialJobs(plan, overwrite)
+        If plan.AvisosDeMaterial.Count > 0 Then OSP_Project_Class.ReportLoadIssue(loadContext, BuildMaterialSavedWithEngineDefaultsIssue(project, plan.AvisosDeMaterial))
         ApplyShapeBindings(plan)
         ApplyInlineTextureBindings(plan)
 
@@ -1772,6 +1776,8 @@ Public Class Clone_Materials_class
                     ApplyBGSMResolvedReferences(material, job)
 
                     WriteMaterialJob(job, overwrite, Sub(fs) MaterialFileReader.Escribir(material, lectura.BlendCrudo, fs))
+                    Dim aviso = lectura.AvisoAlGuardar(job.Source)
+                    If aviso IsNot Nothing Then plan.AvisosDeMaterial.Add((job.Source, aviso))
 
                 Case ".bgem"
                     Dim lectura = MaterialFileReader.Leer(FilesDictionary_class.GetBytes(job.Source), GetType(BGEM))
@@ -1780,6 +1786,8 @@ Public Class Clone_Materials_class
                     ApplyBGEMResolvedReferences(material, job)
 
                     WriteMaterialJob(job, overwrite, Sub(fs) MaterialFileReader.Escribir(material, lectura.BlendCrudo, fs))
+                    Dim aviso = lectura.AvisoAlGuardar(job.Source)
+                    If aviso IsNot Nothing Then plan.AvisosDeMaterial.Add((job.Source, aviso))
 
                 Case Else
                     Throw New Exception
@@ -2033,6 +2041,22 @@ Public Class Clone_Materials_class
         }
     End Function
 
+    ''' <summary>Ola 7h round 4g (user decision): the clone wrote materials read partial or with the engine's defaults, as they were
+    ''' read; the issue carries each one's warning (MaterialFileReader.AvisoAlGuardar, the one producer).</summary>
+    Private Shared Function BuildMaterialSavedWithEngineDefaultsIssue(project As SliderSet_Class, avisos As List(Of (Fuente As String, Aviso As String))) As ProjectLoadIssue
+        Dim osp = project.ParentOSP
+        Return New ProjectLoadIssue With {
+            .Kind = ProjectLoadIssueKind.MaterialSavedWithEngineDefaults,
+            .OspFile = If(osp?.Filename, "").Correct_Path_Separator,
+            .PackName = If(osp?.Nombre, ""),
+            .ProjectName = If(project.Nombre, ""),
+            .Message = String.Join(vbCrLf, avisos.Select(Function(a) a.Aviso)),
+            .MaterialPaths = avisos.Select(Function(a) a.Fuente).ToList(),
+            .SourceSlider = project,
+            .SourceOsp = osp
+        }
+    End Function
+
     Public Shared Function BuildCloneMaterialPendingIssue(project As SliderSet_Class) As ProjectLoadIssue
         If IsNothing(project) Then Return Nothing
 
@@ -2099,6 +2123,9 @@ Public Enum ProjectLoadIssueKind
     ''' <summary>Merge renombró una shape del proyecto entrante pero su XML de HDT-SMP no se pudo parsear: la física de esa
     ''' shape quedó atada al nombre viejo.</summary>
     PhysicsXmlNotRenamed
+    ''' <summary>Ola 7h round 4g: the clone wrote a material that was read partial or with the engine's defaults, as it was read (a
+    ''' WARNING: MaterialFileReader.AvisoAlGuardar).</summary>
+    MaterialSavedWithEngineDefaults
 End Enum
 
 Public Class ProjectLoadIssue
@@ -2304,6 +2331,9 @@ Public Class OSP_Project_Class
                 text = "Clone material repair skipped for project: " & issue.ProjectName & " " & issue.Message
             Case ProjectLoadIssueKind.PhysicsXmlNotRenamed
                 text = "Physics not updated for project: " & issue.ProjectName & " " & issue.Message
+            Case ProjectLoadIssueKind.MaterialSavedWithEngineDefaults
+                MsgBox(issue.Message, vbExclamation Or vbOKOnly, "Warning")
+                Return
             Case Else
                 text = "Error reading shapedata from project: " & issue.ProjectName & " " & issue.Message
         End Select
@@ -2311,7 +2341,7 @@ Public Class OSP_Project_Class
         MsgBox(text, vbCritical Or vbOKOnly, "Error")
     End Sub
 
-    Private Shared Sub ReportLoadIssue(context As ProjectLoadContext, issue As ProjectLoadIssue)
+    Friend Shared Sub ReportLoadIssue(context As ProjectLoadContext, issue As ProjectLoadIssue)
         If IsNothing(issue) Then Exit Sub
 
         Dim effectiveContext = EnsureLoadContext(context)

@@ -1350,6 +1350,8 @@ Public Class Wardrobe_Manager_Form
                 Return "Clone material pending"
             Case ProjectLoadIssueKind.PhysicsXmlNotRenamed
                 Return "Physics not updated after renaming a shape"
+            Case ProjectLoadIssueKind.MaterialSavedWithEngineDefaults
+                Return "Materials saved with the engine's defaults"
             Case Else
                 Return kind.ToString()
         End Select
@@ -1421,7 +1423,8 @@ Public Class Wardrobe_Manager_Form
                 ProjectLoadIssueKind.ShapeDataReadError,
                 ProjectLoadIssueKind.CloneMaterialSourceMissing,
                 ProjectLoadIssueKind.CloneMaterialPending,
-                ProjectLoadIssueKind.PhysicsXmlNotRenamed
+                ProjectLoadIssueKind.PhysicsXmlNotRenamed,
+                ProjectLoadIssueKind.MaterialSavedWithEngineDefaults
             }
 
             Dim grouped = issues.GroupBy(Function(iss) iss.Kind).ToDictionary(Function(g) g.Key, Function(g) g.ToList())
