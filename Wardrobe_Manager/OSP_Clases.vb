@@ -1769,13 +1769,13 @@ Public Class Clone_Materials_class
         For Each job In pending
             Select Case job.Extension
                 Case ".bgsm"
-                    ' Read and written as the engine reads it (MaterialFileReader): a raw blend pair goes back verbatim.
+                    ' Read and written as the engine reads it (MaterialFileReader): a raw blend pair and the colours' floats go back verbatim.
                     Dim lectura = MaterialFileReader.Leer(FilesDictionary_class.GetBytes(job.Source), GetType(BGSM))
                     Dim material = DirectCast(lectura.Material, BGSM)
 
                     ApplyBGSMResolvedReferences(material, job)
 
-                    WriteMaterialJob(job, overwrite, Sub(fs) MaterialFileReader.Escribir(material, lectura.BlendCrudo, fs))
+                    WriteMaterialJob(job, overwrite, Sub(fs) MaterialFileReader.Escribir(material, lectura.BlendCrudo, fs, lectura.FlotantesDeColor, lectura.EsJson))
                     Dim aviso = lectura.AvisoAlGuardar(job.Source)
                     If aviso IsNot Nothing Then plan.AvisosDeMaterial.Add((job.Source, aviso))
 
@@ -1785,7 +1785,7 @@ Public Class Clone_Materials_class
 
                     ApplyBGEMResolvedReferences(material, job)
 
-                    WriteMaterialJob(job, overwrite, Sub(fs) MaterialFileReader.Escribir(material, lectura.BlendCrudo, fs))
+                    WriteMaterialJob(job, overwrite, Sub(fs) MaterialFileReader.Escribir(material, lectura.BlendCrudo, fs, lectura.FlotantesDeColor, lectura.EsJson))
                     Dim aviso = lectura.AvisoAlGuardar(job.Source)
                     If aviso IsNot Nothing Then plan.AvisosDeMaterial.Add((job.Source, aviso))
 

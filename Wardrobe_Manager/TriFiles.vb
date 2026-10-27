@@ -171,7 +171,7 @@ Public Module LooksMenuSliders
 
                 Dim bytes = FilesDictionary_class.GetBytes(key)
                 If bytes Is Nothing OrElse bytes.Length = 0 Then Continue For
-                result.AddRange(DeserializeLooksMenuSlidersJson(Text.Encoding.UTF8.GetString(bytes)))
+                result.AddRange(DeserializeLooksMenuSlidersJson(bytes))
             Next
         Catch
             ' Best-effort, igual que la pasada de disco.
@@ -210,184 +210,68 @@ Public Module LooksMenuSliders
     Public Function DeserializeLooksMenuSliders(sliderFile As String) As List(Of MorphdataTri)
         Try
             If Not IO.File.Exists(sliderFile) Then Return New List(Of MorphdataTri)
-            Return DeserializeLooksMenuSlidersJson(IO.File.ReadAllText(sliderFile))
+            Return DeserializeLooksMenuSlidersJson(IO.File.ReadAllBytes(sliderFile))
         Catch
             Return New List(Of MorphdataTri)
         End Try
     End Function
 
     ''' <summary>
-    ''' El mismo parseo pero desde el CONTENIDO, para los sliders.json que salen de un BA2.
-    '''
-    ''' ⛔ NO usa <c>JsonSerializer.Deserialize</c>: System.Text.Json y jsoncpp discrepan en cinco
-    ''' puntos, y CUATRO caen del lado peligroso (damos por ocupado un nombre que el motor SI
-    ''' registra ⇒ no emitimos el nuestro ⇒ le pisamos la metadata al mod ajeno, porque
-    ''' <c>m_sliderMap[gender][morph] = pBodySlider</c> es asignacion y gana el ultimo). Se replica a
-    ''' mano lo que hace <c>BodySlider::Parse</c> (BodyMorphInterface.cpp) sobre los valores
-    ''' de jsoncpp:
+    ''' Un sliders.json como lo lee el motor (BodyMorphInterface::LoadBodyGenSliders, BodyMorphInterface.cpp:360-395), desde sus
+    ''' BYTES (BSReadAll: sin quitar un BOM, sin decodificar): el <c>Json::Reader</c> de f4ee (<see cref="Jsoncpp.LeerF4ee"/>) - un
+    ''' archivo que no parsea (una coma colgando, un BOM, texto que jsoncpp rechaza) no registra nada (:371-374) -, y
+    ''' <c>for(auto&amp; item : root)</c>: los elementos de un array o los VALORES de un objeto. Cada entrada con
+    ''' <c>BodySlider::Parse</c> (:412-431) y la ley de conversiones de jsoncpp (<see cref="Jsoncpp"/>, la misma de los presets):
     ''' <list type="bullet">
-    ''' <item><c>name</c>/<c>morph</c>: <c>asCString()</c>. Sobre cualquier cosa que no sea string
-    ''' (ausente, null, numero, bool, objeto) LANZA ⇒ <c>Parse</c> devuelve false ⇒ la entrada no se
-    ''' registra. ⚠️ Un string VACIO explicito si lo registra el motor; aca se descarta igual, porque
-    ''' una clave vacia no puede colisionar con ningun morph real nuestro.</item>
-    ''' <item><c>gender</c>: <c>asInt()</c> — null ⇒ 0, bool ⇒ 0/1, real ⇒ trunca, <b>string ⇒ LANZA</b>.
-    ''' Y despues <c>if(gender == 0 || gender == 1)</c> sobre un <c>UInt8</c>
-    ''' (BodyMorphInterface.h), o sea con el valor TRUNCADO a 8 bits: 256 entra como masculino.</item>
-    ''' <item><c>minimum</c>/<c>maximum</c>/<c>interval</c>: <c>asFloat()</c>, mismas reglas. No los
-    ''' mira nadie para decidir el registro, pero un null en cualquiera de ellos hacia que
-    ''' <c>Deserialize</c> tirara y — con el Try envolviendo el array — nos costaba el ARCHIVO entero.</item>
-    ''' <item>Comentarios <c>//</c>: <c>Json::Reader</c> se construye con <c>Features::all()</c>, o sea
-    ''' <c>allowComments_ = true</c>. <c>JsonDocument</c> los rechaza por default ⇒ se pasa
-    ''' <c>CommentHandling.Skip</c>. Las comas colgando y NaN/Infinity los rechazan LOS DOS, asi que
-    ''' ahi el default sirve.</item>
-    ''' <item>Root que es un OBJETO en vez de un array: <c>for(auto&amp; item : root)</c> itera
-    ''' los MIEMBROS de un objeto igual que los elementos de un array. Se replica.</item>
+    ''' <item><c>name</c>/<c>morph</c>: <c>asCString()</c>. Sobre cualquier cosa que no sea string (ausente, null, numero, bool,
+    ''' objeto) LANZA ⇒ <c>Parse</c> devuelve false ⇒ la entrada no se registra. ⚠️ Un string VACIO explicito si lo registra el
+    ''' motor; aca se descarta igual, porque una clave vacia no puede colisionar con ningun morph real nuestro.</item>
+    ''' <item><c>gender</c> y <c>sort</c>: <c>asInt()</c> — null ⇒ 0, bool ⇒ 0/1, real ⇒ trunca dentro del rango de Int32 (fuera
+    ''' LANZA), string ⇒ LANZA. Y despues <c>if(gender == 0 || gender == 1)</c> sobre un <c>UInt8</c> (BodyMorphInterface.h), o
+    ''' sea con el valor TRUNCADO a 8 bits: 256 entra como masculino.</item>
+    ''' <item><c>minimum</c>/<c>maximum</c>/<c>interval</c>: <c>asFloat()</c>. No los mira nadie para decidir el registro, pero el
+    ''' que lanza descarta la entrada.</item>
     ''' </list>
-    ''' Un json que ni siquiera parsea devuelve lista vacia: el motor loguea y sale.
+    ''' Un lanzamiento descarta ESA entrada (el catch de Parse), no el archivo.
     ''' </summary>
-    Public Function DeserializeLooksMenuSlidersJson(json As String) As List(Of MorphdataTri)
+    Public Function DeserializeLooksMenuSlidersJson(bytes As Byte()) As List(Of MorphdataTri)
         Dim result As New List(Of MorphdataTri)
-        If String.IsNullOrWhiteSpace(json) Then Return result
-        Try
-            ' BOM: File.ReadAllText lo saca solo, pero los bytes crudos del BA2 no.
-            Using doc = JsonDocument.Parse(json.TrimStart(ChrW(&HFEFF)), JsonDocOpts)
-                Dim items As IEnumerable(Of JsonElement)
-                Select Case doc.RootElement.ValueKind
-                    Case JsonValueKind.Array
-                        items = doc.RootElement.EnumerateArray().ToList()
-                    Case JsonValueKind.Object
-                        items = doc.RootElement.EnumerateObject().Select(Function(pr) pr.Value).ToList()
-                    Case Else
-                        Return result
-                End Select
-
-                ' POR ENTRADA, no el array entero: el motor descarta UNA entrada, no el archivo
-                ' (BodyMorphInterface.cpp).
-                For Each item In items
-                    Dim entry = ParseSliderEntry(item)
-                    If entry IsNot Nothing Then result.Add(entry)
-                Next
-            End Using
-        Catch
-            Return New List(Of MorphdataTri)
-        End Try
+        If bytes Is Nothing OrElse bytes.Length = 0 Then Return result
+        Dim transcodificado As Boolean
+        Dim raiz = Jsoncpp.LeerF4ee(Jsoncpp.BytesComoLosVeJsoncpp(bytes, transcodificado))
+        If raiz Is Nothing Then Return result
+        For Each item In Jsoncpp.Valores(raiz)
+            Dim entry = ParseSliderEntry(item)
+            If entry IsNot Nothing Then result.Add(entry)
+        Next
         Return result
     End Function
 
-    ''' <summary>Opciones que empatan a <c>Json::Reader</c> con <c>Features::all()</c>: comentarios
-    ''' permitidos, comas colgando NO (jsoncpp tambien las rechaza).</summary>
-    Private ReadOnly JsonDocOpts As New JsonDocumentOptions With {
-        .CommentHandling = JsonCommentHandling.Skip,
-        .AllowTrailingCommas = False
-    }
-
-    ''' <summary>Replica de <c>BodySlider::Parse</c> (BodyMorphInterface.cpp) + el gate de
-    ''' gender. Devuelve Nothing cuando el motor NO registraria la entrada.
-    ''' ⛔ El <c>Try</c> envuelve TODO el cuerpo a proposito: en el canonico el <c>catch</c> es POR
-    ''' ENTRADA y devolver false descarta esa entrada y nada mas. Sin el, una conversion estrecha de
-    ''' VB (que lanza <c>OverflowException</c>, no satura) subia hasta el Try del ARCHIVO y nos
-    ''' costaba el sliders.json entero — el modo de falla que esto vino a eliminar.</summary>
-    Private Function ParseSliderEntry(item As JsonElement) As MorphdataTri
-        Try
-            If item.ValueKind <> JsonValueKind.Object Then Return Nothing
-
-            Dim nombre As String = Nothing
-            Dim morph As String = Nothing
-            If Not TryAsCString(item, "name", nombre) Then Return Nothing
-            If Not TryAsCString(item, "morph", morph) Then Return Nothing
-            If nombre.Length = 0 OrElse morph.Length = 0 Then Return Nothing
-
-            ' asInt(): sobre un real, jsoncpp comprueba el rango de Int32 y LANZA si no entra
-            ' (value.cpp, JSON_ASSERT_MESSAGE(InRange(...))) => la entrada no se registra.
-            Dim gender As Integer, sort As Integer
-            If Not TryAsInt(item, "gender", gender) Then Return Nothing
-            If Not TryAsInt(item, "sort", sort) Then Return Nothing
-
-            ' asFloat() es `static_cast<float>(asDouble())`: NO comprueba rango, satura a +/-inf.
-            Dim minimo As Single, maximo As Single, intervalo As Single
-            If Not TryAsFloat(item, "minimum", minimo) Then Return Nothing
-            If Not TryAsFloat(item, "maximum", maximo) Then Return Nothing
-            If Not TryAsFloat(item, "interval", intervalo) Then Return Nothing
-
-            ' `UInt8 gender` (BodyMorphInterface.h) cargado desde asInt(): trunca a 8 bits ANTES del
-            ' `if(gender == 0 || gender == 1)`. Un 256 entra como masculino.
-            Dim g As Integer = gender And &HFF
-            If g <> 0 AndAlso g <> 1 Then Return Nothing
-
-            Return New MorphdataTri With {
-                .Name = nombre,
-                .Morph = morph,
-                .Gender = g,
-                .Minimum = minimo,
-                .Maximum = maximo,
-                .Interval = intervalo
-            }
-        Catch
-            ' Igual que el catch de Parse: se descarta ESTA entrada, no el archivo.
-            Return Nothing
-        End Try
+    ''' <summary>Replica de <c>BodySlider::Parse</c> (BodyMorphInterface.cpp:412-431) + el gate de gender (:383-386). Devuelve Nothing
+    ''' cuando el motor NO registraria la entrada. En el orden del motor: name, morph, gender, minimum, maximum, interval, sort; la primera
+    ''' conversion que lanza termina Parse (false).</summary>
+    Private Function ParseSliderEntry(item As Jsoncpp.JsonValor) As MorphdataTri
+        Dim ok As Boolean
+        Dim nombre = Jsoncpp.AsCString(Jsoncpp.Miembro(item, "name", ok), ok) : If Not ok Then Return Nothing
+        Dim morph = Jsoncpp.AsCString(Jsoncpp.Miembro(item, "morph", ok), ok) : If Not ok Then Return Nothing
+        Dim gender = Jsoncpp.AsInt(Jsoncpp.Miembro(item, "gender", ok), ok) : If Not ok Then Return Nothing
+        Dim minimo = Jsoncpp.AsFloat(Jsoncpp.Miembro(item, "minimum", ok), Jsoncpp.Dialecto.F4eeSkee64, ok) : If Not ok Then Return Nothing
+        Dim maximo = Jsoncpp.AsFloat(Jsoncpp.Miembro(item, "maximum", ok), Jsoncpp.Dialecto.F4eeSkee64, ok) : If Not ok Then Return Nothing
+        Dim intervalo = Jsoncpp.AsFloat(Jsoncpp.Miembro(item, "interval", ok), Jsoncpp.Dialecto.F4eeSkee64, ok) : If Not ok Then Return Nothing
+        Jsoncpp.AsInt(Jsoncpp.Miembro(item, "sort", ok), ok) : If Not ok Then Return Nothing
+        If nombre.Length = 0 OrElse morph.Length = 0 Then Return Nothing
+        ' `UInt8 gender` (BodyMorphInterface.h) cargado desde asInt(): trunca a 8 bits ANTES del `if(gender == 0 || gender == 1)`.
+        Dim g As Integer = gender And &HFF
+        If g <> 0 AndAlso g <> 1 Then Return Nothing
+        Return New MorphdataTri With {
+            .Name = nombre,
+            .Morph = morph,
+            .Gender = g,
+            .Minimum = minimo,
+            .Maximum = maximo,
+            .Interval = intervalo
+        }
     End Function
-
-    ''' <summary><c>asCString()</c>: solo un string JSON pasa; el resto lanza en jsoncpp.
-    ''' Un miembro AUSENTE es <c>nullValue</c>, que tambien lanza.</summary>
-    Private Function TryAsCString(obj As JsonElement, nombre As String, ByRef valor As String) As Boolean
-        Dim el As JsonElement
-        If Not obj.TryGetProperty(nombre, el) Then Return False
-        If el.ValueKind <> JsonValueKind.String Then Return False
-        valor = el.GetString()
-        Return valor IsNot Nothing
-    End Function
-
-    ''' <summary><c>asInt()</c>: ausente/null ⇒ 0; bool ⇒ 0/1; entero o real ⇒ trunca hacia cero, pero
-    ''' <b>lanza si no entra en Int32</b>; string, objeto o array ⇒ lanza. Lanzar = descartar la
-    ''' entrada.</summary>
-    Private Function TryAsInt(obj As JsonElement, nombre As String, ByRef valor As Integer) As Boolean
-        valor = 0
-        Dim d As Double
-        If Not TryAsRaw(obj, nombre, d) Then Return False
-        If Double.IsNaN(d) Then Return False
-        Dim t As Double = Math.Truncate(d)
-        If t < Integer.MinValue OrElse t > Integer.MaxValue Then Return False
-        valor = CInt(t)
-        Return True
-    End Function
-
-    ''' <summary><c>asFloat()</c> = <c>static_cast&lt;float&gt;(asDouble())</c>: SIN comprobacion de
-    ''' rango, satura a infinito. Mismas reglas de tipo que <see cref="TryAsInt"/>.</summary>
-    Private Function TryAsFloat(obj As JsonElement, nombre As String, ByRef valor As Single) As Boolean
-        valor = 0.0F
-        Dim d As Double
-        If Not TryAsRaw(obj, nombre, d) Then Return False
-        If Double.IsNaN(d) Then
-            valor = Single.NaN
-        ElseIf d > Single.MaxValue Then
-            valor = Single.PositiveInfinity
-        ElseIf d < Single.MinValue Then
-            valor = Single.NegativeInfinity
-        Else
-            valor = CSng(d)
-        End If
-        Return True
-    End Function
-
-    ''' <summary>Valor numerico crudo con las reglas de tipo de jsoncpp. False = lanza = descartar.</summary>
-    Private Function TryAsRaw(obj As JsonElement, nombre As String, ByRef valor As Double) As Boolean
-        valor = 0
-        Dim el As JsonElement
-        If Not obj.TryGetProperty(nombre, el) Then Return True
-        Select Case el.ValueKind
-            Case JsonValueKind.Null, JsonValueKind.Undefined, JsonValueKind.False
-                Return True
-            Case JsonValueKind.True
-                valor = 1
-                Return True
-            Case JsonValueKind.Number
-                Return el.TryGetDouble(valor)
-            Case Else
-                Return False
-        End Select
-    End Function
-
 
     Public Sub Serialize_LooksmenuAdditionalSiliders()
         Try
