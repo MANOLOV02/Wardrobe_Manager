@@ -1891,6 +1891,11 @@ Public Class Editor_Form
         EditPreviewControl.Intent.DrawEngineSkippedForEditing = True   ' editing the project's shapes and materials (C2 v3 L5)
         Panel1.Controls.Add(EditPreviewControl)
         EditPreviewControl.Model.SingleBoneSkinning = Config_App.Current.Setting_SingleBoneSkinning
+        EditPreviewControl.Model.RecalculateNormals = Config_App.Current.Setting_RecalculateNormals
+#If DEBUG Then
+        ' WmMismaEscenaGate --ola7g [r2-8 box at open]: the Editor opens on the model's own value.
+        If WM_RenderExtensions.GateMutantOn("editor-box-not-at-open") Then EditPreviewControl.Model.RecalculateNormals = True
+#End If
         EditPreviewControl.AllowMask = True
         NumericMaskRadius.Value = EditPreviewControl.BrushRadiusPx
         EditPreviewControl.Model.Floor.Enabled = Config_App.Current.Settings_RenderGrid.Enabled
@@ -1981,17 +1986,30 @@ Public Class Editor_Form
             .Title = "Save render screenshot"
         }
             If sd.ShowDialog() <> DialogResult.OK Then Exit Sub
-            Try
-                Using bmp = EditPreviewControl.CaptureBitmap()
+            Dim fileName = sd.FileName
+            ' F9 (r3 rev-15): the capture is requested - read from the next complete frame (after the programs being built, the card
+            ' shows meanwhile) and saved in its callback; no wait on the UI thread. The button stays disabled until it arrives.
+            ButtonRenderScreenshot.Enabled = False
+            Dim r = EditPreviewControl.RequestCapture(
+                Sub(bmp As Bitmap, why As String)
+                    If Not ButtonRenderScreenshot.IsDisposed Then ButtonRenderScreenshot.Enabled = True
+                    If why = "closed" Then Exit Sub
                     If IsNothing(bmp) Then
-                        MsgBox("Could not capture render preview", vbOKOnly + vbCritical, "Error")
+                        MsgBox(If(why Is Nothing, "Could not capture render preview", "Error saving render screenshot: " & why), vbOKOnly + vbCritical, "Error")
                         Exit Sub
                     End If
-                    bmp.Save(sd.FileName, System.Drawing.Imaging.ImageFormat.Png)
-                End Using
-            Catch ex As Exception
-                MsgBox("Error saving render screenshot: " & ex.Message, vbOKOnly + vbCritical, "Error")
-            End Try
+                    Try
+                        bmp.Save(fileName, System.Drawing.Imaging.ImageFormat.Png)
+                    Catch ex As Exception
+                        MsgBox("Error saving render screenshot: " & ex.Message, vbOKOnly + vbCritical, "Error")
+                    Finally
+                        bmp.Dispose()
+                    End Try
+                End Sub)
+            If r <> PreviewControl.CaptureRequestResult.Accepted Then
+                ButtonRenderScreenshot.Enabled = True
+                If r = PreviewControl.CaptureRequestResult.Busy Then MsgBox("A capture of the preview is already in progress", vbOKOnly + vbInformation, "Screenshot")
+            End If
         End Using
     End Sub
 
@@ -3098,7 +3116,13 @@ Public Class Editor_Form
         ' apagarla desde el editor duraba hasta cerrar la ventana y encima dejaba el ajuste global
         ' contradiciendo lo que mostraba la casilla.
         Config_App.Current.Setting_RecalculateNormals = RecalculateNormalsCheck.Checked
-        EditPreviewControl.ForceRerender(RenderDirtyFlags.Morphs)
+        ' A reload, not the morphs alone: the box decides what the extraction leaves and whether the stage keeps the NIF's bytes (user decision 5-nov-2026).
+        Dim recarga = RenderDirtyFlags.Force
+#If DEBUG Then
+        ' WmMismaEscenaGate --ola7g [r2-8 box reload]: the box reapplies the morphs alone.
+        If WM_RenderExtensions.GateMutantOn("editor-box-morphs-only") Then recarga = RenderDirtyFlags.Morphs
+#End If
+        EditPreviewControl.ForceRerender(recarga)
     End Sub
     Private WithEvents ScrollTimer As New Timer() With {.Interval = 500, .Enabled = False}
     Private pendingValue As Boolean = False
@@ -3431,11 +3455,13 @@ Public Class Editor_Form
         If Selected_Shape.MaskedVertices.Count = 0 Then Return result
         If IsNothing(Selected_Shape.RelatedNifShape) Then Return result
 
-        ' Use skinned/posed world-space positions (what the user sees); fall back to NIF bind-pose
+        ' Use skinned/posed world-space positions (what the user sees: with the eye term of the preview's camera, D4,
+        ' SkinningHelper.DrawnPositions); fall back to NIF bind-pose
         Dim positions As Vector3()
         Dim geomMesh = EditPreviewControl?.Model?.meshes.FirstOrDefault(Function(m) m.MeshData.Shape Is Selected_Shape)
         If geomMesh IsNot Nothing AndAlso geomMesh.MeshData.Meshgeometry.Vertices IsNot Nothing AndAlso geomMesh.MeshData.Meshgeometry.Vertices.Length > 0 Then
-            Dim sv = SkinningHelper.GetWorldVertices(geomMesh.MeshData.Meshgeometry)
+            Dim ojo = EditPreviewControl.camera.GetEyePosition()
+            Dim sv = SkinningHelper.DrawnPositions(geomMesh.MeshData.Meshgeometry, New OpenTK.Mathematics.Vector3d(ojo.X, ojo.Y, ojo.Z))
             positions = sv.Select(Function(v) New Vector3(CSng(v.X), CSng(v.Y), CSng(v.Z))).ToArray()
         Else
             ' Polymorphic vertex positions via adapter (works for BSTriShape and NiTriShape families).

@@ -161,6 +161,8 @@
   <!-- La configuracion Publish: es Release con carpeta propia. Sin esto compilaria SIN
        OPTIMIZAR, en verde. Ver el comentario del .targets. -->
   <Import Project="..\..\FO4_Base_Library\ConfiguracionPublish.targets" />
+  <!-- F9: the program catalog's manifest next to the library of this output (ProgramCatalog.targets). -->
+  <Import Project="..\..\FO4_Base_Library\ProgramCatalog.targets" />
 
   <!-- Licencias. GPL-3 §4/§5 exige que el texto acompañe al binario, y MIT/Apache-2.0 exigen que
        viaje el aviso de cada componente. Se copian al output para que el paquete salga completo:

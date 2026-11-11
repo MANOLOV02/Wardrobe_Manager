@@ -3040,6 +3040,14 @@ Public Class Wardrobe_Manager_Form
         Editor.SingleBoneCheck.Checked = SingleBoneCheck.Checked
         Editor.RecalculateNormalsCheck.Checked = RecalculateNormalsCheck.Checked
         Dim resultado = Editor.ShowDialog(Me)
+        ' The Editor writes the box to the config (Editor_Form CheckBox1_CheckedChanged_1): this window's box and its preview follow it. Its
+        ' handler reloads when it changed; without this, the next Open_Editor assigns the old value over the new one without an event.
+#If DEBUG Then
+        ' WmMismaEscenaGate --ola7g [r2-8 box main]: the main window keeps its old box.
+        If Not WM_RenderExtensions.GateMutantOn("editor-main-box-not-synced") Then RecalculateNormalsCheck.Checked = Config_App.Current.Setting_RecalculateNormals
+#Else
+        RecalculateNormalsCheck.Checked = Config_App.Current.Setting_RecalculateNormals
+#End If
         If resultado <> DialogResult.Abort Then
             If preview_Control.WM_Last_rendered() Is selected Then
                 preview_Control.WM_RequestReload(cleanTextures:=True)
